@@ -45,27 +45,44 @@ serve(async (req) => {
 
     // Optional: allow payments regardless of participant status
 
-
-    // 2. Create payment record
-    const { data: payment, error: paymentError } = await admin
+    // 2. Check if payment record already exists (created during registration)
+    const { data: existingPayment } = await admin
       .from("payments")
-      .insert({
-        tenant_id: participant.tenant_id,
-        participant_id: participant.participant_id,
-        amount: amount || 650,
-        currency: currency || "THB",
-        method: "transfer",
-        status: "pending",
-      })
-      .select()
-      .single();
+      .select("payment_id, amount, currency")
+      .eq("participant_id", participant_id)
+      .eq("status", "pending")
+      .maybeSingle();
 
-    if (paymentError) {
-      console.error("Payment creation error:", paymentError);
-      throw paymentError;
+    let payment;
+
+    if (existingPayment) {
+      // Payment record already exists, just use it
+      console.log("Found existing payment record:", existingPayment.payment_id);
+      payment = existingPayment;
+    } else {
+      // Create new payment record (for backward compatibility)
+      console.log("Creating new payment record...");
+      const { data: newPayment, error: paymentError } = await admin
+        .from("payments")
+        .insert({
+          tenant_id: participant.tenant_id,
+          participant_id: participant.participant_id,
+          amount: amount || 650,
+          currency: currency || "THB",
+          method: "transfer",
+          status: "pending",
+        })
+        .select()
+        .single();
+
+      if (paymentError) {
+        console.error("Payment creation error:", paymentError);
+        throw paymentError;
+      }
+
+      payment = newPayment;
+      console.log("New payment record created:", payment.payment_id);
     }
-
-    console.log("Payment record created:", payment.payment_id);
 
     // 3. Upload slip to storage if provided
     if (slip_base64) {

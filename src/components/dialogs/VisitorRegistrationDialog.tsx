@@ -80,13 +80,7 @@ export default function VisitorRegistrationDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate meeting selection
-    if (!selectedMeetingId) {
-      toast.error("กรุณาเลือกวันที่ประชุม");
-      return;
-    }
-
-    // Validate required fields
+    // Validate required fields only (meeting is optional now)
     if (!formData.full_name || !formData.email || !formData.phone) {
       toast.error("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
       return;
@@ -141,30 +135,38 @@ export default function VisitorRegistrationDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Meeting Selection */}
-          {!meetingId && meetings.length > 0 && (
+          {!meetingId && (
             <div className="space-y-2">
-              <Label htmlFor="meeting">เลือกวันที่ประชุมที่ต้องการเข้าร่วม *</Label>
-              <Select 
-                value={selectedMeetingId} 
-                onValueChange={(value) => {
-                  setSelectedMeetingId(value);
-                  loadMeetingDetails(value);
-                }}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="-- เลือกวันประชุม --" />
-                </SelectTrigger>
-                <SelectContent>
-                  {meetings.map((meeting) => (
-                    <SelectItem key={meeting.meeting_id} value={meeting.meeting_id}>
-                      📅 {new Date(meeting.meeting_date).toLocaleDateString('th-TH')}
-                      {meeting.meeting_time && ` เวลา ${meeting.meeting_time}`}
-                      {meeting.theme && ` - ${meeting.theme}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="meeting">
+                เลือกวันที่ประชุมที่ต้องการเข้าร่วม
+                {meetings.length === 0 && <span className="text-muted-foreground"> (ทางเลือก)</span>}
+              </Label>
+              {meetings.length > 0 ? (
+                <Select 
+                  value={selectedMeetingId} 
+                  onValueChange={(value) => {
+                    setSelectedMeetingId(value);
+                    loadMeetingDetails(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="-- เลือกวันประชุม (ถ้ามี) --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {meetings.map((meeting) => (
+                      <SelectItem key={meeting.meeting_id} value={meeting.meeting_id}>
+                        📅 {new Date(meeting.meeting_date).toLocaleDateString('th-TH')}
+                        {meeting.meeting_time && ` เวลา ${meeting.meeting_time}`}
+                        {meeting.theme && ` - ${meeting.theme}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="text-sm text-muted-foreground bg-accent/50 p-3 rounded border">
+                  ℹ️ ขณะนี้ยังไม่มีการประชุมที่เปิดรับสมัคร คุณสามารถลงทะเบียนเป็น prospect ได้
+                </div>
+              )}
             </div>
           )}
 

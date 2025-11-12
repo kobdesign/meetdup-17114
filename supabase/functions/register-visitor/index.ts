@@ -89,6 +89,52 @@ serve(async (req) => {
       }
     }
 
+    // Auto-create payment record for visitor
+    let visitorFee = 0;
+
+    if (meeting_id) {
+      // Get visitor_fee from meeting
+      const { data: meetingData } = await adminClient
+        .from("meetings")
+        .select("visitor_fee")
+        .eq("meeting_id", meeting_id)
+        .single();
+      
+      visitorFee = meetingData?.visitor_fee || 0;
+    } else {
+      // Get default_visitor_fee from tenant_settings
+      const { data: settingsData } = await adminClient
+        .from("tenant_settings")
+        .select("default_visitor_fee")
+        .eq("tenant_id", tenant_id)
+        .single();
+      
+      visitorFee = settingsData?.default_visitor_fee || 650;
+    }
+
+    // Create payment record with status = 'pending' if fee > 0
+    if (visitorFee > 0) {
+      const { error: paymentError } = await adminClient
+        .from("payments")
+        .insert({
+          tenant_id: tenant_id,
+          participant_id: participant.participant_id,
+          meeting_id: meeting_id || null,
+          amount: visitorFee,
+          currency: "THB",
+          method: "transfer",
+          status: "pending",
+          notes: "Auto-generated payment record upon registration"
+        });
+
+      if (paymentError) {
+        console.error("Failed to create payment record:", paymentError);
+        // Don't throw error because participant is already created
+      } else {
+        console.log("Payment record created with amount:", visitorFee);
+      }
+    }
+
     return new Response(
       JSON.stringify({ participant_id: participant.participant_id }),
       {
