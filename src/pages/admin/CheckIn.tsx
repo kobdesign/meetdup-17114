@@ -7,16 +7,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { QrCode, Calendar, Users, Download } from "lucide-react";
 import QRCode from "react-qr-code";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 export default function CheckIn() {
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
   const [meetings, setMeetings] = useState<any[]>([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
   const [checkins, setCheckins] = useState<any[]>([]);
 
   useEffect(() => {
-    loadMeetings();
-  }, []);
+    if (effectiveTenantId) {
+      loadMeetings();
+    }
+  }, [effectiveTenantId]);
 
   useEffect(() => {
     if (selectedMeetingId) {
@@ -25,22 +29,12 @@ export default function CheckIn() {
   }, [selectedMeetingId]);
 
   const loadMeetings = async () => {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: userRole } = await supabase
-        .from("user_roles")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!userRole?.tenant_id) {
-        toast.error("ไม่พบข้อมูล tenant");
-        return;
-      }
-
-      // Get upcoming and recent meetings (last 7 days to next 30 days)
       const today = new Date();
       const sevenDaysAgo = new Date(today);
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -50,7 +44,7 @@ export default function CheckIn() {
       const { data, error } = await supabase
         .from("meetings")
         .select("*")
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .gte("meeting_date", sevenDaysAgo.toISOString().split("T")[0])
         .lte("meeting_date", thirtyDaysLater.toISOString().split("T")[0])
         .order("meeting_date", { ascending: false });
@@ -58,7 +52,6 @@ export default function CheckIn() {
       if (error) throw error;
       setMeetings(data || []);
 
-      // Auto-select today's meeting if available
       const todayMeeting = data?.find(
         m => m.meeting_date === today.toISOString().split("T")[0]
       );
@@ -127,6 +120,26 @@ export default function CheckIn() {
     return (
       <AdminLayout>
         <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+      </AdminLayout>
+    );
+  }
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">Check-In ด้วย QR Code</h1>
+            <p className="text-muted-foreground">สร้าง QR code สำหรับเช็คอินเข้าประชุม</p>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการจัดการ
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </AdminLayout>
     );
   }

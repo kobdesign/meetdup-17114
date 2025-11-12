@@ -9,12 +9,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Download, ExternalLink, Share2 } from "lucide-react";
 import QRCode from "react-qr-code";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 export default function Settings() {
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("");
   const [settings, setSettings] = useState({
@@ -28,32 +29,22 @@ export default function Settings() {
   });
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (effectiveTenantId) {
+      loadSettings();
+    }
+  }, [effectiveTenantId]);
 
   const loadSettings = async () => {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: userRole } = await supabase
-        .from("user_roles")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!userRole?.tenant_id) {
-        toast.error("ไม่พบข้อมูล tenant");
-        return;
-      }
-
-      setTenantId(userRole.tenant_id);
-
-      // Get tenant info
       const { data: tenantData } = await supabase
         .from("tenants")
         .select("slug, name")
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .single();
 
       if (tenantData) {
@@ -64,7 +55,7 @@ export default function Settings() {
       const { data, error } = await supabase
         .from("tenant_settings")
         .select("*")
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .single();
 
       if (error && error.code !== "PGRST116") throw error;
@@ -90,7 +81,7 @@ export default function Settings() {
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !tenantId) return;
+    if (!file || !effectiveTenantId) return;
 
     if (!file.type.startsWith("image/")) {
       toast.error("กรุณาเลือกไฟล์รูปภาพ");
@@ -113,7 +104,7 @@ export default function Settings() {
       }
 
       const fileExt = file.name.split(".").pop();
-      const fileName = `${tenantId}-${Date.now()}.${fileExt}`;
+      const fileName = `${effectiveTenantId}-${Date.now()}.${fileExt}`;
       const filePath = `logos/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -136,24 +127,22 @@ export default function Settings() {
   };
 
   const handleSave = async () => {
-    if (!tenantId) return;
+    if (!effectiveTenantId) return;
 
     setSaving(true);
 
     try {
-      // Update tenant name
       const { error: tenantError } = await supabase
         .from("tenants")
         .update({ name: tenantName })
-        .eq("tenant_id", tenantId);
+        .eq("tenant_id", effectiveTenantId);
 
       if (tenantError) throw tenantError;
 
-      // Update tenant settings
       const { error } = await supabase
         .from("tenant_settings")
         .upsert({
-          tenant_id: tenantId,
+          tenant_id: effectiveTenantId,
           logo_url: settings.logo_url,
           branding_color: settings.branding_color,
           currency: settings.currency,
@@ -206,6 +195,26 @@ export default function Settings() {
     return (
       <AdminLayout>
         <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+      </AdminLayout>
+    );
+  }
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">การตั้งค่า Chapter</h1>
+            <p className="text-muted-foreground">จัดการโลโก้ สี และข้อมูลองค์กร</p>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการจัดการ
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </AdminLayout>
     );
   }
@@ -378,7 +387,7 @@ export default function Settings() {
                 accept="image/*"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
-                  if (!file || !tenantId) return;
+                  if (!file || !effectiveTenantId) return;
 
                   if (!file.type.startsWith("image/")) {
                     toast.error("กรุณาเลือกไฟล์รูปภาพ");
@@ -400,7 +409,7 @@ export default function Settings() {
                     }
 
                     const fileExt = file.name.split(".").pop();
-                    const fileName = `${tenantId}-qr-${Date.now()}.${fileExt}`;
+                    const fileName = `${effectiveTenantId}-qr-${Date.now()}.${fileExt}`;
                     const filePath = `qr-codes/${fileName}`;
 
                     const { error: uploadError } = await supabase.storage
@@ -416,7 +425,7 @@ export default function Settings() {
                     await supabase
                       .from("tenant_settings")
                       .upsert({
-                        tenant_id: tenantId,
+                        tenant_id: effectiveTenantId,
                         payment_qr_payload: publicUrl,
                       });
 

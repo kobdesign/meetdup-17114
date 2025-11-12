@@ -10,47 +10,39 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Search, CheckCircle, XCircle, Clock, Mail, Phone, Bell, History } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 export default function Visitors() {
   const navigate = useNavigate();
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
   const [visitors, setVisitors] = useState<any[]>([]);
   const [filteredVisitors, setFilteredVisitors] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sendingReminders, setSendingReminders] = useState(false);
-  const [tenantId, setTenantId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadVisitors();
-  }, []);
+    if (effectiveTenantId) {
+      loadVisitors();
+    }
+  }, [effectiveTenantId]);
 
   useEffect(() => {
     filterVisitors();
   }, [visitors, searchTerm, statusFilter]);
 
   const loadVisitors = async () => {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: userRole } = await supabase
-        .from("user_roles")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!userRole?.tenant_id) {
-        toast.error("ไม่พบข้อมูล tenant");
-        return;
-      }
-
-      setTenantId(userRole.tenant_id);
-
       const { data, error } = await supabase
         .from("participants")
         .select("*")
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .in("status", ["visitor_pending_payment", "visitor_paid", "visitor_attended"])
         .order("created_at", { ascending: false });
 
@@ -99,15 +91,18 @@ export default function Visitors() {
   };
 
   const sendPaymentReminders = async () => {
-    if (!tenantId) {
-      toast.error("ไม่พบข้อมูล tenant");
+    if (!effectiveTenantId) {
+      toast.error(isSuperAdmin 
+        ? "กรุณาเลือก Chapter ที่ต้องการจัดการก่อน" 
+        : "ไม่พบข้อมูล Tenant"
+      );
       return;
     }
 
     setSendingReminders(true);
     try {
       const { data, error } = await supabase.functions.invoke('send-payment-reminder', {
-        body: { tenant_id: tenantId }
+        body: { tenant_id: effectiveTenantId }
       });
 
       if (error) throw error;
@@ -137,6 +132,26 @@ export default function Visitors() {
     return (
       <AdminLayout>
         <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+      </AdminLayout>
+    );
+  }
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">จัดการผู้เยี่ยมชม</h1>
+            <p className="text-muted-foreground">ดูรายชื่อและจัดการผู้เยี่ยมชมที่ลงทะเบียน</p>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการจัดการ
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </AdminLayout>
     );
   }
