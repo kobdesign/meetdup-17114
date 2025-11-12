@@ -7,9 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import AddTenantDialog from "@/components/dialogs/AddTenantDialog";
 import EditTenantDialog from "@/components/dialogs/EditTenantDialog";
+import QRCodeDialog from "@/components/dialogs/QRCodeDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, ExternalLink, QrCode } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Tenants() {
@@ -18,6 +19,7 @@ export default function Tenants() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showQRDialog, setShowQRDialog] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
 
   useEffect(() => {
@@ -48,6 +50,11 @@ export default function Tenants() {
   const handleDelete = (tenant: any) => {
     setSelectedTenant(tenant);
     setShowDeleteDialog(true);
+  };
+
+  const handleShowQR = (tenant: any) => {
+    setSelectedTenant(tenant);
+    setShowQRDialog(true);
   };
 
   const confirmDelete = async () => {
@@ -94,6 +101,13 @@ export default function Tenants() {
           onOpenChange={setShowEditDialog}
           onSuccess={fetchTenants}
           tenant={selectedTenant}
+        />
+
+        <QRCodeDialog
+          open={showQRDialog}
+          onOpenChange={setShowQRDialog}
+          slug={selectedTenant?.slug || ""}
+          name={selectedTenant?.name || ""}
         />
 
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -155,6 +169,14 @@ export default function Tenants() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleShowQR(tenant)}
+                              title="QR Code"
+                            >
+                              <QrCode className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"

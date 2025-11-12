@@ -7,13 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload } from "lucide-react";
+import { Upload, Download, ExternalLink, Share2 } from "lucide-react";
+import QRCode from "react-qr-code";
 
 export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenantSlug, setTenantSlug] = useState<string>("");
   const [settings, setSettings] = useState({
     logo_url: "",
     branding_color: "#1e40af",
@@ -44,6 +46,17 @@ export default function Settings() {
       }
 
       setTenantId(userRole.tenant_id);
+
+      // Get tenant slug
+      const { data: tenantData } = await supabase
+        .from("tenants")
+        .select("slug")
+        .eq("tenant_id", userRole.tenant_id)
+        .single();
+
+      if (tenantData) {
+        setTenantSlug(tenantData.slug);
+      }
 
       const { data, error } = await supabase
         .from("tenant_settings")
@@ -143,6 +156,36 @@ export default function Settings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const downloadQRCode = () => {
+    const svg = document.getElementById("chapter-qr-code");
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+      const pngFile = canvas.toDataURL("image/png");
+
+      const downloadLink = document.createElement("a");
+      downloadLink.download = `${tenantSlug}-qr-code.png`;
+      downloadLink.href = pngFile;
+      downloadLink.click();
+    };
+
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
+  const copyProfileLink = () => {
+    const profileUrl = `${window.location.origin}/chapter/${tenantSlug}`;
+    navigator.clipboard.writeText(profileUrl);
+    toast.success("คัดลอกลิงก์แล้ว");
   };
 
   if (loading) {
@@ -284,6 +327,66 @@ export default function Settings() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* QR Code Card */}
+        {tenantSlug && (
+          <Card>
+            <CardHeader>
+              <CardTitle>QR Code สำหรับ Public Profile</CardTitle>
+              <CardDescription>
+                แชร์ QR code นี้เพื่อให้ผู้สนใจสแกนและเข้าถึงหน้า public profile ของ chapter
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row gap-6 items-start">
+                <div className="flex-shrink-0">
+                  <div className="p-4 bg-white rounded-lg border inline-block">
+                    <QRCode
+                      id="chapter-qr-code"
+                      value={`${window.location.origin}/chapter/${tenantSlug}`}
+                      size={200}
+                      level="H"
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <Label>URL ของ Public Profile</Label>
+                    <div className="flex gap-2 mt-2">
+                      <Input
+                        value={`${window.location.origin}/chapter/${tenantSlug}`}
+                        readOnly
+                        className="font-mono text-sm"
+                      />
+                      <Button variant="outline" size="icon" onClick={copyProfileLink}>
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="icon" asChild>
+                        <a href={`/chapter/${tenantSlug}`} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={downloadQRCode} variant="outline">
+                      <Download className="mr-2 h-4 w-4" />
+                      ดาวน์โหลด QR Code
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>💡 วิธีใช้งาน QR Code:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>ดาวน์โหลดและพิมพ์ติดที่สถานที่ประชุม</li>
+                      <li>แชร์ในโซเชียลมีเดียหรือเอกสารประชาสัมพันธ์</li>
+                      <li>ใส่ใน name card หรือเอกสารทางธุรกิจ</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AdminLayout>
   );
