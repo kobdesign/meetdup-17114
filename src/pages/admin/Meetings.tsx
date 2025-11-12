@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ export default function Meetings() {
   const [adding, setAdding] = useState(false);
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
+  const [quillKey, setQuillKey] = useState(0);
   
   const navigate = useNavigate();
   
@@ -181,7 +182,7 @@ export default function Meetings() {
   };
   
   // Quill modules for Add Dialog
-  const quillModules = {
+  const quillModules = useMemo(() => ({
     toolbar: {
       container: [
         [{ 'header': [1, 2, 3, false] }],
@@ -194,10 +195,10 @@ export default function Meetings() {
         image: imageHandler
       }
     }
-  };
+  }), []);
   
   // Quill modules for Edit Dialog
-  const editQuillModules = {
+  const editQuillModules = useMemo(() => ({
     toolbar: {
       container: [
         [{ 'header': [1, 2, 3, false] }],
@@ -210,7 +211,7 @@ export default function Meetings() {
         image: editImageHandler
       }
     }
-  };
+  }), [editImageHandler]);
   
   // Preview handler
   const handlePreview = () => {
@@ -473,7 +474,10 @@ export default function Meetings() {
               </Button>
             </div>
           </div>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <Dialog open={showAddDialog} onOpenChange={(open) => {
+          setShowAddDialog(open);
+          if (open) setQuillKey(prev => prev + 1);
+        }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -575,9 +579,9 @@ export default function Meetings() {
 
                 <div className="space-y-2">
                   <Label htmlFor="description">รายละเอียดการประชุม</Label>
-                  <div className="border rounded-md overflow-hidden">
+                  <div className="border rounded-md">
                     <ReactQuill
-                      key={`add-quill-${showAddDialog}`}
+                      key={`add-quill-${quillKey}`}
                       ref={quillRef}
                       theme="snow"
                       value={newMeeting.description || ""}
@@ -585,10 +589,11 @@ export default function Meetings() {
                       placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
                       modules={quillModules}
                       className="bg-background"
+                      style={{ minHeight: '200px' }}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    รองรับ: หัวข้อ, ตัวหนา, ตัวเอียง, lists, links, 🖼️ รูปภาพ
+                    รองรับ: หัวข้อ, ตัวหนา, ตัวเอียง, lists, links, 🖼️รูปภาพ
                   </p>
                 </div>
                 

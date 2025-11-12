@@ -117,9 +117,20 @@ All colors MUST be HSL.
 }
 
 /* Custom Quill Editor Styles */
+.ql-toolbar {
+  display: block !important;
+  visibility: visible !important;
+  border-color: hsl(var(--border));
+  background: hsl(var(--background));
+}
+
 .ql-container {
+  display: block !important;
+  visibility: visible !important;
   font-family: inherit;
   font-size: 0.875rem;
+  border-color: hsl(var(--border));
+  background: hsl(var(--background));
 }
 
 .ql-editor {
