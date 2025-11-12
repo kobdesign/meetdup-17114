@@ -29,12 +29,19 @@ export default function RecurrenceSelector({ value, onChange, meetingDate }: Rec
   const [showCustomDialog, setShowCustomDialog] = useState(false);
   const [tempConfig, setTempConfig] = useState<RecurrenceConfig>(value);
 
+  // Check if meetingDate is valid
+  const isValidDate = meetingDate && !isNaN(new Date(meetingDate).getTime());
+  const meetingDateObj = isValidDate ? new Date(meetingDate) : new Date();
+
   const getRecurrenceLabel = () => {
     if (!value.pattern || value.pattern === "none") {
       return "ไม่ซ้ำ";
     }
 
-    const meetingDateObj = new Date(meetingDate);
+    if (!isValidDate) {
+      return "เลือกวันที่ประชุมก่อน";
+    }
+
     const dayName = format(meetingDateObj, "EEEE", { locale: th });
     const dateNum = format(meetingDateObj, "d");
 
@@ -82,9 +89,9 @@ export default function RecurrenceSelector({ value, onChange, meetingDate }: Rec
   const quickOptions = [
     { value: "none", label: "ไม่ซ้ำ" },
     { value: "daily", label: "ทุกวัน", interval: 1 },
-    { value: "weekly", label: `ทุกสัปดาห์ในวัน${format(new Date(meetingDate), "EEEE", { locale: th })}`, interval: 1 },
-    { value: "monthly", label: `ทุกเดือนวันที่ ${format(new Date(meetingDate), "d")}`, interval: 1 },
-    { value: "yearly", label: `ทุกปีในวันที่ ${format(new Date(meetingDate), "d MMMM", { locale: th })}`, interval: 1 },
+    { value: "weekly", label: isValidDate ? `ทุกสัปดาห์ในวัน${format(meetingDateObj, "EEEE", { locale: th })}` : "ทุกสัปดาห์", interval: 1 },
+    { value: "monthly", label: isValidDate ? `ทุกเดือนวันที่ ${format(meetingDateObj, "d")}` : "ทุกเดือน", interval: 1 },
+    { value: "yearly", label: isValidDate ? `ทุกปีในวันที่ ${format(meetingDateObj, "d MMMM", { locale: th })}` : "ทุกปี", interval: 1 },
     { value: "weekdays", label: "ทุกวันจันทร์-ศุกร์", interval: 1 },
     { value: "custom", label: "กำหนดเอง...", interval: 1 },
   ];
