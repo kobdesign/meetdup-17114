@@ -64,7 +64,7 @@ export function generateRecurringMeetings(meeting: Meeting): RecurringMeetingIns
   
   const interval = meeting.recurrence_interval || 1;
   let currentDate = new Date(startDate);
-  let count = 0;
+  let count = 1;  // นับ original meeting เป็นครั้งที่ 1 แล้ว
 
   // Generate instances
   currentDate = getNextOccurrence(currentDate, meeting.recurrence_pattern, interval, meeting.recurrence_days_of_week);
