@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 interface Payment {
   payment_id: string;
@@ -58,6 +59,7 @@ interface Participant {
 export default function PaymentHistory() {
   const { participantId } = useParams<{ participantId: string }>();
   const navigate = useNavigate();
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -75,38 +77,38 @@ export default function PaymentHistory() {
   const [newNotes, setNewNotes] = useState("");
   const [newSlipFile, setNewSlipFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
-  const [tenantId, setTenantId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
-  }, [participantId]);
+    if (effectiveTenantId && participantId) {
+      loadData();
+    }
+  }, [participantId, effectiveTenantId]);
 
   const loadData = async () => {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: userRole } = await supabase
         .from("user_roles")
-        .select("tenant_id, role")
+        .select("role")
         .eq("user_id", user.id)
         .single();
 
-      if (!userRole?.tenant_id) {
-        toast.error("ไม่พบข้อมูล tenant");
-        return;
-      }
-
-      setTenantId(userRole.tenant_id);
-      setCurrentUserRole(userRole.role);
+      setCurrentUserRole(userRole?.role || null);
 
       // Load participant data
       const { data: participantData, error: participantError } = await supabase
         .from("participants")
         .select("*")
         .eq("participant_id", participantId)
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .single();
 
       if (participantError) throw participantError;
@@ -117,7 +119,7 @@ export default function PaymentHistory() {
         .from("payments")
         .select("*")
         .eq("participant_id", participantId)
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .order("created_at", { ascending: false });
 
       if (paymentsError) throw paymentsError;
@@ -146,18 +148,18 @@ export default function PaymentHistory() {
       return;
     }
 
+    if (!effectiveTenantId) {
+      toast.error(isSuperAdmin 
+        ? "กรุณาเลือก Chapter ที่ต้องการจัดการก่อน" 
+        : "ไม่พบข้อมูล Tenant"
+      );
+      return;
+    }
+
     setProcessingRefund(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not found");
-
-      const { data: userRole } = await supabase
-        .from("user_roles")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!userRole?.tenant_id) throw new Error("Tenant not found");
 
       // Create refund request for approval
       const { error } = await supabase
@@ -166,7 +168,7 @@ export default function PaymentHistory() {
           payment_id: paymentId,
           requested_by: user.id,
           reason: refundReason,
-          tenant_id: userRole.tenant_id,
+          tenant_id: effectiveTenantId,
           status: "pending" as any,
         });
 
@@ -270,6 +272,14 @@ export default function PaymentHistory() {
       return;
     }
 
+    if (!effectiveTenantId) {
+      toast.error(isSuperAdmin 
+        ? "กรุณาเลือก Chapter ที่ต้องการจัดการก่อน" 
+        : "ไม่พบข้อมูล Tenant"
+      );
+      return;
+    }
+
     const amount = parseFloat(newAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error("กรุณาระบุจำนวนเงินที่ถูกต้อง");
@@ -281,10 +291,10 @@ export default function PaymentHistory() {
       let slipUrl = null;
 
       // Upload slip if provided
-      if (newSlipFile && tenantId) {
+      if (newSlipFile) {
         const fileExt = newSlipFile.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `${tenantId}/${fileName}`;
+        const filePath = `${effectiveTenantId}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('payment-slips')
@@ -304,7 +314,7 @@ export default function PaymentHistory() {
         .from("payments")
         .insert({
           participant_id: participantId,
-          tenant_id: tenantId,
+          tenant_id: effectiveTenantId,
           amount,
           method: newMethod as any,
           status: "paid" as any,
@@ -358,6 +368,30 @@ export default function PaymentHistory() {
     return (
       <AdminLayout>
         <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+      </AdminLayout>
+    );
+  }
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/admin/visitors")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold">ประวัติการชำระเงิน</h1>
+            </div>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการจัดการ
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </AdminLayout>
     );
   }

@@ -9,28 +9,46 @@ import { Calendar, MapPin, Clock, Users, ArrowLeft, DollarSign } from "lucide-re
 import MapDisplay from "@/components/MapDisplay";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 export default function MeetingDetails() {
   const { meetingId } = useParams();
   const navigate = useNavigate();
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
   const [meeting, setMeeting] = useState<any>(null);
   const [attendees, setAttendees] = useState<any[]>([]);
 
   useEffect(() => {
-    loadMeetingDetails();
-  }, [meetingId]);
+    if (effectiveTenantId && meetingId) {
+      loadMeetingDetails();
+    }
+  }, [meetingId, effectiveTenantId]);
 
   const loadMeetingDetails = async () => {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       // Load meeting details
       const { data: meetingData, error: meetingError } = await supabase
         .from("meetings")
         .select("*")
         .eq("meeting_id", meetingId)
+        .eq("tenant_id", effectiveTenantId)
         .single();
 
       if (meetingError) throw meetingError;
+      
+      // Security check: if no meeting found or tenant_id doesn't match
+      if (!meetingData || meetingData.tenant_id !== effectiveTenantId) {
+        setMeeting(null);
+        setLoading(false);
+        return;
+      }
+      
       setMeeting(meetingData);
 
       // Load attendees (checked-in participants)
@@ -49,6 +67,7 @@ export default function MeetingDetails() {
           )
         `)
         .eq("meeting_id", meetingId)
+        .eq("tenant_id", effectiveTenantId)
         .order("checkin_time", { ascending: false });
 
       if (checkinsError) throw checkinsError;
@@ -87,6 +106,31 @@ export default function MeetingDetails() {
     return (
       <AdminLayout>
         <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+      </AdminLayout>
+    );
+  }
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <Button variant="ghost" onClick={() => navigate("/admin/meetings")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              กลับ
+            </Button>
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold">รายละเอียดการประชุม</h1>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการจัดการ
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </AdminLayout>
     );
   }

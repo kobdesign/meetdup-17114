@@ -89,6 +89,7 @@ export default function Meetings() {
           *,
           checkins(count)
         `)
+        .eq("tenant_id", effectiveTenantId)
         .order("meeting_date", { ascending: false });
 
       if (error) throw error;
@@ -248,6 +249,26 @@ export default function Meetings() {
       setDeleting(false);
     }
   };
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">Meetings</h1>
+            <p className="text-muted-foreground">Schedule and track chapter meetings</p>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการจัดการ
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
