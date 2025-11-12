@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import LocationSearch from "@/components/LocationSearch";
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState<any[]>([]);
@@ -284,15 +285,19 @@ export default function Meetings() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="venue">สถานที่</Label>
-                  <Input
-                    id="venue"
-                    value={newMeeting.venue}
-                    onChange={(e) => setNewMeeting({ ...newMeeting, venue: e.target.value })}
-                    placeholder="โรงแรม ABC"
-                  />
-                </div>
+                <LocationSearch
+                  label="สถานที่"
+                  value={newMeeting.venue}
+                  onChange={(value) => setNewMeeting({ ...newMeeting, venue: value })}
+                  onLocationSelect={(lat, lng, placeName) => {
+                    setNewMeeting({
+                      ...newMeeting,
+                      location_lat: lat.toString(),
+                      location_lng: lng.toString(),
+                    });
+                  }}
+                  placeholder="ค้นหาสถานที่... (เช่น โรงแรม ABC)"
+                />
 
                 <div className="space-y-2">
                   <Label htmlFor="location_details">รายละเอียดสถานที่</Label>
@@ -477,15 +482,19 @@ export default function Meetings() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_venue">สถานที่</Label>
-                    <Input
-                      id="edit_venue"
-                      value={editingMeeting.venue || ""}
-                      onChange={(e) => setEditingMeeting({ ...editingMeeting, venue: e.target.value })}
-                      placeholder="โรงแรม ABC"
-                    />
-                  </div>
+                  <LocationSearch
+                    label="สถานที่"
+                    value={editingMeeting.venue || ""}
+                    onChange={(value) => setEditingMeeting({ ...editingMeeting, venue: value })}
+                    onLocationSelect={(lat, lng, placeName) => {
+                      setEditingMeeting({
+                        ...editingMeeting,
+                        location_lat: lat.toString(),
+                        location_lng: lng.toString(),
+                      });
+                    }}
+                    placeholder="ค้นหาสถานที่... (เช่น โรงแรม ABC)"
+                  />
 
                   <div className="space-y-2">
                     <Label htmlFor="edit_location_details">รายละเอียดสถานที่</Label>
