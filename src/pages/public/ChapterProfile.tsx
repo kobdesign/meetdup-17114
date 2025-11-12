@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,7 @@ interface Meeting {
 
 export default function ChapterProfile() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [chapter, setChapter] = useState<ChapterData | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -36,6 +37,17 @@ export default function ChapterProfile() {
   useEffect(() => {
     loadChapterData();
   }, [slug]);
+
+  // Auto-open registration dialog if meeting param exists
+  useEffect(() => {
+    if (chapter && searchParams.get('meeting')) {
+      const meetingId = searchParams.get('meeting');
+      if (meetingId) {
+        setSelectedMeetingId(meetingId);
+        setShowRegistrationDialog(true);
+      }
+    }
+  }, [chapter, searchParams]);
 
   const loadChapterData = async () => {
     try {

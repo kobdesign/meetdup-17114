@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Calendar, MapPin, Clock, Users, ArrowLeft, DollarSign } from "lucide-react";
+import { Calendar, MapPin, Clock, Users, ArrowLeft, DollarSign, QrCode } from "lucide-react";
 import MapDisplay from "@/components/MapDisplay";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useTenantContext } from "@/contexts/TenantContext";
+import QRCodeDialog from "@/components/dialogs/QRCodeDialog";
 
 export default function MeetingDetails() {
   const { meetingId } = useParams();
@@ -19,6 +20,8 @@ export default function MeetingDetails() {
   const [meeting, setMeeting] = useState<any>(null);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [attendees, setAttendees] = useState<any[]>([]);
+  const [tenantSlug, setTenantSlug] = useState<string>("");
+  const [showQRDialog, setShowQRDialog] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId && meetingId) {
@@ -51,6 +54,15 @@ export default function MeetingDetails() {
       }
       
       setMeeting(meetingData);
+
+      // Load tenant slug for QR code
+      const { data: tenantData } = await supabase
+        .from("tenants")
+        .select("slug")
+        .eq("tenant_id", effectiveTenantId)
+        .single();
+
+      if (tenantData) setTenantSlug(tenantData.slug);
 
       // Load registrations
       const { data: regsData, error: regsError } = await supabase
@@ -283,6 +295,18 @@ export default function MeetingDetails() {
                   </div>
                 </div>
               )}
+
+              <div className="pt-4 border-t">
+                <Button 
+                  onClick={() => setShowQRDialog(true)} 
+                  className="w-full"
+                  variant="outline"
+                  disabled={!tenantSlug}
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  แสดง QR Code ลงทะเบียน
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -427,6 +451,15 @@ export default function MeetingDetails() {
           </CardContent>
         </Card>
       </div>
+
+      {/* QR Code Dialog */}
+      <QRCodeDialog
+        open={showQRDialog}
+        onOpenChange={setShowQRDialog}
+        slug={tenantSlug}
+        name={`${meeting.theme || "การประชุม"} - ${new Date(meeting.meeting_date).toLocaleDateString("th-TH")}`}
+        meetingId={meetingId}
+      />
     </AdminLayout>
   );
 }

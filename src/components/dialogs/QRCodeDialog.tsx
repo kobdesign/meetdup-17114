@@ -9,10 +9,13 @@ interface QRCodeDialogProps {
   onOpenChange: (open: boolean) => void;
   slug: string;
   name: string;
+  meetingId?: string;
 }
 
-export default function QRCodeDialog({ open, onOpenChange, slug, name }: QRCodeDialogProps) {
-  const profileUrl = `${window.location.origin}/chapter/${slug}`;
+export default function QRCodeDialog({ open, onOpenChange, slug, name, meetingId }: QRCodeDialogProps) {
+  const profileUrl = meetingId
+    ? `${window.location.origin}/chapter/${slug}?meeting=${meetingId}`
+    : `${window.location.origin}/chapter/${slug}`;
 
   const downloadQRCode = () => {
     const svg = document.getElementById(`qr-code-${slug}`);
@@ -46,7 +49,10 @@ export default function QRCodeDialog({ open, onOpenChange, slug, name }: QRCodeD
         <DialogHeader>
           <DialogTitle>QR Code - {name}</DialogTitle>
           <DialogDescription>
-            QR code สำหรับหน้า public profile ของ chapter
+            {meetingId 
+              ? "QR code สำหรับลงทะเบียนเข้าร่วมการประชุมนี้โดยตรง"
+              : "QR code สำหรับหน้า public profile ของ chapter"
+            }
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-4 py-4">
