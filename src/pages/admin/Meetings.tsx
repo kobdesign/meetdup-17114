@@ -7,8 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye, Repeat, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
-import { getRecurrenceIntervalLabel, getRecurrenceExampleText, shouldShowIntervalInput } from "@/lib/meetingUtils";
 import MeetingsCalendar from "@/components/MeetingsCalendar";
+import RecurrenceSelector from "@/components/RecurrenceSelector";
 import {
   Dialog,
   DialogContent,
@@ -55,10 +55,12 @@ export default function Meetings() {
     location_lng: "",
     theme: "",
     visitor_fee: 650,
-    recurrence_pattern: "none" as const,
+    recurrence_pattern: "none",
     recurrence_interval: 1,
     recurrence_end_date: "",
     recurrence_days_of_week: [] as string[],
+    recurrence_end_type: "never" as "never" | "date" | "count",
+    recurrence_occurrence_count: 10,
   });
 
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -148,6 +150,8 @@ export default function Meetings() {
         recurrence_interval: 1,
         recurrence_end_date: "",
         recurrence_days_of_week: [],
+        recurrence_end_type: "never",
+        recurrence_occurrence_count: 10,
       });
       fetchMeetings();
     } catch (error: any) {
@@ -380,96 +384,26 @@ export default function Meetings() {
                   />
                 </div>
 
-                <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-4">การทำซ้ำ (Recurring)</h3>
-                  
-                  <div className="space-y-2 mb-4">
-                    <Label htmlFor="recurrence_pattern">รูปแบบการทำซ้ำ</Label>
-                    <Select
-                      value={newMeeting.recurrence_pattern}
-                      onValueChange={(value: any) => setNewMeeting({ ...newMeeting, recurrence_pattern: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">ไม่ซ้ำ</SelectItem>
-                        <SelectItem value="daily">ทุกวัน</SelectItem>
-                        <SelectItem value="weekly">ทุกสัปดาห์</SelectItem>
-                        <SelectItem value="monthly">ทุกเดือน</SelectItem>
-                        <SelectItem value="yearly">ทุกปี</SelectItem>
-                        <SelectItem value="weekdays">ทุกวันจันทร์-ศุกร์</SelectItem>
-                        <SelectItem value="custom">กำหนดเอง</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {newMeeting.recurrence_pattern !== "none" && (
-                    <>
-                      {shouldShowIntervalInput(newMeeting.recurrence_pattern) && (
-                        <div className="space-y-2 mb-4">
-                          <Label htmlFor="recurrence_interval">
-                            {getRecurrenceIntervalLabel(newMeeting.recurrence_pattern)}
-                          </Label>
-                          <Input
-                            id="recurrence_interval"
-                            type="number"
-                            min="1"
-                            value={newMeeting.recurrence_interval}
-                            onChange={(e) => setNewMeeting({ ...newMeeting, recurrence_interval: parseInt(e.target.value) })}
-                          />
-                          {newMeeting.recurrence_interval > 0 && (
-                            <p className="text-sm text-muted-foreground">
-                              {getRecurrenceExampleText(newMeeting.recurrence_pattern, newMeeting.recurrence_interval)}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="space-y-2 mb-4">
-                        <Label htmlFor="recurrence_end_date">สิ้นสุดวันที่</Label>
-                        <Input
-                          id="recurrence_end_date"
-                          type="date"
-                          value={newMeeting.recurrence_end_date}
-                          onChange={(e) => setNewMeeting({ ...newMeeting, recurrence_end_date: e.target.value })}
-                        />
-                      </div>
-
-                      {newMeeting.recurrence_pattern === "custom" && (
-                        <div className="space-y-2">
-                          <Label>เลือกวัน</Label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
-                              <div key={day} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={day}
-                                  checked={newMeeting.recurrence_days_of_week.includes(day)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setNewMeeting({
-                                        ...newMeeting,
-                                        recurrence_days_of_week: [...newMeeting.recurrence_days_of_week, day],
-                                      });
-                                    } else {
-                                      setNewMeeting({
-                                        ...newMeeting,
-                                        recurrence_days_of_week: newMeeting.recurrence_days_of_week.filter((d) => d !== day),
-                                      });
-                                    }
-                                  }}
-                                />
-                                <Label htmlFor={day} className="cursor-pointer">
-                                  {day === "monday" ? "จันทร์" : day === "tuesday" ? "อังคาร" : day === "wednesday" ? "พุธ" : day === "thursday" ? "พฤหัสบดี" : day === "friday" ? "ศุกร์" : day === "saturday" ? "เสาร์" : "อาทิตย์"}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
+                <RecurrenceSelector
+                  meetingDate={newMeeting.meeting_date}
+                  value={{
+                    pattern: newMeeting.recurrence_pattern,
+                    interval: newMeeting.recurrence_interval,
+                    endDate: newMeeting.recurrence_end_date,
+                    daysOfWeek: newMeeting.recurrence_days_of_week,
+                    endType: newMeeting.recurrence_end_type,
+                    occurrenceCount: newMeeting.recurrence_occurrence_count,
+                  }}
+                  onChange={(config) => setNewMeeting({
+                    ...newMeeting,
+                    recurrence_pattern: config.pattern,
+                    recurrence_interval: config.interval,
+                    recurrence_end_date: config.endDate,
+                    recurrence_days_of_week: config.daysOfWeek,
+                    recurrence_end_type: config.endType,
+                    recurrence_occurrence_count: config.occurrenceCount,
+                  })}
+                />
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
@@ -586,97 +520,26 @@ export default function Meetings() {
                     />
                   </div>
 
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold mb-4">การทำซ้ำ (Recurring)</h3>
-                    
-                    <div className="space-y-2 mb-4">
-                      <Label htmlFor="edit_recurrence_pattern">รูปแบบการทำซ้ำ</Label>
-                      <Select
-                        value={editingMeeting.recurrence_pattern || "none"}
-                        onValueChange={(value: any) => setEditingMeeting({ ...editingMeeting, recurrence_pattern: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">ไม่ซ้ำ</SelectItem>
-                          <SelectItem value="daily">ทุกวัน</SelectItem>
-                          <SelectItem value="weekly">ทุกสัปดาห์</SelectItem>
-                          <SelectItem value="monthly">ทุกเดือน</SelectItem>
-                          <SelectItem value="yearly">ทุกปี</SelectItem>
-                          <SelectItem value="weekdays">ทุกวันจันทร์-ศุกร์</SelectItem>
-                          <SelectItem value="custom">กำหนดเอง</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {editingMeeting.recurrence_pattern && editingMeeting.recurrence_pattern !== "none" && (
-                      <>
-                        {shouldShowIntervalInput(editingMeeting.recurrence_pattern) && (
-                          <div className="space-y-2 mb-4">
-                            <Label htmlFor="edit_recurrence_interval">
-                              {getRecurrenceIntervalLabel(editingMeeting.recurrence_pattern)}
-                            </Label>
-                            <Input
-                              id="edit_recurrence_interval"
-                              type="number"
-                              min="1"
-                              value={editingMeeting.recurrence_interval || 1}
-                              onChange={(e) => setEditingMeeting({ ...editingMeeting, recurrence_interval: parseInt(e.target.value) })}
-                            />
-                            {editingMeeting.recurrence_interval > 0 && (
-                              <p className="text-sm text-muted-foreground">
-                                {getRecurrenceExampleText(editingMeeting.recurrence_pattern, editingMeeting.recurrence_interval)}
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="space-y-2 mb-4">
-                          <Label htmlFor="edit_recurrence_end_date">สิ้นสุดวันที่</Label>
-                          <Input
-                            id="edit_recurrence_end_date"
-                            type="date"
-                            value={editingMeeting.recurrence_end_date || ""}
-                            onChange={(e) => setEditingMeeting({ ...editingMeeting, recurrence_end_date: e.target.value })}
-                          />
-                        </div>
-
-                        {editingMeeting.recurrence_pattern === "custom" && (
-                          <div className="space-y-2">
-                            <Label>เลือกวัน</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                              {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
-                                <div key={day} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={`edit_${day}`}
-                                    checked={editingMeeting.recurrence_days_of_week?.includes(day) || false}
-                                    onCheckedChange={(checked) => {
-                                      const currentDays = editingMeeting.recurrence_days_of_week || [];
-                                      if (checked) {
-                                        setEditingMeeting({
-                                          ...editingMeeting,
-                                          recurrence_days_of_week: [...currentDays, day],
-                                        });
-                                      } else {
-                                        setEditingMeeting({
-                                          ...editingMeeting,
-                                          recurrence_days_of_week: currentDays.filter((d: string) => d !== day),
-                                        });
-                                      }
-                                    }}
-                                  />
-                                  <Label htmlFor={`edit_${day}`} className="cursor-pointer">
-                                    {day === "monday" ? "จันทร์" : day === "tuesday" ? "อังคาร" : day === "wednesday" ? "พุธ" : day === "thursday" ? "พฤหัสบดี" : day === "friday" ? "ศุกร์" : day === "saturday" ? "เสาร์" : "อาทิตย์"}
-                                  </Label>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
+                  <RecurrenceSelector
+                    meetingDate={editingMeeting.meeting_date}
+                    value={{
+                      pattern: editingMeeting.recurrence_pattern || "none",
+                      interval: editingMeeting.recurrence_interval || 1,
+                      endDate: editingMeeting.recurrence_end_date || "",
+                      daysOfWeek: editingMeeting.recurrence_days_of_week || [],
+                      endType: (editingMeeting.recurrence_end_type as "never" | "date" | "count") || "never",
+                      occurrenceCount: editingMeeting.recurrence_occurrence_count || 10,
+                    }}
+                    onChange={(config) => setEditingMeeting({
+                      ...editingMeeting,
+                      recurrence_pattern: config.pattern,
+                      recurrence_interval: config.interval,
+                      recurrence_end_date: config.endDate,
+                      recurrence_days_of_week: config.daysOfWeek,
+                      recurrence_end_type: config.endType,
+                      recurrence_occurrence_count: config.occurrenceCount,
+                    })}
+                  />
                 </div>
               )}
               <DialogFooter>
