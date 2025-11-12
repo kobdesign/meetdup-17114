@@ -113,8 +113,16 @@ export type Database = {
       meetings: {
         Row: {
           created_at: string
+          location_details: string | null
+          location_lat: number | null
+          location_lng: number | null
           meeting_date: string
           meeting_id: string
+          meeting_time: string | null
+          recurrence_days_of_week: string[] | null
+          recurrence_end_date: string | null
+          recurrence_interval: number | null
+          recurrence_pattern: string | null
           tenant_id: string
           theme: string | null
           venue: string | null
@@ -122,8 +130,16 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          location_details?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
           meeting_date: string
           meeting_id?: string
+          meeting_time?: string | null
+          recurrence_days_of_week?: string[] | null
+          recurrence_end_date?: string | null
+          recurrence_interval?: number | null
+          recurrence_pattern?: string | null
           tenant_id: string
           theme?: string | null
           venue?: string | null
@@ -131,8 +147,16 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          location_details?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
           meeting_date?: string
           meeting_id?: string
+          meeting_time?: string | null
+          recurrence_days_of_week?: string[] | null
+          recurrence_end_date?: string | null
+          recurrence_interval?: number | null
+          recurrence_pattern?: string | null
           tenant_id?: string
           theme?: string | null
           venue?: string | null
