@@ -14,8 +14,6 @@ import { useTenantContext } from "@/contexts/TenantContext";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { uploadMeetingImage } from "@/lib/imageUploadHandler";
-import MeetingTemplateSelector from "@/components/MeetingTemplateSelector";
-import { MeetingTemplate } from "@/lib/meetingTemplates";
 import {
   Dialog,
   DialogContent,
@@ -64,8 +62,6 @@ export default function Meetings() {
     description: ""
   });
   
-  // Template state
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>(undefined);
   
   const [newMeeting, setNewMeeting] = useState({
     meeting_date: "",
@@ -224,18 +220,6 @@ export default function Meetings() {
     setShowPreview(true);
   };
   
-  // Template selection handler
-  const handleSelectTemplate = (template: MeetingTemplate) => {
-    setSelectedTemplateId(template.id);
-    
-    setNewMeeting({
-      ...newMeeting,
-      theme: template.theme,
-      description: template.content
-    });
-    
-    toast.success(`ใช้เทมเพลต: ${template.name}`);
-  };
 
   const handleAddMeeting = async () => {
     if (!newMeeting.meeting_date) {
@@ -452,13 +436,6 @@ export default function Meetings() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                {/* Template Selector */}
-                <MeetingTemplateSelector
-                  onSelectTemplate={handleSelectTemplate}
-                  selectedTemplateId={selectedTemplateId}
-                />
-                
-                <Separator className="my-2" />
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="meeting_date">วันที่ประชุม *</Label>
