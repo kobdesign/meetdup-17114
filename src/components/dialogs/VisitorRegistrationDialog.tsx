@@ -55,7 +55,7 @@ export default function VisitorRegistrationDialog({
           business_type: formData.business_type,
           goal: formData.goal,
           notes: formData.notes,
-          status: "visitor",
+          status: "visitor_pending_payment",
         } as any)
         .select()
         .single();
