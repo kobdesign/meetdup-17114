@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, CheckCircle, XCircle, Clock, Mail, Phone, Bell } from "lucide-react";
+import { Search, CheckCircle, XCircle, Clock, Mail, Phone, Bell, History } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export default function Visitors() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [visitors, setVisitors] = useState<any[]>([]);
   const [filteredVisitors, setFilteredVisitors] = useState<any[]>([]);
@@ -244,6 +246,15 @@ export default function Visitors() {
                       </TableCell>
                         <TableCell className="text-right">
                           <div className="space-y-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigate(`/admin/payment-history/${visitor.participant_id}`)}
+                              className="w-full"
+                            >
+                              <History className="h-4 w-4 mr-1" />
+                              ประวัติการชำระ
+                            </Button>
                             {visitor.payment_status === "pending" && visitor.slip_url && (
                               <Button
                                 size="sm"
