@@ -16,6 +16,7 @@ export default function Settings() {
   const [uploading, setUploading] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantSlug, setTenantSlug] = useState<string>("");
+  const [tenantName, setTenantName] = useState<string>("");
   const [settings, setSettings] = useState({
     logo_url: "",
     branding_color: "#1e40af",
@@ -48,15 +49,16 @@ export default function Settings() {
 
       setTenantId(userRole.tenant_id);
 
-      // Get tenant slug
+      // Get tenant info
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("slug")
+        .select("slug, name")
         .eq("tenant_id", userRole.tenant_id)
         .single();
 
       if (tenantData) {
         setTenantSlug(tenantData.slug);
+        setTenantName(tenantData.name);
       }
 
       const { data, error } = await supabase
@@ -139,6 +141,15 @@ export default function Settings() {
     setSaving(true);
 
     try {
+      // Update tenant name
+      const { error: tenantError } = await supabase
+        .from("tenants")
+        .update({ name: tenantName })
+        .eq("tenant_id", tenantId);
+
+      if (tenantError) throw tenantError;
+
+      // Update tenant settings
       const { error } = await supabase
         .from("tenant_settings")
         .upsert({
@@ -213,6 +224,17 @@ export default function Settings() {
             <CardDescription>ปรับแต่งรูปลักษณ์และการตั้งค่าของ chapter</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div>
+              <Label htmlFor="tenant_name">ชื่อ Chapter</Label>
+              <Input
+                id="tenant_name"
+                value={tenantName}
+                onChange={(e) => setTenantName(e.target.value)}
+                placeholder="BNI Bangkok Central"
+                className="mt-2"
+              />
+            </div>
+
             <div>
               <Label>โลโก้ Chapter</Label>
               <div className="mt-2 flex items-center gap-4">
