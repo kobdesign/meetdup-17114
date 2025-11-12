@@ -244,7 +244,6 @@ export type Database = {
           nickname: string | null
           notes: string | null
           participant_id: string
-          payment_status: Database["public"]["Enums"]["payment_status"] | null
           phone: string | null
           status: Database["public"]["Enums"]["participant_status"]
           tenant_id: string
@@ -263,7 +262,6 @@ export type Database = {
           nickname?: string | null
           notes?: string | null
           participant_id?: string
-          payment_status?: Database["public"]["Enums"]["payment_status"] | null
           phone?: string | null
           status?: Database["public"]["Enums"]["participant_status"]
           tenant_id: string
@@ -282,7 +280,6 @@ export type Database = {
           nickname?: string | null
           notes?: string | null
           participant_id?: string
-          payment_status?: Database["public"]["Enums"]["payment_status"] | null
           phone?: string | null
           status?: Database["public"]["Enums"]["participant_status"]
           tenant_id?: string
@@ -494,31 +491,25 @@ export type Database = {
           audit_id: string
           changed_by: string | null
           created_at: string
-          from_status: Database["public"]["Enums"]["participant_status"] | null
           participant_id: string
           reason: string | null
           tenant_id: string
-          to_status: Database["public"]["Enums"]["participant_status"]
         }
         Insert: {
           audit_id?: string
           changed_by?: string | null
           created_at?: string
-          from_status?: Database["public"]["Enums"]["participant_status"] | null
           participant_id: string
           reason?: string | null
           tenant_id: string
-          to_status: Database["public"]["Enums"]["participant_status"]
         }
         Update: {
           audit_id?: string
           changed_by?: string | null
           created_at?: string
-          from_status?: Database["public"]["Enums"]["participant_status"] | null
           participant_id?: string
           reason?: string | null
           tenant_id?: string
-          to_status?: Database["public"]["Enums"]["participant_status"]
         }
         Relationships: [
           {
@@ -798,13 +789,9 @@ export type Database = {
       invoice_status: "paid" | "unpaid" | "void"
       participant_status:
         | "prospect"
-        | "invited"
-        | "visitor_pending_payment"
-        | "visitor_paid"
-        | "visitor_attended"
-        | "member_pending"
-        | "member_active"
-        | "member_suspended"
+        | "visitor"
+        | "declined"
+        | "member"
         | "alumni"
       payment_method: "promptpay" | "transfer" | "cash"
       payment_status: "pending" | "paid" | "waived" | "failed" | "refunded"
@@ -943,13 +930,9 @@ export const Constants = {
       invoice_status: ["paid", "unpaid", "void"],
       participant_status: [
         "prospect",
-        "invited",
-        "visitor_pending_payment",
-        "visitor_paid",
-        "visitor_attended",
-        "member_pending",
-        "member_active",
-        "member_suspended",
+        "visitor",
+        "declined",
+        "member",
         "alumni",
       ],
       payment_method: ["promptpay", "transfer", "cash"],

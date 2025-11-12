@@ -58,7 +58,7 @@ serve(async (req) => {
         business_type,
         goal,
         notes,
-        status: "visitor_pending_payment",
+        status: "prospect",
       })
       .select("participant_id")
       .single();

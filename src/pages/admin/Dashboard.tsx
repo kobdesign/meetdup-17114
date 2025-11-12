@@ -27,7 +27,7 @@ export default function Dashboard() {
     try {
       const [participantsRes, membersRes, meetingsRes, paymentsRes] = await Promise.all([
         supabase.from("participants").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId),
-        supabase.from("participants").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId).eq("status", "member_active"),
+        supabase.from("participants").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId).eq("status", "member"),
         supabase.from("meetings").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId).gte("meeting_date", new Date().toISOString()),
         supabase.from("payments").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId).eq("status", "pending"),
       ]);

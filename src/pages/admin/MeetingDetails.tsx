@@ -65,8 +65,7 @@ export default function MeetingDetails() {
             email,
             phone,
             company,
-            status,
-            payment_status
+            status
           )
         `)
         .eq("meeting_id", meetingId)

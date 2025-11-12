@@ -7,16 +7,14 @@ interface StatusBadgeProps {
 }
 
 const statusConfig: Record<string, { variant: string; label: string }> = {
-  // Participant statuses
-  prospect: { variant: "secondary", label: "Prospect" },
-  invited: { variant: "info", label: "Invited" },
-  visitor_pending_payment: { variant: "warning", label: "Payment Pending" },
-  visitor_paid: { variant: "success", label: "Paid" },
-  visitor_attended: { variant: "success", label: "Attended" },
-  member_pending: { variant: "warning", label: "Pending Member" },
-  member_active: { variant: "success", label: "Active Member" },
-  member_suspended: { variant: "destructive", label: "Suspended" },
-  alumni: { variant: "secondary", label: "Alumni" },
+  // Participant statuses (5 types)
+  prospect: { variant: "warning", label: "🟡 ผู้สนใจ" },
+  visitor: { variant: "success", label: "🟢 ผู้เยี่ยมชม" },
+  declined: { variant: "destructive", label: "🔴 ไม่สนใจ" },
+  member: { variant: "info", label: "🔵 สมาชิก" },
+  alumni: { variant: "secondary", label: "⚫ อดีตสมาชิก" },
+  
+  // Payment statuses
   
   // Payment statuses
   pending: { variant: "warning", label: "Pending" },
@@ -45,7 +43,7 @@ export const StatusBadge = ({ status, className }: StatusBadgeProps) => {
   const variantClasses = {
     success: "bg-success/10 text-success border-success/20 hover:bg-success/20",
     warning: "bg-warning/10 text-warning border-warning/20 hover:bg-warning/20",
-    info: "bg-info/10 text-info border-info/20 hover:bg-info/20",
+    info: "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20",
     destructive: "bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20",
     secondary: "bg-secondary text-secondary-foreground",
   };

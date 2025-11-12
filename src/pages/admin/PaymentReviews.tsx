@@ -138,16 +138,7 @@ export default function PaymentReviews() {
 
       if (paymentError) throw paymentError;
 
-      // Update participant status
-      const { error: participantError } = await supabase
-        .from("participants")
-        .update({ 
-          status: "visitor_paid",
-          payment_status: "paid"
-        })
-        .eq("participant_id", selectedPayment.participants.participant_id);
-
-      if (participantError) throw participantError;
+      // Participant status is no longer updated here (payment status tracked in payments table only)
 
       toast.success("อนุมัติการชำระเงินสำเร็จ");
       setShowApproveDialog(false);

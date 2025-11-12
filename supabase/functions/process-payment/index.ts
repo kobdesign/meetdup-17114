@@ -43,13 +43,8 @@ serve(async (req) => {
       );
     }
 
-    // Check if already paid
-    if (participant.status === "visitor_paid" || participant.status === "member") {
-      return new Response(
-        JSON.stringify({ error: "Payment already completed" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Optional: allow payments regardless of participant status
+
 
     // 2. Create payment record
     const { data: payment, error: paymentError } = await admin
@@ -107,16 +102,8 @@ serve(async (req) => {
       }
     }
 
-    // 4. Update participant status
-    await admin
-      .from("participants")
-      .update({ 
-        status: "visitor_paid",
-        payment_status: "pending"
-      })
-      .eq("participant_id", participant.participant_id);
+    // Participant status is no longer updated here; payments tracked in payments table only
 
-    console.log("Participant status updated to visitor_paid");
 
     return new Response(
       JSON.stringify({ 

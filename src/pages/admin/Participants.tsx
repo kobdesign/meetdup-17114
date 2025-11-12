@@ -344,11 +344,11 @@ export default function Participants() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="prospect">Prospect</SelectItem>
-                      <SelectItem value="visitor">Visitor</SelectItem>
-                      <SelectItem value="member_active">Member (Active)</SelectItem>
-                      <SelectItem value="member_inactive">Member (Inactive)</SelectItem>
-                      <SelectItem value="alumni">Alumni</SelectItem>
+                      <SelectItem value="prospect">🟡 ผู้สนใจ</SelectItem>
+                      <SelectItem value="visitor">🟢 ผู้เยี่ยมชม</SelectItem>
+                      <SelectItem value="declined">🔴 ไม่สนใจ</SelectItem>
+                      <SelectItem value="member">🔵 สมาชิก</SelectItem>
+                      <SelectItem value="alumni">⚫ อดีตสมาชิก</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -471,11 +471,11 @@ export default function Participants() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="prospect">Prospect</SelectItem>
-                        <SelectItem value="visitor">Visitor</SelectItem>
-                        <SelectItem value="member_active">Member (Active)</SelectItem>
-                        <SelectItem value="member_inactive">Member (Inactive)</SelectItem>
-                        <SelectItem value="alumni">Alumni</SelectItem>
+                        <SelectItem value="prospect">🟡 ผู้สนใจ</SelectItem>
+                        <SelectItem value="visitor">🟢 ผู้เยี่ยมชม</SelectItem>
+                        <SelectItem value="declined">🔴 ไม่สนใจ</SelectItem>
+                        <SelectItem value="member">🔵 สมาชิก</SelectItem>
+                        <SelectItem value="alumni">⚫ อดีตสมาชิก</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -542,14 +542,13 @@ export default function Participants() {
                     <TableHead>Business Type</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Payment</TableHead>
                     <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredParticipants.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
                         No participants found
                       </TableCell>
                     </TableRow>
@@ -571,9 +570,6 @@ export default function Participants() {
                         <TableCell>{participant.email || "-"}</TableCell>
                         <TableCell>
                           <StatusBadge status={participant.status} />
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={participant.payment_status} />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">

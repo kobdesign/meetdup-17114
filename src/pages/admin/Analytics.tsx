@@ -31,7 +31,7 @@ interface AnalyticsData {
   monthlyRevenue: { month: string; revenue: number }[];
 }
 
-const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
+const COLORS = ["hsl(var(--primary))", "hsl(var(--success))", "hsl(var(--warning))", "hsl(var(--destructive))", "hsl(var(--muted))"];
 
 export default function Analytics() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
@@ -117,7 +117,16 @@ export default function Analytics() {
       }, {}) || {};
 
       const participantsByStatus = Object.entries(statusCount).map(([name, value]) => ({
-        name: name === "active" ? "สมาชิก" : name === "prospect" ? "ผู้สนใจ" : name === "visitor" ? "ผู้เยี่ยมชม" : "อดีตสมาชิก",
+        name:
+          name === "member"
+            ? "สมาชิก"
+            : name === "prospect"
+            ? "ผู้สนใจ"
+            : name === "visitor"
+            ? "ผู้เยี่ยมชม"
+            : name === "declined"
+            ? "ไม่สนใจ"
+            : "อดีตสมาชิก",
         value: value as number,
       }));
 
@@ -188,7 +197,7 @@ export default function Analytics() {
 
       setAnalytics({
         totalParticipants: participants?.length || 0,
-        activeMembers: statusCount.active || 0,
+        activeMembers: statusCount.member || 0,
         prospects: statusCount.prospect || 0,
         visitors: statusCount.visitor || 0,
         totalMeetings: meetings?.length || 0,
@@ -254,9 +263,10 @@ export default function Analytics() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">ทั้งหมด</SelectItem>
-                <SelectItem value="member_active">สมาชิกที่ใช้งาน</SelectItem>
+                <SelectItem value="member">สมาชิก</SelectItem>
                 <SelectItem value="prospect">ผู้สนใจ</SelectItem>
-                <SelectItem value="visitor_attended">ผู้เยี่ยมชม</SelectItem>
+                <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
+                <SelectItem value="declined">ไม่สนใจ</SelectItem>
                 <SelectItem value="alumni">อดีตสมาชิก</SelectItem>
               </SelectContent>
             </Select>

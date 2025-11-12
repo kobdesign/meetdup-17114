@@ -43,7 +43,7 @@ export default function Visitors() {
         .from("participants")
         .select("*")
         .eq("tenant_id", effectiveTenantId)
-        .in("status", ["visitor_pending_payment", "visitor_paid", "visitor_attended"])
+        .eq("status", "visitor")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -117,12 +117,8 @@ export default function Visitors() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "visitor_paid":
+      case "visitor":
         return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "visitor_attended":
-        return <CheckCircle className="h-4 w-4 text-blue-500" />;
-      case "visitor_pending_payment":
-        return <Clock className="h-4 w-4 text-yellow-500" />;
       default:
         return <XCircle className="h-4 w-4 text-gray-500" />;
     }
@@ -190,9 +186,7 @@ export default function Visitors() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">ทุกสถานะ</SelectItem>
-              <SelectItem value="visitor_pending_payment">รอชำระเงิน</SelectItem>
-              <SelectItem value="visitor_paid">ชำระเงินแล้ว</SelectItem>
-              <SelectItem value="visitor_attended">เข้าร่วมแล้ว</SelectItem>
+              <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -270,16 +264,7 @@ export default function Visitors() {
                               <History className="h-4 w-4 mr-1" />
                               ประวัติการชำระ
                             </Button>
-                            {visitor.payment_status === "pending" && visitor.slip_url && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => window.open(visitor.slip_url, "_blank")}
-                                className="w-full"
-                              >
-                                ดูสลิป
-                              </Button>
-                            )}
+                            
                             <Select
                               value={visitor.status}
                               onValueChange={(value) => updateVisitorStatus(visitor.participant_id, value)}
@@ -287,12 +272,11 @@ export default function Visitors() {
                               <SelectTrigger className="w-[160px]">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="visitor_pending_payment">รอชำระเงิน</SelectItem>
-                                <SelectItem value="visitor_paid">ชำระเงินแล้ว</SelectItem>
-                                <SelectItem value="visitor_attended">เข้าร่วมแล้ว</SelectItem>
-                                <SelectItem value="prospect">เปลี่ยนเป็นผู้สนใจ</SelectItem>
-                              </SelectContent>
+                                <SelectContent>
+                                  <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
+                                  <SelectItem value="prospect">ผู้สนใจ</SelectItem>
+                                  <SelectItem value="declined">ไม่สนใจ</SelectItem>
+                                </SelectContent>
                             </Select>
                           </div>
                         </TableCell>
