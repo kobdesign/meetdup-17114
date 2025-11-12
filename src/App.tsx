@@ -26,6 +26,7 @@ import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import PaymentPage from "./pages/public/PaymentPage";
 import LiffShare from "./pages/public/LiffShare";
+import LiffCheckin from "./pages/public/LiffCheckin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,9 @@ const App = () => (
           
           {/* LIFF Share */}
           <Route path="/liff/share" element={<LiffShare />} />
+          
+          {/* LIFF Check-in */}
+          <Route path="/liff/checkin" element={<LiffCheckin />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={

@@ -20,3 +20,6 @@ verify_jwt = true
 
 [functions.line-webhook]
 verify_jwt = false
+
+[functions.unified-check-in]
+verify_jwt = false

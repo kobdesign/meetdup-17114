@@ -451,16 +451,31 @@ async function buildBusinessCardFlex(
     }
   });
 
-  // Check-in button
-  footerContents.push({
-    type: 'button',
-    style: 'link',
-    action: {
-      type: 'uri',
-      label: '✅ Check-in',
-      uri: `${host}/checkin?tenant=${tenantSecrets.tenant_slug}&pid=${participant.participant_id}`
+  // Check-in button (use LIFF if configured)
+  if (tenantSecrets.liff_id_checkin) {
+    // Get latest meeting for this tenant
+    const { data: latestMeeting } = await supabase
+      .from('meetings')
+      .select('meeting_id')
+      .eq('tenant_id', tenantSecrets.tenant_id)
+      .gte('meeting_date', new Date().toISOString().split('T')[0])
+      .order('meeting_date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestMeeting) {
+      const liffUrl = `line://app/${tenantSecrets.liff_id_checkin}?tenant=${tenantSecrets.tenant_slug}&pid=${participant.participant_id}&meeting=${latestMeeting.meeting_id}`;
+      footerContents.push({
+        type: 'button',
+        style: 'link',
+        action: {
+          type: 'uri',
+          label: '✅ Check-in',
+          uri: liffUrl
+        }
+      });
     }
-  });
+  }
 
   return {
     type: 'bubble',
