@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Mail, CheckCircle2 } from "lucide-react";
@@ -17,6 +18,9 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [showEmailSent, setShowEmailSent] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -84,6 +88,26 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) throw error;
+      
+      setResetEmailSent(true);
+      toast.success("ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -136,7 +160,73 @@ export default function Auth() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">รหัสผ่าน</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">รหัสผ่าน</Label>
+                    <Dialog open={showForgotPasswordDialog} onOpenChange={setShowForgotPasswordDialog}>
+                      <DialogTrigger asChild>
+                        <Button 
+                          type="button" 
+                          variant="link" 
+                          className="h-auto p-0 text-xs text-primary"
+                          onClick={() => setResetEmailSent(false)}
+                        >
+                          ลืมรหัสผ่าน?
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>รีเซ็ตรหัสผ่าน</DialogTitle>
+                          <DialogDescription>
+                            กรอกอีเมลของคุณ เราจะส่งลิงก์สำหรับรีเซ็ตรหัสผ่านให้
+                          </DialogDescription>
+                        </DialogHeader>
+                        {resetEmailSent ? (
+                          <Alert className="border-primary/20 bg-primary/5">
+                            <Mail className="h-5 w-5 text-primary" />
+                            <AlertDescription className="mt-2">
+                              <div className="flex items-start gap-2">
+                                <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="font-semibold text-foreground">ส่งอีเมลแล้ว!</p>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    ตรวจสอบอีเมล <span className="font-medium text-foreground">{forgotPasswordEmail}</span> เพื่อรีเซ็ตรหัสผ่าน
+                                  </p>
+                                </div>
+                              </div>
+                            </AlertDescription>
+                          </Alert>
+                        ) : (
+                          <form onSubmit={handleForgotPassword} className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="forgot-email">อีเมล</Label>
+                              <Input
+                                id="forgot-email"
+                                type="email"
+                                placeholder="your@email.com"
+                                value={forgotPasswordEmail}
+                                onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                                required
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => setShowForgotPasswordDialog(false)}
+                              >
+                                ยกเลิก
+                              </Button>
+                              <Button type="submit" className="flex-1" disabled={loading}>
+                                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                ส่งลิงก์
+                              </Button>
+                            </div>
+                          </form>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                   <Input
                     id="password"
                     type="password"
