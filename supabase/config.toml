@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.update-tenant-secrets]
 verify_jwt = true
+
+[functions.line-webhook]
+verify_jwt = false

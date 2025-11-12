@@ -16,6 +16,7 @@ import MeetingDetails from "./pages/admin/MeetingDetails";
 import Visitors from "./pages/admin/Visitors";
 import CheckIn from "./pages/admin/CheckIn";
 import Settings from "./pages/admin/Settings";
+import IntegrationLogs from "./pages/admin/IntegrationLogs";
 import PaymentHistory from "./pages/admin/PaymentHistory";
 import PaymentReviews from "./pages/admin/PaymentReviews";
 import Authorization from "./pages/admin/Authorization";
@@ -88,6 +89,11 @@ const App = () => (
           <Route path="/admin/settings" element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/integration-logs" element={
+            <ProtectedRoute>
+              <IntegrationLogs />
             </ProtectedRoute>
           } />
           <Route path="/admin/payment-history/:participantId" element={

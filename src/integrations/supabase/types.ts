@@ -63,6 +63,44 @@ export type Database = {
           },
         ]
       }
+      integration_logs: {
+        Row: {
+          created_at: string
+          event_type: string
+          log_id: string
+          metadata: Json | null
+          payload: Json | null
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          log_id?: string
+          metadata?: Json | null
+          payload?: Json | null
+          source: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          log_id?: string
+          metadata?: Json | null
+          payload?: Json | null
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["tenant_id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount: number
