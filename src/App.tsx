@@ -11,10 +11,13 @@ import Profile from "./pages/Profile";
 import Dashboard from "./pages/admin/Dashboard";
 import Participants from "./pages/admin/Participants";
 import Meetings from "./pages/admin/Meetings";
+import Visitors from "./pages/admin/Visitors";
+import CheckIn from "./pages/admin/CheckIn";
 import Analytics from "./pages/admin/Analytics";
 import Settings from "./pages/admin/Settings";
 import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
+import CheckInScanner from "./pages/public/CheckInScanner";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +35,9 @@ const App = () => (
           
           {/* Public Chapter Profile */}
           <Route path="/chapter/:slug" element={<ChapterProfile />} />
+          
+          {/* Public Check-In */}
+          <Route path="/checkin/:meetingId" element={<CheckInScanner />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
@@ -52,6 +58,16 @@ const App = () => (
           <Route path="/admin/meetings" element={
             <ProtectedRoute>
               <Meetings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/visitors" element={
+            <ProtectedRoute>
+              <Visitors />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/checkin" element={
+            <ProtectedRoute>
+              <CheckIn />
             </ProtectedRoute>
           } />
           <Route path="/admin/analytics" element={

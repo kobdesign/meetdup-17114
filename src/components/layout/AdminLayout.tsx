@@ -20,7 +20,9 @@ import {
   User,
   Building2,
   Settings,
-  BarChart3
+  BarChart3,
+  UserPlus,
+  QrCode
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -97,6 +99,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard", href: "/admin" },
     { icon: <Users className="h-4 w-4" />, label: "สมาชิก", href: "/admin/participants" },
     { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
+    { icon: <UserPlus className="h-4 w-4" />, label: "ผู้เยี่ยมชม", href: "/admin/visitors" },
+    { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
     { icon: <BarChart3 className="h-4 w-4" />, label: "Analytics", href: "/admin/analytics" },
     { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
   ];
