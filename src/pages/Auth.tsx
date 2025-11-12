@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, CheckCircle2 } from "lucide-react";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [showEmailSent, setShowEmailSent] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -55,8 +57,26 @@ export default function Auth() {
       if (error) throw error;
 
       if (data.user) {
-        toast.success("Account created! Please check your email to verify.");
+        setShowEmailSent(true);
+        toast.success("กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี");
       }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+      
+      if (error) throw error;
+      toast.success("ส่งอีเมลยืนยันใหม่แล้ว");
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -92,20 +112,20 @@ export default function Auth() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">BNI Chapter Management</CardTitle>
           <CardDescription>
-            Sign in to manage your chapter or create a new account
+            เข้าสู่ระบบเพื่อจัดการชาปเตอร์ หรือสร้างบัญชีใหม่
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="signin">เข้าสู่ระบบ</TabsTrigger>
+              <TabsTrigger value="signup">ลงทะเบียน</TabsTrigger>
             </TabsList>
             
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">อีเมล</Label>
                   <Input
                     id="email"
                     type="email"
@@ -116,7 +136,7 @@ export default function Auth() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">รหัสผ่าน</Label>
                   <Input
                     id="password"
                     type="password"
@@ -127,51 +147,99 @@ export default function Auth() {
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Sign In
+                  เข้าสู่ระบบ
                 </Button>
               </form>
             </TabsContent>
             
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fullname">Full Name</Label>
-                  <Input
-                    id="fullname"
-                    type="text"
-                    placeholder="John Doe"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                  />
+              {showEmailSent ? (
+                <div className="space-y-4 py-4">
+                  <Alert className="border-primary/20 bg-primary/5">
+                    <Mail className="h-5 w-5 text-primary" />
+                    <AlertDescription className="mt-2 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-foreground">ส่งอีเมลยืนยันแล้ว!</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            เราได้ส่งลิงก์ยืนยันไปที่ <span className="font-medium text-foreground">{email}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-sm text-muted-foreground pl-7">
+                        <p>กรุณาตรวจสอบกล่องจดหมายของคุณและคลิกลิงก์ยืนยันเพื่อเปิดใช้งานบัญชี</p>
+                        <p className="mt-2">ไม่ได้รับอีเมล?</p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={handleResendEmail}
+                      disabled={loading}
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      ส่งอีเมลใหม่
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="flex-1"
+                      onClick={() => setShowEmailSent(false)}
+                    >
+                      ย้อนกลับ
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Sign Up
-                </Button>
-              </form>
+              ) : (
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fullname">ชื่อ-นามสกุล</Label>
+                    <Input
+                      id="fullname"
+                      type="text"
+                      placeholder="ชื่อ นามสกุล"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">อีเมล</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">รหัสผ่าน</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="อย่างน้อย 6 ตัวอักษร"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    ลงทะเบียน
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    เมื่อลงทะเบียน คุณจะได้รับอีเมลยืนยันบัญชี
+                  </p>
+                </form>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>
