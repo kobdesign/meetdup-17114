@@ -60,6 +60,12 @@ export default function CheckInScanner() {
         return;
       }
 
+      console.log("🚀 Starting check-in process:", {
+        meetingId,
+        full_name: formData.full_name,
+        email: formData.email,
+      });
+
       // Call edge function to handle check-in (bypasses RLS)
       const { data, error } = await supabase.functions.invoke('check-in-participant', {
         body: {
@@ -68,25 +74,67 @@ export default function CheckInScanner() {
           email: formData.email,
           phone: formData.phone,
         },
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
-      if (error) throw error;
+      console.log("✅ Edge function response:", { data, error });
 
+      // Handle error from the function invocation itself
+      if (error) {
+        console.error("❌ Function invocation error:", error);
+        
+        // Map common errors to user-friendly messages
+        if (error.message?.includes("Meeting not found")) {
+          toast.error("ไม่พบข้อมูลการประชุม");
+        } else if (error.message?.includes("FunctionsHttpError")) {
+          toast.error("ไม่สามารถเชื่อมต่อกับระบบได้ กรุณาลองใหม่อีกครั้ง");
+        } else {
+          toast.error("เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
+        }
+        return;
+      }
+
+      // Handle business logic responses
       if (data?.already_checked_in) {
+        console.log("⚠️ Already checked in");
         toast.error("คุณได้เช็คอินการประชุมนี้แล้ว");
         setCheckedIn(true);
         return;
       }
 
       if (!data?.success) {
-        throw new Error(data?.error || "Check-in failed");
+        console.error("❌ Check-in failed:", data?.error);
+        
+        // Map backend error messages to Thai
+        const errorMsg = data?.error || "";
+        if (errorMsg.includes("Meeting not found")) {
+          toast.error("ไม่พบข้อมูลการประชุม");
+        } else if (errorMsg.includes("Missing required fields")) {
+          toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
+        } else if (errorMsg.includes("already checked in")) {
+          toast.error("คุณได้เช็คอินการประชุมนี้แล้ว");
+          setCheckedIn(true);
+        } else {
+          toast.error("เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
+        }
+        return;
       }
 
+      console.log("🎉 Check-in successful!");
       toast.success("เช็คอินสำเร็จ! ยินดีต้อนรับเข้าสู่การประชุม");
       setCheckedIn(true);
     } catch (error: any) {
-      console.error("Check-in error:", error);
-      toast.error("เกิดข้อผิดพลาด: " + (error.message || "ไม่สามารถเช็คอินได้"));
+      console.error("❌ Unexpected error during check-in:", error);
+      
+      // Never show technical RLS errors to users
+      if (error.message?.includes("row-level security") || error.message?.includes("RLS")) {
+        console.error("🔒 RLS error detected - this should not happen!");
+        toast.error("เกิดข้อผิดพลาดในระบบ กรุณาติดต่อผู้ดูแลระบบ");
+      } else {
+        toast.error("เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
+      }
     } finally {
       setChecking(false);
     }
