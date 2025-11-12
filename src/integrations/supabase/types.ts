@@ -230,6 +230,7 @@ export type Database = {
           currency: string
           meeting_id: string | null
           method: Database["public"]["Enums"]["payment_method"]
+          notes: string | null
           paid_at: string | null
           participant_id: string
           payment_id: string
@@ -244,6 +245,7 @@ export type Database = {
           currency?: string
           meeting_id?: string | null
           method: Database["public"]["Enums"]["payment_method"]
+          notes?: string | null
           paid_at?: string | null
           participant_id: string
           payment_id?: string
@@ -258,6 +260,7 @@ export type Database = {
           currency?: string
           meeting_id?: string | null
           method?: Database["public"]["Enums"]["payment_method"]
+          notes?: string | null
           paid_at?: string | null
           participant_id?: string
           payment_id?: string

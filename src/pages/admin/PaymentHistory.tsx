@@ -147,7 +147,7 @@ export default function PaymentHistory() {
     try {
       const { error } = await supabase
         .from("payments")
-        .update({ notes: noteText })
+        .update({ notes: noteText } as any)
         .eq("payment_id", paymentId);
 
       if (error) throw error;

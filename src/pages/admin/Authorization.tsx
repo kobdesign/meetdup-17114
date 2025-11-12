@@ -164,10 +164,10 @@ export default function Authorization() {
     setAdding(true);
     try {
       // Find user by email
-      const { data: { users }, error: findError } = await supabase.auth.admin.listUsers();
+      const { data, error: findError } = await supabase.auth.admin.listUsers();
       if (findError) throw findError;
 
-      const targetUser = users.find(u => u.email === newUserEmail);
+      const targetUser = data.users.find((u: any) => u.email === newUserEmail);
       if (!targetUser) {
         toast.error("ไม่พบผู้ใช้ด้วยอีเมลนี้");
         return;
