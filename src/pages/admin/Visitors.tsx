@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, CheckCircle, XCircle, Clock, Mail, Phone } from "lucide-react";
+import { Search, CheckCircle, XCircle, Clock, Mail, Phone, Bell } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export default function Visitors() {
@@ -16,6 +16,8 @@ export default function Visitors() {
   const [filteredVisitors, setFilteredVisitors] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sendingReminders, setSendingReminders] = useState(false);
+  const [tenantId, setTenantId] = useState<string | null>(null);
 
   useEffect(() => {
     loadVisitors();
@@ -40,6 +42,8 @@ export default function Visitors() {
         toast.error("ไม่พบข้อมูล tenant");
         return;
       }
+
+      setTenantId(userRole.tenant_id);
 
       const { data, error } = await supabase
         .from("participants")
@@ -92,6 +96,28 @@ export default function Visitors() {
     }
   };
 
+  const sendPaymentReminders = async () => {
+    if (!tenantId) {
+      toast.error("ไม่พบข้อมูล tenant");
+      return;
+    }
+
+    setSendingReminders(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-payment-reminder', {
+        body: { tenant_id: tenantId }
+      });
+
+      if (error) throw error;
+
+      toast.success(`ส่งการแจ้งเตือนสำเร็จ ${data.sent} ข้อความ`);
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setSendingReminders(false);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "visitor_paid":
@@ -116,9 +142,19 @@ export default function Visitors() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">จัดการผู้เยี่ยมชม</h1>
-          <p className="text-muted-foreground">ดูรายชื่อและจัดการผู้เยี่ยมชมที่ลงทะเบียน</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">จัดการผู้เยี่ยมชม</h1>
+            <p className="text-muted-foreground">ดูรายชื่อและจัดการผู้เยี่ยมชมที่ลงทะเบียน</p>
+          </div>
+          <Button 
+            onClick={sendPaymentReminders} 
+            disabled={sendingReminders}
+            variant="outline"
+          >
+            <Bell className="mr-2 h-4 w-4" />
+            {sendingReminders ? "กำลังส่ง..." : "ส่งการแจ้งเตือนชำระเงิน"}
+          </Button>
         </div>
 
         <div className="flex gap-4">

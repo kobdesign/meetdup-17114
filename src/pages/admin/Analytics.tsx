@@ -21,7 +21,11 @@ interface AnalyticsData {
   thisMonthMeetings: number;
   totalCheckins: number;
   totalRevenue: number;
+  paidPayments: number;
+  pendingPayments: number;
+  outstandingAmount: number;
   participantsByStatus: { name: string; value: number }[];
+  paymentsByStatus: { name: string; value: number }[];
   monthlyCheckins: { month: string; checkins: number }[];
   monthlyRevenue: { month: string; revenue: number }[];
 }
@@ -45,7 +49,11 @@ export default function Analytics() {
     thisMonthMeetings: 0,
     totalCheckins: 0,
     totalRevenue: 0,
+    paidPayments: 0,
+    pendingPayments: 0,
+    outstandingAmount: 0,
     participantsByStatus: [],
+    paymentsByStatus: [],
     monthlyCheckins: [],
     monthlyRevenue: [],
   });
@@ -105,7 +113,7 @@ export default function Analytics() {
       // Fetch payments data with date range
       const { data: payments } = await supabase
         .from("payments")
-        .select("amount, created_at")
+        .select("amount, created_at, status")
         .eq("tenant_id", userRole.tenant_id)
         .gte("created_at", dateRange.from.toISOString())
         .lte("created_at", dateRange.to.toISOString());
@@ -170,7 +178,21 @@ export default function Analytics() {
         revenue,
       }));
 
-      const totalRevenue = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const totalRevenue = payments?.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const paidPayments = payments?.filter(p => p.status === 'paid').length || 0;
+      const pendingPayments = payments?.filter(p => p.status === 'pending').length || 0;
+      const outstandingAmount = payments?.filter(p => p.status === 'pending').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+
+      // Payment status breakdown
+      const paymentStatusCount = payments?.reduce((acc: any, p) => {
+        acc[p.status] = (acc[p.status] || 0) + 1;
+        return acc;
+      }, {}) || {};
+
+      const paymentsByStatus = Object.entries(paymentStatusCount).map(([name, value]) => ({
+        name: name === "paid" ? "ชำระแล้ว" : name === "pending" ? "รอชำระ" : name === "failed" ? "ล้มเหลว" : name === "refunded" ? "คืนเงิน" : "ยกเว้น",
+        value: value as number,
+      }));
 
       setAnalytics({
         totalParticipants: participants?.length || 0,
@@ -181,7 +203,11 @@ export default function Analytics() {
         thisMonthMeetings,
         totalCheckins: checkins?.length || 0,
         totalRevenue,
+        paidPayments,
+        pendingPayments,
+        outstandingAmount,
         participantsByStatus,
+        paymentsByStatus,
         monthlyCheckins,
         monthlyRevenue,
       });
@@ -316,11 +342,35 @@ export default function Analytics() {
                 {analytics.totalRevenue.toLocaleString()} ฿
               </div>
               <p className="text-xs text-muted-foreground">
-                ทั้งหมด
+                ชำระแล้ว {analytics.paidPayments} | รอชำระ {analytics.pendingPayments}
               </p>
             </CardContent>
           </Card>
         </div>
+
+        {/* Payment Status Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>สถานะการชำระเงิน</CardTitle>
+            <CardDescription>ภาพรวมการชำระเงินทั้งหมด</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">ชำระเงินแล้ว</p>
+                <p className="text-2xl font-bold text-green-600">{analytics.paidPayments}</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">รอชำระเงิน</p>
+                <p className="text-2xl font-bold text-yellow-600">{analytics.pendingPayments}</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">ยอดค้างรับ</p>
+                <p className="text-2xl font-bold text-orange-600">{analytics.outstandingAmount.toLocaleString()} ฿</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Charts */}
         <div className="grid gap-4 md:grid-cols-2">
@@ -353,6 +403,34 @@ export default function Analytics() {
           </Card>
 
           <Card>
+            <CardHeader>
+              <CardTitle>สถานะการชำระเงิน</CardTitle>
+              <CardDescription>แยกตามสถานะ</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={analytics.paymentsByStatus}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="hsl(var(--secondary))"
+                    dataKey="value"
+                  >
+                    {analytics.paymentsByStatus.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle>การเข้าร่วมประชุม</CardTitle>
               <CardDescription>6 เดือนที่ผ่านมา</CardDescription>
