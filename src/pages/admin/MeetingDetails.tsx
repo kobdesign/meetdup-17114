@@ -233,6 +233,22 @@ export default function MeetingDetails() {
                 </div>
               )}
 
+              {meeting.description && (
+                <div className="flex items-start gap-3">
+                  <div className="h-5 w-5 text-muted-foreground mt-0.5">📝</div>
+                  <div className="flex-1">
+                    <p className="font-medium mb-2">รายละเอียดการประชุม</p>
+                    <div 
+                      className="text-sm text-muted-foreground prose prose-sm max-w-none
+                                 prose-headings:text-foreground prose-p:text-muted-foreground
+                                 prose-li:text-muted-foreground prose-a:text-primary
+                                 prose-strong:text-foreground"
+                      dangerouslySetInnerHTML={{ __html: meeting.description }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {meeting.venue && (
                 <div className="flex items-start gap-3">
                   <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />

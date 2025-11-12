@@ -115,3 +115,52 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom Quill Editor Styles */
+.ql-container {
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.ql-editor {
+  min-height: 150px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.ql-editor.ql-blank::before {
+  color: hsl(var(--muted-foreground));
+  font-style: normal;
+}
+
+/* Dark mode support for Quill */
+.dark .ql-toolbar {
+  border-color: hsl(var(--border));
+  background: hsl(var(--background));
+}
+
+.dark .ql-container {
+  border-color: hsl(var(--border));
+  background: hsl(var(--background));
+}
+
+.dark .ql-editor {
+  color: hsl(var(--foreground));
+}
+
+.dark .ql-stroke {
+  stroke: hsl(var(--foreground));
+}
+
+.dark .ql-fill {
+  fill: hsl(var(--foreground));
+}
+
+.dark .ql-picker-label {
+  color: hsl(var(--foreground));
+}
+
+.dark .ql-picker-options {
+  background: hsl(var(--background));
+  border-color: hsl(var(--border));
+}

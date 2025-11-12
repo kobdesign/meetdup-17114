@@ -199,6 +199,17 @@ export default function VisitorRegistrationDialog({
                     🎯 หัวข้อ: {selectedMeeting.theme}
                   </p>
                 )}
+                
+                {selectedMeeting.description && (
+                  <div className="mt-2 pt-2 border-t">
+                    <div 
+                      className="prose prose-xs max-w-none prose-p:my-1 prose-headings:my-1 
+                                 prose-li:my-0 text-muted-foreground"
+                      dangerouslySetInnerHTML={{ __html: selectedMeeting.description }}
+                    />
+                  </div>
+                )}
+                
                 <p className="font-medium text-primary">💰 ค่าเข้าร่วม: {selectedMeeting.visitor_fee} บาท</p>
               </div>
             </div>

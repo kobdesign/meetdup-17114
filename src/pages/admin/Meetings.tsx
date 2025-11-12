@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import MeetingsCalendar from "@/components/MeetingsCalendar";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
 import { useTenantContext } from "@/contexts/TenantContext";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +58,7 @@ export default function Meetings() {
     location_lat: "",
     location_lng: "",
     theme: "",
+    description: "",
     visitor_fee: 650,
     recurrence_pattern: "none",
     recurrence_interval: 1,
@@ -128,6 +131,7 @@ export default function Meetings() {
           location_lat: newMeeting.location_lat ? parseFloat(newMeeting.location_lat) : null,
           location_lng: newMeeting.location_lng ? parseFloat(newMeeting.location_lng) : null,
           theme: newMeeting.theme || null,
+          description: newMeeting.description || null,
           visitor_fee: newMeeting.visitor_fee,
           recurrence_pattern: newMeeting.recurrence_pattern,
           recurrence_interval: newMeeting.recurrence_interval,
@@ -147,6 +151,7 @@ export default function Meetings() {
         location_lat: "",
         location_lng: "",
         theme: "",
+        description: "",
         visitor_fee: 650,
         recurrence_pattern: "none",
         recurrence_interval: 1,
@@ -186,6 +191,7 @@ export default function Meetings() {
           location_lat: editingMeeting.location_lat ? parseFloat(editingMeeting.location_lat) : null,
           location_lng: editingMeeting.location_lng ? parseFloat(editingMeeting.location_lng) : null,
           theme: editingMeeting.theme || null,
+          description: editingMeeting.description || null,
           visitor_fee: editingMeeting.visitor_fee,
           recurrence_pattern: editingMeeting.recurrence_pattern,
           recurrence_interval: editingMeeting.recurrence_interval,
@@ -384,14 +390,42 @@ export default function Meetings() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="theme">หัวข้อ/ธีม</Label>
-                  <Textarea
+                  <Label htmlFor="theme">หัวข้อ/ธีม *</Label>
+                  <Input
                     id="theme"
                     value={newMeeting.theme}
                     onChange={(e) => setNewMeeting({ ...newMeeting, theme: e.target.value })}
-                    placeholder="หัวข้อการประชุม หรือวิทยากรพิเศษ"
-                    rows={3}
+                    placeholder="หัวข้อการประชุม (สูงสุด 200 ตัวอักษร)"
+                    maxLength={200}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {newMeeting.theme.length}/200 ตัวอักษร
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">รายละเอียดการประชุม</Label>
+                  <div className="border rounded-md overflow-hidden">
+                    <ReactQuill
+                      theme="snow"
+                      value={newMeeting.description || ""}
+                      onChange={(content) => setNewMeeting({ ...newMeeting, description: content })}
+                      placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
+                      modules={{
+                        toolbar: [
+                          [{ 'header': [1, 2, 3, false] }],
+                          ['bold', 'italic', 'underline', 'strike'],
+                          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                          ['link', 'blockquote'],
+                          ['clean']
+                        ],
+                      }}
+                      className="bg-background"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    รองรับ: หัวข้อ, ตัวหนา, ตัวเอียง, lists, links
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -525,14 +559,39 @@ export default function Meetings() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="edit_theme">หัวข้อ/ธีม</Label>
-                    <Textarea
+                    <Label htmlFor="edit_theme">หัวข้อ/ธีม *</Label>
+                    <Input
                       id="edit_theme"
                       value={editingMeeting.theme || ""}
                       onChange={(e) => setEditingMeeting({ ...editingMeeting, theme: e.target.value })}
-                      placeholder="หัวข้อการประชุม หรือวิทยากรพิเศษ"
-                      rows={3}
+                      placeholder="หัวข้อการประชุม (สูงสุด 200 ตัวอักษร)"
+                      maxLength={200}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      {(editingMeeting.theme || "").length}/200 ตัวอักษร
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_description">รายละเอียดการประชุม</Label>
+                    <div className="border rounded-md overflow-hidden">
+                      <ReactQuill
+                        theme="snow"
+                        value={editingMeeting.description || ""}
+                        onChange={(content) => setEditingMeeting({ ...editingMeeting, description: content })}
+                        placeholder="รายละเอียดเพิ่มเติม..."
+                        modules={{
+                          toolbar: [
+                            [{ 'header': [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            ['link', 'blockquote'],
+                            ['clean']
+                          ],
+                        }}
+                        className="bg-background"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -636,7 +695,11 @@ export default function Meetings() {
                           </div>
                         </TableCell>
                         <TableCell>{meeting.venue || "-"}</TableCell>
-                        <TableCell>{meeting.theme || "-"}</TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <div className="truncate" title={meeting.theme || "-"}>
+                            {meeting.theme || "-"}
+                          </div>
+                        </TableCell>
                         <TableCell>฿{meeting.visitor_fee}</TableCell>
                         <TableCell>
                           <span className="text-sm text-muted-foreground">
