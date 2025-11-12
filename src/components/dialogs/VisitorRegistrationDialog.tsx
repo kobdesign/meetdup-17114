@@ -25,6 +25,7 @@ export default function VisitorRegistrationDialog({
   const [meetings, setMeetings] = useState<any[]>([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | undefined>(meetingId);
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
+  const [allowChangeMeeting, setAllowChangeMeeting] = useState(false);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -64,6 +65,7 @@ export default function VisitorRegistrationDialog({
       setSelectedMeetingId(undefined);
       setSelectedMeeting(null);
       setMeetings([]);
+      setAllowChangeMeeting(false);
     }
   }, [open, tenantId, meetingId]);
 
@@ -159,8 +161,8 @@ export default function VisitorRegistrationDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Meeting Selection */}
-          {!meetingId && (
+          {/* Meeting Selection - Show dropdown if no meetingId OR user wants to change */}
+          {(!meetingId || allowChangeMeeting) && (
             <div className="space-y-2">
               <Label htmlFor="meeting">
                 เลือกวันที่ประชุมที่ต้องการเข้าร่วม
@@ -195,10 +197,30 @@ export default function VisitorRegistrationDialog({
             </div>
           )}
 
-          {/* Meeting Details Display */}
-          {selectedMeeting && (
+          {/* Meeting Details Display - Show when meeting is selected and user hasn't clicked change */}
+          {selectedMeeting && !allowChangeMeeting && (
             <div className="bg-accent/50 rounded-lg p-4 space-y-2 border">
-              <p className="font-semibold">📋 ข้อมูลการประชุมที่เลือก</p>
+              <div className="flex justify-between items-start">
+                <p className="font-semibold">📋 ข้อมูลการประชุมที่เลือก</p>
+                {meetingId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      setAllowChangeMeeting(true);
+                      if (meetings.length === 0) {
+                        setLoading(true);
+                        await loadUpcomingMeetings();
+                        setLoading(false);
+                      }
+                    }}
+                    className="text-xs h-7"
+                  >
+                    🔄 เปลี่ยนการประชุม
+                  </Button>
+                )}
+              </div>
               <div className="text-sm space-y-1">
                 <p>📅 วันที่: {new Date(selectedMeeting.meeting_date).toLocaleDateString('th-TH')}</p>
                 {selectedMeeting.meeting_time && <p>⏰ เวลา: {selectedMeeting.meeting_time}</p>}
