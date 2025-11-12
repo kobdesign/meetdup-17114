@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
+import AddTenantDialog from "@/components/dialogs/AddTenantDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +12,7 @@ import { toast } from "sonner";
 export default function Tenants() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   useEffect(() => {
     fetchTenants();
@@ -40,11 +42,17 @@ export default function Tenants() {
             <h1 className="text-3xl font-bold">Tenants</h1>
             <p className="text-muted-foreground">Manage BNI chapters</p>
           </div>
-          <Button>
+          <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Tenant
+            เพิ่ม Tenant
           </Button>
         </div>
+
+        <AddTenantDialog
+          open={showAddDialog}
+          onOpenChange={setShowAddDialog}
+          onSuccess={fetchTenants}
+        />
 
         <Card>
           <CardHeader>

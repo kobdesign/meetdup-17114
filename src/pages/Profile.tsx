@@ -19,6 +19,7 @@ export default function Profile() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [uploading, setUploading] = useState(false);
   
   // Password change
   const [currentPassword, setCurrentPassword] = useState("");
@@ -123,6 +124,72 @@ export default function Profile() {
     }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error("กรุณาเลือกไฟล์รูปภาพ");
+        return;
+      }
+
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("ไฟล์ต้องมีขนาดไม่เกิน 2MB");
+        return;
+      }
+
+      setUploading(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("ไม่พบข้อมูลผู้ใช้");
+
+      // Delete old avatar if exists
+      if (profile?.avatar_url) {
+        const oldPath = profile.avatar_url.split('/').pop();
+        if (oldPath) {
+          await supabase.storage
+            .from('avatars')
+            .remove([`${user.id}/${oldPath}`]);
+        }
+      }
+
+      // Upload new avatar
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      toast.success("อัปโหลดรูปโปรไฟล์สำเร็จ");
+      loadProfile();
+    } catch (error: any) {
+      console.error('Error uploading avatar:', error);
+      toast.error(error.message || "ไม่สามารถอัปโหลดรูปภาพได้");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const getInitials = (name: string) => {
     if (!name) return "?";
     const parts = name.split(" ");
@@ -153,9 +220,27 @@ export default function Profile() {
                   {getInitials(fullName)}
                 </AvatarFallback>
               </Avatar>
-              <Button variant="outline" size="sm" disabled>
-                อัปโหลดรูปภาพ (เร็วๆ นี้)
-              </Button>
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading}
+                  onClick={() => document.getElementById('avatar-upload')?.click()}
+                >
+                  {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {uploading ? "กำลังอัปโหลด..." : "อัปโหลดรูปภาพ"}
+                </Button>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                />
+                <p className="text-xs text-muted-foreground text-center">
+                  JPG, PNG หรือ WEBP (สูงสุด 2MB)
+                </p>
+              </div>
             </CardContent>
           </Card>
 
