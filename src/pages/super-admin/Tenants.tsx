@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import AddTenantDialog from "@/components/dialogs/AddTenantDialog";
 import EditTenantDialog from "@/components/dialogs/EditTenantDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Tenants() {
@@ -157,7 +158,18 @@ export default function Tenants() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              asChild
+                              title="ดู Public Profile"
+                            >
+                              <Link to={`/chapter/${tenant.slug}`} target="_blank">
+                                <ExternalLink className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => handleEdit(tenant)}
+                              title="แก้ไข"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -165,6 +177,7 @@ export default function Tenants() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleDelete(tenant)}
+                              title="ลบ"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>

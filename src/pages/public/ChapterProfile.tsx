@@ -3,9 +3,10 @@ import { useParams, Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, MapPin, Clock, ArrowLeft } from "lucide-react";
+import { Calendar, MapPin, Clock, ArrowLeft, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
+import VisitorRegistrationDialog from "@/components/dialogs/VisitorRegistrationDialog";
 
 interface ChapterData {
   tenant_id: string;
@@ -29,6 +30,8 @@ export default function ChapterProfile() {
   const [loading, setLoading] = useState(true);
   const [chapter, setChapter] = useState<ChapterData | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [showRegistrationDialog, setShowRegistrationDialog] = useState(false);
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string | undefined>();
 
   useEffect(() => {
     loadChapterData();
@@ -206,6 +209,17 @@ export default function ChapterProfile() {
                           </div>
                         )}
                       </div>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setSelectedMeetingId(meeting.meeting_id);
+                          setShowRegistrationDialog(true);
+                        }}
+                        style={{ backgroundColor: chapter.branding_color }}
+                      >
+                        <UserPlus className="h-4 w-4 mr-1" />
+                        ลงทะเบียน
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -222,15 +236,28 @@ export default function ChapterProfile() {
               ติดต่อสอบถามข้อมูลเพิ่มเติมหรือเข้าร่วมการประชุมในฐานะผู้เยี่ยมชม
             </p>
             <div className="flex gap-4 justify-center">
-              <Button size="lg" style={{ backgroundColor: chapter.branding_color }}>
-                ติดต่อสอบถาม
-              </Button>
-              <Button size="lg" variant="outline">
+              <Button 
+                size="lg" 
+                style={{ backgroundColor: chapter.branding_color }}
+                onClick={() => {
+                  setSelectedMeetingId(undefined);
+                  setShowRegistrationDialog(true);
+                }}
+              >
+                <UserPlus className="mr-2 h-5 w-5" />
                 ลงทะเบียนผู้เยี่ยมชม
               </Button>
             </div>
           </CardContent>
         </Card>
+
+        {/* Registration Dialog */}
+        <VisitorRegistrationDialog
+          open={showRegistrationDialog}
+          onOpenChange={setShowRegistrationDialog}
+          tenantId={chapter.tenant_id}
+          meetingId={selectedMeetingId}
+        />
       </main>
 
       {/* Footer */}
