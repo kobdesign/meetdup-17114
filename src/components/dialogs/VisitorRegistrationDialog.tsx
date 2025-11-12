@@ -43,11 +43,11 @@ export default function VisitorRegistrationDialog({
         return;
       }
 
-      // Create visitor participant
-      const { data: participant, error: participantError } = await supabase
-        .from("participants")
-        .insert({
+      // Call backend function to register visitor (bypasses RLS)
+      const { data, error: functionError } = await supabase.functions.invoke("register-visitor", {
+        body: {
           tenant_id: tenantId,
+          meeting_id: meetingId,
           full_name: formData.full_name,
           email: formData.email,
           phone: formData.phone,
@@ -55,32 +55,16 @@ export default function VisitorRegistrationDialog({
           business_type: formData.business_type,
           goal: formData.goal,
           notes: formData.notes,
-          status: "visitor_pending_payment",
-        } as any)
-        .select()
-        .single();
+        },
+      });
 
-      if (participantError) throw participantError;
-
-      // If a specific meeting is selected, create check-in record
-      if (meetingId && participant) {
-        const { error: checkinError } = await supabase
-          .from("checkins")
-          .insert({
-            tenant_id: tenantId,
-            meeting_id: meetingId,
-            participant_id: participant.participant_id,
-            source: "manual",
-          });
-
-        if (checkinError) throw checkinError;
-      }
+      if (functionError) throw functionError;
 
       toast.success("ลงทะเบียนสำเร็จ! เราจะติดต่อกลับโดยเร็วที่สุด");
       
       // Show payment link
-      if (participant) {
-        const paymentUrl = `${window.location.origin}/payment/${participant.participant_id}`;
+      if (data?.participant_id) {
+        const paymentUrl = `${window.location.origin}/payment/${data.participant_id}`;
         toast.info(
           "กรุณาชำระเงินผ่านลิงก์ที่แสดง",
           {
