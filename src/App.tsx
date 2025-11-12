@@ -14,6 +14,7 @@ import Meetings from "./pages/admin/Meetings";
 import Analytics from "./pages/admin/Analytics";
 import Settings from "./pages/admin/Settings";
 import Tenants from "./pages/super-admin/Tenants";
+import ChapterProfile from "./pages/public/ChapterProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,9 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          
+          {/* Public Chapter Profile */}
+          <Route path="/chapter/:slug" element={<ChapterProfile />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
