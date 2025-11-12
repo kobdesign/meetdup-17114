@@ -61,6 +61,30 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     }
   }, [isSuperAdmin]);
 
+  // Subscribe to realtime updates for tenants (super admin only)
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+
+    const channel = supabase
+      .channel('tenants-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tenants'
+        },
+        () => {
+          loadAvailableTenants();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isSuperAdmin]);
+
   // Save selected tenant to localStorage when changed
   useEffect(() => {
     if (isSuperAdmin && selectedTenantId) {
