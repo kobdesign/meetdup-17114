@@ -23,6 +23,7 @@ const MapDisplay = ({ lat, lng, venue, locationDetails }: MapDisplayProps) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
       console.error('Google Maps API key not found');
+      setIsLoaded(false);
       return;
     }
 
@@ -38,7 +39,10 @@ const MapDisplay = ({ lat, lng, venue, locationDetails }: MapDisplayProps) => {
     script.async = true;
     script.defer = true;
     script.onload = () => setIsLoaded(true);
-    script.onerror = () => console.error('Error loading Google Maps');
+    script.onerror = () => {
+      console.error('Error loading Google Maps');
+      setIsLoaded(false);
+    };
     document.head.appendChild(script);
 
     return () => {
@@ -96,14 +100,23 @@ const MapDisplay = ({ lat, lng, venue, locationDetails }: MapDisplayProps) => {
     };
   }, [isLoaded, lat, lng, venue, locationDetails]);
 
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
   return (
     <div className="relative w-full h-[300px] rounded-lg overflow-hidden border">
       <div ref={mapContainer} className="absolute inset-0" />
-      {!isLoaded && (
+      {!apiKey ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <div className="text-center p-4">
+            <p className="text-sm text-destructive font-medium">ไม่สามารถโหลดแผนที่ได้</p>
+            <p className="text-xs text-muted-foreground mt-1">กรุณาตรวจสอบการตั้งค่า Google Maps API Key</p>
+          </div>
+        </div>
+      ) : !isLoaded ? (
         <div className="absolute inset-0 flex items-center justify-center bg-muted">
           <p className="text-sm text-muted-foreground">กำลังโหลดแผนที่...</p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };
