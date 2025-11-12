@@ -24,32 +24,26 @@ export default function PaymentPage() {
     try {
       if (!participantId) return;
 
-      const { data: participantData, error: participantError } = await supabase
-        .from("participants")
-        .select(`
-          *,
-          tenants:tenant_id (
-            name,
-            slug
-          )
-        `)
-        .eq("participant_id", participantId)
-        .single();
+      // Call edge function to get participant info
+      const { data, error } = await supabase.functions.invoke(
+        "get-participant-info",
+        {
+          body: { participant_id: participantId }
+        }
+      );
 
-      if (participantError) throw participantError;
-      setParticipant(participantData);
+      if (error) throw error;
+      
+      if (!data?.participant) {
+        toast.error("ไม่พบข้อมูล");
+        return;
+      }
 
-      // Get tenant settings for QR code
-      const { data: settingsData, error: settingsError } = await supabase
-        .from("tenant_settings")
-        .select("payment_qr_payload, default_visitor_fee, currency")
-        .eq("tenant_id", participantData.tenant_id)
-        .single();
-
-      if (settingsError) throw settingsError;
-      setTenantSettings(settingsData);
+      setParticipant(data.participant);
+      setTenantSettings(data.settings);
     } catch (error: any) {
-      toast.error("ไม่พบข้อมูล");
+      console.error("Error loading data:", error);
+      toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
     } finally {
       setLoading(false);
     }
@@ -72,56 +66,43 @@ export default function PaymentPage() {
     setUploading(true);
 
     try {
-      // Create payment record first
-      const { data: payment, error: paymentError } = await supabase
-        .from("payments")
-        .insert([{
-          tenant_id: participant.tenant_id,
-          participant_id: participant.participant_id,
-          amount: tenantSettings?.default_visitor_fee || 650,
-          currency: tenantSettings?.currency || "THB",
-          method: "transfer",
-          status: "pending",
-        }])
-        .select()
-        .single();
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const base64 = reader.result?.toString().split(",")[1];
+          if (base64) {
+            resolve(base64);
+          } else {
+            reject(new Error("Failed to convert file"));
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-      if (paymentError) throw paymentError;
+      const slip_base64 = await base64Promise;
 
-      // Upload slip to storage
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${payment.payment_id}/${Date.now()}.${fileExt}`;
+      // Call edge function to process payment
+      const { data, error } = await supabase.functions.invoke(
+        "process-payment",
+        {
+          body: {
+            participant_id: participant.participant_id,
+            amount: tenantSettings?.default_visitor_fee || 650,
+            currency: tenantSettings?.currency || "THB",
+            slip_base64,
+            slip_filename: file.name,
+          }
+        }
+      );
 
-      const { error: uploadError } = await supabase.storage
-        .from("payment-slips")
-        .upload(fileName, file);
+      if (error) throw error;
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from("payment-slips")
-        .getPublicUrl(fileName);
-
-      // Update payment with slip URL
-      const { error: updateError } = await supabase
-        .from("payments")
-        .update({ slip_url: publicUrl })
-        .eq("payment_id", payment.payment_id);
-
-      if (updateError) throw updateError;
-
-      // Update participant status
-      await supabase
-        .from("participants")
-        .update({ 
-          status: "visitor_paid",
-          payment_status: "pending"
-        })
-        .eq("participant_id", participant.participant_id);
-
-      toast.success("อัปโหลดสลิปสำเร็จ! รอการตรวจสอบ");
+      toast.success("อัปโหลดสลิปสำเร็จ! รอการตรวจสอบจากทีมงาน");
       setPaymentComplete(true);
     } catch (error: any) {
+      console.error("Error uploading slip:", error);
       toast.error("เกิดข้อผิดพลาด: " + error.message);
     } finally {
       setUploading(false);
