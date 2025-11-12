@@ -32,7 +32,9 @@ interface TenantSecrets {
   tenant_name: string;
   line_channel_secret?: string;
   line_access_token?: string;
+  line_channel_id?: string;
   liff_id_checkin?: string;
+  liff_id_share?: string;
   default_visitor_fee?: number;
 }
 
@@ -140,7 +142,7 @@ async function resolveTenantSecrets(
     // Get secrets
     const { data: secrets } = await supabase
       .from('tenant_secrets')
-      .select('line_channel_secret, line_access_token, liff_id_checkin')
+      .select('line_channel_secret, line_access_token, line_channel_id, liff_id_checkin, liff_id_share')
       .eq('tenant_id', tenant.tenant_id)
       .single();
 
@@ -157,7 +159,9 @@ async function resolveTenantSecrets(
       tenant_name: tenant.name,
       line_channel_secret: secrets?.line_channel_secret,
       line_access_token: secrets?.line_access_token,
+      line_channel_id: secrets?.line_channel_id,
       liff_id_checkin: secrets?.liff_id_checkin,
+      liff_id_share: secrets?.liff_id_share,
       default_visitor_fee: settings?.default_visitor_fee || 650
     };
   } catch (error) {
@@ -193,14 +197,334 @@ async function replyToLine(
 }
 
 /**
- * Handle "card" command - search business card
+ * Search participant by keyword (full_name or nickname)
  */
-function handleCardCommand(keyword: string, tenantName: string): any[] {
+async function searchParticipant(
+  supabase: any,
+  tenantId: string,
+  keyword: string
+): Promise<any | null> {
+  const searchPattern = `%${keyword}%`;
+  
+  const { data, error } = await supabase
+    .from('participants')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .or(`full_name.ilike.${searchPattern},nickname.ilike.${searchPattern}`)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error searching participant:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Get payment status for participant
+ */
+async function getPaymentStatus(
+  supabase: any,
+  participantId: string,
+  tenantId: string
+): Promise<string> {
+  const { data } = await supabase
+    .from('payments')
+    .select('status')
+    .eq('participant_id', participantId)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'completed')
+    .limit(1)
+    .maybeSingle();
+
+  return data ? '✅ Paid' : '❌ Pending';
+}
+
+/**
+ * Get inviter name
+ */
+async function getInviterName(
+  supabase: any,
+  invitedBy: string | null
+): Promise<string> {
+  if (!invitedBy) return 'N/A';
+
+  const { data } = await supabase
+    .from('participants')
+    .select('full_name, nickname')
+    .eq('participant_id', invitedBy)
+    .maybeSingle();
+
+  if (!data) return 'N/A';
+  return data.nickname || data.full_name || 'N/A';
+}
+
+/**
+ * Build LINE Flex Message for business card
+ */
+async function buildBusinessCardFlex(
+  supabase: any,
+  participant: any,
+  tenantSecrets: TenantSecrets,
+  host: string
+): Promise<any> {
+  const isVisitor = participant.status === 'visitor' || participant.status === 'prospect';
+  
+  // Get payment status for visitors
+  let paymentStatus = '';
+  let inviterName = '';
+  if (isVisitor) {
+    paymentStatus = await getPaymentStatus(supabase, participant.participant_id, participant.tenant_id);
+    inviterName = await getInviterName(supabase, participant.invited_by);
+  }
+
+  const avatarUrl = `https://cdn.lovableproject.com/avatars/${participant.participant_id}.jpg`;
+  const fallbackAvatar = 'https://via.placeholder.com/400x300?text=No+Photo';
+
+  // Build body contents
+  const bodyContents: any[] = [
+    {
+      type: 'text',
+      text: participant.full_name,
+      weight: 'bold',
+      size: 'xl',
+      margin: 'md'
+    }
+  ];
+
+  if (participant.nickname) {
+    bodyContents.push({
+      type: 'text',
+      text: `(${participant.nickname})`,
+      size: 'sm',
+      color: '#999999',
+      margin: 'sm'
+    });
+  }
+
+  if (participant.company) {
+    bodyContents.push({
+      type: 'text',
+      text: participant.company,
+      size: 'md',
+      color: '#555555',
+      margin: 'md'
+    });
+  }
+
+  if (participant.business_type) {
+    bodyContents.push({
+      type: 'text',
+      text: `🏢 ${participant.business_type}`,
+      size: 'sm',
+      color: '#999999',
+      margin: 'sm'
+    });
+  }
+
+  // Add visitor-specific section
+  if (isVisitor) {
+    bodyContents.push({
+      type: 'separator',
+      margin: 'xl'
+    });
+
+    if (participant.goal) {
+      bodyContents.push({
+        type: 'box',
+        layout: 'baseline',
+        margin: 'md',
+        contents: [
+          {
+            type: 'text',
+            text: 'เป้าหมาย:',
+            size: 'sm',
+            color: '#999999',
+            flex: 0
+          },
+          {
+            type: 'text',
+            text: participant.goal,
+            size: 'sm',
+            color: '#555555',
+            wrap: true,
+            flex: 1,
+            margin: 'sm'
+          }
+        ]
+      });
+    }
+
+    bodyContents.push({
+      type: 'box',
+      layout: 'baseline',
+      margin: 'sm',
+      contents: [
+        {
+          type: 'text',
+          text: 'ผู้แนะนำ:',
+          size: 'sm',
+          color: '#999999',
+          flex: 0
+        },
+        {
+          type: 'text',
+          text: inviterName,
+          size: 'sm',
+          color: '#555555',
+          flex: 1,
+          margin: 'sm'
+        }
+      ]
+    });
+
+    bodyContents.push({
+      type: 'box',
+      layout: 'baseline',
+      margin: 'sm',
+      contents: [
+        {
+          type: 'text',
+          text: 'สถานะ:',
+          size: 'sm',
+          color: '#999999',
+          flex: 0
+        },
+        {
+          type: 'text',
+          text: paymentStatus,
+          size: 'sm',
+          color: paymentStatus.includes('✅') ? '#06c755' : '#ff334b',
+          flex: 1,
+          margin: 'sm'
+        }
+      ]
+    });
+  }
+
+  // Build footer buttons
+  const footerContents: any[] = [];
+
+  // Call button
+  if (participant.phone) {
+    footerContents.push({
+      type: 'button',
+      style: 'primary',
+      color: '#06c755',
+      action: {
+        type: 'uri',
+        label: '📞 โทร',
+        uri: `tel:${participant.phone}`
+      }
+    });
+  }
+
+  // Message OA button
+  if (tenantSecrets.line_channel_id) {
+    const oaId = tenantSecrets.line_channel_id.replace('@', '');
+    const nickname = participant.nickname || participant.full_name;
+    footerContents.push({
+      type: 'button',
+      style: 'primary',
+      action: {
+        type: 'uri',
+        label: '💬 ส่งข้อความ',
+        uri: `line://oaMessage/${oaId}/?text=Hi%20${encodeURIComponent(nickname)}%21`
+      }
+    });
+  }
+
+  // Share Card button
+  const shareUrl = tenantSecrets.liff_id_share
+    ? `line://app/${tenantSecrets.liff_id_share}?pid=${participant.participant_id}`
+    : `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(`${host}/profile/${tenantSecrets.tenant_slug}/${participant.participant_id}`)}`;
+  
+  footerContents.push({
+    type: 'button',
+    style: 'link',
+    action: {
+      type: 'uri',
+      label: '🔗 แชร์นามบัตร',
+      uri: shareUrl
+    }
+  });
+
+  // Check-in button
+  footerContents.push({
+    type: 'button',
+    style: 'link',
+    action: {
+      type: 'uri',
+      label: '✅ Check-in',
+      uri: `${host}/checkin?tenant=${tenantSecrets.tenant_slug}&pid=${participant.participant_id}`
+    }
+  });
+
+  return {
+    type: 'bubble',
+    size: 'mega',
+    hero: {
+      type: 'image',
+      url: avatarUrl,
+      size: 'full',
+      aspectRatio: '20:13',
+      aspectMode: 'cover',
+      action: {
+        type: 'uri',
+        uri: avatarUrl
+      }
+    },
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      contents: bodyContents
+    },
+    footer: {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'sm',
+      contents: footerContents
+    }
+  };
+}
+
+/**
+ * Handle "card" command - search and send business card
+ */
+async function sendBusinessCardFlex(
+  supabase: any,
+  keyword: string,
+  tenantSecrets: TenantSecrets,
+  host: string
+): Promise<any[]> {
+  // Search participant
+  const participant = await searchParticipant(
+    supabase,
+    tenantSecrets.tenant_id,
+    keyword
+  );
+
+  if (!participant) {
+    return [{
+      type: 'text',
+      text: `❌ ไม่พบรายชื่อที่ค้นหา "${keyword}"\n\nลองค้นหาด้วยชื่อหรือชื่อเล่น`
+    }];
+  }
+
+  // Build Flex Message
+  const flexMessage = await buildBusinessCardFlex(
+    supabase,
+    participant,
+    tenantSecrets,
+    host
+  );
+
   return [{
-    type: 'text',
-    text: `🔍 กำลังค้นหานามบัตร "${keyword}" ใน ${tenantName}\n\n` +
-          `ฟีเจอร์นี้จะเชื่อมต่อกับฐานข้อมูล participants เร็วๆ นี้\n\n` +
-          `สามารถค้นหาได้ด้วย: ชื่อ, บริษัท, หรือ business_type`
+    type: 'flex',
+    altText: `นามบัตร: ${participant.full_name}`,
+    contents: flexMessage
   }];
 }
 
@@ -398,7 +722,13 @@ Deno.serve(async (req) => {
         // Command: card <keyword>
         if (messageText.startsWith('card ')) {
           const keyword = messageText.substring(5).trim();
-          replyMessages = handleCardCommand(keyword, tenantSecrets.tenant_name);
+          const host = new URL(req.url).origin;
+          replyMessages = await sendBusinessCardFlex(
+            supabase,
+            keyword,
+            tenantSecrets,
+            host
+          );
         }
         // Command: checkin
         else if (messageText === 'checkin') {
