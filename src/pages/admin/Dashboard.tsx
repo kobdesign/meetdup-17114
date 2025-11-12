@@ -71,7 +71,7 @@ export default function Dashboard() {
       case "current_month":
         return {
           from: new Date(currentYear, currentMonth, 1),
-          to: now,
+          to: new Date(currentYear, currentMonth + 1, 0),
         };
       
       case "last_month":
