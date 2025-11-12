@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Calendar as CalendarIcon } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -15,6 +15,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +43,11 @@ export default function Meetings() {
     theme: "",
     visitor_fee: 650,
   });
+
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState<any | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadTenantId();
@@ -105,6 +121,85 @@ export default function Meetings() {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
     } finally {
       setAdding(false);
+    }
+  };
+
+  const startEditMeeting = (meeting: any) => {
+    setEditingMeeting(meeting);
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateMeeting = async () => {
+    if (!editingMeeting?.meeting_date) {
+      toast.error("กรุณาเลือกวันที่ประชุม");
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("meetings")
+        .update({
+          meeting_date: editingMeeting.meeting_date,
+          venue: editingMeeting.venue || null,
+          theme: editingMeeting.theme || null,
+          visitor_fee: editingMeeting.visitor_fee,
+        })
+        .eq("meeting_id", editingMeeting.meeting_id);
+
+      if (error) throw error;
+
+      toast.success("แก้ไขการประชุมสำเร็จ");
+      setShowEditDialog(false);
+      setEditingMeeting(null);
+      fetchMeetings();
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDeleteMeeting = async (meetingId: string) => {
+    setDeleting(true);
+    try {
+      // Check for dependencies
+      const { data: checkins } = await supabase
+        .from("checkins")
+        .select("checkin_id")
+        .eq("meeting_id", meetingId)
+        .limit(1);
+
+      const { data: payments } = await supabase
+        .from("payments")
+        .select("payment_id")
+        .eq("meeting_id", meetingId)
+        .limit(1);
+
+      if (checkins && checkins.length > 0) {
+        toast.error("ไม่สามารถลบได้ เนื่องจากมีประวัติการเช็คอิน");
+        return;
+      }
+
+      if (payments && payments.length > 0) {
+        toast.error("ไม่สามารถลบได้ เนื่องจากมีประวัติการชำระเงิน");
+        return;
+      }
+
+      // Delete meeting
+      const { error } = await supabase
+        .from("meetings")
+        .delete()
+        .eq("meeting_id", meetingId);
+
+      if (error) throw error;
+
+      toast.success("ลบการประชุมสำเร็จ");
+      fetchMeetings();
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -184,6 +279,72 @@ export default function Meetings() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Edit Meeting Dialog */}
+          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>แก้ไขการประชุม</DialogTitle>
+                <DialogDescription>
+                  แก้ไขข้อมูลการประชุม Chapter
+                </DialogDescription>
+              </DialogHeader>
+              {editingMeeting && (
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_meeting_date">วันที่ประชุม *</Label>
+                    <Input
+                      id="edit_meeting_date"
+                      type="date"
+                      value={editingMeeting.meeting_date}
+                      onChange={(e) => setEditingMeeting({ ...editingMeeting, meeting_date: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_venue">สถานที่</Label>
+                    <Input
+                      id="edit_venue"
+                      value={editingMeeting.venue || ""}
+                      onChange={(e) => setEditingMeeting({ ...editingMeeting, venue: e.target.value })}
+                      placeholder="โรงแรม ABC ห้องประชุม 1"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_theme">หัวข้อ/ธีม</Label>
+                    <Textarea
+                      id="edit_theme"
+                      value={editingMeeting.theme || ""}
+                      onChange={(e) => setEditingMeeting({ ...editingMeeting, theme: e.target.value })}
+                      placeholder="หัวข้อการประชุม หรือวิทยากรพิเศษ"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_visitor_fee">ค่าเข้าร่วมสำหรับผู้เยี่ยมชม (บาท)</Label>
+                    <Input
+                      id="edit_visitor_fee"
+                      type="number"
+                      value={editingMeeting.visitor_fee}
+                      onChange={(e) => setEditingMeeting({ ...editingMeeting, visitor_fee: parseFloat(e.target.value) })}
+                      min="0"
+                      step="50"
+                    />
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                  ยกเลิก
+                </Button>
+                <Button onClick={handleUpdateMeeting} disabled={updating}>
+                  {updating ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Card>
@@ -202,12 +363,13 @@ export default function Meetings() {
                     <TableHead>Theme</TableHead>
                     <TableHead>Visitor Fee</TableHead>
                     <TableHead>Attendance</TableHead>
+                    <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {meetings.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
                         No meetings scheduled
                       </TableCell>
                     </TableRow>
@@ -231,6 +393,46 @@ export default function Meetings() {
                           <span className="text-sm text-muted-foreground">
                             {meeting.checkins?.[0]?.count || 0} attendees
                           </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEditMeeting(meeting)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="destructive" disabled={deleting}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>ยืนยันการลบการประชุม</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    คุณต้องการลบการประชุมวันที่{" "}
+                                    {new Date(meeting.meeting_date).toLocaleDateString("th-TH")} ใช่หรือไม่?
+                                    <br />
+                                    <span className="text-destructive font-semibold">
+                                      การดำเนินการนี้ไม่สามารถย้อนกลับได้
+                                    </span>
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteMeeting(meeting.meeting_id)}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                    ลบ
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

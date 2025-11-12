@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
@@ -17,6 +17,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +51,11 @@ export default function Participants() {
     status: "prospect" as const,
     notes: "",
   });
+
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadTenantId();
@@ -120,6 +136,90 @@ export default function Participants() {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
     } finally {
       setAdding(false);
+    }
+  };
+
+  const startEditParticipant = (participant: any) => {
+    setEditingParticipant(participant);
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateParticipant = async () => {
+    if (!editingParticipant?.full_name) {
+      toast.error("กรุณากรอกชื่อ-นามสกุล");
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("participants")
+        .update({
+          full_name: editingParticipant.full_name,
+          nickname: editingParticipant.nickname || null,
+          email: editingParticipant.email || null,
+          phone: editingParticipant.phone || null,
+          company: editingParticipant.company || null,
+          business_type: editingParticipant.business_type || null,
+          goal: editingParticipant.goal || null,
+          status: editingParticipant.status,
+          notes: editingParticipant.notes || null,
+        })
+        .eq("participant_id", editingParticipant.participant_id);
+
+      if (error) throw error;
+
+      toast.success("แก้ไขข้อมูลสำเร็จ");
+      setShowEditDialog(false);
+      setEditingParticipant(null);
+      fetchParticipants();
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDeleteParticipant = async (participantId: string) => {
+    setDeleting(true);
+    try {
+      // Check for dependencies
+      const { data: checkins } = await supabase
+        .from("checkins")
+        .select("checkin_id")
+        .eq("participant_id", participantId)
+        .limit(1);
+
+      const { data: payments } = await supabase
+        .from("payments")
+        .select("payment_id")
+        .eq("participant_id", participantId)
+        .limit(1);
+
+      if (checkins && checkins.length > 0) {
+        toast.error("ไม่สามารถลบได้ เนื่องจากมีประวัติการเช็คอิน");
+        return;
+      }
+
+      if (payments && payments.length > 0) {
+        toast.error("ไม่สามารถลบได้ เนื่องจากมีประวัติการชำระเงิน");
+        return;
+      }
+
+      // Delete participant
+      const { error } = await supabase
+        .from("participants")
+        .delete()
+        .eq("participant_id", participantId);
+
+      if (error) throw error;
+
+      toast.success("ลบสมาชิกสำเร็จ");
+      fetchParticipants();
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -267,6 +367,134 @@ export default function Participants() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Edit Participant Dialog */}
+          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>แก้ไขข้อมูลสมาชิก</DialogTitle>
+                <DialogDescription>
+                  แก้ไขข้อมูลสมาชิกหรือผู้สนใจ
+                </DialogDescription>
+              </DialogHeader>
+              {editingParticipant && (
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_full_name">ชื่อ-นามสกุล *</Label>
+                      <Input
+                        id="edit_full_name"
+                        value={editingParticipant.full_name}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, full_name: e.target.value })}
+                        placeholder="จอห์น สมิธ"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_nickname">ชื่อเล่น</Label>
+                      <Input
+                        id="edit_nickname"
+                        value={editingParticipant.nickname || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, nickname: e.target.value })}
+                        placeholder="จอห์น"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_email">อีเมล</Label>
+                      <Input
+                        id="edit_email"
+                        type="email"
+                        value={editingParticipant.email || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, email: e.target.value })}
+                        placeholder="john@example.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_phone">เบอร์โทร</Label>
+                      <Input
+                        id="edit_phone"
+                        value={editingParticipant.phone || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, phone: e.target.value })}
+                        placeholder="081-234-5678"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_company">บริษัท</Label>
+                      <Input
+                        id="edit_company"
+                        value={editingParticipant.company || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, company: e.target.value })}
+                        placeholder="ABC Company Ltd."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_business_type">ประเภทธุรกิจ</Label>
+                      <Input
+                        id="edit_business_type"
+                        value={editingParticipant.business_type || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, business_type: e.target.value })}
+                        placeholder="เทคโนโลยี"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_status">สถานะ</Label>
+                    <Select
+                      value={editingParticipant.status}
+                      onValueChange={(value: any) => setEditingParticipant({ ...editingParticipant, status: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prospect">Prospect</SelectItem>
+                        <SelectItem value="visitor">Visitor</SelectItem>
+                        <SelectItem value="member_active">Member (Active)</SelectItem>
+                        <SelectItem value="member_inactive">Member (Inactive)</SelectItem>
+                        <SelectItem value="alumni">Alumni</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_goal">เป้าหมาย/ความสนใจ</Label>
+                    <Textarea
+                      id="edit_goal"
+                      value={editingParticipant.goal || ""}
+                      onChange={(e) => setEditingParticipant({ ...editingParticipant, goal: e.target.value })}
+                      placeholder="ต้องการหาพาร์ทเนอร์ทางธุรกิจ"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_notes">หมายเหตุ</Label>
+                    <Textarea
+                      id="edit_notes"
+                      value={editingParticipant.notes || ""}
+                      onChange={(e) => setEditingParticipant({ ...editingParticipant, notes: e.target.value })}
+                      placeholder="บันทึกเพิ่มเติม..."
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                  ยกเลิก
+                </Button>
+                <Button onClick={handleUpdateParticipant} disabled={updating}>
+                  {updating ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Card>
@@ -297,12 +525,13 @@ export default function Participants() {
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Payment</TableHead>
+                    <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredParticipants.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No participants found
                       </TableCell>
                     </TableRow>
@@ -327,6 +556,45 @@ export default function Participants() {
                         </TableCell>
                         <TableCell>
                           <StatusBadge status={participant.payment_status} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEditParticipant(participant)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="destructive" disabled={deleting}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>ยืนยันการลบสมาชิก</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    คุณต้องการลบ {participant.full_name} ใช่หรือไม่?
+                                    <br />
+                                    <span className="text-destructive font-semibold">
+                                      การดำเนินการนี้ไม่สามารถย้อนกลับได้
+                                    </span>
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteParticipant(participant.participant_id)}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                    ลบ
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
