@@ -18,6 +18,7 @@ import CheckIn from "./pages/admin/CheckIn";
 import Analytics from "./pages/admin/Analytics";
 import Settings from "./pages/admin/Settings";
 import PaymentHistory from "./pages/admin/PaymentHistory";
+import PaymentReviews from "./pages/admin/PaymentReviews";
 import Authorization from "./pages/admin/Authorization";
 import RefundApprovals from "./pages/admin/RefundApprovals";
 import Tenants from "./pages/super-admin/Tenants";
@@ -98,6 +99,11 @@ const App = () => (
           <Route path="/admin/payment-history/:participantId" element={
             <ProtectedRoute>
               <PaymentHistory />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/payment-reviews" element={
+            <ProtectedRoute>
+              <PaymentReviews />
             </ProtectedRoute>
           } />
           <Route path="/admin/authorization" element={
