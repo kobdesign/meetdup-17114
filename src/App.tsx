@@ -11,6 +11,7 @@ import Profile from "./pages/Profile";
 import Dashboard from "./pages/admin/Dashboard";
 import Participants from "./pages/admin/Participants";
 import Meetings from "./pages/admin/Meetings";
+import MeetingDetails from "./pages/admin/MeetingDetails";
 import Visitors from "./pages/admin/Visitors";
 import CheckIn from "./pages/admin/CheckIn";
 import Analytics from "./pages/admin/Analytics";
@@ -65,6 +66,11 @@ const App = () => (
           <Route path="/admin/meetings" element={
             <ProtectedRoute>
               <Meetings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/meetings/:meetingId" element={
+            <ProtectedRoute>
+              <MeetingDetails />
             </ProtectedRoute>
           } />
           <Route path="/admin/visitors" element={

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Calendar as CalendarIcon, Pencil, Trash2 } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -29,6 +30,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState<any[]>([]);
@@ -37,11 +40,21 @@ export default function Meetings() {
   const [adding, setAdding] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
   
+  const navigate = useNavigate();
+  
   const [newMeeting, setNewMeeting] = useState({
     meeting_date: "",
+    meeting_time: "",
     venue: "",
+    location_details: "",
+    location_lat: "",
+    location_lng: "",
     theme: "",
     visitor_fee: 650,
+    recurrence_pattern: "none" as const,
+    recurrence_interval: 1,
+    recurrence_end_date: "",
+    recurrence_days_of_week: [] as string[],
   });
 
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -101,9 +114,17 @@ export default function Meetings() {
         .insert({
           tenant_id: tenantId,
           meeting_date: newMeeting.meeting_date,
+          meeting_time: newMeeting.meeting_time || null,
           venue: newMeeting.venue || null,
+          location_details: newMeeting.location_details || null,
+          location_lat: newMeeting.location_lat ? parseFloat(newMeeting.location_lat) : null,
+          location_lng: newMeeting.location_lng ? parseFloat(newMeeting.location_lng) : null,
           theme: newMeeting.theme || null,
           visitor_fee: newMeeting.visitor_fee,
+          recurrence_pattern: newMeeting.recurrence_pattern,
+          recurrence_interval: newMeeting.recurrence_interval,
+          recurrence_end_date: newMeeting.recurrence_end_date || null,
+          recurrence_days_of_week: newMeeting.recurrence_days_of_week.length > 0 ? newMeeting.recurrence_days_of_week : null,
         });
 
       if (error) throw error;
@@ -112,9 +133,17 @@ export default function Meetings() {
       setShowAddDialog(false);
       setNewMeeting({
         meeting_date: "",
+        meeting_time: "",
         venue: "",
+        location_details: "",
+        location_lat: "",
+        location_lng: "",
         theme: "",
         visitor_fee: 650,
+        recurrence_pattern: "none",
+        recurrence_interval: 1,
+        recurrence_end_date: "",
+        recurrence_days_of_week: [],
       });
       fetchMeetings();
     } catch (error: any) {
@@ -141,9 +170,17 @@ export default function Meetings() {
         .from("meetings")
         .update({
           meeting_date: editingMeeting.meeting_date,
+          meeting_time: editingMeeting.meeting_time || null,
           venue: editingMeeting.venue || null,
+          location_details: editingMeeting.location_details || null,
+          location_lat: editingMeeting.location_lat ? parseFloat(editingMeeting.location_lat) : null,
+          location_lng: editingMeeting.location_lng ? parseFloat(editingMeeting.location_lng) : null,
           theme: editingMeeting.theme || null,
           visitor_fee: editingMeeting.visitor_fee,
+          recurrence_pattern: editingMeeting.recurrence_pattern,
+          recurrence_interval: editingMeeting.recurrence_interval,
+          recurrence_end_date: editingMeeting.recurrence_end_date || null,
+          recurrence_days_of_week: editingMeeting.recurrence_days_of_week?.length > 0 ? editingMeeting.recurrence_days_of_week : null,
         })
         .eq("meeting_id", editingMeeting.meeting_id);
 
@@ -218,22 +255,33 @@ export default function Meetings() {
                 กำหนดการประชุม
               </Button>
             </DialogTrigger>
-            <DialogContent>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>กำหนดการประชุมใหม่</DialogTitle>
                 <DialogDescription>
-                  เพิ่มการประชุม Chapter
+                  เพิ่มการประชุม Chapter พร้อมตั้งค่าการทำซ้ำ
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="meeting_date">วันที่ประชุม *</Label>
-                  <Input
-                    id="meeting_date"
-                    type="date"
-                    value={newMeeting.meeting_date}
-                    onChange={(e) => setNewMeeting({ ...newMeeting, meeting_date: e.target.value })}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="meeting_date">วันที่ประชุม *</Label>
+                    <Input
+                      id="meeting_date"
+                      type="date"
+                      value={newMeeting.meeting_date}
+                      onChange={(e) => setNewMeeting({ ...newMeeting, meeting_date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meeting_time">เวลา</Label>
+                    <Input
+                      id="meeting_time"
+                      type="time"
+                      value={newMeeting.meeting_time}
+                      onChange={(e) => setNewMeeting({ ...newMeeting, meeting_time: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -242,8 +290,43 @@ export default function Meetings() {
                     id="venue"
                     value={newMeeting.venue}
                     onChange={(e) => setNewMeeting({ ...newMeeting, venue: e.target.value })}
-                    placeholder="โรงแรม ABC ห้องประชุม 1"
+                    placeholder="โรงแรม ABC"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="location_details">รายละเอียดสถานที่</Label>
+                  <Input
+                    id="location_details"
+                    value={newMeeting.location_details}
+                    onChange={(e) => setNewMeeting({ ...newMeeting, location_details: e.target.value })}
+                    placeholder="ห้องประชุม 1 ชั้น 5"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="location_lat">ละติจูด (Latitude)</Label>
+                    <Input
+                      id="location_lat"
+                      type="number"
+                      step="any"
+                      value={newMeeting.location_lat}
+                      onChange={(e) => setNewMeeting({ ...newMeeting, location_lat: e.target.value })}
+                      placeholder="13.7563"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location_lng">ลองจิจูด (Longitude)</Label>
+                    <Input
+                      id="location_lng"
+                      type="number"
+                      step="any"
+                      value={newMeeting.location_lng}
+                      onChange={(e) => setNewMeeting({ ...newMeeting, location_lng: e.target.value })}
+                      placeholder="100.5018"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -268,6 +351,88 @@ export default function Meetings() {
                     step="50"
                   />
                 </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-4">การทำซ้ำ (Recurring)</h3>
+                  
+                  <div className="space-y-2 mb-4">
+                    <Label htmlFor="recurrence_pattern">รูปแบบการทำซ้ำ</Label>
+                    <Select
+                      value={newMeeting.recurrence_pattern}
+                      onValueChange={(value: any) => setNewMeeting({ ...newMeeting, recurrence_pattern: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">ไม่ซ้ำ</SelectItem>
+                        <SelectItem value="daily">ทุกวัน</SelectItem>
+                        <SelectItem value="weekly">ทุกสัปดาห์</SelectItem>
+                        <SelectItem value="monthly">ทุกเดือน</SelectItem>
+                        <SelectItem value="yearly">ทุกปี</SelectItem>
+                        <SelectItem value="weekdays">ทุกวันจันทร์-ศุกร์</SelectItem>
+                        <SelectItem value="custom">กำหนดเอง</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {newMeeting.recurrence_pattern !== "none" && (
+                    <>
+                      <div className="space-y-2 mb-4">
+                        <Label htmlFor="recurrence_interval">ทุกๆ (ช่วง)</Label>
+                        <Input
+                          id="recurrence_interval"
+                          type="number"
+                          min="1"
+                          value={newMeeting.recurrence_interval}
+                          onChange={(e) => setNewMeeting({ ...newMeeting, recurrence_interval: parseInt(e.target.value) })}
+                        />
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        <Label htmlFor="recurrence_end_date">สิ้นสุดวันที่</Label>
+                        <Input
+                          id="recurrence_end_date"
+                          type="date"
+                          value={newMeeting.recurrence_end_date}
+                          onChange={(e) => setNewMeeting({ ...newMeeting, recurrence_end_date: e.target.value })}
+                        />
+                      </div>
+
+                      {newMeeting.recurrence_pattern === "custom" && (
+                        <div className="space-y-2">
+                          <Label>เลือกวัน</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
+                              <div key={day} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={day}
+                                  checked={newMeeting.recurrence_days_of_week.includes(day)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setNewMeeting({
+                                        ...newMeeting,
+                                        recurrence_days_of_week: [...newMeeting.recurrence_days_of_week, day],
+                                      });
+                                    } else {
+                                      setNewMeeting({
+                                        ...newMeeting,
+                                        recurrence_days_of_week: newMeeting.recurrence_days_of_week.filter((d) => d !== day),
+                                      });
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={day} className="cursor-pointer">
+                                  {day === "monday" ? "จันทร์" : day === "tuesday" ? "อังคาร" : day === "wednesday" ? "พุธ" : day === "thursday" ? "พฤหัสบดี" : day === "friday" ? "ศุกร์" : day === "saturday" ? "เสาร์" : "อาทิตย์"}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
@@ -282,23 +447,34 @@ export default function Meetings() {
 
           {/* Edit Meeting Dialog */}
           <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-            <DialogContent>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>แก้ไขการประชุม</DialogTitle>
                 <DialogDescription>
-                  แก้ไขข้อมูลการประชุม Chapter
+                  แก้ไขข้อมูลการประชุม Chapter พร้อมตั้งค่าการทำซ้ำ
                 </DialogDescription>
               </DialogHeader>
               {editingMeeting && (
                 <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_meeting_date">วันที่ประชุม *</Label>
-                    <Input
-                      id="edit_meeting_date"
-                      type="date"
-                      value={editingMeeting.meeting_date}
-                      onChange={(e) => setEditingMeeting({ ...editingMeeting, meeting_date: e.target.value })}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_meeting_date">วันที่ประชุม *</Label>
+                      <Input
+                        id="edit_meeting_date"
+                        type="date"
+                        value={editingMeeting.meeting_date}
+                        onChange={(e) => setEditingMeeting({ ...editingMeeting, meeting_date: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_meeting_time">เวลา</Label>
+                      <Input
+                        id="edit_meeting_time"
+                        type="time"
+                        value={editingMeeting.meeting_time || ""}
+                        onChange={(e) => setEditingMeeting({ ...editingMeeting, meeting_time: e.target.value })}
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -307,8 +483,43 @@ export default function Meetings() {
                       id="edit_venue"
                       value={editingMeeting.venue || ""}
                       onChange={(e) => setEditingMeeting({ ...editingMeeting, venue: e.target.value })}
-                      placeholder="โรงแรม ABC ห้องประชุม 1"
+                      placeholder="โรงแรม ABC"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_location_details">รายละเอียดสถานที่</Label>
+                    <Input
+                      id="edit_location_details"
+                      value={editingMeeting.location_details || ""}
+                      onChange={(e) => setEditingMeeting({ ...editingMeeting, location_details: e.target.value })}
+                      placeholder="ห้องประชุม 1 ชั้น 5"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_location_lat">ละติจูด (Latitude)</Label>
+                      <Input
+                        id="edit_location_lat"
+                        type="number"
+                        step="any"
+                        value={editingMeeting.location_lat || ""}
+                        onChange={(e) => setEditingMeeting({ ...editingMeeting, location_lat: e.target.value })}
+                        placeholder="13.7563"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_location_lng">ลองจิจูด (Longitude)</Label>
+                      <Input
+                        id="edit_location_lng"
+                        type="number"
+                        step="any"
+                        value={editingMeeting.location_lng || ""}
+                        onChange={(e) => setEditingMeeting({ ...editingMeeting, location_lng: e.target.value })}
+                        placeholder="100.5018"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -332,6 +543,89 @@ export default function Meetings() {
                       min="0"
                       step="50"
                     />
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-4">การทำซ้ำ (Recurring)</h3>
+                    
+                    <div className="space-y-2 mb-4">
+                      <Label htmlFor="edit_recurrence_pattern">รูปแบบการทำซ้ำ</Label>
+                      <Select
+                        value={editingMeeting.recurrence_pattern || "none"}
+                        onValueChange={(value: any) => setEditingMeeting({ ...editingMeeting, recurrence_pattern: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">ไม่ซ้ำ</SelectItem>
+                          <SelectItem value="daily">ทุกวัน</SelectItem>
+                          <SelectItem value="weekly">ทุกสัปดาห์</SelectItem>
+                          <SelectItem value="monthly">ทุกเดือน</SelectItem>
+                          <SelectItem value="yearly">ทุกปี</SelectItem>
+                          <SelectItem value="weekdays">ทุกวันจันทร์-ศุกร์</SelectItem>
+                          <SelectItem value="custom">กำหนดเอง</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {editingMeeting.recurrence_pattern && editingMeeting.recurrence_pattern !== "none" && (
+                      <>
+                        <div className="space-y-2 mb-4">
+                          <Label htmlFor="edit_recurrence_interval">ทุกๆ (ช่วง)</Label>
+                          <Input
+                            id="edit_recurrence_interval"
+                            type="number"
+                            min="1"
+                            value={editingMeeting.recurrence_interval || 1}
+                            onChange={(e) => setEditingMeeting({ ...editingMeeting, recurrence_interval: parseInt(e.target.value) })}
+                          />
+                        </div>
+
+                        <div className="space-y-2 mb-4">
+                          <Label htmlFor="edit_recurrence_end_date">สิ้นสุดวันที่</Label>
+                          <Input
+                            id="edit_recurrence_end_date"
+                            type="date"
+                            value={editingMeeting.recurrence_end_date || ""}
+                            onChange={(e) => setEditingMeeting({ ...editingMeeting, recurrence_end_date: e.target.value })}
+                          />
+                        </div>
+
+                        {editingMeeting.recurrence_pattern === "custom" && (
+                          <div className="space-y-2">
+                            <Label>เลือกวัน</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
+                                <div key={day} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`edit_${day}`}
+                                    checked={editingMeeting.recurrence_days_of_week?.includes(day) || false}
+                                    onCheckedChange={(checked) => {
+                                      const currentDays = editingMeeting.recurrence_days_of_week || [];
+                                      if (checked) {
+                                        setEditingMeeting({
+                                          ...editingMeeting,
+                                          recurrence_days_of_week: [...currentDays, day],
+                                        });
+                                      } else {
+                                        setEditingMeeting({
+                                          ...editingMeeting,
+                                          recurrence_days_of_week: currentDays.filter((d: string) => d !== day),
+                                        });
+                                      }
+                                    }}
+                                  />
+                                  <Label htmlFor={`edit_${day}`} className="cursor-pointer">
+                                    {day === "monday" ? "จันทร์" : day === "tuesday" ? "อังคาร" : day === "wednesday" ? "พุธ" : day === "thursday" ? "พฤหัสบดี" : day === "friday" ? "ศุกร์" : day === "saturday" ? "เสาร์" : "อาทิตย์"}
+                                  </Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -396,6 +690,13 @@ export default function Meetings() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => navigate(`/admin/meetings/${meeting.meeting_id}`)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
