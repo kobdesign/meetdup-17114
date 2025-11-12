@@ -1,9 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 serve(async (req) => {
@@ -12,14 +13,51 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[check-in-participant:${requestId}]`;
+
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error(`${logPrefix} Missing env vars SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY`);
+      return new Response(
+        JSON.stringify({ error: 'Server misconfiguration' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { meeting_id, full_name, email, phone } = await req.json();
+    // Robust body parsing
+    const contentType = req.headers.get('content-type') || '';
+    let body: any = {};
 
-    console.log('Check-in request:', { meeting_id, full_name, email, phone });
+    try {
+      if (contentType.includes('application/json')) {
+        body = await req.json();
+      } else {
+        const raw = await req.text();
+        console.log(`${logPrefix} Non-JSON content-type received:`, contentType, 'raw length:', raw?.length ?? 0);
+        body = raw ? JSON.parse(raw) : {};
+      }
+    } catch (parseErr) {
+      console.error(`${logPrefix} Failed to parse request body:`, parseErr);
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { meeting_id, full_name, email, phone } = body || {};
+
+    console.log(`${logPrefix} Incoming check-in request`, {
+      meeting_id,
+      full_name,
+      email,
+      phone_masked: phone ? `${String(phone).slice(0,3)}****` : undefined,
+    });
 
     // Validate required fields
     if (!meeting_id || !full_name || !email || !phone) {
@@ -37,7 +75,7 @@ serve(async (req) => {
       .single();
 
     if (meetingError || !meeting) {
-      console.error('Meeting not found:', meetingError);
+      console.error(`${logPrefix} Meeting not found`, meetingError);
       return new Response(
         JSON.stringify({ error: 'Meeting not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -47,21 +85,25 @@ serve(async (req) => {
     // Check if participant exists
     let participantId: string;
     let participantStatus: string | null = null;
-    
-    const { data: existingParticipant } = await supabase
+
+    const { data: existingParticipant, error: lookupError } = await supabase
       .from('participants')
       .select('participant_id, status')
       .eq('tenant_id', meeting.tenant_id)
       .eq('email', email)
       .maybeSingle();
 
+    if (lookupError) {
+      console.error(`${logPrefix} Error looking up participant:`, lookupError);
+    }
+
     if (existingParticipant) {
-      console.log('Existing participant found:', existingParticipant);
+      console.log(`${logPrefix} Existing participant found`, existingParticipant);
       participantId = existingParticipant.participant_id;
       participantStatus = existingParticipant.status;
     } else {
       // Create new participant as 'prospect'
-      console.log('Creating new participant');
+      console.log(`${logPrefix} Creating new participant`);
       const { data: newParticipant, error: participantError } = await supabase
         .from('participants')
         .insert({
@@ -75,25 +117,32 @@ serve(async (req) => {
         .single();
 
       if (participantError) {
-        console.error('Failed to create participant:', participantError);
-        throw participantError;
+        console.error(`${logPrefix} Failed to create participant:`, participantError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to create participant' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       participantId = newParticipant.participant_id;
       participantStatus = 'prospect';
-      console.log('New participant created:', participantId);
+      console.log(`${logPrefix} New participant created:`, participantId);
     }
 
     // Check if already checked in
-    const { data: existingCheckin } = await supabase
+    const { data: existingCheckin, error: checkLookupErr } = await supabase
       .from('checkins')
       .select('checkin_id')
       .eq('meeting_id', meeting_id)
       .eq('participant_id', participantId)
       .maybeSingle();
 
+    if (checkLookupErr) {
+      console.error(`${logPrefix} Error checking existing check-in:`, checkLookupErr);
+    }
+
     if (existingCheckin) {
-      console.log('Participant already checked in');
+      console.log(`${logPrefix} Participant already checked in`);
       return new Response(
         JSON.stringify({ error: 'Already checked in', already_checked_in: true }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -102,24 +151,25 @@ serve(async (req) => {
 
     // Auto status change: prospect -> visitor on first check-in
     if (participantStatus === 'prospect') {
-      console.log('Upgrading prospect to visitor');
+      console.log(`${logPrefix} Upgrading prospect to visitor`);
       const { error: updateError } = await supabase
         .from('participants')
         .update({ status: 'visitor' })
         .eq('participant_id', participantId);
 
       if (updateError) {
-        console.error('Failed to update status to visitor:', updateError);
+        console.error(`${logPrefix} Failed to update status to visitor:`, updateError);
       } else {
         // Write audit log (best-effort)
         try {
-          await supabase.from('status_audit').insert({
+          const { error: auditErr } = await supabase.from('status_audit').insert({
             tenant_id: meeting.tenant_id,
             participant_id: participantId,
             reason: 'First check-in (auto)',
           });
+          if (auditErr) console.warn(`${logPrefix} status_audit insert failed (ignored)`, auditErr);
         } catch (e) {
-          console.warn('status_audit insert failed (ignored)', e);
+          console.warn(`${logPrefix} status_audit insert threw (ignored)`, e);
         }
       }
     }
@@ -135,25 +185,28 @@ serve(async (req) => {
       });
 
     if (checkinError) {
-      console.error('Failed to create check-in:', checkinError);
-      throw checkinError;
+      console.error(`${logPrefix} Failed to create check-in:`, checkinError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to create check-in' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    console.log('Check-in successful');
+    console.log(`${logPrefix} Check-in successful`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         participant_id: participantId,
-        message: 'Check-in successful' 
+        message: 'Check-in successful'
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
-    console.error('Error in check-in-participant function:', error);
+    console.error(`${logPrefix} Error in check-in-participant function:`, error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error?.message || 'Unexpected error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
