@@ -3,9 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
+import Profile from "./pages/Profile";
 import Dashboard from "./pages/admin/Dashboard";
 import Participants from "./pages/admin/Participants";
 import Meetings from "./pages/admin/Meetings";
@@ -24,10 +26,36 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/admin" element={<Dashboard />} />
-          <Route path="/admin/participants" element={<Participants />} />
-          <Route path="/admin/meetings" element={<Meetings />} />
-          <Route path="/super-admin/tenants" element={<Tenants />} />
+          
+          {/* Protected Routes */}
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/participants" element={
+            <ProtectedRoute>
+              <Participants />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/meetings" element={
+            <ProtectedRoute>
+              <Meetings />
+            </ProtectedRoute>
+          } />
+          
+          {/* Super Admin Routes */}
+          <Route path="/super-admin/tenants" element={
+            <ProtectedRoute requiredRole="super_admin">
+              <Tenants />
+            </ProtectedRoute>
+          } />
+          
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

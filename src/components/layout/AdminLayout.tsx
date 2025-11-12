@@ -1,108 +1,213 @@
-import { ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ReactNode, useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   LayoutDashboard, 
   Users, 
   Calendar, 
-  CheckSquare, 
-  CreditCard, 
-  Settings,
+  Menu,
   LogOut,
+  User,
   Building2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import NavLink from "@/components/NavLink";
 import { toast } from "sonner";
 
 interface AdminLayoutProps {
   children: ReactNode;
-  isSuperAdmin?: boolean;
 }
 
-export const AdminLayout = ({ children, isSuperAdmin = false }: AdminLayoutProps) => {
-  const location = useLocation();
+export default function AdminLayout({ children }: AdminLayoutProps) {
   const navigate = useNavigate();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
 
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error("Failed to logout");
-      return;
+  useEffect(() => {
+    loadUserInfo();
+  }, []);
+
+  const loadUserInfo = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        setUserEmail(user.email || "");
+
+        // Get user role
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+
+        if (roleData) {
+          setUserRole(roleData.role);
+        }
+
+        // Get user profile
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+
+        if (profileData) {
+          setUserName(profileData.full_name || "");
+        }
+      }
+    } catch (error) {
+      console.error("Error loading user info:", error);
     }
-    toast.success("Logged out successfully");
-    navigate("/auth");
   };
 
-  const superAdminNav = [
-    { icon: Building2, label: "Tenants", path: "/super-admin/tenants" },
-    { icon: LayoutDashboard, label: "Plans", path: "/super-admin/plans" },
-    { icon: CreditCard, label: "Subscriptions", path: "/super-admin/subscriptions" },
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast.success("ออกจากระบบสำเร็จ");
+      navigate("/auth");
+    } catch (error) {
+      toast.error("ไม่สามารถออกจากระบบได้");
+    }
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return "?";
+    const parts = name.split(" ");
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const navItems = [
+    { icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard", href: "/admin" },
+    { icon: <Users className="h-4 w-4" />, label: "สมาชิก", href: "/admin/participants" },
+    { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
   ];
 
-  const chapterAdminNav = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
-    { icon: Users, label: "Participants", path: "/admin/participants" },
-    { icon: Calendar, label: "Meetings", path: "/admin/meetings" },
-    { icon: CheckSquare, label: "Check-ins", path: "/admin/checkins" },
-    { icon: CreditCard, label: "Payments", path: "/admin/payments" },
-    { icon: Settings, label: "Settings", path: "/admin/settings" },
+  const superAdminNavItems = [
+    { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },
   ];
-
-  const navItems = isSuperAdmin ? superAdminNav : chapterAdminNav;
 
   return (
-    <div className="min-h-screen bg-background">
-      <aside className="fixed left-0 top-0 h-screen w-64 border-r bg-sidebar">
-        <div className="flex h-16 items-center border-b px-6">
-          <h1 className="text-lg font-bold text-sidebar-foreground">
-            {isSuperAdmin ? "SuperAdmin" : "BNI Chapter"}
-          </h1>
-        </div>
-        <nav className="space-y-1 p-4">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            return (
-              <Link key={item.path} to={item.path}>
-                <Button
-                  variant={isActive ? "default" : "ghost"}
-                  className={cn(
-                    "w-full justify-start gap-3",
-                    isActive && "bg-sidebar-primary"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
+    <div className="min-h-screen flex flex-col">
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden">
+                  <Menu className="h-5 w-5" />
                 </Button>
-              </Link>
-            );
-          })}
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 mt-4"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </Button>
-        </nav>
-      </aside>
-      <main className="ml-64 min-h-screen">
-        <div className="border-b bg-card">
-          <div className="container mx-auto px-8 py-4">
-            <h2 className="text-2xl font-semibold">
-              {navItems.find(item => item.path === location.pathname)?.label || "Dashboard"}
-            </h2>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-64">
+                <nav className="flex flex-col gap-2 mt-8">
+                  {navItems.map((item) => (
+                    <NavLink key={item.href} to={item.href} icon={item.icon}>
+                      {item.label}
+                    </NavLink>
+                  ))}
+                  {userRole === "super_admin" && (
+                    <>
+                      <div className="my-2 border-t" />
+                      {superAdminNavItems.map((item) => (
+                        <NavLink key={item.href} to={item.href} icon={item.icon}>
+                          {item.label}
+                        </NavLink>
+                      ))}
+                    </>
+                  )}
+                </nav>
+              </SheetContent>
+            </Sheet>
+            
+            <Link to="/admin" className="flex items-center gap-2">
+              <span className="text-xl font-bold">BNI Chapter</span>
+            </Link>
           </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src="" alt={userName} />
+                  <AvatarFallback>{getInitials(userName)}</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">{userName}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+                  {userRole && (
+                    <p className="text-xs leading-none text-muted-foreground mt-1">
+                      {userRole === "super_admin" ? "Super Admin" : userRole === "chapter_admin" ? "Chapter Admin" : "Member"}
+                    </p>
+                  )}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/profile")}>
+                <User className="mr-2 h-4 w-4" />
+                <span>โปรไฟล์</span>
+              </DropdownMenuItem>
+              {userRole === "super_admin" && (
+                <DropdownMenuItem onClick={() => navigate("/super-admin/tenants")}>
+                  <Building2 className="mr-2 h-4 w-4" />
+                  <span>จัดการ Tenants</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>ออกจากระบบ</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <div className="container mx-auto p-8">
+      </header>
+
+      <div className="flex flex-1">
+        <aside className="hidden w-64 border-r md:block">
+          <nav className="flex flex-col gap-2 p-4">
+            {navItems.map((item) => (
+              <NavLink key={item.href} to={item.href} icon={item.icon}>
+                {item.label}
+              </NavLink>
+            ))}
+            {userRole === "super_admin" && (
+              <>
+                <div className="my-2 border-t" />
+                <div className="text-xs font-semibold text-muted-foreground px-3 mb-2">
+                  Super Admin
+                </div>
+                {superAdminNavItems.map((item) => (
+                  <NavLink key={item.href} to={item.href} icon={item.icon}>
+                    {item.label}
+                  </NavLink>
+                ))}
+              </>
+            )}
+          </nav>
+        </aside>
+
+        <main className="flex-1 p-6 md:p-8">
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
-};
-
-function cn(...classes: (string | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
 }
