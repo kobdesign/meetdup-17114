@@ -25,6 +25,7 @@ import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import PaymentPage from "./pages/public/PaymentPage";
+import LiffShare from "./pages/public/LiffShare";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,9 @@ const App = () => (
           
           {/* Public Payment */}
           <Route path="/payment/:participantId" element={<PaymentPage />} />
+          
+          {/* LIFF Share */}
+          <Route path="/liff/share" element={<LiffShare />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={

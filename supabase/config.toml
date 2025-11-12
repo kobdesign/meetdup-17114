@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.check-in-participant]
 verify_jwt = false
 
+[functions.get-participant-card]
+verify_jwt = false
+
 [functions.resolve-tenant-secrets]
 verify_jwt = false
 
