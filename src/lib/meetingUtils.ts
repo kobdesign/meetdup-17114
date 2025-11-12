@@ -14,6 +14,8 @@ export interface Meeting {
   recurrence_interval?: number;
   recurrence_end_date?: string;
   recurrence_days_of_week?: string[];
+  recurrence_end_type?: "never" | "date" | "count";
+  recurrence_occurrence_count?: number;
   parent_meeting_id?: string | null;
   tenant_id: string;
   created_at?: string;
@@ -46,17 +48,38 @@ export function generateRecurringMeetings(meeting: Meeting): RecurringMeetingIns
   }
 
   const startDate = new Date(meeting.meeting_date);
-  const endDate = meeting.recurrence_end_date 
-    ? new Date(meeting.recurrence_end_date) 
-    : addYears(startDate, 1); // Default to 1 year if no end date
+  
+  // Determine end condition
+  let maxOccurrences: number | null = null;
+  let endDate: Date | null = null;
+  
+  if (meeting.recurrence_end_type === "count" && meeting.recurrence_occurrence_count) {
+    maxOccurrences = meeting.recurrence_occurrence_count;
+  } else if (meeting.recurrence_end_type === "date" && meeting.recurrence_end_date) {
+    endDate = new Date(meeting.recurrence_end_date);
+  } else {
+    // Default: 1 year if "never" or no end type specified
+    endDate = addYears(startDate, 1);
+  }
   
   const interval = meeting.recurrence_interval || 1;
   let currentDate = new Date(startDate);
+  let count = 0;
 
-  // Add first occurrence
+  // Generate instances
   currentDate = getNextOccurrence(currentDate, meeting.recurrence_pattern, interval, meeting.recurrence_days_of_week);
 
-  while (isBefore(currentDate, endDate) || currentDate.getTime() === endDate.getTime()) {
+  while (true) {
+    // Check if we've reached max occurrences
+    if (maxOccurrences !== null && count >= maxOccurrences) {
+      break;
+    }
+    
+    // Check if we've passed end date
+    if (endDate && isAfter(currentDate, endDate)) {
+      break;
+    }
+
     instances.push({
       ...meeting,
       original_meeting_id: meeting.meeting_id,
@@ -64,6 +87,7 @@ export function generateRecurringMeetings(meeting: Meeting): RecurringMeetingIns
       is_recurring_instance: true,
     });
 
+    count++;
     currentDate = getNextOccurrence(currentDate, meeting.recurrence_pattern, interval, meeting.recurrence_days_of_week);
   }
 
@@ -101,9 +125,13 @@ function getNextOccurrence(
     
     case "custom":
       if (!daysOfWeek || daysOfWeek.length === 0) {
-        return addDays(currentDate, 1);
+        return addWeeks(currentDate, interval);
       }
-      let nextCustomDay = addDays(currentDate, 1);
+      
+      // Start from next week (respect interval)
+      let nextCustomDay = addWeeks(currentDate, interval);
+      
+      // Find the first matching day in the target week
       let attempts = 0;
       while (attempts < 7) {
         const dayNum = getDay(nextCustomDay);
@@ -116,7 +144,9 @@ function getNextOccurrence(
         nextCustomDay = addDays(nextCustomDay, 1);
         attempts++;
       }
-      return addDays(currentDate, 1);
+      
+      // Fallback: add interval weeks
+      return addWeeks(currentDate, interval);
     
     default:
       return addDays(currentDate, 1);

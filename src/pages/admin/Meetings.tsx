@@ -274,6 +274,8 @@ export default function Meetings() {
           recurrence_interval: newMeeting.recurrence_interval,
           recurrence_end_date: newMeeting.recurrence_end_date,
           recurrence_days_of_week: newMeeting.recurrence_days_of_week,
+          recurrence_end_type: newMeeting.recurrence_end_type,
+          recurrence_occurrence_count: newMeeting.recurrence_occurrence_count,
         });
 
         if (instances.length > 0) {
