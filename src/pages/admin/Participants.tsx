@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
+import { useTenantContext } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -33,12 +34,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 
 export default function Participants() {
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [tenantId, setTenantId] = useState<string | null>(null);
   
   const [newParticipant, setNewParticipant] = useState({
     full_name: "",
@@ -58,30 +59,19 @@ export default function Participants() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    loadTenantId();
-    fetchParticipants();
-  }, []);
-
-  const loadTenantId = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: userRole } = await supabase
-      .from("user_roles")
-      .select("tenant_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (userRole?.tenant_id) {
-      setTenantId(userRole.tenant_id);
+    if (effectiveTenantId) {
+      fetchParticipants();
     }
-  };
+  }, [effectiveTenantId]);
 
   const fetchParticipants = async () => {
+    if (!effectiveTenantId) return;
+
     try {
       const { data, error } = await supabase
         .from("participants")
         .select("*")
+        .eq("tenant_id", effectiveTenantId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -94,8 +84,16 @@ export default function Participants() {
   };
 
   const handleAddParticipant = async () => {
-    if (!newParticipant.full_name || !tenantId) {
+    if (!newParticipant.full_name) {
       toast.error("กรุณากรอกชื่อ-นามสกุล");
+      return;
+    }
+
+    if (!effectiveTenantId) {
+      toast.error(isSuperAdmin 
+        ? "กรุณาเลือก Chapter ที่ต้องการจัดการก่อน" 
+        : "ไม่พบข้อมูล Tenant"
+      );
       return;
     }
 
@@ -104,7 +102,7 @@ export default function Participants() {
       const { error } = await supabase
         .from("participants")
         .insert({
-          tenant_id: tenantId,
+          tenant_id: effectiveTenantId,
           full_name: newParticipant.full_name,
           nickname: newParticipant.nickname || null,
           email: newParticipant.email || null,
@@ -228,6 +226,26 @@ export default function Participants() {
     p.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">Participants</h1>
+            <p className="text-muted-foreground">Manage members and visitors</p>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการจัดการ
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>

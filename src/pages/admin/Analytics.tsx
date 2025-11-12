@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
+import { useTenantContext } from "@/contexts/TenantContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,8 +34,8 @@ interface AnalyticsData {
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
 export default function Analytics() {
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
-  const [tenantId, setTenantId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1),
     to: new Date(),
@@ -59,32 +60,23 @@ export default function Analytics() {
   });
 
   useEffect(() => {
-    loadAnalytics();
-  }, [dateRange, statusFilter]);
+    if (effectiveTenantId) {
+      loadAnalytics();
+    }
+  }, [effectiveTenantId, dateRange, statusFilter]);
 
   const loadAnalytics = async () => {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: userRole } = await supabase
-        .from("user_roles")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!userRole?.tenant_id) {
-        toast.error("ไม่พบข้อมูล tenant");
-        return;
-      }
-
-      setTenantId(userRole.tenant_id);
-
       // Fetch participants data with filters
       let participantsQuery = supabase
         .from("participants")
         .select("status, created_at")
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .gte("created_at", dateRange.from.toISOString())
         .lte("created_at", dateRange.to.toISOString());
 
@@ -98,7 +90,7 @@ export default function Analytics() {
       const { data: meetings } = await supabase
         .from("meetings")
         .select("meeting_date, created_at")
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .gte("meeting_date", dateRange.from.toISOString().split('T')[0])
         .lte("meeting_date", dateRange.to.toISOString().split('T')[0]);
 
@@ -106,7 +98,7 @@ export default function Analytics() {
       const { data: checkins } = await supabase
         .from("checkins")
         .select("checkin_time")
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .gte("checkin_time", dateRange.from.toISOString())
         .lte("checkin_time", dateRange.to.toISOString());
 
@@ -114,7 +106,7 @@ export default function Analytics() {
       const { data: payments } = await supabase
         .from("payments")
         .select("amount, created_at, status")
-        .eq("tenant_id", userRole.tenant_id)
+        .eq("tenant_id", effectiveTenantId)
         .gte("created_at", dateRange.from.toISOString())
         .lte("created_at", dateRange.to.toISOString());
 
@@ -223,6 +215,26 @@ export default function Analytics() {
     return (
       <AdminLayout>
         <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+      </AdminLayout>
+    );
+  }
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">Analytics</h1>
+            <p className="text-muted-foreground">สถิติและรายงานของ Chapter</p>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการดูข้อมูล
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </AdminLayout>
     );
   }

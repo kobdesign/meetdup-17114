@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { Users, Calendar, CheckSquare, CreditCard } from "lucide-react";
 import { toast } from "sonner";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 export default function Dashboard() {
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [stats, setStats] = useState({
     totalParticipants: 0,
     activeMembers: 0,
@@ -14,16 +16,20 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (effectiveTenantId) {
+      fetchStats();
+    }
+  }, [effectiveTenantId]);
 
   const fetchStats = async () => {
+    if (!effectiveTenantId) return;
+
     try {
       const [participantsRes, membersRes, meetingsRes, paymentsRes] = await Promise.all([
-        supabase.from("participants").select("*", { count: "exact", head: true }),
-        supabase.from("participants").select("*", { count: "exact", head: true }).eq("status", "member_active"),
-        supabase.from("meetings").select("*", { count: "exact", head: true }).gte("meeting_date", new Date().toISOString()),
-        supabase.from("payments").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("participants").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId),
+        supabase.from("participants").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId).eq("status", "member_active"),
+        supabase.from("meetings").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId).gte("meeting_date", new Date().toISOString()),
+        supabase.from("payments").select("*", { count: "exact", head: true }).eq("tenant_id", effectiveTenantId).eq("status", "pending"),
       ]);
 
       setStats({
@@ -63,6 +69,26 @@ export default function Dashboard() {
       description: "Awaiting payment",
     },
   ];
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">Chapter overview and statistics</p>
+          </div>
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">
+                กรุณาเลือก Chapter ที่ต้องการดูข้อมูล
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
