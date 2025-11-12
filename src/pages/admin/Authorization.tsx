@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, UserPlus, Trash2, Search } from "lucide-react";
+import { Shield, UserPlus, Trash2, Search, Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -59,10 +59,23 @@ export default function Authorization() {
   const [newUserRole, setNewUserRole] = useState<string>("chapter_admin");
   const [newUserTenant, setNewUserTenant] = useState<string>("");
   const [adding, setAdding] = useState(false);
+  
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingRole, setEditingRole] = useState<UserRole | null>(null);
+  const [editRole, setEditRole] = useState<string>("");
+  const [editTenant, setEditTenant] = useState<string>("");
+  const [updating, setUpdating] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
+    loadCurrentUser();
   }, []);
+
+  const loadCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) setCurrentUserId(user.id);
+  };
 
   useEffect(() => {
     filterRoles();
@@ -221,6 +234,53 @@ export default function Authorization() {
       loadData();
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
+    }
+  };
+
+  const startEditRole = (role: UserRole) => {
+    if (role.user_id === currentUserId) {
+      toast.error("คุณไม่สามารถแก้ไขสิทธิ์ของตัวเองได้");
+      return;
+    }
+    setEditingRole(role);
+    setEditRole(role.role);
+    setEditTenant(role.tenant_id || "");
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateRole = async () => {
+    if (!editingRole || !editRole) {
+      toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
+      return;
+    }
+
+    if (editRole !== "super_admin" && !editTenant) {
+      toast.error("กรุณาเลือก Chapter");
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("user_roles")
+        .update({
+          role: editRole as any,
+          tenant_id: editRole === "super_admin" ? null : editTenant,
+        })
+        .eq("id", editingRole.id);
+
+      if (error) throw error;
+
+      toast.success("แก้ไขสิทธิ์สำเร็จ");
+      setShowEditDialog(false);
+      setEditingRole(null);
+      setEditRole("");
+      setEditTenant("");
+      loadData();
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -383,31 +443,41 @@ export default function Authorization() {
                         })}
                       </TableCell>
                       <TableCell className="text-right">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>ยืนยันการลบสิทธิ์</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                คุณต้องการลบสิทธิ์ {role.role} ของ {role.user_email} ใช่หรือไม่?
-                                การดำเนินการนี้ไม่สามารถย้อนกลับได้
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteRole(role.id)}
-                                className="bg-destructive hover:bg-destructive/90"
-                              >
-                                ลบสิทธิ์
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => startEditRole(role)}
+                            disabled={role.user_id === currentUserId}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>ยืนยันการลบสิทธิ์</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  คุณต้องการลบสิทธิ์ {role.role} ของ {role.user_email} ใช่หรือไม่?
+                                  การดำเนินการนี้ไม่สามารถย้อนกลับได้
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteRole(role.id)}
+                                  className="bg-destructive hover:bg-destructive/90"
+                                >
+                                  ลบสิทธิ์
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -416,6 +486,58 @@ export default function Authorization() {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Role Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>แก้ไขสิทธิ์ผู้ใช้</DialogTitle>
+              <DialogDescription>
+                แก้ไขบทบาทและ Chapter ของ {editingRole?.user_email}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-role">บทบาท</Label>
+                <Select value={editRole} onValueChange={setEditRole}>
+                  <SelectTrigger id="edit-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                    <SelectItem value="chapter_admin">Chapter Admin</SelectItem>
+                    <SelectItem value="chapter_member">Chapter Member</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {editRole !== "super_admin" && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-tenant">Chapter</Label>
+                  <Select value={editTenant} onValueChange={setEditTenant}>
+                    <SelectTrigger id="edit-tenant">
+                      <SelectValue placeholder="เลือก Chapter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((tenant) => (
+                        <SelectItem key={tenant.tenant_id} value={tenant.tenant_id}>
+                          {tenant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                ยกเลิก
+              </Button>
+              <Button onClick={handleUpdateRole} disabled={updating}>
+                {updating ? "กำลังบันทึก..." : "บันทึก"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );

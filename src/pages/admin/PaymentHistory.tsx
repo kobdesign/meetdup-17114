@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, RefreshCw, FileText, CheckCircle, XCircle, AlertCircle, Edit, Clock } from "lucide-react";
+import { ArrowLeft, RefreshCw, FileText, CheckCircle, XCircle, AlertCircle, Edit, Clock, Plus, Trash2, Upload } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Payment {
   payment_id: string;
@@ -65,6 +67,16 @@ export default function PaymentHistory() {
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [refundRequests, setRefundRequests] = useState<any[]>([]);
+  
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newAmount, setNewAmount] = useState("");
+  const [newMethod, setNewMethod] = useState("bank_transfer");
+  const [newPaidAt, setNewPaidAt] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [newSlipFile, setNewSlipFile] = useState<File | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -77,7 +89,7 @@ export default function PaymentHistory() {
 
       const { data: userRole } = await supabase
         .from("user_roles")
-        .select("tenant_id")
+        .select("tenant_id, role")
         .eq("user_id", user.id)
         .single();
 
@@ -85,6 +97,9 @@ export default function PaymentHistory() {
         toast.error("ไม่พบข้อมูล tenant");
         return;
       }
+
+      setTenantId(userRole.tenant_id);
+      setCurrentUserRole(userRole.role);
 
       // Load participant data
       const { data: participantData, error: participantError } = await supabase
@@ -249,6 +264,96 @@ export default function PaymentHistory() {
       .reduce((sum, p) => sum + Number(p.amount), 0);
   };
 
+  const handleCreatePayment = async () => {
+    if (!newAmount || !newMethod || !newPaidAt) {
+      toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
+      return;
+    }
+
+    const amount = parseFloat(newAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("กรุณาระบุจำนวนเงินที่ถูกต้อง");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      let slipUrl = null;
+
+      // Upload slip if provided
+      if (newSlipFile && tenantId) {
+        const fileExt = newSlipFile.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${tenantId}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('payment-slips')
+          .upload(filePath, newSlipFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('payment-slips')
+          .getPublicUrl(filePath);
+
+        slipUrl = publicUrl;
+      }
+
+      // Insert payment record
+      const { error: insertError } = await supabase
+        .from("payments")
+        .insert({
+          participant_id: participantId,
+          tenant_id: tenantId,
+          amount,
+          method: newMethod as any,
+          status: "paid" as any,
+          paid_at: new Date(newPaidAt).toISOString(),
+          currency: "THB",
+          notes: newNotes || null,
+          slip_url: slipUrl,
+        });
+
+      if (insertError) throw insertError;
+
+      toast.success("เพิ่มรายการชำระเงินสำเร็จ");
+      setShowCreateDialog(false);
+      setNewAmount("");
+      setNewMethod("bank_transfer");
+      setNewPaidAt("");
+      setNewNotes("");
+      setNewSlipFile(null);
+      loadData();
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    // Check if there's a pending refund request
+    const refundRequest = refundRequests.find(r => r.payment_id === paymentId && r.status === 'pending');
+    if (refundRequest) {
+      toast.error("ไม่สามารถลบรายการที่มีคำขอคืนเงินรออนุมัติ");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("payments")
+        .delete()
+        .eq("payment_id", paymentId);
+
+      if (error) throw error;
+
+      toast.success("ลบรายการชำระเงินสำเร็จ");
+      loadData();
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -317,8 +422,16 @@ export default function PaymentHistory() {
         {/* Payment History Table */}
         <Card>
           <CardHeader>
-            <CardTitle>ประวัติการทำรายการ</CardTitle>
-            <CardDescription>รายการชำระเงินทั้งหมด ({payments.length})</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>ประวัติการทำรายการ</CardTitle>
+                <CardDescription>รายการชำระเงินทั้งหมด ({payments.length})</CardDescription>
+              </div>
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                เพิ่มการชำระเงิน
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {payments.length === 0 ? (
@@ -432,6 +545,33 @@ export default function PaymentHistory() {
                             </AlertDialogContent>
                           </AlertDialog>
                         )}
+                        {currentUserRole === "super_admin" && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="outline">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>ยืนยันการลบรายการชำระเงิน</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  คุณต้องการลบรายการชำระเงินจำนวน {Number(payment.amount).toLocaleString()} {payment.currency} ใช่หรือไม่?
+                                  การดำเนินการนี้ไม่สามารถย้อนกลับได้
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeletePayment(payment.payment_id)}
+                                  className="bg-destructive hover:bg-destructive/90"
+                                >
+                                  ลบรายการ
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -471,6 +611,93 @@ export default function PaymentHistory() {
                 disabled={savingNote}
               >
                 {savingNote ? "กำลังบันทึก..." : "บันทึก"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Payment Dialog */}
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>เพิ่มการชำระเงิน</DialogTitle>
+              <DialogDescription>
+                บันทึกรายการชำระเงินแบบ Manual
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount">จำนวนเงิน (บาท) <span className="text-destructive">*</span></Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  placeholder="650.00"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="method">วิธีชำระ <span className="text-destructive">*</span></Label>
+                <Select value={newMethod} onValueChange={setNewMethod}>
+                  <SelectTrigger id="method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bank_transfer">โอนเงิน</SelectItem>
+                    <SelectItem value="promptpay">พร้อมเพย์</SelectItem>
+                    <SelectItem value="cash">เงินสด</SelectItem>
+                    <SelectItem value="credit_card">บัตรเครดิต</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="paid_at">วันที่ชำระ <span className="text-destructive">*</span></Label>
+                <Input
+                  id="paid_at"
+                  type="datetime-local"
+                  value={newPaidAt}
+                  onChange={(e) => setNewPaidAt(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">หมายเหตุ</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="ระบุรายละเอียดเพิ่มเติม..."
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slip">อัพโหลดสลิป (ถ้ามี)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="slip"
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setNewSlipFile(e.target.files?.[0] || null)}
+                    className="cursor-pointer"
+                  />
+                  {newSlipFile && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setNewSlipFile(null)}
+                    >
+                      ✕
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                ยกเลิก
+              </Button>
+              <Button onClick={handleCreatePayment} disabled={creating}>
+                {creating ? "กำลังบันทึก..." : "บันทึก"}
               </Button>
             </DialogFooter>
           </DialogContent>
