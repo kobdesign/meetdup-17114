@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye, Repeat, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
+import { getRecurrenceIntervalLabel, getRecurrenceExampleText, shouldShowIntervalInput } from "@/lib/meetingUtils";
+import MeetingsCalendar from "@/components/MeetingsCalendar";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +42,7 @@ export default function Meetings() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [adding, setAdding] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
   
   const navigate = useNavigate();
   
@@ -249,6 +252,26 @@ export default function Meetings() {
             <h1 className="text-3xl font-bold">Meetings</h1>
             <p className="text-muted-foreground">Schedule and track chapter meetings</p>
           </div>
+          <div className="flex gap-2">
+            <div className="flex gap-1 border rounded-lg p-1">
+              <Button
+                variant={viewMode === "table" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("table")}
+              >
+                <List className="h-4 w-4 mr-2" />
+                ตาราง
+              </Button>
+              <Button
+                variant={viewMode === "calendar" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("calendar")}
+              >
+                <LayoutGrid className="h-4 w-4 mr-2" />
+                ปฏิทิน
+              </Button>
+            </div>
+          </div>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button>
@@ -383,16 +406,25 @@ export default function Meetings() {
 
                   {newMeeting.recurrence_pattern !== "none" && (
                     <>
-                      <div className="space-y-2 mb-4">
-                        <Label htmlFor="recurrence_interval">ทุกๆ (ช่วง)</Label>
-                        <Input
-                          id="recurrence_interval"
-                          type="number"
-                          min="1"
-                          value={newMeeting.recurrence_interval}
-                          onChange={(e) => setNewMeeting({ ...newMeeting, recurrence_interval: parseInt(e.target.value) })}
-                        />
-                      </div>
+                      {shouldShowIntervalInput(newMeeting.recurrence_pattern) && (
+                        <div className="space-y-2 mb-4">
+                          <Label htmlFor="recurrence_interval">
+                            {getRecurrenceIntervalLabel(newMeeting.recurrence_pattern)}
+                          </Label>
+                          <Input
+                            id="recurrence_interval"
+                            type="number"
+                            min="1"
+                            value={newMeeting.recurrence_interval}
+                            onChange={(e) => setNewMeeting({ ...newMeeting, recurrence_interval: parseInt(e.target.value) })}
+                          />
+                          {newMeeting.recurrence_interval > 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              {getRecurrenceExampleText(newMeeting.recurrence_pattern, newMeeting.recurrence_interval)}
+                            </p>
+                          )}
+                        </div>
+                      )}
 
                       <div className="space-y-2 mb-4">
                         <Label htmlFor="recurrence_end_date">สิ้นสุดวันที่</Label>
@@ -580,16 +612,25 @@ export default function Meetings() {
 
                     {editingMeeting.recurrence_pattern && editingMeeting.recurrence_pattern !== "none" && (
                       <>
-                        <div className="space-y-2 mb-4">
-                          <Label htmlFor="edit_recurrence_interval">ทุกๆ (ช่วง)</Label>
-                          <Input
-                            id="edit_recurrence_interval"
-                            type="number"
-                            min="1"
-                            value={editingMeeting.recurrence_interval || 1}
-                            onChange={(e) => setEditingMeeting({ ...editingMeeting, recurrence_interval: parseInt(e.target.value) })}
-                          />
-                        </div>
+                        {shouldShowIntervalInput(editingMeeting.recurrence_pattern) && (
+                          <div className="space-y-2 mb-4">
+                            <Label htmlFor="edit_recurrence_interval">
+                              {getRecurrenceIntervalLabel(editingMeeting.recurrence_pattern)}
+                            </Label>
+                            <Input
+                              id="edit_recurrence_interval"
+                              type="number"
+                              min="1"
+                              value={editingMeeting.recurrence_interval || 1}
+                              onChange={(e) => setEditingMeeting({ ...editingMeeting, recurrence_interval: parseInt(e.target.value) })}
+                            />
+                            {editingMeeting.recurrence_interval > 0 && (
+                              <p className="text-sm text-muted-foreground">
+                                {getRecurrenceExampleText(editingMeeting.recurrence_pattern, editingMeeting.recurrence_interval)}
+                              </p>
+                            )}
+                          </div>
+                        )}
 
                         <div className="space-y-2 mb-4">
                           <Label htmlFor="edit_recurrence_end_date">สิ้นสุดวันที่</Label>
@@ -650,15 +691,22 @@ export default function Meetings() {
           </Dialog>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming & Past Meetings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading...</div>
-            ) : (
-              <Table>
+        {viewMode === "calendar" ? (
+          loading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          ) : (
+            <MeetingsCalendar meetings={meetings} />
+          )
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Upcoming & Past Meetings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              ) : (
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
@@ -687,6 +735,9 @@ export default function Meetings() {
                               month: "long",
                               day: "numeric",
                             })}
+                            {meeting.recurrence_pattern && meeting.recurrence_pattern !== "none" && (
+                              <Repeat className="h-3 w-3 text-primary" />
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>{meeting.venue || "-"}</TableCell>
@@ -749,9 +800,10 @@ export default function Meetings() {
                   )}
                 </TableBody>
               </Table>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AdminLayout>
   );
