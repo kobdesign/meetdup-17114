@@ -60,24 +60,43 @@ export default function CheckInScanner() {
         return;
       }
 
+      const payload = {
+        meeting_id: meetingId,
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone,
+      };
+
       console.log("🚀 Starting check-in process:", {
         meetingId,
         full_name: formData.full_name,
         email: formData.email,
       });
 
-      // Call edge function to handle check-in (bypasses RLS)
-      const { data, error } = await supabase.functions.invoke('check-in-participant', {
-        body: {
-          meeting_id: meetingId,
-          full_name: formData.full_name,
-          email: formData.email,
-          phone: formData.phone,
-        },
-        headers: {
-          "Content-Type": "application/json",
-        },
+      console.log("payload types", {
+        meetingId: typeof meetingId,
+        full_name: typeof formData.full_name,
+        email: typeof formData.email,
+        phone: typeof formData.phone,
       });
+
+      // Attempt 1: Let SDK handle JSON serialization automatically
+      let { data, error } = await supabase.functions.invoke('check-in-participant', {
+        body: payload,
+      });
+
+      // Fallback: If JSON parsing error, retry with explicit JSON.stringify
+      if (error && /Invalid JSON|Failed to parse/i.test(error.message || "")) {
+        console.warn("⚠️ Retrying with explicit JSON.stringify");
+        const retryResponse = await supabase.functions.invoke('check-in-participant', {
+          body: JSON.stringify(payload),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        data = retryResponse.data;
+        error = retryResponse.error;
+      }
 
       console.log("✅ Edge function response:", { data, error });
 

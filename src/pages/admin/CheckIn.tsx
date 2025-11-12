@@ -3,9 +3,10 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { QrCode, Calendar, Users, Download } from "lucide-react";
+import { QrCode, Calendar, Users, Download, Copy, ExternalLink, Info } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useTenantContext } from "@/contexts/TenantContext";
 
@@ -116,6 +117,17 @@ export default function CheckIn() {
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
+  const copyCheckinLink = () => {
+    if (!checkinUrl) return;
+    navigator.clipboard.writeText(checkinUrl);
+    toast.success("คัดลอกลิงก์สำเร็จ");
+  };
+
+  const openPublicCheckinPage = () => {
+    if (!checkinUrl) return;
+    window.open(checkinUrl, '_blank');
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -199,6 +211,13 @@ export default function CheckIn() {
 
               {selectedMeetingId && (
                 <div className="space-y-4">
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      หน้านี้ใช้สร้าง QR และดูสถิติ ให้สมาชิกสแกน QR หรือเปิดลิงก์สาธารณะเพื่อทำเช็คอิน
+                    </AlertDescription>
+                  </Alert>
+
                   <div className="flex justify-center p-6 bg-white rounded-lg border">
                     <QRCode
                       id="checkin-qr-code"
@@ -212,6 +231,14 @@ export default function CheckIn() {
                     <Button onClick={downloadQRCode} className="w-full">
                       <Download className="mr-2 h-4 w-4" />
                       ดาวน์โหลด QR Code
+                    </Button>
+                    <Button onClick={copyCheckinLink} variant="outline" className="w-full">
+                      <Copy className="mr-2 h-4 w-4" />
+                      คัดลอกลิงก์เช็คอิน
+                    </Button>
+                    <Button onClick={openPublicCheckinPage} variant="outline" className="w-full">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      เปิดหน้าสาธารณะสำหรับเช็คอิน
                     </Button>
                     <p className="text-xs text-muted-foreground text-center">
                       พิมพ์และติดไว้ที่จุดเช็คอิน
