@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.process-payment]
 verify_jwt = false
+
+[functions.check-in-participant]
+verify_jwt = false

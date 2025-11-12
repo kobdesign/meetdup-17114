@@ -60,92 +60,33 @@ export default function CheckInScanner() {
         return;
       }
 
-      // Check if participant exists
-      let participantId: string;
-      let participantStatus: string | null = null;
-      const { data: existingParticipant } = await supabase
-        .from("participants")
-        .select("participant_id, status")
-        .eq("tenant_id", meeting.tenant_id)
-        .eq("email", formData.email)
-        .maybeSingle();
+      // Call edge function to handle check-in (bypasses RLS)
+      const { data, error } = await supabase.functions.invoke('check-in-participant', {
+        body: {
+          meeting_id: meetingId,
+          full_name: formData.full_name,
+          email: formData.email,
+          phone: formData.phone,
+        },
+      });
 
-      if (existingParticipant) {
-        participantId = existingParticipant.participant_id;
-        participantStatus = existingParticipant.status;
-      } else {
-        // Create new participant initially as 'prospect'
-        const { data: newParticipant, error: participantError } = await supabase
-          .from("participants")
-          .insert({
-            tenant_id: meeting.tenant_id,
-            full_name: formData.full_name,
-            email: formData.email,
-            phone: formData.phone,
-            status: "prospect",
-          })
-          .select()
-          .single();
+      if (error) throw error;
 
-        if (participantError) throw participantError;
-        participantId = newParticipant.participant_id;
-        participantStatus = "prospect";
-      }
-
-      // Check if already checked in
-      const { data: existingCheckin } = await supabase
-        .from("checkins")
-        .select("checkin_id")
-        .eq("meeting_id", meetingId)
-        .eq("participant_id", participantId)
-        .maybeSingle();
-
-      if (existingCheckin) {
+      if (data?.already_checked_in) {
         toast.error("คุณได้เช็คอินการประชุมนี้แล้ว");
         setCheckedIn(true);
         return;
       }
 
-      // Auto status change: prospect -> visitor on first check-in
-      if (participantStatus === "prospect") {
-        const { error: updateError } = await supabase
-          .from("participants")
-          .update({ status: "visitor" })
-          .eq("participant_id", participantId);
-        if (updateError) {
-          console.error("Failed to update status to visitor:", updateError);
-        } else {
-          // Optional: write audit log (best-effort)
-          try {
-            await supabase.from("status_audit").insert({
-              tenant_id: meeting.tenant_id,
-              participant_id: participantId,
-              from_status: "prospect",
-              to_status: "visitor",
-              reason: "First check-in (auto)",
-            });
-          } catch (e) {
-            console.warn("status_audit insert failed (ignored)", e);
-          }
-        }
+      if (!data?.success) {
+        throw new Error(data?.error || "Check-in failed");
       }
-
-      // Create check-in record
-      const { error: checkinError } = await supabase
-        .from("checkins")
-        .insert({
-          tenant_id: meeting.tenant_id,
-          meeting_id: meetingId,
-          participant_id: participantId,
-          source: "manual",
-        });
-
-      if (checkinError) throw checkinError;
 
       toast.success("เช็คอินสำเร็จ! ยินดีต้อนรับเข้าสู่การประชุม");
       setCheckedIn(true);
     } catch (error: any) {
-      toast.error("เกิดข้อผิดพลาด: " + error.message);
+      console.error("Check-in error:", error);
+      toast.error("เกิดข้อผิดพลาด: " + (error.message || "ไม่สามารถเช็คอินได้"));
     } finally {
       setChecking(false);
     }
