@@ -499,7 +499,7 @@ export default function Meetings() {
                       id="meeting_date"
                       type="date"
                       value={newMeeting.meeting_date}
-                      onChange={(e) => setNewMeeting({ ...newMeeting, meeting_date: e.target.value })}
+                      onChange={(e) => setNewMeeting(prev => ({ ...prev, meeting_date: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
@@ -508,7 +508,7 @@ export default function Meetings() {
                       id="meeting_time"
                       type="time"
                       value={newMeeting.meeting_time}
-                      onChange={(e) => setNewMeeting({ ...newMeeting, meeting_time: e.target.value })}
+                      onChange={(e) => setNewMeeting(prev => ({ ...prev, meeting_time: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -516,14 +516,14 @@ export default function Meetings() {
                 <LocationSearch
                   label="สถานที่"
                   value={newMeeting.venue}
-                  onChange={(value) => setNewMeeting({ ...newMeeting, venue: value })}
+                  onChange={(value) => setNewMeeting(prev => ({ ...prev, venue: value }))}
                   onLocationSelect={(lat, lng, placeName) => {
-                    setNewMeeting({
-                      ...newMeeting,
+                    setNewMeeting(prev => ({
+                      ...prev,
                       venue: placeName.split(',')[0].trim(),
                       location_lat: lat.toString(),
                       location_lng: lng.toString(),
-                    });
+                    }));
                   }}
                   placeholder="ค้นหาสถานที่... (เช่น โรงแรม ABC)"
                 />
@@ -533,7 +533,7 @@ export default function Meetings() {
                   <Input
                     id="location_details"
                     value={newMeeting.location_details}
-                    onChange={(e) => setNewMeeting({ ...newMeeting, location_details: e.target.value })}
+                    onChange={(e) => setNewMeeting(prev => ({ ...prev, location_details: e.target.value }))}
                     placeholder="ห้องประชุม 1 ชั้น 5"
                   />
                 </div>
@@ -546,7 +546,7 @@ export default function Meetings() {
                       type="number"
                       step="any"
                       value={newMeeting.location_lat}
-                      onChange={(e) => setNewMeeting({ ...newMeeting, location_lat: e.target.value })}
+                      onChange={(e) => setNewMeeting(prev => ({ ...prev, location_lat: e.target.value }))}
                       placeholder="13.7563"
                     />
                   </div>
@@ -557,7 +557,7 @@ export default function Meetings() {
                       type="number"
                       step="any"
                       value={newMeeting.location_lng}
-                      onChange={(e) => setNewMeeting({ ...newMeeting, location_lng: e.target.value })}
+                      onChange={(e) => setNewMeeting(prev => ({ ...prev, location_lng: e.target.value }))}
                       placeholder="100.5018"
                     />
                   </div>
@@ -568,7 +568,7 @@ export default function Meetings() {
                   <Input
                     id="theme"
                     value={newMeeting.theme}
-                    onChange={(e) => setNewMeeting({ ...newMeeting, theme: e.target.value })}
+                    onChange={(e) => setNewMeeting(prev => ({ ...prev, theme: e.target.value }))}
                     placeholder="หัวข้อการประชุม (สูงสุด 200 ตัวอักษร)"
                     maxLength={200}
                   />
@@ -585,7 +585,7 @@ export default function Meetings() {
                       ref={quillRef}
                       theme="snow"
                       value={newMeeting.description || ""}
-                      onChange={(content) => setNewMeeting({ ...newMeeting, description: content })}
+                      onChange={(content) => setNewMeeting(prev => ({ ...prev, description: content }))}
                       placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
                       modules={quillModules}
                       className="bg-background"
@@ -616,7 +616,7 @@ export default function Meetings() {
                     id="visitor_fee"
                     type="number"
                     value={newMeeting.visitor_fee}
-                    onChange={(e) => setNewMeeting({ ...newMeeting, visitor_fee: parseFloat(e.target.value) })}
+                    onChange={(e) => setNewMeeting(prev => ({ ...prev, visitor_fee: parseFloat(e.target.value) }))}
                     min="0"
                     step="50"
                   />
@@ -636,15 +636,15 @@ export default function Meetings() {
                     endType: newMeeting.recurrence_end_type,
                     occurrenceCount: newMeeting.recurrence_occurrence_count,
                   }}
-                    onChange={(config) => setNewMeeting({
-                      ...newMeeting,
+                    onChange={(config) => setNewMeeting(prev => ({
+                      ...prev,
                       recurrence_pattern: config.pattern,
                       recurrence_interval: config.interval,
                       recurrence_end_date: config.endDate,
                       recurrence_days_of_week: config.daysOfWeek,
                       recurrence_end_type: config.endType,
                       recurrence_occurrence_count: config.occurrenceCount,
-                    })}
+                    }))}
                   />
                 </div>
               </div>
@@ -677,7 +677,7 @@ export default function Meetings() {
                         id="edit_meeting_date"
                         type="date"
                         value={editingMeeting.meeting_date}
-                        onChange={(e) => setEditingMeeting({ ...editingMeeting, meeting_date: e.target.value })}
+                        onChange={(e) => setEditingMeeting(prev => ({ ...prev, meeting_date: e.target.value }))}
                       />
                     </div>
                     <div className="space-y-2">
@@ -686,7 +686,7 @@ export default function Meetings() {
                         id="edit_meeting_time"
                         type="time"
                         value={editingMeeting.meeting_time || ""}
-                        onChange={(e) => setEditingMeeting({ ...editingMeeting, meeting_time: e.target.value })}
+                        onChange={(e) => setEditingMeeting(prev => ({ ...prev, meeting_time: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -694,14 +694,14 @@ export default function Meetings() {
                   <LocationSearch
                     label="สถานที่"
                     value={editingMeeting.venue || ""}
-                    onChange={(value) => setEditingMeeting({ ...editingMeeting, venue: value })}
+                    onChange={(value) => setEditingMeeting(prev => ({ ...prev, venue: value }))}
                     onLocationSelect={(lat, lng, placeName) => {
-                      setEditingMeeting({
-                        ...editingMeeting,
+                      setEditingMeeting(prev => ({
+                        ...prev,
                         venue: placeName.split(',')[0].trim(),
                         location_lat: lat.toString(),
                         location_lng: lng.toString(),
-                      });
+                      }));
                     }}
                     placeholder="ค้นหาสถานที่... (เช่น โรงแรม ABC)"
                   />
@@ -711,7 +711,7 @@ export default function Meetings() {
                     <Input
                       id="edit_location_details"
                       value={editingMeeting.location_details || ""}
-                      onChange={(e) => setEditingMeeting({ ...editingMeeting, location_details: e.target.value })}
+                      onChange={(e) => setEditingMeeting(prev => ({ ...prev, location_details: e.target.value }))}
                       placeholder="ห้องประชุม 1 ชั้น 5"
                     />
                   </div>
@@ -724,7 +724,7 @@ export default function Meetings() {
                         type="number"
                         step="any"
                         value={editingMeeting.location_lat || ""}
-                        onChange={(e) => setEditingMeeting({ ...editingMeeting, location_lat: e.target.value })}
+                        onChange={(e) => setEditingMeeting(prev => ({ ...prev, location_lat: e.target.value }))}
                         placeholder="13.7563"
                       />
                     </div>
@@ -735,7 +735,7 @@ export default function Meetings() {
                         type="number"
                         step="any"
                         value={editingMeeting.location_lng || ""}
-                        onChange={(e) => setEditingMeeting({ ...editingMeeting, location_lng: e.target.value })}
+                        onChange={(e) => setEditingMeeting(prev => ({ ...prev, location_lng: e.target.value }))}
                         placeholder="100.5018"
                       />
                     </div>
@@ -746,7 +746,7 @@ export default function Meetings() {
                     <Input
                       id="edit_theme"
                       value={editingMeeting.theme || ""}
-                      onChange={(e) => setEditingMeeting({ ...editingMeeting, theme: e.target.value })}
+                      onChange={(e) => setEditingMeeting(prev => ({ ...prev, theme: e.target.value }))}
                       placeholder="หัวข้อการประชุม (สูงสุด 200 ตัวอักษร)"
                       maxLength={200}
                     />
@@ -763,7 +763,7 @@ export default function Meetings() {
                         ref={editQuillRef}
                         theme="snow"
                         value={editingMeeting.description || ""}
-                        onChange={(content) => setEditingMeeting({ ...editingMeeting, description: content })}
+                        onChange={(content) => setEditingMeeting(prev => ({ ...prev, description: content }))}
                         placeholder="รายละเอียดเพิ่มเติม..."
                         modules={editQuillModules}
                         className="bg-background"
@@ -780,7 +780,7 @@ export default function Meetings() {
                       id="edit_visitor_fee"
                       type="number"
                       value={editingMeeting.visitor_fee}
-                      onChange={(e) => setEditingMeeting({ ...editingMeeting, visitor_fee: parseFloat(e.target.value) })}
+                      onChange={(e) => setEditingMeeting(prev => ({ ...prev, visitor_fee: parseFloat(e.target.value) }))}
                       min="0"
                       step="50"
                     />
@@ -800,15 +800,15 @@ export default function Meetings() {
                       endType: (editingMeeting.recurrence_end_type as "never" | "date" | "count") || "never",
                       occurrenceCount: editingMeeting.recurrence_occurrence_count || 10,
                     }}
-                    onChange={(config) => setEditingMeeting({
-                      ...editingMeeting,
+                    onChange={(config) => setEditingMeeting(prev => ({
+                      ...prev,
                       recurrence_pattern: config.pattern,
                       recurrence_interval: config.interval,
                       recurrence_end_date: config.endDate,
                       recurrence_days_of_week: config.daysOfWeek,
                       recurrence_end_type: config.endType,
                       recurrence_occurrence_count: config.occurrenceCount,
-                    })}
+                    }))}
                   />
                   </div>
                 </div>
