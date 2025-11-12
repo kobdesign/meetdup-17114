@@ -1,6 +1,4 @@
-import { useEffect, useRef } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { useEffect, useRef, useState } from 'react';
 
 interface MapDisplayProps {
   lat: number;
@@ -9,63 +7,103 @@ interface MapDisplayProps {
   locationDetails?: string;
 }
 
+declare global {
+  interface Window {
+    initMap?: () => void;
+  }
+}
+
 const MapDisplay = ({ lat, lng, venue, locationDetails }: MapDisplayProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const marker = useRef<mapboxgl.Marker | null>(null);
+  const mapInstance = useRef<google.maps.Map | null>(null);
+  const markerInstance = useRef<google.maps.Marker | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    if (!mapContainer.current) return;
-
-    // Get Mapbox token from environment
-    const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
-    if (!mapboxToken) {
-      console.error('Mapbox token not found');
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error('Google Maps API key not found');
       return;
     }
 
-    mapboxgl.accessToken = mapboxToken;
+    // Check if Google Maps is already loaded
+    if (window.google && window.google.maps) {
+      setIsLoaded(true);
+      return;
+    }
 
-    // Initialize map
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [lng, lat],
+    // Load Google Maps script
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setIsLoaded(true);
+    script.onerror = () => console.error('Error loading Google Maps');
+    document.head.appendChild(script);
+
+    return () => {
+      // Cleanup script if component unmounts before loading
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded || !mapContainer.current) return;
+
+    // Create map
+    const map = new google.maps.Map(mapContainer.current, {
+      center: { lat, lng },
       zoom: 15,
+      mapTypeControl: true,
+      streetViewControl: true,
+      fullscreenControl: true,
     });
 
-    // Add navigation controls
-    map.current.addControl(
-      new mapboxgl.NavigationControl(),
-      'top-right'
-    );
+    // Create marker
+    const marker = new google.maps.Marker({
+      position: { lat, lng },
+      map,
+      title: venue || 'สถานที่ประชุม',
+    });
 
-    // Add marker
-    const popupContent = `
-      <div class="p-2">
-        ${venue ? `<h3 class="font-semibold">${venue}</h3>` : ''}
-        ${locationDetails ? `<p class="text-sm text-muted-foreground">${locationDetails}</p>` : ''}
-      </div>
-    `;
+    // Create info window
+    const infoWindow = new google.maps.InfoWindow({
+      content: `
+        <div style="padding: 8px; max-width: 200px;">
+          ${venue ? `<h3 style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">${venue}</h3>` : ''}
+          ${locationDetails ? `<p style="font-size: 12px; color: #666; margin: 0;">${locationDetails}</p>` : ''}
+        </div>
+      `,
+    });
 
-    marker.current = new mapboxgl.Marker({ color: '#1e40af' })
-      .setLngLat([lng, lat])
-      .setPopup(new mapboxgl.Popup().setHTML(popupContent))
-      .addTo(map.current);
+    // Show info window by default
+    infoWindow.open(map, marker);
 
-    // Show popup by default
-    marker.current.getPopup().addTo(map.current);
+    // Open info window on marker click
+    marker.addListener('click', () => {
+      infoWindow.open(map, marker);
+    });
+
+    mapInstance.current = map;
+    markerInstance.current = marker;
 
     // Cleanup
     return () => {
-      marker.current?.remove();
-      map.current?.remove();
+      markerInstance.current?.setMap(null);
+      mapInstance.current = null;
     };
-  }, [lat, lng, venue, locationDetails]);
+  }, [isLoaded, lat, lng, venue, locationDetails]);
 
   return (
     <div className="relative w-full h-[300px] rounded-lg overflow-hidden border">
       <div ref={mapContainer} className="absolute inset-0" />
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <p className="text-sm text-muted-foreground">กำลังโหลดแผนที่...</p>
+        </div>
+      )}
     </div>
   );
 };

@@ -4,10 +4,12 @@ import { Label } from '@/components/ui/label';
 import { MapPin, Loader2 } from 'lucide-react';
 
 interface LocationResult {
-  id: string;
-  place_name: string;
-  center: [number, number]; // [lng, lat]
-  text: string;
+  place_id: string;
+  description: string;
+  structured_formatting: {
+    main_text: string;
+    secondary_text: string;
+  };
 }
 
 interface LocationSearchProps {
@@ -42,22 +44,22 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
       return;
     }
 
-    const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
-    if (!mapboxToken) {
-      console.error('Mapbox token not found');
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error('Google Maps API key not found');
       return;
     }
 
     setLoading(true);
     try {
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&language=th,en&limit=5`
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&language=th&components=country:th&key=${apiKey}`
       );
       
       if (!response.ok) throw new Error('Failed to fetch locations');
       
       const data = await response.json();
-      setSuggestions(data.features || []);
+      setSuggestions(data.predictions || []);
       setShowSuggestions(true);
     } catch (error) {
       console.error('Geocoding error:', error);
@@ -79,9 +81,32 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
     }, 500);
   };
 
-  const handleSelectLocation = (result: LocationResult) => {
-    onChange(result.text);
-    onLocationSelect(result.center[1], result.center[0], result.place_name);
+  const handleSelectLocation = async (result: LocationResult) => {
+    onChange(result.structured_formatting.main_text);
+    
+    // Get place details to retrieve lat/lng
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    try {
+      const detailsResponse = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${result.place_id}&fields=geometry,name,formatted_address&key=${apiKey}`
+      );
+      
+      if (!detailsResponse.ok) throw new Error('Failed to fetch place details');
+      
+      const detailsData = await detailsResponse.json();
+      const place = detailsData.result;
+      
+      if (place?.geometry?.location) {
+        onLocationSelect(
+          place.geometry.location.lat,
+          place.geometry.location.lng,
+          place.formatted_address || result.description
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching place details:', error);
+    }
+    
     setSuggestions([]);
     setShowSuggestions(false);
   };
@@ -107,16 +132,16 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
         <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
           {suggestions.map((result) => (
             <button
-              key={result.id}
+              key={result.place_id}
               type="button"
               onClick={() => handleSelectLocation(result)}
               className="w-full px-4 py-3 text-left hover:bg-accent flex items-start gap-3 transition-colors"
             >
               <MapPin className="h-4 w-4 mt-1 flex-shrink-0 text-primary" />
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">{result.text}</div>
+                <div className="font-medium text-sm">{result.structured_formatting.main_text}</div>
                 <div className="text-xs text-muted-foreground truncate">
-                  {result.place_name}
+                  {result.structured_formatting.secondary_text}
                 </div>
               </div>
             </button>
