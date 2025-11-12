@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Users, Calendar, CheckCircle, DollarSign, CalendarIcon } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { format } from "date-fns";
+import { format, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface AnalyticsData {
@@ -38,7 +38,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    to: new Date(),
+    to: endOfMonth(new Date()),
   });
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateRangePreset, setDateRangePreset] = useState<string>("current_month");
@@ -141,6 +141,12 @@ export default function Dashboard() {
       setDateRange(newRange);
     }
   };
+
+  // Sync dateRange with preset on initial load
+  useEffect(() => {
+    const initialRange = getDateRangeFromPreset(dateRangePreset);
+    setDateRange(initialRange);
+  }, []); // Run only once on mount
 
   useEffect(() => {
     if (effectiveTenantId) {
