@@ -161,19 +161,25 @@ export default function CheckIn() {
                     <SelectValue placeholder="เลือกการประชุม" />
                   </SelectTrigger>
                   <SelectContent>
-                    {meetings.map((meeting) => (
-                      <SelectItem key={meeting.meeting_id} value={meeting.meeting_id}>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          {new Date(meeting.meeting_date).toLocaleDateString("th-TH", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
-                          {meeting.theme && ` - ${meeting.theme}`}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {meetings.length === 0 ? (
+                      <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                        ไม่มีข้อมูลการประชุม
+                      </div>
+                    ) : (
+                      meetings.map((meeting) => (
+                        <SelectItem key={meeting.meeting_id} value={meeting.meeting_id}>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            {new Date(meeting.meeting_date).toLocaleDateString("th-TH", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                            {meeting.theme && ` - ${meeting.theme}`}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

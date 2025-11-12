@@ -51,15 +51,21 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       if (user) {
         setUserEmail(user.email || "");
 
-        // Get user role
+        // Get all user roles and select the highest priority one
         const { data: roleData } = await supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", user.id)
-          .single();
+          .eq("user_id", user.id);
 
-        if (roleData) {
-          setUserRole(roleData.role);
+        if (roleData && roleData.length > 0) {
+          // Priority: super_admin > chapter_admin > chapter_member
+          const roleHierarchy = { super_admin: 3, chapter_admin: 2, chapter_member: 1 };
+          const highestRole = roleData.reduce((highest, current) => {
+            const currentPriority = roleHierarchy[current.role as keyof typeof roleHierarchy] || 0;
+            const highestPriority = roleHierarchy[highest.role as keyof typeof roleHierarchy] || 0;
+            return currentPriority > highestPriority ? current : highest;
+          });
+          setUserRole(highestRole.role);
         }
 
         // Get user profile

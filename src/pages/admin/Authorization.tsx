@@ -87,14 +87,14 @@ export default function Authorization() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: currentUserRole } = await supabase
+      const { data: currentUserRoles } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "super_admin")
-        .single();
+        .eq("user_id", user.id);
 
-      if (!currentUserRole) {
+      const isSuperAdmin = currentUserRoles?.some(r => r.role === "super_admin");
+      
+      if (!isSuperAdmin) {
         toast.error("คุณไม่มีสิทธิ์เข้าถึงหน้านี้");
         return;
       }

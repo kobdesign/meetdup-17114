@@ -57,22 +57,30 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", userId)
-        .single();
+        .eq("user_id", userId);
 
-      if (error || !data) {
+      if (error || !data || data.length === 0) {
         navigate("/");
         return;
       }
 
+      // Get the highest priority role
+      // Priority: super_admin > chapter_admin > chapter_member
+      const roleHierarchy = { super_admin: 3, chapter_admin: 2, chapter_member: 1 };
+      const highestRole = data.reduce((highest, current) => {
+        const currentPriority = roleHierarchy[current.role as keyof typeof roleHierarchy] || 0;
+        const highestPriority = roleHierarchy[highest.role as keyof typeof roleHierarchy] || 0;
+        return currentPriority > highestPriority ? current : highest;
+      });
+
       // Super admin can access everything
-      if (data.role === "super_admin") {
+      if (highestRole.role === "super_admin") {
         setAuthorized(true);
         return;
       }
 
       // Check if user has required role
-      if (requiredRole && data.role !== requiredRole) {
+      if (requiredRole && highestRole.role !== requiredRole) {
         navigate("/");
         return;
       }
