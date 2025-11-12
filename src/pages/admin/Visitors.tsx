@@ -43,7 +43,7 @@ export default function Visitors() {
         .from("participants")
         .select("*")
         .eq("tenant_id", effectiveTenantId)
-        .eq("status", "visitor")
+        .in("status", ["visitor", "prospect"])
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -119,6 +119,8 @@ export default function Visitors() {
     switch (status) {
       case "visitor":
         return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "prospect":
+        return <Clock className="h-4 w-4 text-yellow-500" />;
       default:
         return <XCircle className="h-4 w-4 text-gray-500" />;
     }
@@ -186,6 +188,7 @@ export default function Visitors() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">ทุกสถานะ</SelectItem>
+              <SelectItem value="prospect">ผู้สนใจ</SelectItem>
               <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
             </SelectContent>
           </Select>

@@ -113,7 +113,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <UserPlus className="h-4 w-4" />, label: "ผู้เยี่ยมชม", href: "/admin/visitors" },
     { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
     { icon: <RefreshCw className="h-4 w-4" />, label: "ตรวจสอบการชำระเงิน", href: "/admin/payment-reviews" },
-    { icon: <BarChart3 className="h-4 w-4" />, label: "Analytics", href: "/admin/analytics" },
     { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
   ];
 

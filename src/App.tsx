@@ -15,7 +15,6 @@ import Meetings from "./pages/admin/Meetings";
 import MeetingDetails from "./pages/admin/MeetingDetails";
 import Visitors from "./pages/admin/Visitors";
 import CheckIn from "./pages/admin/CheckIn";
-import Analytics from "./pages/admin/Analytics";
 import Settings from "./pages/admin/Settings";
 import PaymentHistory from "./pages/admin/PaymentHistory";
 import PaymentReviews from "./pages/admin/PaymentReviews";
@@ -84,11 +83,6 @@ const App = () => (
           <Route path="/admin/checkin" element={
             <ProtectedRoute>
               <CheckIn />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/analytics" element={
-            <ProtectedRoute>
-              <Analytics />
             </ProtectedRoute>
           } />
           <Route path="/admin/settings" element={
