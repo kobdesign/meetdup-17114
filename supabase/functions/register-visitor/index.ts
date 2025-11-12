@@ -70,21 +70,23 @@ serve(async (req) => {
 
     console.log("Participant created:", participant.participant_id);
 
-    // If meeting_id is provided, create check-in record
+    // If meeting_id is provided, create registration record
     if (meeting_id && participant?.participant_id) {
-      const { error: checkinError } = await adminClient.from("checkins").insert({
-        tenant_id,
-        meeting_id,
-        participant_id: participant.participant_id,
-        source: "manual",
-      });
+      const { error: regError } = await adminClient
+        .from("meeting_registrations")
+        .insert({
+          meeting_id: meeting_id,
+          participant_id: participant.participant_id,
+          tenant_id: tenant_id,
+          registration_status: "registered",
+        });
 
-      if (checkinError) {
-        console.error("Error creating check-in:", checkinError);
-        throw checkinError;
+      if (regError) {
+        console.error("Failed to create registration record:", regError);
+        // Don't throw error because participant is already created
+      } else {
+        console.log("Registration created for meeting:", meeting_id);
       }
-
-      console.log("Check-in created for meeting:", meeting_id);
     }
 
     return new Response(

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,9 @@ export default function VisitorRegistrationDialog({
   meetingId 
 }: VisitorRegistrationDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string | undefined>(meetingId);
+  const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -32,22 +35,71 @@ export default function VisitorRegistrationDialog({
     notes: "",
   });
 
+  useEffect(() => {
+    if (open) {
+      loadUpcomingMeetings();
+      if (selectedMeetingId) {
+        loadMeetingDetails(selectedMeetingId);
+      }
+    }
+  }, [open, selectedMeetingId]);
+
+  const loadUpcomingMeetings = async () => {
+    const today = new Date();
+    const threeMonthsLater = new Date();
+    threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+
+    const { data, error } = await supabase
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue, visitor_fee")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", today.toISOString().split("T")[0])
+      .lte("meeting_date", threeMonthsLater.toISOString().split("T")[0])
+      .order("meeting_date", { ascending: true });
+
+    if (!error && data) {
+      setMeetings(data);
+      if (!meetingId && data.length > 0) {
+        setSelectedMeetingId(data[0].meeting_id);
+      }
+    }
+  };
+
+  const loadMeetingDetails = async (meetingIdToLoad: string) => {
+    const { data, error } = await supabase
+      .from("meetings")
+      .select("*")
+      .eq("meeting_id", meetingIdToLoad)
+      .single();
+
+    if (!error && data) {
+      setSelectedMeeting(data);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate meeting selection
+    if (!selectedMeetingId) {
+      toast.error("กรุณาเลือกวันที่ประชุม");
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.full_name || !formData.email || !formData.phone) {
+      toast.error("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!formData.full_name || !formData.email || !formData.phone) {
-        toast.error("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
-        return;
-      }
-
       // Call backend function to register visitor (bypasses RLS)
       const { data, error: functionError } = await supabase.functions.invoke("register-visitor", {
         body: {
           tenant_id: tenantId,
-          meeting_id: meetingId,
+          meeting_id: selectedMeetingId,
           full_name: formData.full_name,
           email: formData.email,
           phone: formData.phone,
@@ -106,6 +158,52 @@ export default function VisitorRegistrationDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Meeting Selection */}
+          {!meetingId && meetings.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="meeting">เลือกวันที่ประชุมที่ต้องการเข้าร่วม *</Label>
+              <Select 
+                value={selectedMeetingId} 
+                onValueChange={(value) => {
+                  setSelectedMeetingId(value);
+                  loadMeetingDetails(value);
+                }}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="-- เลือกวันประชุม --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {meetings.map((meeting) => (
+                    <SelectItem key={meeting.meeting_id} value={meeting.meeting_id}>
+                      📅 {new Date(meeting.meeting_date).toLocaleDateString('th-TH')}
+                      {meeting.meeting_time && ` เวลา ${meeting.meeting_time}`}
+                      {meeting.theme && ` - ${meeting.theme}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Meeting Details Display */}
+          {selectedMeeting && (
+            <div className="bg-accent/50 rounded-lg p-4 space-y-2 border">
+              <p className="font-semibold">📋 ข้อมูลการประชุมที่เลือก</p>
+              <div className="text-sm space-y-1">
+                <p>📅 วันที่: {new Date(selectedMeeting.meeting_date).toLocaleDateString('th-TH')}</p>
+                {selectedMeeting.meeting_time && <p>⏰ เวลา: {selectedMeeting.meeting_time}</p>}
+                {selectedMeeting.venue && <p>📍 สถานที่: {selectedMeeting.venue}</p>}
+                {selectedMeeting.theme && (
+                  <p className="truncate max-w-full" title={selectedMeeting.theme}>
+                    🎯 หัวข้อ: {selectedMeeting.theme}
+                  </p>
+                )}
+                <p className="font-medium text-primary">💰 ค่าเข้าร่วม: {selectedMeeting.visitor_fee} บาท</p>
+              </div>
+            </div>
+          )}
+
           <div>
             <Label htmlFor="full_name">ชื่อ-นามสกุล *</Label>
             <Input

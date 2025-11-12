@@ -17,6 +17,7 @@ export default function MeetingDetails() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
   const [meeting, setMeeting] = useState<any>(null);
+  const [registrations, setRegistrations] = useState<any[]>([]);
   const [attendees, setAttendees] = useState<any[]>([]);
 
   useEffect(() => {
@@ -50,6 +51,29 @@ export default function MeetingDetails() {
       }
       
       setMeeting(meetingData);
+
+      // Load registrations
+      const { data: regsData, error: regsError } = await supabase
+        .from("meeting_registrations")
+        .select(`
+          registration_id,
+          registered_at,
+          registration_status,
+          participants:participant_id (
+            participant_id,
+            full_name,
+            email,
+            phone,
+            company,
+            status,
+            payment_status
+          )
+        `)
+        .eq("meeting_id", meetingId)
+        .eq("tenant_id", effectiveTenantId)
+        .order("registered_at", { ascending: false });
+
+      if (!regsError) setRegistrations(regsData || []);
 
       // Load attendees (checked-in participants)
       const { data: checkinsData, error: checkinsError } = await supabase
@@ -200,9 +224,11 @@ export default function MeetingDetails() {
               {meeting.theme && (
                 <div className="flex items-start gap-3">
                   <div className="h-5 w-5 text-muted-foreground mt-0.5">📋</div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="font-medium">หัวข้อ</p>
-                    <p className="text-sm text-muted-foreground">{meeting.theme}</p>
+                    <p className="text-sm text-muted-foreground truncate" title={meeting.theme}>
+                      {meeting.theme}
+                    </p>
                   </div>
                 </div>
               )}
@@ -245,22 +271,40 @@ export default function MeetingDetails() {
             </CardContent>
           </Card>
 
-          {/* Stats Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                ผู้เข้าร่วม
-              </CardTitle>
-              <CardDescription>รายชื่อผู้ที่เช็คอินแล้ว</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold mb-4">{attendees.length} คน</div>
-              <div className="text-sm text-muted-foreground">
-                เช็คอินแล้วทั้งหมด {attendees.length} คน
-              </div>
-            </CardContent>
-          </Card>
+          {/* Stats Card - Split into 2 cards */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Users className="h-5 w-5" />
+                  ผู้ลงทะเบียน
+                </CardTitle>
+                <CardDescription>จำนวนผู้ที่ลงทะเบียนแล้ว</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{registrations.length}</div>
+                <div className="text-sm text-muted-foreground mt-2">
+                  ลงทะเบียนแล้วทั้งหมด
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Users className="h-5 w-5" />
+                  ผู้เข้าร่วม (Checkin)
+                </CardTitle>
+                <CardDescription>จำนวนผู้ที่เช็คอินแล้ว</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{attendees.length}</div>
+                <div className="text-sm text-muted-foreground mt-2">
+                  เช็คอินแล้ว {attendees.length} จาก {registrations.length} คน
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Map Card */}
@@ -281,11 +325,53 @@ export default function MeetingDetails() {
           </Card>
         )}
 
-        {/* Attendees List */}
+        {/* Registrations List */}
         <Card>
           <CardHeader>
-            <CardTitle>รายชื่อผู้เข้าร่วม ({attendees.length})</CardTitle>
-            <CardDescription>รายชื่อผู้ที่ลงทะเบียนเข้าร่วมการประชุมแล้ว</CardDescription>
+            <CardTitle>ผู้ลงทะเบียน ({registrations.length})</CardTitle>
+            <CardDescription>รายชื่อผู้ที่ลงทะเบียนเข้าร่วมการประชุมนี้</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {registrations.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">ยังไม่มีผู้ลงทะเบียน</div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {registrations.map((reg) => (
+                  <div
+                    key={reg.registration_id}
+                    className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent transition-colors"
+                  >
+                    <Avatar>
+                      <AvatarFallback className="bg-blue-500 text-white">
+                        {getInitials(reg.participants?.full_name || "")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{reg.participants?.full_name || "ไม่ระบุชื่อ"}</p>
+                      {reg.participants?.company && (
+                        <p className="text-sm text-muted-foreground truncate">{reg.participants.company}</p>
+                      )}
+                      {reg.participants?.status && (
+                        <Badge variant="secondary" className="mt-1 text-xs">
+                          {reg.participants.status}
+                        </Badge>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        ลงทะเบียน: {new Date(reg.registered_at).toLocaleDateString('th-TH')}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Attendees List (Checked-in) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>ผู้เข้าร่วม (Checkin แล้ว) ({attendees.length})</CardTitle>
+            <CardDescription>รายชื่อผู้ที่เช็คอินเข้าร่วมการประชุมแล้ว</CardDescription>
           </CardHeader>
           <CardContent>
             {attendees.length === 0 ? (

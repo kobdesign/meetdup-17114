@@ -110,9 +110,65 @@ export type Database = {
           },
         ]
       }
+      meeting_registrations: {
+        Row: {
+          created_at: string | null
+          meeting_id: string
+          notes: string | null
+          participant_id: string
+          registered_at: string | null
+          registration_id: string
+          registration_status: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          meeting_id: string
+          notes?: string | null
+          participant_id: string
+          registered_at?: string | null
+          registration_id?: string
+          registration_status?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string | null
+          meeting_id?: string
+          notes?: string | null
+          participant_id?: string
+          registered_at?: string | null
+          registration_id?: string
+          registration_status?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_registrations_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["meeting_id"]
+          },
+          {
+            foreignKeyName: "meeting_registrations_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["participant_id"]
+          },
+          {
+            foreignKeyName: "meeting_registrations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["tenant_id"]
+          },
+        ]
+      }
       meetings: {
         Row: {
           created_at: string
+          description: string | null
           location_details: string | null
           location_lat: number | null
           location_lng: number | null
@@ -130,6 +186,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          description?: string | null
           location_details?: string | null
           location_lat?: number | null
           location_lng?: number | null
@@ -147,6 +204,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          description?: string | null
           location_details?: string | null
           location_lat?: number | null
           location_lng?: number | null
