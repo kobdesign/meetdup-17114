@@ -132,6 +132,7 @@ export default function RecurrenceSelector({ value, onChange, meetingDate }: Rec
           <Repeat className="h-4 w-4" />
           การทำซ้ำ
         </Label>
+        
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="w-full justify-between">
@@ -155,11 +156,26 @@ export default function RecurrenceSelector({ value, onChange, meetingDate }: Rec
           </PopoverContent>
         </Popover>
 
-        {value.pattern !== "none" && (
-          <div className="text-sm text-muted-foreground pl-1">
-            {value.endType === "never" && "ซ้ำตลอดไป"}
-            {value.endType === "date" && value.endDate && `จนถึง ${format(new Date(value.endDate), "d MMMM yyyy", { locale: th })}`}
-            {value.endType === "count" && `ทั้งหมด ${value.occurrenceCount} ครั้ง`}
+        {/* Details Section - Only show when pattern !== "none" */}
+        {value.pattern !== "none" && value.pattern && (
+          <div className="mt-2 p-3 bg-muted/30 rounded-md border space-y-2">
+            <div className="text-sm text-muted-foreground">
+              {value.endType === "never" && "ซ้ำตลอดไป"}
+              {value.endType === "date" && value.endDate && `จนถึง ${format(new Date(value.endDate), "d MMMM yyyy", { locale: th })}`}
+              {value.endType === "count" && `ทั้งหมด ${value.occurrenceCount} ครั้ง`}
+            </div>
+            
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-auto p-0 text-xs text-primary hover:underline"
+              onClick={() => {
+                setTempConfig(value);
+                setShowCustomDialog(true);
+              }}
+            >
+              แก้ไขการทำซ้ำ
+            </Button>
           </div>
         )}
       </div>

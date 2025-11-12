@@ -4,6 +4,7 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye, Repeat, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
@@ -108,8 +109,13 @@ export default function Meetings() {
   };
 
   const handleAddMeeting = async () => {
-    if (!newMeeting.meeting_date || !tenantId) {
+    if (!newMeeting.meeting_date) {
       toast.error("กรุณาเลือกวันที่ประชุม");
+      return;
+    }
+    
+    if (!tenantId) {
+      toast.error("ไม่พบข้อมูล Tenant");
       return;
     }
 
@@ -384,7 +390,11 @@ export default function Meetings() {
                   />
                 </div>
 
-                <RecurrenceSelector
+                <Separator className="my-4" />
+
+                <div className="space-y-2 pt-2">
+                  <h4 className="text-sm font-medium">ตัวเลือกการทำซ้ำ</h4>
+                  <RecurrenceSelector
                   meetingDate={newMeeting.meeting_date}
                   value={{
                     pattern: newMeeting.recurrence_pattern,
@@ -394,16 +404,17 @@ export default function Meetings() {
                     endType: newMeeting.recurrence_end_type,
                     occurrenceCount: newMeeting.recurrence_occurrence_count,
                   }}
-                  onChange={(config) => setNewMeeting({
-                    ...newMeeting,
-                    recurrence_pattern: config.pattern,
-                    recurrence_interval: config.interval,
-                    recurrence_end_date: config.endDate,
-                    recurrence_days_of_week: config.daysOfWeek,
-                    recurrence_end_type: config.endType,
-                    recurrence_occurrence_count: config.occurrenceCount,
-                  })}
-                />
+                    onChange={(config) => setNewMeeting({
+                      ...newMeeting,
+                      recurrence_pattern: config.pattern,
+                      recurrence_interval: config.interval,
+                      recurrence_end_date: config.endDate,
+                      recurrence_days_of_week: config.daysOfWeek,
+                      recurrence_end_type: config.endType,
+                      recurrence_occurrence_count: config.occurrenceCount,
+                    })}
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
@@ -520,7 +531,11 @@ export default function Meetings() {
                     />
                   </div>
 
-                  <RecurrenceSelector
+                  <Separator className="my-4" />
+
+                  <div className="space-y-2 pt-2">
+                    <h4 className="text-sm font-medium">ตัวเลือกการทำซ้ำ</h4>
+                    <RecurrenceSelector
                     meetingDate={editingMeeting.meeting_date}
                     value={{
                       pattern: editingMeeting.recurrence_pattern || "none",
@@ -540,6 +555,7 @@ export default function Meetings() {
                       recurrence_occurrence_count: config.occurrenceCount,
                     })}
                   />
+                  </div>
                 </div>
               )}
               <DialogFooter>
