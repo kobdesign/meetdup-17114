@@ -476,10 +476,7 @@ export default function Meetings() {
               </Button>
             </div>
           </div>
-        <Dialog open={showAddDialog} onOpenChange={(open) => {
-          setShowAddDialog(open);
-          if (open) setQuillKey(prev => prev + 1);
-        }}>
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -583,7 +580,7 @@ export default function Meetings() {
                   <Label htmlFor="description">รายละเอียดการประชุม</Label>
                   <div className="border rounded-md">
                     <ReactQuill
-                      key={`add-quill-${quillKey}`}
+                      key={showAddDialog ? 'add-quill' : 'add-quill-hidden'}
                       ref={quillRef}
                       theme="snow"
                       value={newMeeting.description || ""}
@@ -761,7 +758,7 @@ export default function Meetings() {
                     <Label htmlFor="edit_description">รายละเอียดการประชุม</Label>
                     <div className="border rounded-md overflow-hidden">
                       <ReactQuill
-                        key={`edit-quill-${editingMeeting?.meeting_id}-${showEditDialog}`}
+                        key={`edit-quill-${editingMeeting?.meeting_id}`}
                         ref={editQuillRef}
                         theme="snow"
                         value={editingMeeting.description || ""}

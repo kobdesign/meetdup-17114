@@ -22,6 +22,7 @@ export default function MeetingDetails() {
   const [attendees, setAttendees] = useState<any[]>([]);
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [showQRDialog, setShowQRDialog] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId && meetingId) {
@@ -135,6 +136,53 @@ export default function MeetingDetails() {
       return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     }
     return name.substring(0, 2).toUpperCase();
+  };
+
+  const geocodeVenue = async (venueName: string) => {
+    const token = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
+    const response = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(venueName)}.json?access_token=${token}&limit=1&language=th`
+    );
+    const data = await response.json();
+    if (data.features && data.features.length > 0) {
+      const [lng, lat] = data.features[0].center;
+      return { lat, lng };
+    }
+    return null;
+  };
+
+  const handleAutoGeocode = async () => {
+    if (!meeting.venue) return;
+
+    setGeocoding(true);
+    toast.loading("กำลังค้นหาพิกัด...", { id: "geocode" });
+
+    try {
+      const coords = await geocodeVenue(meeting.venue);
+      if (!coords) {
+        toast.error("ไม่พบพิกัดสถานที่", { id: "geocode" });
+        return;
+      }
+
+      // Update database
+      const { error } = await supabase
+        .from("meetings")
+        .update({
+          location_lat: coords.lat,
+          location_lng: coords.lng,
+        })
+        .eq("meeting_id", meetingId)
+        .eq("tenant_id", effectiveTenantId);
+
+      if (error) throw error;
+
+      toast.success("ค้นหาพิกัดสำเร็จ!", { id: "geocode" });
+      loadMeetingDetails(); // Reload to show map
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาด", { id: "geocode" });
+    } finally {
+      setGeocoding(false);
+    }
   };
 
   if (loading) {
@@ -378,11 +426,21 @@ export default function MeetingDetails() {
                   )}
                 </div>
               </div>
-              <div className="rounded-lg bg-muted/50 p-4 border border-dashed">
+              <div className="rounded-lg bg-muted/50 p-4 border border-dashed space-y-3">
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
                   <span className="text-lg">ℹ️</span>
-                  <span>ยังไม่มีพิกัดที่ตั้งสำหรับแสดงแผนที่ - สามารถเพิ่มได้โดยแก้ไขการประชุมและค้นหาสถานที่ใหม่</span>
+                  <span>ยังไม่มีพิกัดที่ตั้งสำหรับแสดงแผนที่</span>
                 </p>
+                <Button 
+                  onClick={handleAutoGeocode} 
+                  disabled={geocoding}
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  {geocoding ? "กำลังค้นหา..." : "🗺️ ค้นหาพิกัดอัตโนมัติ"}
+                </Button>
               </div>
             </CardContent>
           </Card>
