@@ -112,35 +112,17 @@ export default function VisitorRegistrationDialog({
 
       if (functionError) throw functionError;
 
-      toast.success("ลงทะเบียนสำเร็จ! เราจะติดต่อกลับโดยเร็วที่สุด");
+      toast.success("ลงทะเบียนสำเร็จ! กำลังไปยังหน้าชำระเงิน...");
       
-      // Show payment link
+      // Redirect to payment page
       if (data?.participant_id) {
-        const paymentUrl = `${window.location.origin}/payment/${data.participant_id}`;
-        toast.info(
-          "กรุณาชำระเงินผ่านลิงก์ที่แสดง",
-          {
-            duration: 10000,
-            action: {
-              label: "ชำระเงิน",
-              onClick: () => window.open(paymentUrl, "_blank")
-            }
-          }
-        );
+        const paymentUrl = `/payment/${data.participant_id}`;
+        setTimeout(() => {
+          window.location.href = paymentUrl;
+        }, 1000);
+      } else {
+        onOpenChange(false);
       }
-      
-      // Reset form
-      setFormData({
-        full_name: "",
-        email: "",
-        phone: "",
-        company: "",
-        business_type: "",
-        goal: "",
-        notes: "",
-      });
-      
-      onOpenChange(false);
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
     } finally {
