@@ -46,7 +46,11 @@ serve(async (req) => {
       throw new Error('Not authorized - super_admin role required');
     }
 
-    const { action } = await req.json();
+    // Read body once and reuse
+    const body = await req.json();
+    const { action, email, userId } = body;
+
+    console.log('Action:', action, 'Email:', email, 'UserId:', userId);
 
     if (action === 'list_users') {
       // List all users from auth.users
@@ -64,8 +68,6 @@ serve(async (req) => {
     }
 
     if (action === 'get_user_by_email') {
-      const { email } = await req.json();
-      
       const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
       if (error) throw error;
 
@@ -81,8 +83,6 @@ serve(async (req) => {
     }
 
     if (action === 'get_user_by_id') {
-      const { userId } = await req.json();
-      
       const { data: { user: userData }, error } = await supabaseAdmin.auth.admin.getUserById(userId);
       if (error) throw error;
 
