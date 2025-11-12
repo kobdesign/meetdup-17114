@@ -8,8 +8,14 @@ interface Tenant {
   slug: string;
 }
 
+interface TenantDetails extends Tenant {
+  logo_url?: string;
+  branding_color?: string;
+}
+
 interface TenantContextType {
   selectedTenantId: string | null;
+  selectedTenant: TenantDetails | null;
   availableTenants: Tenant[];
   isSuperAdmin: boolean;
   isLoading: boolean;
@@ -33,6 +39,7 @@ interface TenantProviderProps {
 
 export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const [selectedTenantData, setSelectedTenantData] = useState<TenantDetails | null>(null);
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,19 +120,51 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     }
   };
 
-  const setSelectedTenant = (id: string) => {
-    setSelectedTenantId(id);
+  const loadTenantDetails = async (tenantId: string) => {
+    try {
+      const { data: tenantData } = await supabase
+        .from("tenants")
+        .select("tenant_id, name, slug")
+        .eq("tenant_id", tenantId)
+        .single();
+
+      const { data: settingsData } = await supabase
+        .from("tenant_settings")
+        .select("logo_url, branding_color")
+        .eq("tenant_id", tenantId)
+        .single();
+
+      if (tenantData) {
+        setSelectedTenantData({
+          ...tenantData,
+          logo_url: settingsData?.logo_url,
+          branding_color: settingsData?.branding_color,
+        });
+      }
+    } catch (error) {
+      console.error("Error loading tenant details:", error);
+    }
   };
+
+  // Load tenant details when selectedTenantId changes
+  useEffect(() => {
+    if (selectedTenantId) {
+      loadTenantDetails(selectedTenantId);
+    } else {
+      setSelectedTenantData(null);
+    }
+  }, [selectedTenantId]);
 
   // Effective tenant ID: for super admin use selected, for regular users use their tenant
   const effectiveTenantId = isSuperAdmin ? selectedTenantId : userTenantId;
 
   const value: TenantContextType = {
     selectedTenantId,
+    selectedTenant: selectedTenantData,
     availableTenants,
     isSuperAdmin,
     isLoading,
-    setSelectedTenant,
+    setSelectedTenant: setSelectedTenantId,
     effectiveTenantId,
   };
 

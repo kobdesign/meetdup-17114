@@ -29,7 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
 import { toast } from "sonner";
-import TenantSelector from "@/components/TenantSelector";
+import TenantSelectorCard from "@/components/TenantSelectorCard";
 import { useTenantContext } from "@/contexts/TenantContext";
 
 interface AdminLayoutProps {
@@ -134,6 +134,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-64">
+                {isSuperAdmin && (
+                  <div className="mb-4 mt-4">
+                    <TenantSelectorCard />
+                  </div>
+                )}
+                
                 <nav className="flex flex-col gap-2 mt-8">
                   {navItems.map((item) => (
                     <NavLink key={item.href} to={item.href} icon={item.icon}>
@@ -157,12 +163,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <Link to="/admin" className="flex items-center gap-2">
               <span className="text-xl font-bold">BNI Chapter</span>
             </Link>
-            
-            {isSuperAdmin && (
-              <div className="ml-4">
-                <TenantSelector />
-              </div>
-            )}
           </div>
 
           <DropdownMenu>
@@ -219,7 +219,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       <div className="flex flex-1">
         <aside className="hidden w-64 border-r md:block">
-          <nav className="flex flex-col gap-2 p-4">
+          <div className="p-4">
+            {isSuperAdmin && (
+              <div className="mb-4">
+                <TenantSelectorCard />
+              </div>
+            )}
+          </div>
+          
+          <nav className="flex flex-col gap-2 px-4">
             {navItems.map((item) => (
               <NavLink key={item.href} to={item.href} icon={item.icon}>
                 {item.label}
