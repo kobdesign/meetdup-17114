@@ -347,7 +347,7 @@ export default function MeetingDetails() {
         </div>
 
         {/* Map Card */}
-        {meeting.location_lat && meeting.location_lng && (
+        {meeting.location_lat && meeting.location_lng ? (
           <Card>
             <CardHeader>
               <CardTitle>แผนที่</CardTitle>
@@ -362,7 +362,31 @@ export default function MeetingDetails() {
               />
             </CardContent>
           </Card>
-        )}
+        ) : meeting.venue ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>สถานที่</CardTitle>
+              <CardDescription>ข้อมูลสถานที่จัดการประชุม</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-start gap-3">
+                <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="font-medium">{meeting.venue}</p>
+                  {meeting.location_details && (
+                    <p className="text-sm text-muted-foreground mt-1">{meeting.location_details}</p>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-4 border border-dashed">
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <span className="text-lg">ℹ️</span>
+                  <span>ยังไม่มีพิกัดที่ตั้งสำหรับแสดงแผนที่ - สามารถเพิ่มได้โดยแก้ไขการประชุมและค้นหาสถานที่ใหม่</span>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Registrations List */}
         <Card>
