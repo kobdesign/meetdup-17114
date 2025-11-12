@@ -175,6 +175,7 @@ export type Database = {
           meeting_date: string
           meeting_id: string
           meeting_time: string | null
+          parent_meeting_id: string | null
           recurrence_days_of_week: string[] | null
           recurrence_end_date: string | null
           recurrence_interval: number | null
@@ -193,6 +194,7 @@ export type Database = {
           meeting_date: string
           meeting_id?: string
           meeting_time?: string | null
+          parent_meeting_id?: string | null
           recurrence_days_of_week?: string[] | null
           recurrence_end_date?: string | null
           recurrence_interval?: number | null
@@ -211,6 +213,7 @@ export type Database = {
           meeting_date?: string
           meeting_id?: string
           meeting_time?: string | null
+          parent_meeting_id?: string | null
           recurrence_days_of_week?: string[] | null
           recurrence_end_date?: string | null
           recurrence_interval?: number | null
@@ -221,6 +224,13 @@ export type Database = {
           visitor_fee?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "meetings_parent_meeting_id_fkey"
+            columns: ["parent_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["meeting_id"]
+          },
           {
             foreignKeyName: "meetings_tenant_id_fkey"
             columns: ["tenant_id"]

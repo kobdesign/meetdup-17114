@@ -14,6 +14,7 @@ export interface Meeting {
   recurrence_interval?: number;
   recurrence_end_date?: string;
   recurrence_days_of_week?: string[];
+  parent_meeting_id?: string | null;
   tenant_id: string;
   created_at?: string;
 }

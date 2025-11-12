@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, MapPin, Clock, Repeat } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { th } from "date-fns/locale";
-import { Meeting, RecurringMeetingInstance, getAllMeetingsInRange } from "@/lib/meetingUtils";
+import { Meeting } from "@/lib/meetingUtils";
 import { useNavigate } from "react-router-dom";
 
 interface MeetingsCalendarProps {
@@ -22,14 +22,9 @@ export default function MeetingsCalendar({ meetings }: MeetingsCalendarProps) {
 
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   
-  // Get all meetings including recurring instances for this month
-  const allMeetings = getAllMeetingsInRange(meetings, calendarStart, calendarEnd);
-
   const getMeetingsForDate = (date: Date) => {
-    return allMeetings.filter((meeting) => {
-      const meetingDate = 'instance_date' in meeting 
-        ? new Date(meeting.instance_date)
-        : new Date(meeting.meeting_date);
+    return meetings.filter((meeting) => {
+      const meetingDate = new Date(meeting.meeting_date);
       return isSameDay(meetingDate, date);
     });
   };
@@ -42,11 +37,8 @@ export default function MeetingsCalendar({ meetings }: MeetingsCalendarProps) {
     setCurrentMonth(addMonths(currentMonth, 1));
   };
 
-  const handleMeetingClick = (meeting: Meeting | RecurringMeetingInstance) => {
-    const meetingId = 'original_meeting_id' in meeting 
-      ? meeting.original_meeting_id 
-      : meeting.meeting_id;
-    navigate(`/admin/meetings/${meetingId}`);
+  const handleMeetingClick = (meeting: Meeting) => {
+    navigate(`/admin/meetings/${meeting.meeting_id}`);
   };
 
   const weekDays = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
@@ -97,16 +89,16 @@ export default function MeetingsCalendar({ meetings }: MeetingsCalendarProps) {
                 </div>
                 
                 <div className="space-y-1">
-                  {dayMeetings.map((meeting, idx) => {
-                    const isRecurring = 'is_recurring_instance' in meeting && meeting.is_recurring_instance;
+                  {dayMeetings.map((meeting) => {
+                    const isRecurringInstance = meeting.parent_meeting_id !== null;
                     return (
                       <div
-                        key={`${meeting.meeting_id}-${idx}`}
+                        key={meeting.meeting_id}
                         onClick={() => handleMeetingClick(meeting)}
                         className="text-xs p-1.5 rounded bg-primary/10 hover:bg-primary/20 cursor-pointer transition-colors border-l-2 border-primary"
                       >
                         <div className="flex items-center gap-1">
-                          {isRecurring && (
+                          {isRecurringInstance && (
                             <Repeat className="h-3 w-3 text-primary flex-shrink-0" />
                           )}
                           {meeting.meeting_time && (

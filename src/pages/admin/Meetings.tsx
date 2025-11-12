@@ -14,6 +14,7 @@ import { useTenantContext } from "@/contexts/TenantContext";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { uploadMeetingImage } from "@/lib/imageUploadHandler";
+import { generateRecurringMeetings } from "@/lib/meetingUtils";
 import {
   Dialog,
   DialogContent,
@@ -237,7 +238,8 @@ export default function Meetings() {
 
     setAdding(true);
     try {
-      const { error } = await supabase
+      // Insert parent meeting
+      const { data: insertedMeeting, error: insertError } = await supabase
         .from("meetings")
         .insert({
           tenant_id: effectiveTenantId,
@@ -254,11 +256,61 @@ export default function Meetings() {
           recurrence_interval: newMeeting.recurrence_interval,
           recurrence_end_date: newMeeting.recurrence_end_date || null,
           recurrence_days_of_week: newMeeting.recurrence_days_of_week.length > 0 ? newMeeting.recurrence_days_of_week : null,
+          parent_meeting_id: null,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+      if (!insertedMeeting) throw new Error("Failed to create meeting");
+
+      // If recurring, create instance records
+      if (newMeeting.recurrence_pattern !== "none" && insertedMeeting) {
+        const instances = generateRecurringMeetings({
+          ...insertedMeeting,
+          meeting_date: newMeeting.meeting_date,
+          recurrence_pattern: newMeeting.recurrence_pattern,
+          recurrence_interval: newMeeting.recurrence_interval,
+          recurrence_end_date: newMeeting.recurrence_end_date,
+          recurrence_days_of_week: newMeeting.recurrence_days_of_week,
         });
 
-      if (error) throw error;
+        if (instances.length > 0) {
+          const instancesToInsert = instances.map(instance => ({
+            tenant_id: effectiveTenantId,
+            meeting_date: instance.instance_date,
+            meeting_time: newMeeting.meeting_time || null,
+            venue: newMeeting.venue || null,
+            location_details: newMeeting.location_details || null,
+            location_lat: newMeeting.location_lat ? parseFloat(newMeeting.location_lat) : null,
+            location_lng: newMeeting.location_lng ? parseFloat(newMeeting.location_lng) : null,
+            theme: newMeeting.theme || null,
+            description: newMeeting.description || null,
+            visitor_fee: newMeeting.visitor_fee,
+            recurrence_pattern: "none",
+            recurrence_interval: null,
+            recurrence_end_date: null,
+            recurrence_days_of_week: null,
+            parent_meeting_id: insertedMeeting.meeting_id,
+          }));
 
-      toast.success("กำหนดการประชุมสำเร็จ");
+          const { error: instancesError } = await supabase
+            .from("meetings")
+            .insert(instancesToInsert);
+
+          if (instancesError) {
+            console.error("Error creating recurring instances:", instancesError);
+            toast.error("สร้างการประชุมหลักสำเร็จ แต่เกิดข้อผิดพลาดในการสร้างรอบถัดไป");
+          } else {
+            toast.success(`สร้างการประชุมสำเร็จ (${instances.length + 1} รอบ)`);
+          }
+        } else {
+          toast.success("กำหนดการประชุมสำเร็จ");
+        }
+      } else {
+        toast.success("กำหนดการประชุมสำเร็จ");
+      }
+
       setShowAddDialog(false);
       setNewMeeting({
         meeting_date: "",
@@ -464,6 +516,7 @@ export default function Meetings() {
                   onLocationSelect={(lat, lng, placeName) => {
                     setNewMeeting({
                       ...newMeeting,
+                      venue: placeName.split(',')[0].trim(),
                       location_lat: lat.toString(),
                       location_lng: lng.toString(),
                     });
@@ -640,6 +693,7 @@ export default function Meetings() {
                     onLocationSelect={(lat, lng, placeName) => {
                       setEditingMeeting({
                         ...editingMeeting,
+                        venue: placeName.split(',')[0].trim(),
                         location_lat: lat.toString(),
                         location_lng: lng.toString(),
                       });
