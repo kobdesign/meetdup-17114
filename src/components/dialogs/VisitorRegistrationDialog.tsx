@@ -78,6 +78,21 @@ export default function VisitorRegistrationDialog({
 
       toast.success("ลงทะเบียนสำเร็จ! เราจะติดต่อกลับโดยเร็วที่สุด");
       
+      // Show payment link
+      if (participant) {
+        const paymentUrl = `${window.location.origin}/payment/${participant.participant_id}`;
+        toast.info(
+          "กรุณาชำระเงินผ่านลิงก์ที่แสดง",
+          {
+            duration: 10000,
+            action: {
+              label: "ชำระเงิน",
+              onClick: () => window.open(paymentUrl, "_blank")
+            }
+          }
+        );
+      }
+      
       // Reset form
       setFormData({
         full_name: "",

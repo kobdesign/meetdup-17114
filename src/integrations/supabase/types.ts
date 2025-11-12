@@ -234,6 +234,7 @@ export type Database = {
           participant_id: string
           payment_id: string
           provider_ref: string | null
+          slip_url: string | null
           status: Database["public"]["Enums"]["payment_status"]
           tenant_id: string
         }
@@ -247,6 +248,7 @@ export type Database = {
           participant_id: string
           payment_id?: string
           provider_ref?: string | null
+          slip_url?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           tenant_id: string
         }
@@ -260,6 +262,7 @@ export type Database = {
           participant_id?: string
           payment_id?: string
           provider_ref?: string | null
+          slip_url?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           tenant_id?: string
         }

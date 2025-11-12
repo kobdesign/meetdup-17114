@@ -18,6 +18,7 @@ import Settings from "./pages/admin/Settings";
 import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
+import PaymentPage from "./pages/public/PaymentPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,9 @@ const App = () => (
           
           {/* Public Check-In */}
           <Route path="/checkin/:meetingId" element={<CheckInScanner />} />
+          
+          {/* Public Payment */}
+          <Route path="/payment/:participantId" element={<PaymentPage />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={

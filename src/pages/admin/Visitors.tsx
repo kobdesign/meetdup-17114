@@ -206,22 +206,34 @@ export default function Visitors() {
                       <TableCell>
                         {new Date(visitor.created_at).toLocaleDateString("th-TH")}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Select
-                          value={visitor.status}
-                          onValueChange={(value) => updateVisitorStatus(visitor.participant_id, value)}
-                        >
-                          <SelectTrigger className="w-[160px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="visitor_pending_payment">รอชำระเงิน</SelectItem>
-                            <SelectItem value="visitor_paid">ชำระเงินแล้ว</SelectItem>
-                            <SelectItem value="visitor_attended">เข้าร่วมแล้ว</SelectItem>
-                            <SelectItem value="prospect">เปลี่ยนเป็นผู้สนใจ</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
+                        <TableCell className="text-right">
+                          <div className="space-y-2">
+                            {visitor.payment_status === "pending" && visitor.slip_url && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => window.open(visitor.slip_url, "_blank")}
+                                className="w-full"
+                              >
+                                ดูสลิป
+                              </Button>
+                            )}
+                            <Select
+                              value={visitor.status}
+                              onValueChange={(value) => updateVisitorStatus(visitor.participant_id, value)}
+                            >
+                              <SelectTrigger className="w-[160px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="visitor_pending_payment">รอชำระเงิน</SelectItem>
+                                <SelectItem value="visitor_paid">ชำระเงินแล้ว</SelectItem>
+                                <SelectItem value="visitor_attended">เข้าร่วมแล้ว</SelectItem>
+                                <SelectItem value="prospect">เปลี่ยนเป็นผู้สนใจ</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
