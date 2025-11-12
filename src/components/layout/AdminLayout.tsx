@@ -22,7 +22,8 @@ import {
   Settings,
   BarChart3,
   UserPlus,
-  QrCode
+  QrCode,
+  Shield
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -107,6 +108,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   const superAdminNavItems = [
     { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },
+    { icon: <Shield className="h-4 w-4" />, label: "จัดการสิทธิ์", href: "/admin/authorization" },
   ];
 
   return (
@@ -173,10 +175,16 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <span>โปรไฟล์</span>
               </DropdownMenuItem>
               {userRole === "super_admin" && (
-                <DropdownMenuItem onClick={() => navigate("/super-admin/tenants")}>
-                  <Building2 className="mr-2 h-4 w-4" />
-                  <span>จัดการ Tenants</span>
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={() => navigate("/super-admin/tenants")}>
+                    <Building2 className="mr-2 h-4 w-4" />
+                    <span>จัดการ Tenants</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/admin/authorization")}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>จัดการสิทธิ์</span>
+                  </DropdownMenuItem>
+                </>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
