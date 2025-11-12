@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, RefreshCw, FileText, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, RefreshCw, FileText, CheckCircle, XCircle, AlertCircle, Edit } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface Payment {
   payment_id: string;
@@ -32,6 +41,7 @@ interface Payment {
   slip_url: string | null;
   meeting_id: string | null;
   provider_ref: string | null;
+  notes?: string | null;
 }
 
 interface Participant {
@@ -51,6 +61,9 @@ export default function PaymentHistory() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [refundReason, setRefundReason] = useState("");
   const [processingRefund, setProcessingRefund] = useState(false);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -127,6 +140,32 @@ export default function PaymentHistory() {
     } finally {
       setProcessingRefund(false);
     }
+  };
+
+  const handleSaveNote = async (paymentId: string) => {
+    setSavingNote(true);
+    try {
+      const { error } = await supabase
+        .from("payments")
+        .update({ notes: noteText })
+        .eq("payment_id", paymentId);
+
+      if (error) throw error;
+
+      toast.success("บันทึกหมายเหตุสำเร็จ");
+      setEditingNote(null);
+      setNoteText("");
+      loadData();
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const startEditingNote = (paymentId: string, currentNote: string | null | undefined) => {
+    setEditingNote(paymentId);
+    setNoteText(currentNote || "");
   };
 
   const getStatusBadge = (status: string) => {
@@ -256,7 +295,8 @@ export default function PaymentHistory() {
                     <TableHead>วิธีชำระ</TableHead>
                     <TableHead>สถานะ</TableHead>
                     <TableHead>วันที่ชำระ</TableHead>
-                    <TableHead>หมายเหตุ</TableHead>
+                    <TableHead>หมายเหตุแอดมิน</TableHead>
+                    <TableHead>หมายเหตุลูกค้า</TableHead>
                     <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -286,7 +326,21 @@ export default function PaymentHistory() {
                             })
                           : "-"}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="max-w-[200px]">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 text-sm text-muted-foreground truncate">
+                            {payment.notes || "-"}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => startEditingNote(payment.payment_id, payment.notes)}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">
                         {payment.provider_ref || "-"}
                       </TableCell>
                       <TableCell className="text-right space-x-2">
@@ -348,6 +402,41 @@ export default function PaymentHistory() {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Note Dialog */}
+        <Dialog open={editingNote !== null} onOpenChange={(open) => !open && setEditingNote(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>แก้ไขหมายเหตุ</DialogTitle>
+              <DialogDescription>
+                เพิ่มหรือแก้ไขหมายเหตุสำหรับรายการชำระเงินนี้
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="note">หมายเหตุ</Label>
+                <Textarea
+                  id="note"
+                  placeholder="ระบุหมายเหตุ..."
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  rows={4}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingNote(null)}>
+                ยกเลิก
+              </Button>
+              <Button 
+                onClick={() => editingNote && handleSaveNote(editingNote)} 
+                disabled={savingNote}
+              >
+                {savingNote ? "กำลังบันทึก..." : "บันทึก"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );

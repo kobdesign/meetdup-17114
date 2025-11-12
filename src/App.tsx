@@ -16,6 +16,7 @@ import CheckIn from "./pages/admin/CheckIn";
 import Analytics from "./pages/admin/Analytics";
 import Settings from "./pages/admin/Settings";
 import PaymentHistory from "./pages/admin/PaymentHistory";
+import Authorization from "./pages/admin/Authorization";
 import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
@@ -88,6 +89,11 @@ const App = () => (
           <Route path="/admin/payment-history/:participantId" element={
             <ProtectedRoute>
               <PaymentHistory />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/authorization" element={
+            <ProtectedRoute requiredRole="super_admin">
+              <Authorization />
             </ProtectedRoute>
           } />
           
