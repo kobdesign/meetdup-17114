@@ -94,14 +94,21 @@ export default function Authorization() {
 
       if (rolesError) throw rolesError;
 
-      // Load user emails from auth.users
+      // Load user emails from auth.users via edge function
       const userIds = [...new Set(rolesData?.map(r => r.user_id) || [])];
       const usersMap = new Map<string, string>();
 
       for (const userId of userIds) {
-        const { data: { user: userData } } = await supabase.auth.admin.getUserById(userId);
-        if (userData?.email) {
-          usersMap.set(userId, userData.email);
+        try {
+          const { data: userData, error: userError } = await supabase.functions.invoke('manage-user-roles', {
+            body: { action: 'get_user_by_id', userId }
+          });
+          
+          if (!userError && userData?.user?.email) {
+            usersMap.set(userId, userData.user.email);
+          }
+        } catch (error) {
+          console.error('Error fetching user:', error);
         }
       }
 
@@ -163,15 +170,19 @@ export default function Authorization() {
 
     setAdding(true);
     try {
-      // Find user by email
-      const { data, error: findError } = await supabase.auth.admin.listUsers();
+      // Find user by email via edge function
+      const { data, error: findError } = await supabase.functions.invoke('manage-user-roles', {
+        body: { action: 'get_user_by_email', email: newUserEmail }
+      });
+
       if (findError) throw findError;
 
-      const targetUser = data.users.find((u: any) => u.email === newUserEmail);
-      if (!targetUser) {
+      if (!data?.user) {
         toast.error("ไม่พบผู้ใช้ด้วยอีเมลนี้");
         return;
       }
+
+      const targetUser = data.user;
 
       // Insert role
       const { error: insertError } = await supabase

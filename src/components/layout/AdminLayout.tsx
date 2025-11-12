@@ -23,7 +23,8 @@ import {
   BarChart3,
   UserPlus,
   QrCode,
-  Shield
+  Shield,
+  RefreshCw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -109,6 +110,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const superAdminNavItems = [
     { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },
     { icon: <Shield className="h-4 w-4" />, label: "จัดการสิทธิ์", href: "/admin/authorization" },
+    { icon: <RefreshCw className="h-4 w-4" />, label: "อนุมัติคืนเงิน", href: "/admin/refund-approvals" },
   ];
 
   return (
@@ -183,6 +185,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   <DropdownMenuItem onClick={() => navigate("/admin/authorization")}>
                     <Shield className="mr-2 h-4 w-4" />
                     <span>จัดการสิทธิ์</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/admin/refund-approvals")}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    <span>อนุมัติคืนเงิน</span>
                   </DropdownMenuItem>
                 </>
               )}

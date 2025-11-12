@@ -347,6 +347,66 @@ export type Database = {
         }
         Relationships: []
       }
+      refund_requests: {
+        Row: {
+          admin_notes: string | null
+          approved_by: string | null
+          created_at: string
+          payment_id: string
+          processed_at: string | null
+          reason: string
+          request_id: string
+          requested_at: string
+          requested_by: string
+          status: Database["public"]["Enums"]["approval_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          approved_by?: string | null
+          created_at?: string
+          payment_id: string
+          processed_at?: string | null
+          reason: string
+          request_id?: string
+          requested_at?: string
+          requested_by: string
+          status?: Database["public"]["Enums"]["approval_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          approved_by?: string | null
+          created_at?: string
+          payment_id?: string
+          processed_at?: string | null
+          reason?: string
+          request_id?: string
+          requested_at?: string
+          requested_by?: string
+          status?: Database["public"]["Enums"]["approval_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_requests_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["payment_id"]
+          },
+          {
+            foreignKeyName: "refund_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["tenant_id"]
+          },
+        ]
+      }
       status_audit: {
         Row: {
           audit_id: string
@@ -651,6 +711,7 @@ export type Database = {
     }
     Enums: {
       app_role: "super_admin" | "chapter_admin" | "member"
+      approval_status: "pending" | "approved" | "rejected"
       checkin_source: "qr" | "line" | "manual"
       invoice_status: "paid" | "unpaid" | "void"
       participant_status:
@@ -795,6 +856,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["super_admin", "chapter_admin", "member"],
+      approval_status: ["pending", "approved", "rejected"],
       checkin_source: ["qr", "line", "manual"],
       invoice_status: ["paid", "unpaid", "void"],
       participant_status: [

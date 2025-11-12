@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, RefreshCw, FileText, CheckCircle, XCircle, AlertCircle, Edit } from "lucide-react";
+import { ArrowLeft, RefreshCw, FileText, CheckCircle, XCircle, AlertCircle, Edit, Clock } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +64,7 @@ export default function PaymentHistory() {
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [refundRequests, setRefundRequests] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -106,6 +107,16 @@ export default function PaymentHistory() {
 
       if (paymentsError) throw paymentsError;
       setPayments(paymentsData || []);
+
+      // Load refund requests for this participant
+      const { data: refundData, error: refundError } = await supabase
+        .from("refund_requests")
+        .select("*")
+        .in("payment_id", paymentsData?.map(p => p.payment_id) || [])
+        .order("created_at", { ascending: false });
+
+      if (refundError) throw refundError;
+      setRefundRequests(refundData || []);
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
       console.error(error);
@@ -122,17 +133,31 @@ export default function PaymentHistory() {
 
     setProcessingRefund(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not found");
+
+      const { data: userRole } = await supabase
+        .from("user_roles")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!userRole?.tenant_id) throw new Error("Tenant not found");
+
+      // Create refund request for approval
       const { error } = await supabase
-        .from("payments")
-        .update({ 
-          status: "refunded" as any,
-          provider_ref: refundReason 
-        })
-        .eq("payment_id", paymentId);
+        .from("refund_requests")
+        .insert({
+          payment_id: paymentId,
+          requested_by: user.id,
+          reason: refundReason,
+          tenant_id: userRole.tenant_id,
+          status: "pending" as any,
+        });
 
       if (error) throw error;
 
-      toast.success("ดำเนินการคืนเงินสำเร็จ");
+      toast.success("ส่งคำขอคืนเงินเรียบร้อย รอการอนุมัติจาก Super Admin");
       setRefundReason("");
       loadData();
     } catch (error: any) {
@@ -168,7 +193,13 @@ export default function PaymentHistory() {
     setNoteText(currentNote || "");
   };
 
-  const getStatusBadge = (status: string) => {
+  const getRefundRequestStatus = (paymentId: string) => {
+    return refundRequests.find(r => r.payment_id === paymentId);
+  };
+
+  const getStatusBadge = (status: string, paymentId: string) => {
+    const refundRequest = getRefundRequestStatus(paymentId);
+    
     const variants: Record<string, { variant: any; icon: any; label: string }> = {
       paid: { variant: "default", icon: CheckCircle, label: "ชำระแล้ว" },
       pending: { variant: "secondary", icon: AlertCircle, label: "รอชำระ" },
@@ -181,10 +212,18 @@ export default function PaymentHistory() {
     const Icon = config.icon;
 
     return (
-      <Badge variant={config.variant} className="flex items-center gap-1 w-fit">
-        <Icon className="h-3 w-3" />
-        {config.label}
-      </Badge>
+      <div className="space-y-1">
+        <Badge variant={config.variant} className="flex items-center gap-1 w-fit">
+          <Icon className="h-3 w-3" />
+          {config.label}
+        </Badge>
+        {refundRequest && refundRequest.status === 'pending' && (
+          <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+            <Clock className="h-3 w-3" />
+            รอการอนุมัติคืนเงิน
+          </Badge>
+        )}
+      </div>
     );
   };
 
@@ -316,7 +355,7 @@ export default function PaymentHistory() {
                         {Number(payment.amount).toLocaleString()} {payment.currency}
                       </TableCell>
                       <TableCell>{getMethodLabel(payment.method)}</TableCell>
-                      <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                      <TableCell>{getStatusBadge(payment.status, payment.payment_id)}</TableCell>
                       <TableCell>
                         {payment.paid_at
                           ? new Date(payment.paid_at).toLocaleDateString("th-TH", {
@@ -354,20 +393,20 @@ export default function PaymentHistory() {
                             ดูสลิป
                           </Button>
                         )}
-                        {payment.status === "paid" && (
+                        {payment.status === "paid" && !getRefundRequestStatus(payment.payment_id) && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button size="sm" variant="destructive">
                                 <RefreshCw className="h-4 w-4 mr-1" />
-                                คืนเงิน
+                                ขอคืนเงิน
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>ยืนยันการคืนเงิน</AlertDialogTitle>
+                                <AlertDialogTitle>ส่งคำขอคืนเงิน</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  คุณต้องการคืนเงินจำนวน {Number(payment.amount).toLocaleString()}{" "}
-                                  {payment.currency} ใช่หรือไม่?
+                                  ส่งคำขอคืนเงินจำนวน {Number(payment.amount).toLocaleString()}{" "}
+                                  {payment.currency} ไปยัง Super Admin เพื่อพิจารณาอนุมัติ
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <div className="space-y-2">
@@ -386,9 +425,8 @@ export default function PaymentHistory() {
                                 <AlertDialogAction
                                   onClick={() => handleRefund(payment.payment_id)}
                                   disabled={processingRefund || !refundReason.trim()}
-                                  className="bg-destructive hover:bg-destructive/90"
                                 >
-                                  {processingRefund ? "กำลังดำเนินการ..." : "คืนเงิน"}
+                                  {processingRefund ? "กำลังส่งคำขอ..." : "ส่งคำขอคืนเงิน"}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
