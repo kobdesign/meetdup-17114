@@ -373,93 +373,68 @@ export default function MeetingDetails() {
             </CardContent>
           </Card>
 
-          {/* Stats Card - Split into 2 cards */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Users className="h-5 w-5" />
-                  ผู้ลงทะเบียน
-                </CardTitle>
-                <CardDescription>จำนวนผู้ที่ลงทะเบียนแล้ว</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{registrations.length}</div>
-                <div className="text-sm text-muted-foreground mt-2">
-                  ลงทะเบียนแล้วทั้งหมด
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Users className="h-5 w-5" />
-                  ผู้เข้าร่วม (Checkin)
-                </CardTitle>
-                <CardDescription>จำนวนผู้ที่เช็คอินแล้ว</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{attendees.length}</div>
-                <div className="text-sm text-muted-foreground mt-2">
-                  เช็คอินแล้ว {attendees.length} จาก {registrations.length} คน
-                </div>
-              </CardContent>
-            </Card>
+          {/* Map Section */}
+          <div>
+            {meeting.location_lat && meeting.location_lng ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>แผนที่</CardTitle>
+                  <CardDescription>ตำแหน่งสถานที่จัดการประชุม</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <MapDisplay
+                    lat={parseFloat(meeting.location_lat)}
+                    lng={parseFloat(meeting.location_lng)}
+                    venue={meeting.venue}
+                    locationDetails={meeting.location_details}
+                  />
+                </CardContent>
+              </Card>
+            ) : meeting.venue ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>สถานที่</CardTitle>
+                  <CardDescription>ข้อมูลสถานที่จัดการประชุม</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="font-medium">{meeting.venue}</p>
+                      {meeting.location_details && (
+                        <p className="text-sm text-muted-foreground mt-1">{meeting.location_details}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-4 border border-dashed space-y-3">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <span className="text-lg">ℹ️</span>
+                      <span>ยังไม่มีพิกัดที่ตั้งสำหรับแสดงแผนที่</span>
+                    </p>
+                    <Button 
+                      onClick={handleAutoGeocode} 
+                      disabled={geocoding}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <MapPin className="mr-2 h-4 w-4" />
+                      {geocoding ? "กำลังค้นหา..." : "🗺️ ค้นหาพิกัดอัตโนมัติ"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="py-8">
+                  <p className="text-center text-muted-foreground">
+                    ยังไม่ได้ระบุสถานที่
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
-
-        {/* Map Card */}
-        {meeting.location_lat && meeting.location_lng ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>แผนที่</CardTitle>
-              <CardDescription>ตำแหน่งสถานที่จัดการประชุม</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <MapDisplay
-                lat={parseFloat(meeting.location_lat)}
-                lng={parseFloat(meeting.location_lng)}
-                venue={meeting.venue}
-                locationDetails={meeting.location_details}
-              />
-            </CardContent>
-          </Card>
-        ) : meeting.venue ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>สถานที่</CardTitle>
-              <CardDescription>ข้อมูลสถานที่จัดการประชุม</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="font-medium">{meeting.venue}</p>
-                  {meeting.location_details && (
-                    <p className="text-sm text-muted-foreground mt-1">{meeting.location_details}</p>
-                  )}
-                </div>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-4 border border-dashed space-y-3">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <span className="text-lg">ℹ️</span>
-                  <span>ยังไม่มีพิกัดที่ตั้งสำหรับแสดงแผนที่</span>
-                </p>
-                <Button 
-                  onClick={handleAutoGeocode} 
-                  disabled={geocoding}
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                >
-                  <MapPin className="mr-2 h-4 w-4" />
-                  {geocoding ? "กำลังค้นหา..." : "🗺️ ค้นหาพิกัดอัตโนมัติ"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
 
         {/* Registrations List */}
         <Card>
