@@ -99,14 +99,28 @@ export default function CheckInScanner() {
       }
 
       console.log("✅ Edge function response:", { data, error });
+      console.log("📦 Full error object:", JSON.stringify(error, null, 2));
+      console.log("📦 Full data object:", JSON.stringify(data, null, 2));
 
-      // Handle error from the function invocation itself
+      // 1. Handle SDK/Network errors first
       if (error) {
         console.error("❌ Function invocation error:", error);
         
-        // Map common errors to user-friendly messages
+        // Try to parse error context for 4xx/5xx responses with body
+        const errorContext = error.context || {};
+        
+        if (errorContext.already_checked_in) {
+          console.log("⚠️ Already checked in (from error context)");
+          toast.error("คุณได้เช็คอินการประชุมนี้แล้ว");
+          setCheckedIn(true);
+          return;
+        }
+        
+        // Map specific error messages to Thai
         if (error.message?.includes("Meeting not found")) {
           toast.error("ไม่พบข้อมูลการประชุม");
+        } else if (error.message?.includes("Missing required fields")) {
+          toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
         } else if (error.message?.includes("FunctionsHttpError")) {
           toast.error("ไม่สามารถเชื่อมต่อกับระบบได้ กรุณาลองใหม่อีกครั้ง");
         } else {
@@ -115,9 +129,9 @@ export default function CheckInScanner() {
         return;
       }
 
-      // Handle business logic responses
+      // 2. Handle business logic responses (status 200)
       if (data?.already_checked_in) {
-        console.log("⚠️ Already checked in");
+        console.log("⚠️ Already checked in (from data)");
         toast.error("คุณได้เช็คอินการประชุมนี้แล้ว");
         setCheckedIn(true);
         return;
@@ -125,22 +139,11 @@ export default function CheckInScanner() {
 
       if (!data?.success) {
         console.error("❌ Check-in failed:", data?.error);
-        
-        // Map backend error messages to Thai
-        const errorMsg = data?.error || "";
-        if (errorMsg.includes("Meeting not found")) {
-          toast.error("ไม่พบข้อมูลการประชุม");
-        } else if (errorMsg.includes("Missing required fields")) {
-          toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
-        } else if (errorMsg.includes("already checked in")) {
-          toast.error("คุณได้เช็คอินการประชุมนี้แล้ว");
-          setCheckedIn(true);
-        } else {
-          toast.error("เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
-        }
+        toast.error(data?.message || "เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
         return;
       }
 
+      // 3. Success!
       console.log("🎉 Check-in successful!");
       toast.success("เช็คอินสำเร็จ! ยินดีต้อนรับเข้าสู่การประชุม");
       setCheckedIn(true);

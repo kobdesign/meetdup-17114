@@ -144,8 +144,12 @@ serve(async (req) => {
     if (existingCheckin) {
       console.log(`${logPrefix} Participant already checked in`);
       return new Response(
-        JSON.stringify({ error: 'Already checked in', already_checked_in: true }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          success: false,
+          already_checked_in: true,
+          message: 'Participant has already checked in to this meeting'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
