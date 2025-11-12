@@ -41,6 +41,8 @@ export default function Dashboard() {
     to: new Date(),
   });
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [dateRangePreset, setDateRangePreset] = useState<string>("current_month");
+  const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData>({
     totalParticipants: 0,
     activeMembers: 0,
@@ -58,6 +60,87 @@ export default function Dashboard() {
     monthlyCheckins: [],
     monthlyRevenue: [],
   });
+
+  // Helper function to get date ranges based on preset
+  const getDateRangeFromPreset = (preset: string): { from: Date; to: Date } => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    switch (preset) {
+      case "current_month":
+        return {
+          from: new Date(currentYear, currentMonth, 1),
+          to: now,
+        };
+      
+      case "last_month":
+        const lastMonthStart = new Date(currentYear, currentMonth - 1, 1);
+        const lastMonthEnd = new Date(currentYear, currentMonth, 0);
+        return {
+          from: lastMonthStart,
+          to: lastMonthEnd,
+        };
+      
+      case "last_2_months":
+        return {
+          from: new Date(currentYear, currentMonth - 2, 1),
+          to: new Date(currentYear, currentMonth, 0),
+        };
+      
+      case "last_3_months":
+        return {
+          from: new Date(currentYear, currentMonth - 3, 1),
+          to: new Date(currentYear, currentMonth, 0),
+        };
+      
+      case "last_6_months":
+        return {
+          from: new Date(currentYear, currentMonth - 6, 1),
+          to: new Date(currentYear, currentMonth, 0),
+        };
+      
+      case "last_12_months":
+        return {
+          from: new Date(currentYear, currentMonth - 12, 1),
+          to: new Date(currentYear, currentMonth, 0),
+        };
+      
+      case "current_year":
+        return {
+          from: new Date(currentYear, 0, 1),
+          to: now,
+        };
+      
+      case "last_year":
+        return {
+          from: new Date(currentYear - 1, 0, 1),
+          to: new Date(currentYear - 1, 11, 31),
+        };
+      
+      case "custom":
+        return dateRange;
+      
+      default:
+        return {
+          from: new Date(currentYear, currentMonth, 1),
+          to: now,
+        };
+    }
+  };
+
+  // Handler when preset changes
+  const handlePresetChange = (preset: string) => {
+    setDateRangePreset(preset);
+    
+    if (preset === "custom") {
+      setShowCustomDatePicker(true);
+    } else {
+      setShowCustomDatePicker(false);
+      const newRange = getDateRangeFromPreset(preset);
+      setDateRange(newRange);
+    }
+  };
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -270,46 +353,68 @@ export default function Dashboard() {
                 <SelectItem value="alumni">อดีตสมาชิก</SelectItem>
               </SelectContent>
             </Select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange.from ? (
-                    dateRange.to ? (
-                      <>
-                        {format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}
-                      </>
+            
+            {/* Date Range Preset Dropdown */}
+            <Select value={dateRangePreset} onValueChange={handlePresetChange}>
+              <SelectTrigger className="w-[240px]">
+                <SelectValue placeholder="เลือกช่วงเวลา" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="current_month">เดือนปัจจุบัน</SelectItem>
+                <SelectItem value="last_month">เดือนก่อน</SelectItem>
+                <SelectItem value="last_2_months">2 เดือนที่ผ่านมา</SelectItem>
+                <SelectItem value="last_3_months">3 เดือนที่ผ่านมา</SelectItem>
+                <SelectItem value="last_6_months">6 เดือนที่ผ่านมา</SelectItem>
+                <SelectItem value="last_12_months">1 ปีที่ผ่านมา</SelectItem>
+                <SelectItem value="current_year">ปีปัจจุบัน</SelectItem>
+                <SelectItem value="last_year">ปีก่อน</SelectItem>
+                <SelectItem value="custom">กำหนดเอง...</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Custom Date Picker - แสดงเฉพาะเมื่อเลือก "กำหนดเอง" */}
+            {showCustomDatePicker && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "dd/MM/yyyy")
+                      )
                     ) : (
-                      format(dateRange.from, "dd/MM/yyyy")
-                    )
-                  ) : (
-                    <span>เลือกช่วงเวลา</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <div className="p-3 space-y-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">จาก</label>
-                    <CalendarComponent
-                      mode="single"
-                      selected={dateRange.from}
-                      onSelect={(date) => date && setDateRange({ ...dateRange, from: date })}
-                      className={cn("pointer-events-auto")}
-                    />
+                      <span>เลือกช่วงเวลา</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <div className="p-3 space-y-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">จาก</label>
+                      <CalendarComponent
+                        mode="single"
+                        selected={dateRange.from}
+                        onSelect={(date) => date && setDateRange({ ...dateRange, from: date })}
+                        className={cn("pointer-events-auto")}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">ถึง</label>
+                      <CalendarComponent
+                        mode="single"
+                        selected={dateRange.to}
+                        onSelect={(date) => date && setDateRange({ ...dateRange, to: date })}
+                        className={cn("pointer-events-auto")}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">ถึง</label>
-                    <CalendarComponent
-                      mode="single"
-                      selected={dateRange.to}
-                      onSelect={(date) => date && setDateRange({ ...dateRange, to: date })}
-                      className={cn("pointer-events-auto")}
-                    />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
 
