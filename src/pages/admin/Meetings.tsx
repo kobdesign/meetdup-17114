@@ -547,6 +547,7 @@ export default function Meetings() {
                   <Label htmlFor="description">รายละเอียดการประชุม</Label>
                   <div className="border rounded-md overflow-hidden">
                     <ReactQuill
+                      key={`add-quill-${showAddDialog}`}
                       ref={quillRef}
                       theme="snow"
                       value={newMeeting.description || ""}
@@ -722,6 +723,7 @@ export default function Meetings() {
                     <Label htmlFor="edit_description">รายละเอียดการประชุม</Label>
                     <div className="border rounded-md overflow-hidden">
                       <ReactQuill
+                        key={`edit-quill-${editingMeeting?.meeting_id}-${showEditDialog}`}
                         ref={editQuillRef}
                         theme="snow"
                         value={editingMeeting.description || ""}
