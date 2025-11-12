@@ -5,14 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
 import AddTenantDialog from "@/components/dialogs/AddTenantDialog";
+import EditTenantDialog from "@/components/dialogs/EditTenantDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Tenants() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<any>(null);
 
   useEffect(() => {
     fetchTenants();
@@ -31,6 +36,35 @@ export default function Tenants() {
       toast.error("Failed to load tenants");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEdit = (tenant: any) => {
+    setSelectedTenant(tenant);
+    setShowEditDialog(true);
+  };
+
+  const handleDelete = (tenant: any) => {
+    setSelectedTenant(tenant);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedTenant) return;
+
+    try {
+      const { error } = await supabase
+        .from("tenants")
+        .delete()
+        .eq("tenant_id", selectedTenant.tenant_id);
+
+      if (error) throw error;
+
+      toast.success("ลบ tenant สำเร็จ");
+      fetchTenants();
+      setShowDeleteDialog(false);
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาด: " + error.message);
     }
   };
 
@@ -54,6 +88,30 @@ export default function Tenants() {
           onSuccess={fetchTenants}
         />
 
+        <EditTenantDialog
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          onSuccess={fetchTenants}
+          tenant={selectedTenant}
+        />
+
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>ยืนยันการลบ</AlertDialogTitle>
+              <AlertDialogDescription>
+                คุณแน่ใจหรือไม่ที่จะลบ tenant "{selectedTenant?.name}"? การกระทำนี้ไม่สามารถย้อนกลับได้
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                ลบ
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <Card>
           <CardHeader>
             <CardTitle>All Tenants</CardTitle>
@@ -71,12 +129,13 @@ export default function Tenants() {
                     <TableHead>Timezone</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tenants.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No tenants found
                       </TableCell>
                     </TableRow>
@@ -92,6 +151,24 @@ export default function Tenants() {
                         </TableCell>
                         <TableCell>
                           {new Date(tenant.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(tenant)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(tenant)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

@@ -18,7 +18,8 @@ import {
   Menu,
   LogOut,
   User,
-  Building2
+  Building2,
+  Settings
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -95,6 +96,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard", href: "/admin" },
     { icon: <Users className="h-4 w-4" />, label: "สมาชิก", href: "/admin/participants" },
     { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
+    { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
   ];
 
   const superAdminNavItems = [

@@ -11,6 +11,7 @@ import Profile from "./pages/Profile";
 import Dashboard from "./pages/admin/Dashboard";
 import Participants from "./pages/admin/Participants";
 import Meetings from "./pages/admin/Meetings";
+import Settings from "./pages/admin/Settings";
 import Tenants from "./pages/super-admin/Tenants";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,11 @@ const App = () => (
           <Route path="/admin/meetings" element={
             <ProtectedRoute>
               <Meetings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/settings" element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           } />
           
