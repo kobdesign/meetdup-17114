@@ -35,14 +35,37 @@ export default function VisitorRegistrationDialog({
     notes: "",
   });
 
+  // Sync meetingId prop to state when dialog opens
   useEffect(() => {
-    if (open) {
-      loadUpcomingMeetings();
-      if (selectedMeetingId) {
-        loadMeetingDetails(selectedMeetingId);
-      }
+    if (open && meetingId) {
+      setSelectedMeetingId(meetingId);
     }
-  }, [open, selectedMeetingId]);
+  }, [open, meetingId]);
+
+  // Load data when dialog opens
+  useEffect(() => {
+    if (open && tenantId) {
+      setLoading(true);
+      
+      const loadData = async () => {
+        if (meetingId) {
+          // If meetingId is pre-selected, load only its details
+          await loadMeetingDetails(meetingId);
+        } else {
+          // If no meetingId, load list of upcoming meetings
+          await loadUpcomingMeetings();
+        }
+        setLoading(false);
+      };
+      
+      loadData();
+    } else if (!open) {
+      // Reset when dialog closes
+      setSelectedMeetingId(undefined);
+      setSelectedMeeting(null);
+      setMeetings([]);
+    }
+  }, [open, tenantId, meetingId]);
 
   const loadUpcomingMeetings = async () => {
     const today = new Date();
@@ -59,8 +82,10 @@ export default function VisitorRegistrationDialog({
 
     if (!error && data) {
       setMeetings(data);
+      // Auto-select first meeting and load its details if no meetingId was pre-selected
       if (!meetingId && data.length > 0) {
         setSelectedMeetingId(data[0].meeting_id);
+        await loadMeetingDetails(data[0].meeting_id);
       }
     }
   };
