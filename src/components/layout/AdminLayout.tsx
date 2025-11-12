@@ -29,6 +29,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
 import { toast } from "sonner";
+import TenantSelector from "@/components/TenantSelector";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -36,6 +38,7 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const navigate = useNavigate();
+  const { isSuperAdmin } = useTenantContext();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
@@ -154,6 +157,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <Link to="/admin" className="flex items-center gap-2">
               <span className="text-xl font-bold">BNI Chapter</span>
             </Link>
+            
+            {isSuperAdmin && (
+              <div className="ml-4">
+                <TenantSelector />
+              </div>
+            )}
           </div>
 
           <DropdownMenu>

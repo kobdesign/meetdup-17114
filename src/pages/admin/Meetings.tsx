@@ -10,6 +10,7 @@ import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye, Repeat, LayoutGrid
 import { toast } from "sonner";
 import MeetingsCalendar from "@/components/MeetingsCalendar";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
+import { useTenantContext } from "@/contexts/TenantContext";
 import {
   Dialog,
   DialogContent,
@@ -42,7 +43,7 @@ export default function Meetings() {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [tenantId, setTenantId] = useState<string | null>(null);
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
   
   const navigate = useNavigate();
@@ -70,26 +71,17 @@ export default function Meetings() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    loadTenantId();
-    fetchMeetings();
-  }, []);
-
-  const loadTenantId = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: userRole } = await supabase
-      .from("user_roles")
-      .select("tenant_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (userRole?.tenant_id) {
-      setTenantId(userRole.tenant_id);
+    if (effectiveTenantId) {
+      fetchMeetings();
     }
-  };
+  }, [effectiveTenantId]);
 
   const fetchMeetings = async () => {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       const { data, error } = await supabase
         .from("meetings")
@@ -114,8 +106,11 @@ export default function Meetings() {
       return;
     }
     
-    if (!tenantId) {
-      toast.error("ไม่พบข้อมูล Tenant");
+    if (!effectiveTenantId) {
+      toast.error(isSuperAdmin 
+        ? "กรุณาเลือก Chapter ที่ต้องการจัดการก่อน" 
+        : "ไม่พบข้อมูล Tenant"
+      );
       return;
     }
 
@@ -124,7 +119,7 @@ export default function Meetings() {
       const { error } = await supabase
         .from("meetings")
         .insert({
-          tenant_id: tenantId,
+          tenant_id: effectiveTenantId,
           meeting_date: newMeeting.meeting_date,
           meeting_time: newMeeting.meeting_time || null,
           venue: newMeeting.venue || null,
