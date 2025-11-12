@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye, Repeat, LayoutGrid, List } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye as EyeIcon, Repeat, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
 import MeetingsCalendar from "@/components/MeetingsCalendar";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
 import { useTenantContext } from "@/contexts/TenantContext";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
+import { uploadMeetingImage } from "@/lib/imageUploadHandler";
+import MeetingTemplateSelector from "@/components/MeetingTemplateSelector";
+import { MeetingTemplate } from "@/lib/meetingTemplates";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +52,20 @@ export default function Meetings() {
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
   
   const navigate = useNavigate();
+  
+  // Refs for ReactQuill
+  const quillRef = useRef<any>(null);
+  const editQuillRef = useRef<any>(null);
+  
+  // Preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewContent, setPreviewContent] = useState({
+    theme: "",
+    description: ""
+  });
+  
+  // Template state
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>(undefined);
   
   const [newMeeting, setNewMeeting] = useState({
     meeting_date: "",
@@ -102,6 +119,122 @@ export default function Meetings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Image handler for Add Dialog
+  const imageHandler = async () => {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/jpeg,image/jpg,image/png,image/gif,image/webp');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      toast.loading('กำลังอัปโหลดรูปภาพ...', { id: 'image-upload' });
+
+      const result = await uploadMeetingImage(file);
+
+      if (!result.success) {
+        toast.error(result.error || 'อัปโหลดล้มเหลว', { id: 'image-upload' });
+        return;
+      }
+
+      const quill = quillRef.current?.getEditor();
+      if (quill) {
+        const range = quill.getSelection(true);
+        quill.insertEmbed(range.index, 'image', result.url);
+        quill.setSelection(range.index + 1);
+      }
+
+      toast.success('อัปโหลดรูปภาพสำเร็จ!', { id: 'image-upload' });
+    };
+  };
+  
+  // Image handler for Edit Dialog
+  const editImageHandler = async () => {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/jpeg,image/jpg,image/png,image/gif,image/webp');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      toast.loading('กำลังอัปโหลดรูปภาพ...', { id: 'image-upload-edit' });
+
+      const result = await uploadMeetingImage(file);
+
+      if (!result.success) {
+        toast.error(result.error || 'อัปโหลดล้มเหลว', { id: 'image-upload-edit' });
+        return;
+      }
+
+      const quill = editQuillRef.current?.getEditor();
+      if (quill) {
+        const range = quill.getSelection(true);
+        quill.insertEmbed(range.index, 'image', result.url);
+        quill.setSelection(range.index + 1);
+      }
+
+      toast.success('อัปโหลดรูปภาพสำเร็จ!', { id: 'image-upload-edit' });
+    };
+  };
+  
+  // Quill modules for Add Dialog
+  const quillModules = {
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link', 'image', 'blockquote'],
+        ['clean']
+      ],
+      handlers: {
+        image: imageHandler
+      }
+    }
+  };
+  
+  // Quill modules for Edit Dialog
+  const editQuillModules = {
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link', 'image', 'blockquote'],
+        ['clean']
+      ],
+      handlers: {
+        image: editImageHandler
+      }
+    }
+  };
+  
+  // Preview handler
+  const handlePreview = () => {
+    setPreviewContent({
+      theme: newMeeting.theme,
+      description: newMeeting.description
+    });
+    setShowPreview(true);
+  };
+  
+  // Template selection handler
+  const handleSelectTemplate = (template: MeetingTemplate) => {
+    setSelectedTemplateId(template.id);
+    
+    setNewMeeting({
+      ...newMeeting,
+      theme: template.theme,
+      description: template.content
+    });
+    
+    toast.success(`ใช้เทมเพลต: ${template.name}`);
   };
 
   const handleAddMeeting = async () => {
@@ -319,6 +452,13 @@ export default function Meetings() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                {/* Template Selector */}
+                <MeetingTemplateSelector
+                  onSelectTemplate={handleSelectTemplate}
+                  selectedTemplateId={selectedTemplateId}
+                />
+                
+                <Separator className="my-2" />
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="meeting_date">วันที่ประชุม *</Label>
@@ -407,25 +547,31 @@ export default function Meetings() {
                   <Label htmlFor="description">รายละเอียดการประชุม</Label>
                   <div className="border rounded-md overflow-hidden">
                     <ReactQuill
+                      ref={quillRef}
                       theme="snow"
                       value={newMeeting.description || ""}
                       onChange={(content) => setNewMeeting({ ...newMeeting, description: content })}
                       placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
-                      modules={{
-                        toolbar: [
-                          [{ 'header': [1, 2, 3, false] }],
-                          ['bold', 'italic', 'underline', 'strike'],
-                          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                          ['link', 'blockquote'],
-                          ['clean']
-                        ],
-                      }}
+                      modules={quillModules}
                       className="bg-background"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    รองรับ: หัวข้อ, ตัวหนา, ตัวเอียง, lists, links
+                    รองรับ: หัวข้อ, ตัวหนา, ตัวเอียง, lists, links, 🖼️ รูปภาพ
                   </p>
+                </div>
+                
+                {/* Preview Button */}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePreview}
+                    className="flex-1"
+                  >
+                    <EyeIcon className="h-4 w-4 mr-2" />
+                    ดูตัวอย่าง
+                  </Button>
                 </div>
 
                 <div className="space-y-2">
@@ -576,22 +722,18 @@ export default function Meetings() {
                     <Label htmlFor="edit_description">รายละเอียดการประชุม</Label>
                     <div className="border rounded-md overflow-hidden">
                       <ReactQuill
+                        ref={editQuillRef}
                         theme="snow"
                         value={editingMeeting.description || ""}
                         onChange={(content) => setEditingMeeting({ ...editingMeeting, description: content })}
                         placeholder="รายละเอียดเพิ่มเติม..."
-                        modules={{
-                          toolbar: [
-                            [{ 'header': [1, 2, 3, false] }],
-                            ['bold', 'italic', 'underline', 'strike'],
-                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                            ['link', 'blockquote'],
-                            ['clean']
-                          ],
-                        }}
+                        modules={editQuillModules}
                         className="bg-background"
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      รองรับ: หัวข้อ, ตัวหนา, ตัวเอียง, lists, links, 🖼️ รูปภาพ
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -639,6 +781,54 @@ export default function Meetings() {
                 </Button>
                 <Button onClick={handleUpdateMeeting} disabled={updating}>
                   {updating ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          {/* Preview Dialog */}
+          <Dialog open={showPreview} onOpenChange={setShowPreview}>
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>👁️ ตัวอย่างรายละเอียดการประชุม</DialogTitle>
+                <DialogDescription>
+                  ตรวจสอบการแสดงผลก่อนบันทึก
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 p-4 border rounded-lg bg-accent/30">
+                {previewContent.theme && (
+                  <div>
+                    <Label className="text-base font-semibold">🎯 หัวข้อ/ธีม</Label>
+                    <p className="mt-2 text-lg font-medium">{previewContent.theme}</p>
+                  </div>
+                )}
+
+                {previewContent.theme && previewContent.description && <Separator />}
+
+                {previewContent.description && (
+                  <div>
+                    <Label className="text-base font-semibold">📝 รายละเอียดการประชุม</Label>
+                    <div 
+                      className="mt-3 prose prose-sm max-w-none dark:prose-invert
+                                 prose-headings:text-foreground prose-p:text-muted-foreground
+                                 prose-li:text-muted-foreground prose-a:text-primary
+                                 prose-img:rounded-lg prose-img:shadow-md"
+                      dangerouslySetInnerHTML={{ __html: previewContent.description }}
+                    />
+                  </div>
+                )}
+
+                {!previewContent.theme && !previewContent.description && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    ยังไม่มีเนื้อหาให้แสดงตัวอย่าง
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowPreview(false)}>
+                  ปิด
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -713,7 +903,7 @@ export default function Meetings() {
                               variant="ghost"
                               onClick={() => navigate(`/admin/meetings/${meeting.meeting_id}`)}
                             >
-                              <Eye className="h-4 w-4" />
+                              <EyeIcon className="h-4 w-4" />
                             </Button>
                             <Button
                               size="sm"

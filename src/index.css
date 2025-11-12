@@ -164,3 +164,32 @@ All colors MUST be HSL.
   background: hsl(var(--background));
   border-color: hsl(var(--border));
 }
+
+/* Quill Editor - Image Styles */
+.ql-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s;
+}
+
+.ql-editor img:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.dark .ql-editor img {
+  box-shadow: 0 1px 3px rgba(255, 255, 255, 0.1);
+}
+
+.dark .ql-editor img:hover {
+  box-shadow: 0 4px 6px rgba(255, 255, 255, 0.15);
+}
+
+/* Loading state for editor */
+.ql-container.ql-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
