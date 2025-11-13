@@ -1,0 +1,29 @@
+Access to fetch at 'https://api.line.me/v2/bot/info' from origin 'https://8625661b-810c-454f-a000-87408dbc3705-00-11ta8rgc9d0py.riker.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.Understand this error
+  GET https://api.line.me/v2/bot/info net::ERR_FAILED
+mutationFn @ /src/pages/admin/LineConfigPage.tsx:88
+fn @ /@fs/home/runner/wor….js?v=1a25ed2b:1236
+run @ /@fs/home/runner/wor…y.js?v=1a25ed2b:513
+start @ /@fs/home/runner/wor…y.js?v=1a25ed2b:555
+execute @ /@fs/home/runner/wor….js?v=1a25ed2b:1272
+await in execute
+mutate @ /@fs/home/runner/wor….js?v=1a25ed2b:2692
+(anonymous) @ /@fs/home/runner/wor….js?v=1a25ed2b:3415
+onSubmit @ /src/pages/admin/LineConfigPage.tsx:183
+(anonymous) @ /@fs/home/runner/wor….js?v=1a25ed2b:1504
+await in (anonymous)
+callCallback2 @ /@fs/home/runner/wor….js?v=1a25ed2b:3674
+invokeGuardedCallbackDev @ /@fs/home/runner/wor….js?v=1a25ed2b:3699
+invokeGuardedCallback @ /@fs/home/runner/wor….js?v=1a25ed2b:3733
+invokeGuardedCallbackAndCatchFirstError @ /@fs/home/runner/wor….js?v=1a25ed2b:3736
+executeDispatch @ /@fs/home/runner/wor….js?v=1a25ed2b:7014
+processDispatchQueueItemsInOrder @ /@fs/home/runner/wor….js?v=1a25ed2b:7034
+processDispatchQueue @ /@fs/home/runner/wor….js?v=1a25ed2b:7043
+dispatchEventsForPlugins @ /@fs/home/runner/wor….js?v=1a25ed2b:7051
+(anonymous) @ /@fs/home/runner/wor….js?v=1a25ed2b:7174
+batchedUpdates$1 @ /@fs/home/runner/wor…js?v=1a25ed2b:18913
+batchedUpdates @ /@fs/home/runner/wor….js?v=1a25ed2b:3579
+dispatchEventForPluginEventSystem @ /@fs/home/runner/wor….js?v=1a25ed2b:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ /@fs/home/runner/wor….js?v=1a25ed2b:5478
+dispatchEvent @ /@fs/home/runner/wor….js?v=1a25ed2b:5472
+dispatchDiscreteEvent @ /@fs/home/runner/wor….js?v=1a25ed2b:5449Understand this error
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUTUnderstand this error
