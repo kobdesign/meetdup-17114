@@ -1564,7 +1564,7 @@ CREATE TABLE IF NOT EXISTS rich_menus (
   created_by UUID REFERENCES auth.users(id),
   
   -- Constraints
-  CONSTRAINT valid_image_dimensions CHECK (image_width = 2500),
+  CONSTRAINT valid_image_dimensions CHECK (image_width = 2500)
 );
 
 -- Create indexes for performance
