@@ -15,6 +15,10 @@ interface LineEvent {
     id: string;
     text?: string;
   };
+  postback?: {
+    data: string;
+    params?: Record<string, any>;
+  };
   replyToken: string;
   source: {
     type: "user" | "group" | "room";
@@ -212,6 +216,8 @@ async function processLineEvent(
 ) {
   if (event.type === "message" && event.message?.type === "text") {
     await handleTextMessage(event, supabase, credentials, logPrefix);
+  } else if (event.type === "postback") {
+    await handlePostback(event, supabase, credentials, logPrefix);
   } else if (event.type === "follow") {
     await handleFollow(event, supabase, credentials, logPrefix);
   } else if (event.type === "unfollow") {
@@ -245,6 +251,183 @@ async function handleTextMessage(
   } else {
     await sendHelp(event, credentials, logPrefix);
   }
+}
+
+async function handlePostback(
+  event: LineEvent,
+  supabase: any,
+  credentials: TenantCredentials,
+  logPrefix: string
+) {
+  const postbackData = event.postback?.data || "";
+  console.log(`${logPrefix} Postback data: ${postbackData}`);
+
+  // Parse postback data (format: action=value&key=value or JSON)
+  const params = new URLSearchParams(postbackData);
+  const action = params.get("action");
+
+  if (!action) {
+    console.error(`${logPrefix} No action in postback data`);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  console.log(`${logPrefix} Postback action: ${action}`);
+
+  // Handle different postback actions
+  switch (action) {
+    case "checkin":
+      await handlePostbackCheckIn(event, supabase, credentials, logPrefix, params);
+      break;
+    
+    case "meeting_info":
+      await handlePostbackMeetingInfo(event, supabase, credentials, logPrefix, params);
+      break;
+    
+    case "payment":
+      await handlePostbackPayment(event, supabase, credentials, logPrefix, params);
+      break;
+    
+    case "profile":
+      await handlePostbackProfile(event, supabase, credentials, logPrefix, params);
+      break;
+    
+    case "help":
+      await sendHelp(event, credentials, logPrefix);
+      break;
+    
+    default:
+      console.warn(`${logPrefix} Unknown postback action: ${action}`);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่พบคำสั่งที่คุณต้องการ กรุณาลองใหม่อีกครั้ง"
+      }, credentials, logPrefix);
+  }
+}
+
+async function handlePostbackCheckIn(
+  event: LineEvent,
+  supabase: any,
+  credentials: TenantCredentials,
+  logPrefix: string,
+  params: URLSearchParams
+) {
+  const meetingId = params.get("meeting_id");
+  
+  if (!meetingId) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ ไม่พบข้อมูลการประชุม\n\nกรุณาใช้ QR Code สำหรับเช็คอินครับ"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  // TODO: Implement actual check-in logic with meeting_id
+  await replyMessage(event.replyToken, {
+    type: "text",
+    text: "⏳ ระบบเช็คอินผ่าน Rich Menu กำลังอยู่ระหว่างการพัฒนา\n\nกรุณาใช้ QR Code สำหรับเช็คอินในตอนนี้ครับ"
+  }, credentials, logPrefix);
+}
+
+async function handlePostbackMeetingInfo(
+  event: LineEvent,
+  supabase: any,
+  credentials: TenantCredentials,
+  logPrefix: string,
+  params: URLSearchParams
+) {
+  const userId = event.source.userId;
+  
+  if (!userId) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "ไม่สามารถระบุตัวตนได้ กรุณาเพิ่มเพื่อนก่อนครับ"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  // TODO: Fetch upcoming meetings from database
+  await replyMessage(event.replyToken, {
+    type: "text",
+    text: "📅 การประชุมที่กำลังจะมาถึง\n\n⏳ กำลังโหลดข้อมูล..."
+  }, credentials, logPrefix);
+}
+
+async function handlePostbackPayment(
+  event: LineEvent,
+  supabase: any,
+  credentials: TenantCredentials,
+  logPrefix: string,
+  params: URLSearchParams
+) {
+  const userId = event.source.userId;
+  
+  if (!userId) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "ไม่สามารถระบุตัวตนได้ กรุณาเพิ่มเพื่อนก่อนครับ"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  // TODO: Fetch payment info and generate payment link
+  await replyMessage(event.replyToken, {
+    type: "text",
+    text: "💰 ข้อมูลการชำระเงิน\n\n⏳ กำลังโหลดข้อมูล..."
+  }, credentials, logPrefix);
+}
+
+async function handlePostbackProfile(
+  event: LineEvent,
+  supabase: any,
+  credentials: TenantCredentials,
+  logPrefix: string,
+  params: URLSearchParams
+) {
+  const userId = event.source.userId;
+  
+  if (!userId) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "ไม่สามารถระบุตัวตนได้ กรุณาเพิ่มเพื่อนก่อนครับ"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  // Fetch participant profile
+  const { data: participant, error } = await supabase
+    .from("participants")
+    .select("*")
+    .eq("tenant_id", credentials.tenantId)
+    .eq("line_user_id", userId)
+    .single();
+
+  if (error || !participant) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "ไม่พบข้อมูลของคุณในระบบ\n\nกรุณาติดต่อผู้ดูแลระบบครับ"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  const statusText = {
+    'prospect': 'ผู้สนใจ',
+    'visitor': 'ผู้เยี่ยมชม',
+    'member': 'สมาชิก',
+    'alumni': 'ศิษย์เก่า'
+  }[participant.participant_status] || participant.participant_status;
+
+  await replyMessage(event.replyToken, {
+    type: "text",
+    text: `👤 ข้อมูลส่วนตัว\n\n` +
+          `ชื่อ: ${participant.first_name} ${participant.last_name}\n` +
+          `สถานะ: ${statusText}\n` +
+          `อีเมล: ${participant.email || '-'}\n` +
+          `โทรศัพท์: ${participant.phone || '-'}`
+  }, credentials, logPrefix);
 }
 
 async function handleFollow(event: LineEvent, supabase: any, credentials: TenantCredentials, logPrefix: string) {
