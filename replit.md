@@ -64,13 +64,18 @@ Meetdup is a comprehensive multi-tenant SaaS application for managing BNI (Busin
       - Masked secrets reset to empty strings to prevent credential corruption
       - Per-tenant signature validation using cached credentials
     - **Ready for**: Phase 2 (Rich Menu & Quick Reply), Phase 3 (Business Cards), Phase 4 (Member Communication)
-  - **Fixed React Query Context Error** (2025-11-13)
-    - **Problem**: Login failing with "Cannot read properties of null (reading 'useContext')" due to QueryClient recreation on HMR
-    - **Solution**: Created singleton queryClient in `client/src/lib/queryClient.ts`
-      - Centralized QueryClient instantiation with stable defaults (5-min staleTime, no refetch on window focus, retry=1)
-      - Added apiRequest helper function for consistent mutation error handling
-      - Updated App.tsx to import shared queryClient instead of creating new instance
-    - **Result**: Login restored, React Query context stable across HMR, multi-tenant architecture preserved
+  - **Fixed React Query Context Error & Infinite Loop** (2025-11-13)
+    - **Problem 1**: Login failing with "Cannot read properties of null (reading 'useContext')" due to QueryClient recreation on HMR
+    - **Problem 2**: Infinite loop in TenantContext auth state listener causing page timeout
+    - **Solution**: 
+      - Created singleton queryClient in `client/src/lib/queryClient.ts`
+        - Centralized QueryClient instantiation with stable defaults (5-min staleTime, no refetch on window focus, retry=1)
+        - Added apiRequest helper function for consistent mutation error handling
+      - Fixed infinite loop in TenantContext:
+        - Removed TOKEN_REFRESHED event from auth listener (was causing fetchQuery → token refresh → loop)
+        - Changed from `fetchQuery` to `invalidateQueries` (let React Query handle refetch)
+        - Updated App.tsx to import shared queryClient instead of creating new instance
+    - **Result**: Login restored, page loads successfully, no infinite loop, multi-tenant architecture preserved
     - **Architect Review**: Passed - No regressions, proper singleton pattern, apiRequest ready for reuse
 
 ## Project Architecture

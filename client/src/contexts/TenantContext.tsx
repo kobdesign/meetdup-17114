@@ -73,30 +73,19 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   // Derive combined loading state
   const isLoading = userInfoQuery.isLoading || tenantsQuery.isLoading;
 
-  // Listen to auth state changes and FORCE fetch user info
+  // Listen to auth state changes and invalidate cache
   useEffect(() => {
     console.log("[TenantContext] Setting up auth state listener");
     
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log("[TenantContext] Auth state changed:", event, "Session:", !!session);
       
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        console.log("[TenantContext] 🔄 Force fetching user info after sign in...");
-        
-        try {
-          // Use fetchQuery to GUARANTEE fetch execution even if query is inactive
-          await queryClient.fetchQuery({
-            queryKey: ["/api/user-tenant-info"],
-            queryFn: fetchUserTenantInfo,
-          });
-          console.log("[TenantContext] ✅ User info fetch completed successfully");
-          
-        } catch (error) {
-          console.error("[TenantContext] ❌ Failed to fetch user info after login:", error);
-          // Don't force reload - let the UI handle error state gracefully
-        }
+      // Only handle SIGNED_IN (not TOKEN_REFRESHED to avoid infinite loop)
+      if (event === 'SIGNED_IN') {
+        console.log("[TenantContext] 🔄 Invalidating user info cache after sign in...");
+        // Invalidate to trigger refetch (React Query will handle it)
+        queryClient.invalidateQueries({ queryKey: ["/api/user-tenant-info"] });
       }
-      // Note: SIGNED_OUT is handled by existing logout flows, no need to clear cache here
     });
 
     return () => {
