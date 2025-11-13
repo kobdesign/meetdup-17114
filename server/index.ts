@@ -36,10 +36,25 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerVite(app);
+  try {
+    const server = await registerVite(app);
 
-  const PORT = 5000;
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+    const PORT = 5000;
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`✓ Server running on port ${PORT}`);
+      console.log(`✓ Open http://localhost:${PORT} to view the app`);
+    });
+
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`✗ Port ${PORT} is already in use`);
+      } else {
+        console.error(`✗ Server error:`, error);
+      }
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error('✗ Failed to start server:', error);
+    process.exit(1);
+  }
 })();

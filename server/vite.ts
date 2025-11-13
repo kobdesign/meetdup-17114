@@ -29,31 +29,50 @@ export async function registerVite(app: Express) {
 }
 
 async function setupDevelopmentServer(app: Express) {
-  const vite = await createViteServer({
-    server: { middlewareMode: true, hmr: true },
-    appType: "custom",
-    configFile: path.resolve(__dirname, "../vite.config.ts"),
-  });
+  try {
+    console.log('Starting Vite dev server...');
+    
+    const vite = await createViteServer({
+      server: { 
+        middlewareMode: true, 
+        hmr: {
+          port: 24678,
+        }
+      },
+      appType: "custom",
+      configFile: path.resolve(__dirname, "../vite.config.ts"),
+    });
 
-  app.use(vite.middlewares);
-  app.use("*", async (req, res, next) => {
-    const url = req.originalUrl;
+    console.log('✓ Vite dev server initialized');
 
-    try {
-      const clientPath = path.resolve(__dirname, "../client");
-      const template = fs.readFileSync(
-        path.resolve(clientPath, "index.html"),
-        "utf-8"
-      );
-      const page = await vite.transformIndexHtml(url, template);
+    app.use(vite.middlewares);
+    app.use("*", async (req, res, next) => {
+      const url = req.originalUrl;
 
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
-    } catch (e) {
-      vite.ssrFixStacktrace(e as Error);
-      next(e);
-    }
-  });
+      try {
+        const clientPath = path.resolve(__dirname, "../client");
+        const htmlPath = path.resolve(clientPath, "index.html");
+        
+        if (!fs.existsSync(htmlPath)) {
+          throw new Error(`HTML template not found at ${htmlPath}`);
+        }
+        
+        const template = fs.readFileSync(htmlPath, "utf-8");
+        const page = await vite.transformIndexHtml(url, template);
 
-  return createServer(app);
+        res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        console.error('Error serving page:', e);
+        next(e);
+      }
+    });
+
+    console.log('✓ Vite middleware configured');
+    return createServer(app);
+  } catch (error) {
+    console.error('✗ Failed to setup Vite dev server:', error);
+    throw error;
+  }
 }
 
