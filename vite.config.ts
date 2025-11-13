@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => ({
     outDir: "../dist/client",
     emptyOutDir: true,
   },
+  server: {
+    allowedHosts: true,
+  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
