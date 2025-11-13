@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import AdminLayout from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -185,26 +186,27 @@ export default function LineConfigPage() {
 
   if (!effectiveTenantId) {
     return (
-      <div className="container mx-auto p-6">
+      <AdminLayout>
         <Alert>
           <AlertDescription>
             กรุณาเลือก Chapter ก่อนตั้งค่า LINE Integration
           </AlertDescription>
         </Alert>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">LINE Integration</h1>
-        <p className="text-muted-foreground mt-2">
-          ตั้งค่าการเชื่อมต่อกับ LINE Official Account
-        </p>
-      </div>
+    <AdminLayout>
+      <div className="max-w-4xl">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">LINE Integration</h1>
+          <p className="text-muted-foreground mt-2">
+            ตั้งค่าการเชื่อมต่อกับ LINE Official Account
+          </p>
+        </div>
 
-      <div className="grid gap-6">
+        <div className="grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Webhook URL</CardTitle>
@@ -355,7 +357,8 @@ export default function LineConfigPage() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }
