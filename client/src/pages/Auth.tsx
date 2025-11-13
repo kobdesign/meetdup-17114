@@ -23,11 +23,26 @@ export default function Auth() {
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
   useEffect(() => {
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         checkUserRole(session.user.id);
       }
     });
+
+    // Listen for auth state changes (handles email confirmation callback)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[Auth] Auth state changed:", event, "Session:", !!session);
+      
+      if (event === 'SIGNED_IN' && session) {
+        console.log("[Auth] User signed in, checking role...");
+        checkUserRole(session.user.id);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const checkUserRole = async (userId: string) => {
@@ -54,7 +69,7 @@ export default function Auth() {
         password,
         options: {
           data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}/auth`,
         },
       });
 
