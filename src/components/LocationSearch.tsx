@@ -53,7 +53,9 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
     setLoading(true);
     try {
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&language=th&components=country:th&key=${apiKey}`
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+          query
+        )}&language=th&components=country:th&key=${apiKey}`
       );
       
       if (!response.ok) throw new Error('Failed to fetch locations');
@@ -88,7 +90,9 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     try {
       const detailsResponse = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${result.place_id}&fields=geometry,name,formatted_address&key=${apiKey}`
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${
+          result.place_id
+        }&fields=geometry,name,formatted_address&key=${apiKey}`
       );
       
       if (!detailsResponse.ok) throw new Error('Failed to fetch place details');
