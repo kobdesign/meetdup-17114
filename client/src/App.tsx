@@ -20,6 +20,7 @@ import PaymentHistory from "./pages/admin/PaymentHistory";
 import PaymentReviews from "./pages/admin/PaymentReviews";
 import Authorization from "./pages/admin/Authorization";
 import RefundApprovals from "./pages/admin/RefundApprovals";
+import LineConfigPage from "./pages/admin/LineConfigPage";
 import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
@@ -108,6 +109,11 @@ const App = () => (
           <Route path="/admin/refund-approvals" element={
             <ProtectedRoute requiredRole="super_admin">
               <RefundApprovals />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/line-config" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <LineConfigPage />
             </ProtectedRoute>
           } />
           

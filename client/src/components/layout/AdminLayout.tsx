@@ -25,7 +25,8 @@ import {
   UserPlus,
   QrCode,
   Shield,
-  RefreshCw
+  RefreshCw,
+  MessageSquare
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -77,6 +78,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <UserPlus className="h-4 w-4" />, label: "ผู้เยี่ยมชม", href: "/admin/visitors" },
     { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
     { icon: <RefreshCw className="h-4 w-4" />, label: "ตรวจสอบการชำระเงิน", href: "/admin/payment-reviews" },
+    { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Integration", href: "/admin/line-config" },
     { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
   ];
 

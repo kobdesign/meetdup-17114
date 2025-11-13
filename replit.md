@@ -39,6 +39,31 @@ Meetdup is a comprehensive multi-tenant SaaS application for managing BNI (Busin
       - Ensures `useUserTenantInfo` refetches with new session after login redirect
       - Triggers auto-selection logic immediately after successful login
     - Result: 100% elimination of screen hangs (both pre-login and post-login), seamless auto-selection for single-tenant users, working tenant switching for chapter admins
+  - **Phase 1: LINE Integration Foundation** (2025-11-13)
+    - Implemented comprehensive LINE webhook system with multi-tenant support
+    - **Architecture**:
+      - Destination-based tenant resolution (LINE channel ID → tenant credentials)
+      - 5-minute in-memory credential caching for performance
+      - Per-tenant HMAC signature validation
+      - Authenticated test mode for admin testing (JWT-validated)
+    - **Database Schema** (migration: 20251113151733_add_line_integration.sql):
+      - Added `line_channel_id`, `line_access_token`, `line_channel_secret`, `line_bot_user_id` to tenants table
+      - Indexed `line_channel_id` for fast destination lookup
+    - **Edge Functions**:
+      - `line-webhook`: Multi-tenant webhook handler with signature validation and test mode
+      - `line-config`: Secure credential management with JWT auth and tenant access control
+    - **Admin UI** (LineConfigPage):
+      - LINE Bot configuration with automatic bot info retrieval
+      - Masked secret display (first 4 + last 4 chars)
+      - Form validation and credential re-entry requirement
+      - Navigation integration in AdminLayout
+    - **Security Features**:
+      - JWT authentication for both Edge Functions
+      - Tenant access control with proper `.limit(1)` usage (prevents multi-row authorization bypass)
+      - Test mode requires valid Supabase JWT (prevents signature bypass attacks)
+      - Masked secrets reset to empty strings to prevent credential corruption
+      - Per-tenant signature validation using cached credentials
+    - **Ready for**: Phase 2 (Rich Menu & Quick Reply), Phase 3 (Business Cards), Phase 4 (Member Communication)
 
 ## Project Architecture
 
