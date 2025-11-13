@@ -35,6 +35,27 @@ interface TenantCredentials {
   channelSecret: string;
 }
 
+interface QuickReplyItem {
+  type: "action";
+  action: {
+    type: "message" | "postback" | "uri" | "datetimepicker" | "camera" | "cameraRoll" | "location";
+    label: string;
+    text?: string;
+    data?: string;
+    displayText?: string;
+    uri?: string;
+    mode?: "date" | "time" | "datetime";
+    initial?: string;
+    max?: string;
+    min?: string;
+  };
+  imageUrl?: string;
+}
+
+interface QuickReplyPayload {
+  items: QuickReplyItem[];
+}
+
 const credentialsCache = new Map<string, { credentials: TenantCredentials; expiresAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -462,32 +483,126 @@ async function handleCheckIn(event: LineEvent, supabase: any, credentials: Tenan
 async function sendGreeting(event: LineEvent, credentials: TenantCredentials, logPrefix: string) {
   const message = {
     type: "text",
-    text: "สวัสดีครับ! ยินดีต้อนรับสู่ BNI Meetdup 🎉\n\nพิมพ์ 'เมนู' เพื่อดูคำสั่งที่ใช้ได้"
+    text: "สวัสดีครับ! ยินดีต้อนรับสู่ BNI Meetdup 🎉\n\nกดปุ่มด้านล่างเพื่อเริ่มต้นใช้งาน"
   };
   
-  await replyMessage(event.replyToken, message, credentials, logPrefix);
+  const quickReply = getDefaultHelpQuickReply();
+  await replyMessage(event.replyToken, message, credentials, logPrefix, quickReply);
 }
 
 async function sendHelp(event: LineEvent, credentials: TenantCredentials, logPrefix: string) {
   const message = {
     type: "text",
     text: "📋 คำสั่งที่ใช้ได้:\n\n" +
+          "กดปุ่มด้านล่างเพื่อเลือกคำสั่ง หรือพิมพ์:\n" +
           "• สวัสดี - ทักทาย\n" +
-          "• เมนู - แสดงคำสั่งนี้\n" +
-          "• เช็คอิน - เช็คอินเข้าร่วมงาน (เร็วๆ นี้)\n\n" +
+          "• เมนู - แสดงคำสั่งนี้\n\n" +
           "💡 ติดต่อสอบถาม: support@meetdup.com"
   };
   
-  await replyMessage(event.replyToken, message, credentials, logPrefix);
+  const quickReply = getDefaultHelpQuickReply();
+  await replyMessage(event.replyToken, message, credentials, logPrefix, quickReply);
+}
+
+// Quick Reply factory functions
+function quickReplyMessageAction(label: string, text: string): QuickReplyItem {
+  return {
+    type: "action",
+    action: {
+      type: "message",
+      label,
+      text
+    }
+  };
+}
+
+function quickReplyPostback(label: string, data: string, displayText?: string): QuickReplyItem {
+  const item: QuickReplyItem = {
+    type: "action",
+    action: {
+      type: "postback",
+      label,
+      data
+    }
+  };
+  if (displayText) {
+    item.action.displayText = displayText;
+  }
+  return item;
+}
+
+function quickReplyUri(label: string, uri: string): QuickReplyItem {
+  return {
+    type: "action",
+    action: {
+      type: "uri",
+      label,
+      uri
+    }
+  };
+}
+
+function quickReplyLocation(label: string): QuickReplyItem {
+  return {
+    type: "action",
+    action: {
+      type: "location",
+      label
+    }
+  };
+}
+
+function createQuickReply(items: QuickReplyItem[]): QuickReplyPayload | null {
+  if (items.length === 0) {
+    return null;
+  }
+  
+  if (items.length > 13) {
+    console.warn(`Quick Reply limited to 13 items, got ${items.length}. Truncating.`);
+    items = items.slice(0, 13);
+  }
+  
+  return { items };
+}
+
+// Hardcoded Quick Reply templates
+function getDefaultHelpQuickReply(): QuickReplyPayload | null {
+  return createQuickReply([
+    quickReplyPostback("เช็คอิน", "action=checkin", "เช็คอิน"),
+    quickReplyPostback("ข้อมูลการประชุม", "action=meeting_info", "ข้อมูลการประชุม"),
+    quickReplyPostback("ชำระเงิน", "action=payment", "ชำระเงิน"),
+    quickReplyPostback("ข้อมูลส่วนตัว", "action=profile", "ข้อมูลส่วนตัว")
+  ]);
+}
+
+function getCheckInQuickReply(meetingId?: string): QuickReplyPayload | null {
+  const items: QuickReplyItem[] = [];
+  
+  if (meetingId) {
+    items.push(quickReplyPostback("เช็คอินเลย", `action=checkin&meeting_id=${meetingId}`, "เช็คอิน"));
+  }
+  
+  items.push(
+    quickReplyPostback("ดูข้อมูลการประชุม", "action=meeting_info", "ดูข้อมูลการประชุม"),
+    quickReplyMessageAction("ยกเลิก", "ยกเลิก")
+  );
+  
+  return createQuickReply(items);
 }
 
 async function replyMessage(
   replyToken: string, 
   message: any, 
   credentials: TenantCredentials,
-  logPrefix: string
+  logPrefix: string,
+  quickReply?: QuickReplyPayload | null
 ) {
   try {
+    // Attach Quick Reply if provided
+    if (quickReply && quickReply.items.length > 0) {
+      message.quickReply = quickReply;
+    }
+    
     const response = await fetch("https://api.line.me/v2/bot/message/reply", {
       method: "POST",
       headers: {
@@ -515,9 +630,15 @@ async function pushMessage(
   to: string, 
   messages: any[], 
   credentials: TenantCredentials,
-  logPrefix: string
+  logPrefix: string,
+  quickReply?: QuickReplyPayload | null
 ) {
   try {
+    // Attach Quick Reply to first message if provided
+    if (quickReply && quickReply.items.length > 0 && messages.length > 0) {
+      messages[0].quickReply = quickReply;
+    }
+    
     const response = await fetch("https://api.line.me/v2/bot/message/push", {
       method: "POST",
       headers: {
