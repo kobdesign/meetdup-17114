@@ -2,15 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MapPin, Loader2 } from 'lucide-react';
-
-interface LocationResult {
-  place_id: string;
-  description: string;
-  structured_formatting: {
-    main_text: string;
-    secondary_text: string;
-  };
-}
+import { searchPlaces, getPlaceDetails, type PlaceAutocompleteResult } from '@/lib/googleMaps';
 
 interface LocationSearchProps {
   value: string;
@@ -21,7 +13,7 @@ interface LocationSearchProps {
 }
 
 const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder }: LocationSearchProps) => {
-  const [suggestions, setSuggestions] = useState<LocationResult[]>([]);
+  const [suggestions, setSuggestions] = useState<PlaceAutocompleteResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
@@ -44,27 +36,13 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
       return;
     }
 
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      console.error('Google Maps API key not found');
-      return;
-    }
-
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-          query
-        )}&language=th&components=country:th&key=${apiKey}`
-      );
-      
-      if (!response.ok) throw new Error('Failed to fetch locations');
-      
-      const data = await response.json();
-      setSuggestions(data.predictions || []);
+      const results = await searchPlaces(query);
+      setSuggestions(results);
       setShowSuggestions(true);
     } catch (error) {
-      console.error('Geocoding error:', error);
+      console.error('Places search error:', error);
       setSuggestions([]);
     } finally {
       setLoading(false);
@@ -83,30 +61,16 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
     }, 500);
   };
 
-  const handleSelectLocation = async (result: LocationResult) => {
-    onChange(result.structured_formatting.main_text);
+  const handleSelectLocation = async (result: PlaceAutocompleteResult) => {
+    onChange(result.mainText);
     
-    // Get place details to retrieve lat/lng
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     try {
-      const detailsResponse = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${
-          result.place_id
-        }&fields=geometry,name,formatted_address&key=${apiKey}`
+      const placeDetails = await getPlaceDetails(result.placeId);
+      onLocationSelect(
+        placeDetails.lat,
+        placeDetails.lng,
+        placeDetails.formattedAddress || result.description
       );
-      
-      if (!detailsResponse.ok) throw new Error('Failed to fetch place details');
-      
-      const detailsData = await detailsResponse.json();
-      const place = detailsData.result;
-      
-      if (place?.geometry?.location) {
-        onLocationSelect(
-          place.geometry.location.lat,
-          place.geometry.location.lng,
-          place.formatted_address || result.description
-        );
-      }
     } catch (error) {
       console.error('Error fetching place details:', error);
     }
@@ -136,16 +100,17 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
         <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
           {suggestions.map((result) => (
             <button
-              key={result.place_id}
+              key={result.placeId}
               type="button"
               onClick={() => handleSelectLocation(result)}
               className="w-full px-4 py-3 text-left hover:bg-accent flex items-start gap-3 transition-colors"
+              data-testid={`location-suggestion-${result.placeId}`}
             >
               <MapPin className="h-4 w-4 mt-1 flex-shrink-0 text-primary" />
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">{result.structured_formatting.main_text}</div>
+                <div className="font-medium text-sm">{result.mainText}</div>
                 <div className="text-xs text-muted-foreground truncate">
-                  {result.structured_formatting.secondary_text}
+                  {result.secondaryText}
                 </div>
               </div>
             </button>
