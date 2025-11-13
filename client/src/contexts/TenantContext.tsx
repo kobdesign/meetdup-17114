@@ -73,6 +73,27 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   // Derive combined loading state
   const isLoading = userInfoQuery.isLoading || tenantsQuery.isLoading;
 
+  // Listen to auth state changes and invalidate user info cache
+  useEffect(() => {
+    console.log("[TenantContext] Setting up auth state listener");
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[TenantContext] Auth state changed:", event, "Session:", !!session);
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Invalidate user info to trigger refetch with new session
+        console.log("[TenantContext] Invalidating user info cache after sign in");
+        await queryClient.invalidateQueries({ queryKey: ["/api/user-tenant-info"] });
+      }
+      // Note: SIGNED_OUT is handled by existing logout flows, no need to clear cache here
+    });
+
+    return () => {
+      console.log("[TenantContext] Cleaning up auth state listener");
+      subscription.unsubscribe();
+    };
+  }, [queryClient]);
+
   // Auto-selection and localStorage restoration
   useEffect(() => {
     // Don't run until both queries are settled
