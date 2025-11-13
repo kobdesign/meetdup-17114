@@ -34,12 +34,30 @@ None specified yet.
 - **Meeting Management**: Facilitates scheduling with recurrence, venue management (integrated with Google Maps), and attendance tracking.
 - **Administrative Features**: Provides a dashboard with analytics, user role management, tenant configuration, and approval workflows for payments and refunds.
 
+## Recent Changes
+
+### Database Migration to User-Owned Supabase (November 13, 2025)
+- **Successfully migrated** from Lovable-owned Supabase (`nzenqhtautbitmbmgyjk`) to user-owned Supabase (`sbknunooplaezvwtyooi`)
+- **Migration Process:**
+  1. Created new Supabase project with user account
+  2. Exported complete schema (18 tables, 8 custom types, 24 indexes, RLS policies)
+  3. Fixed table dependency ordering (tenants → participants → meetings → checkins)
+  4. Resolved RLS permission issues by granting service_role full access
+  5. All backend routes now use Express instead of Supabase Edge Functions
+- **Environment Variables Updated:**
+  - `VITE_SUPABASE_URL`: `https://sbknunooplaezvwtyooi.supabase.co`
+  - `VITE_SUPABASE_PUBLISHABLE_KEY`: User-owned anon key
+  - `SUPABASE_SERVICE_ROLE_KEY`: User-owned service role key
+  - `LINE_ENCRYPTION_KEY`: Generated for tenant secrets encryption
+- **Migration Files:** Archived in `./migration_archive/` directory for reference
+- **Database Status:** ✅ Connected and verified (all 18 tables accessible)
+
 ## External Dependencies
 
-- **Supabase**:
-    - **Database**: PostgreSQL (main data store)
-    - **Authentication**: Supabase Auth
+- **Supabase** (User-owned: `sbknunooplaezvwtyooi`):
+    - **Database**: PostgreSQL (main data store) - 18 tables with multi-tenant architecture
+    - **Authentication**: Supabase Auth (integrated with profiles table)
     - **Storage**: Supabase Storage (for payment slips and other files)
-    - **Edge Functions**: Used for various backend logic (e.g., `line-webhook`, `line-rich-menu`, `check-in-participant`, `process-payment`).
+    - **Backend**: All logic runs in Express.js (no Edge Functions due to Lovable ownership constraint)
 - **LINE Messaging API**: Integrated for communication, rich menus, and quick replies, including webhooks for real-time interactions.
 - **Google Maps API**: Utilized for location features, particularly in meeting venue management.
