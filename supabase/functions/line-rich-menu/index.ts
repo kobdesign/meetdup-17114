@@ -142,13 +142,14 @@ async function setDefaultRichMenu(
   accessToken: string,
   richMenuId: string
 ): Promise<void> {
-  const response = await fetch(`${LINE_API_BASE}/alias/default`, {
+  // Use /user/all/richmenu endpoint for multi-tenant safety
+  // This sets the rich menu as default for all users in this LINE channel
+  // without using global aliases that could conflict across tenants
+  const response = await fetch(`https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       "Authorization": `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ richMenuId }),
   });
 
   if (!response.ok) {
