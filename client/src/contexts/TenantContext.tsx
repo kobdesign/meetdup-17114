@@ -23,6 +23,11 @@ interface TenantContextType {
   isLoading: boolean;
   setSelectedTenant: (id: string) => void;
   effectiveTenantId: string | null;
+  userId: string | null;
+  userRole: string | null;
+  userName: string | null;
+  userEmail: string | null;
+  isLoadingUserInfo: boolean;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -51,6 +56,13 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   const isSuperAdmin = userInfoQuery.data?.isSuperAdmin || false;
   const userTenantId = userInfoQuery.data?.tenantId || null;
   const availableTenants = tenantsQuery.data || [];
+  
+  // User profile data from the query
+  const userId = userInfoQuery.data?.userId || null;
+  const userRole = userInfoQuery.data?.role || null;
+  const userName = userInfoQuery.data?.userName || null;
+  const userEmail = userInfoQuery.data?.userEmail || null;
+  const isLoadingUserInfo = userInfoQuery.isLoading;
 
   // Derive combined loading state
   const isLoading = userInfoQuery.isLoading || (isSuperAdmin && tenantsQuery.isLoading && !tenantsQuery.data);
@@ -152,6 +164,11 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     isLoading,
     setSelectedTenant: setSelectedTenantId,
     effectiveTenantId,
+    userId,
+    userRole,
+    userName,
+    userEmail,
+    isLoadingUserInfo,
   };
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;

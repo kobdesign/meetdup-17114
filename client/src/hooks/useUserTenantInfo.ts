@@ -6,6 +6,8 @@ interface UserTenantInfo {
   role: string | null;
   tenantId: string | null;
   isSuperAdmin: boolean;
+  userName: string | null;
+  userEmail: string | null;
 }
 
 export const useUserTenantInfo = () => {
@@ -23,29 +25,59 @@ export const useUserTenantInfo = () => {
           role: null,
           tenantId: null,
           isSuperAdmin: false,
+          userName: null,
+          userEmail: null,
         };
       }
 
-      console.log("[useUserTenantInfo] User found, loading roles...");
-      const { data: roles, error } = await supabase
+      console.log("[useUserTenantInfo] User found, loading roles and profile...");
+      
+      // Fetch all roles (user might have multiple)
+      const { data: rolesData, error: rolesError } = await supabase
         .from("user_roles")
         .select("role, tenant_id")
-        .eq("user_id", user.id)
-        .single();
+        .eq("user_id", user.id);
 
-      if (error) {
-        console.error("[useUserTenantInfo] Error loading roles:", error);
-        throw error;
+      if (rolesError) {
+        console.error("[useUserTenantInfo] Error loading roles:", rolesError);
+        throw rolesError;
       }
 
-      const isSuperAdmin = roles?.role === "super_admin";
-      console.log(`[useUserTenantInfo] Role: ${roles?.role}, isSuperAdmin: ${isSuperAdmin}`);
+      // Select highest priority role if user has multiple
+      let selectedRole = null;
+      let selectedTenantId = null;
+      if (rolesData && rolesData.length > 0) {
+        const roleHierarchy = { super_admin: 3, chapter_admin: 2, chapter_member: 1 };
+        const highestRole = rolesData.reduce((highest, current) => {
+          const currentPriority = roleHierarchy[current.role as keyof typeof roleHierarchy] || 0;
+          const highestPriority = roleHierarchy[highest.role as keyof typeof roleHierarchy] || 0;
+          return currentPriority > highestPriority ? current : highest;
+        });
+        selectedRole = highestRole.role;
+        selectedTenantId = highestRole.tenant_id;
+      }
+
+      // Fetch profile
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) {
+        console.error("[useUserTenantInfo] Error loading profile:", profileError);
+      }
+
+      const isSuperAdmin = selectedRole === "super_admin";
+      console.log(`[useUserTenantInfo] Role: ${selectedRole}, isSuperAdmin: ${isSuperAdmin}, userName: ${profile?.full_name}`);
 
       return {
         userId: user.id,
-        role: roles?.role || null,
-        tenantId: roles?.tenant_id || null,
+        role: selectedRole,
+        tenantId: selectedTenantId,
         isSuperAdmin,
+        userName: profile?.full_name || null,
+        userEmail: user.email || null,
       };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - user role doesn't change often
