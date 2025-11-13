@@ -15,7 +15,14 @@ Meetdup is a comprehensive multi-tenant SaaS application for managing BNI (Busin
     - Implemented automatic caching with stale-while-revalidate pattern
     - Built-in retry mechanism with exponential backoff
     - Realtime subscriptions invalidate React Query cache
-    - Solves race condition issue - tenant dropdown loads instantly from cache on subsequent visits
+  - **Fixed race condition in tenant dropdown** (TenantContext as single source of truth)
+    - Extended `useUserTenantInfo` to include user profile data (userName, userEmail)
+    - Removed duplicate `loadUserInfo()` from AdminLayout - eliminated parallel Supabase calls
+    - TenantContext now exports all user data: userId, userRole, userName, userEmail, isLoadingUserInfo
+    - AdminLayout uses context exclusively - no local state duplication
+    - Added skeleton loading states in sidebar while user info loads
+    - TenantSelectorCard conditionally renders only when loaded and isSuperAdmin = true
+    - Multi-role support maintained with role hierarchy (super_admin > chapter_admin > chapter_member)
 
 ## Project Architecture
 
