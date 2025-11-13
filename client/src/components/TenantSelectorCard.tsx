@@ -1,4 +1,6 @@
 import { useTenantContext } from "@/contexts/TenantContext";
+import { useUserTenantInfo } from "@/hooks/useUserTenantInfo";
+import { useAvailableTenants } from "@/hooks/useAvailableTenants";
 import {
   Select,
   SelectContent,
@@ -15,66 +17,67 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const TenantSelectorCard = () => {
   const { 
     selectedTenant, 
-    availableTenants, 
     setSelectedTenant, 
-    isLoading, 
-    isLoadingTenants, 
-    tenantsError,
-    retryLoadTenants 
+    isLoading: contextLoading,
   } = useTenantContext();
+  
+  // Get query states directly
+  const userInfoQuery = useUserTenantInfo();
+  const tenantsQuery = useAvailableTenants(userInfoQuery.data?.isSuperAdmin || false);
 
-  if (isLoading) {
+  // Show skeleton only during true initial load (no cached data)
+  const isInitialLoading = contextLoading && !tenantsQuery.data;
+
+  if (isInitialLoading) {
     return (
       <Card className="border-2">
         <CardContent className="p-3">
-          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" data-testid="skeleton-tenant-selector" />
         </CardContent>
       </Card>
     );
   }
 
-  if (tenantsError) {
+  // Show error state with retry button
+  if (tenantsQuery.isError) {
     return (
       <Card className="border-2">
         <CardContent className="p-3 space-y-2">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="ml-2">
-              {tenantsError}
+              {tenantsQuery.error?.message || "ไม่สามารถโหลดรายชื่อ Tenant ได้"}
             </AlertDescription>
           </Alert>
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={retryLoadTenants}
-            disabled={isLoadingTenants}
+            onClick={() => tenantsQuery.refetch()}
+            disabled={tenantsQuery.isFetching}
             className="w-full"
             data-testid="button-retry-tenants"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingTenants ? 'animate-spin' : ''}`} />
-            {isLoadingTenants ? 'กำลังโหลด...' : 'ลองใหม่'}
+            <RefreshCw className={`h-4 w-4 mr-2 ${tenantsQuery.isFetching ? 'animate-spin' : ''}`} />
+            {tenantsQuery.isFetching ? 'กำลังโหลด...' : 'ลองใหม่'}
           </Button>
         </CardContent>
       </Card>
     );
   }
 
-  if (isLoadingTenants) {
-    return (
-      <Card className="border-2">
-        <CardContent className="p-3">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">กำลังโหลดรายชื่อ Chapter...</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Show loading state while fetching (but show stale data underneath)
+  const availableTenants = tenantsQuery.data || [];
 
   return (
     <Card className="border-2">
       <CardContent className="p-3">
+        {tenantsQuery.isFetching && tenantsQuery.data && (
+          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+            <RefreshCw className="h-3 w-3 animate-spin" />
+            <span>กำลังอัปเดต...</span>
+          </div>
+        )}
+        
         <Select 
           value={selectedTenant?.tenant_id || ""} 
           onValueChange={setSelectedTenant}
