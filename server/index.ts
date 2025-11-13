@@ -6,6 +6,39 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Health check endpoint
+app.get("/api/health", async (req, res) => {
+  try {
+    const { supabaseAdmin } = await import("./utils/supabaseClient");
+    
+    // Test database connection
+    const { data, error } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_id")
+      .limit(1);
+    
+    if (error) {
+      return res.status(500).json({
+        status: "error",
+        message: "Database connection failed",
+        error: error.message
+      });
+    }
+    
+    res.json({
+      status: "ok",
+      database: "connected",
+      tables: "accessible",
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: "error",
+      message: error.message
+    });
+  }
+});
+
 // LINE Integration routes
 app.use("/api/line", lineRouter);
 
