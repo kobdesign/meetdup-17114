@@ -9,6 +9,8 @@ Meetdup is a comprehensive multi-tenant SaaS application for managing BNI (Busin
   - Created Express server with Vite integration for HMR
   - Updated all configuration files for the new structure
   - Configured workflow to run on port 5000
+  - Fixed Google Maps API integration (replaced direct REST API calls with Google Maps JavaScript SDK)
+  - Fixed tenant dropdown performance issue with retry mechanism and better error handling
 
 ## Project Architecture
 
