@@ -9,14 +9,6 @@ export default defineConfig(({ mode }) => ({
     outDir: "../dist/client",
     emptyOutDir: true,
   },
-  server: {
-    host: "0.0.0.0",
-    port: 5000,
-    strictPort: true,
-    hmr: {
-      clientPort: 5000,
-    },
-  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
