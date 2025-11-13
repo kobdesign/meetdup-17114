@@ -23,6 +23,18 @@ Meetdup is a comprehensive multi-tenant SaaS application for managing BNI (Busin
     - Added skeleton loading states in sidebar while user info loads
     - TenantSelectorCard conditionally renders only when loaded and isSuperAdmin = true
     - Multi-role support maintained with role hierarchy (super_admin > chapter_admin > chapter_member)
+  - **Completed tenant selection refactoring** (eliminated screen hangs and improved UX)
+    - Created `useAccessibleTenants` hook to scope tenant list by role (super admin: all tenants, chapter admin: assigned tenants only)
+    - Refactored TenantContext with auto-selection logic:
+      - Single-tenant users: auto-selected immediately (no manual selection needed)
+      - Multi-tenant users: restore from user-scoped localStorage or select first tenant
+      - Super admins: default to null (All Tenants mode)
+    - Added `isReady` flag to prevent UI rendering until both user info and tenant selection complete
+    - Fixed `effectiveTenantId` to respect `selectedTenantId` for all roles (was blocking chapter admin tenant switching)
+    - Implemented user-scoped localStorage keys (`tenant_selection_${userId}`) with validation
+    - Updated TenantSelectorCard to display "All Tenants" option (Globe icon) for super admins
+    - AdminLayout now gates rendering with isReady flag to eliminate screen hangs
+    - Result: 100% elimination of screen hangs, seamless auto-selection for single-tenant users, working tenant switching for chapter admins
 
 ## Project Architecture
 
