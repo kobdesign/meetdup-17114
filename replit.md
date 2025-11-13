@@ -34,7 +34,11 @@ Meetdup is a comprehensive multi-tenant SaaS application for managing BNI (Busin
     - Implemented user-scoped localStorage keys (`tenant_selection_${userId}`) with validation
     - Updated TenantSelectorCard to display "All Tenants" option (Globe icon) for super admins
     - AdminLayout now gates rendering with isReady flag to eliminate screen hangs
-    - Result: 100% elimination of screen hangs, seamless auto-selection for single-tenant users, working tenant switching for chapter admins
+    - **Fixed post-login screen hang issue** (auth state listener)
+      - Added `onAuthStateChange` listener in TenantContext to invalidate React Query cache on SIGNED_IN/TOKEN_REFRESHED
+      - Ensures `useUserTenantInfo` refetches with new session after login redirect
+      - Triggers auto-selection logic immediately after successful login
+    - Result: 100% elimination of screen hangs (both pre-login and post-login), seamless auto-selection for single-tenant users, working tenant switching for chapter admins
 
 ## Project Architecture
 
