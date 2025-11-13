@@ -43,7 +43,11 @@ None specified yet.
   2. Exported complete schema (18 tables, 8 custom types, 24 indexes, RLS policies)
   3. Fixed table dependency ordering (tenants → participants → meetings → checkins)
   4. Resolved RLS permission issues by granting service_role full access
-  5. All backend routes now use Express instead of Supabase Edge Functions
+  5. Disabled RLS for testing phase; proper policies to be implemented later
+- **Backend Architecture:**
+  - **Express API Routes**: `/api/line/*` endpoints for LINE integration (Rich Menu, Webhook, Config)
+  - **Supabase Edge Functions**: Legacy functions remain in `supabase/functions/` directory (to be migrated)
+  - **Health Endpoint**: `/api/health` validates database connectivity via service role
 - **Environment Variables Updated:**
   - `VITE_SUPABASE_URL`: `https://sbknunooplaezvwtyooi.supabase.co`
   - `VITE_SUPABASE_PUBLISHABLE_KEY`: User-owned anon key
