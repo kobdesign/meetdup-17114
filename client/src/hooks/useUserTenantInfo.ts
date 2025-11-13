@@ -16,10 +16,11 @@ export const useUserTenantInfo = () => {
     queryFn: async () => {
       console.log("[useUserTenantInfo] Fetching user info...");
       
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use getSession() instead of getUser() to wait for session restoration from localStorage
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (!user) {
-        console.log("[useUserTenantInfo] No user found");
+      if (!session?.user) {
+        console.log("[useUserTenantInfo] No session found");
         return {
           userId: null,
           role: null,
@@ -29,6 +30,8 @@ export const useUserTenantInfo = () => {
           userEmail: null,
         };
       }
+
+      const user = session.user;
 
       console.log("[useUserTenantInfo] User found, loading roles and profile...");
       
