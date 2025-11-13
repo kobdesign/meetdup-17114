@@ -1,5 +1,8 @@
+// @ts-ignore Deno imports
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+// @ts-ignore Deno imports
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
+// @ts-ignore Deno imports
 import { createHmac } from "https://deno.land/std@0.190.0/node/crypto.ts";
 
 const corsHeaders = {
@@ -120,7 +123,9 @@ serve(async (req) => {
   try {
     console.log(`${logPrefix} Incoming LINE webhook request`);
 
+    // @ts-ignore Deno runtime
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    // @ts-ignore Deno runtime
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -142,7 +147,8 @@ serve(async (req) => {
     }
 
     if (!signature && !isInternalTest) {
-      console.error(`${logPrefix} Missing LINE signature`);
+      console.error(`${logPrefix} Missing LINE signature - not an internal test`);
+      console.error(`${logPrefix} Headers: ${JSON.stringify(Object.fromEntries(req.headers.entries()))}`);
       return new Response(
         JSON.stringify({ error: "Missing signature" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -153,9 +159,10 @@ serve(async (req) => {
     try {
       payload = JSON.parse(body);
     } catch (e) {
-      console.error(`${logPrefix} Invalid JSON body`);
+      console.error(`${logPrefix} Invalid JSON body:`, e);
+      console.error(`${logPrefix} Body preview:`, body.substring(0, 200));
       return new Response(
-        JSON.stringify({ error: "Invalid JSON" }),
+        JSON.stringify({ error: "Invalid JSON", details: (e as Error).message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -166,6 +173,7 @@ serve(async (req) => {
     if (isInternalTest) {
       console.log(`${logPrefix} Internal test mode - bypassing signature validation`);
       console.log(`${logPrefix} Received ${events.length} test events`);
+      console.log(`${logPrefix} Test payload:`, JSON.stringify(payload));
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -178,9 +186,10 @@ serve(async (req) => {
     }
 
     if (!destination) {
-      console.error(`${logPrefix} Missing destination field`);
+      console.error(`${logPrefix} Missing destination field in payload`);
+      console.error(`${logPrefix} Payload keys:`, Object.keys(payload));
       return new Response(
-        JSON.stringify({ error: "Missing destination" }),
+        JSON.stringify({ error: "Missing destination", hint: "This is a production webhook. LINE webhooks require a destination field." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

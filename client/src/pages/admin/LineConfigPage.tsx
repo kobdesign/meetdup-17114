@@ -72,26 +72,38 @@ export default function LineConfigPage() {
 
   const saveConfigMutation = useMutation({
     mutationFn: async (data: LineConfigForm) => {
-      const lineBotInfoResponse = await fetch("https://api.line.me/v2/bot/info", {
-        headers: {
-          "Authorization": `Bearer ${data.channelAccessToken}`
-        }
-      });
-
-      if (!lineBotInfoResponse.ok) {
-        throw new Error("Invalid LINE Channel Access Token");
-      }
-
-      const botInfo = await lineBotInfoResponse.json();
-      const channelId = botInfo.userId;
-
-      if (!channelId) {
-        throw new Error("Failed to retrieve LINE Bot User ID");
-      }
-
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const { data: { session } } = await supabase.auth.getSession();
+
+      // Validate token with backend (avoid CORS)
+      const validateResponse = await fetch(`${supabaseUrl}/functions/v1/line-config/validate-token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          accessToken: data.channelAccessToken
+        })
+      });
+
+      if (!validateResponse.ok) {
+        throw new Error("ไม่สามารถตรวจสอบ Access Token ได้");
+      }
+
+      const validationResult = await validateResponse.json();
       
+      if (!validationResult.valid) {
+        throw new Error(validationResult.error || "Invalid LINE Channel Access Token");
+      }
+
+      const channelId = validationResult.botUserId;
+
+      if (!channelId) {
+        throw new Error("ไม่สามารถดึง LINE Bot User ID ได้");
+      }
+
+      // Save configuration
       const response = await fetch(`${supabaseUrl}/functions/v1/line-config`, {
         method: "POST",
         headers: { 

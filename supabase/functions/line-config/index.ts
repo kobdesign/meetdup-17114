@@ -1,4 +1,6 @@
+// @ts-ignore Deno imports
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+// @ts-ignore Deno imports
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 
 const corsHeaders = {
@@ -39,7 +41,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // @ts-ignore Deno runtime
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  // @ts-ignore Deno runtime
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const authHeader = req.headers.get("authorization");
 
@@ -63,6 +67,61 @@ serve(async (req) => {
   }
 
   try {
+    const url = new URL(req.url);
+    
+    // POST /validate-token - Validate LINE Access Token
+    if (req.method === "POST" && url.pathname.endsWith('/validate-token')) {
+      const { accessToken } = await req.json();
+
+      if (!accessToken) {
+        return new Response(
+          JSON.stringify({ error: "Missing accessToken" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      try {
+        const lineResponse = await fetch("https://api.line.me/v2/bot/info", {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`
+          }
+        });
+
+        if (!lineResponse.ok) {
+          const errorText = await lineResponse.text();
+          console.error("LINE API validation failed:", errorText);
+          return new Response(
+            JSON.stringify({ 
+              valid: false, 
+              error: "Invalid LINE Channel Access Token" 
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const botInfo = await lineResponse.json();
+        return new Response(
+          JSON.stringify({ 
+            valid: true, 
+            botUserId: botInfo.userId,
+            displayName: botInfo.displayName,
+            pictureUrl: botInfo.pictureUrl
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        console.error("Error validating LINE token:", error);
+        return new Response(
+          JSON.stringify({ 
+            valid: false, 
+            error: "Failed to validate token with LINE API" 
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // POST / - Save LINE Configuration
     if (req.method === "POST") {
       const { tenantId, channelAccessToken, channelSecret, channelId } = await req.json();
 
