@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserTenantInfo } from "@/hooks/useUserTenantInfo";
+import { useUserTenantInfo, fetchUserTenantInfo } from "@/hooks/useUserTenantInfo";
 import { useAccessibleTenants } from "@/hooks/useAccessibleTenants";
 
 interface Tenant {
@@ -73,7 +73,7 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   // Derive combined loading state
   const isLoading = userInfoQuery.isLoading || tenantsQuery.isLoading;
 
-  // Listen to auth state changes and invalidate user info cache
+  // Listen to auth state changes and FORCE fetch user info
   useEffect(() => {
     console.log("[TenantContext] Setting up auth state listener");
     
@@ -81,9 +81,20 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       console.log("[TenantContext] Auth state changed:", event, "Session:", !!session);
       
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // Invalidate user info to trigger refetch with new session
-        console.log("[TenantContext] Invalidating user info cache after sign in");
-        await queryClient.invalidateQueries({ queryKey: ["/api/user-tenant-info"] });
+        console.log("[TenantContext] 🔄 Force fetching user info after sign in...");
+        
+        try {
+          // Use fetchQuery to GUARANTEE fetch execution even if query is inactive
+          await queryClient.fetchQuery({
+            queryKey: ["/api/user-tenant-info"],
+            queryFn: fetchUserTenantInfo,
+          });
+          console.log("[TenantContext] ✅ User info fetch completed successfully");
+          
+        } catch (error) {
+          console.error("[TenantContext] ❌ Failed to fetch user info after login:", error);
+          // Don't force reload - let the UI handle error state gracefully
+        }
       }
       // Note: SIGNED_OUT is handled by existing logout flows, no need to clear cache here
     });
