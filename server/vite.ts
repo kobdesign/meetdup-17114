@@ -40,7 +40,6 @@ async function setupDevelopmentServer(app: Express) {
         }
       },
       appType: "custom",
-      configFile: path.resolve(__dirname, "../vite.config.ts"),
     });
 
     console.log('✓ Vite dev server initialized');
