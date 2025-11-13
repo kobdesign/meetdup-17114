@@ -10,7 +10,12 @@ Meetdup is a comprehensive multi-tenant SaaS application for managing BNI (Busin
   - Updated all configuration files for the new structure
   - Configured workflow to run on port 5000
   - Fixed Google Maps API integration (replaced direct REST API calls with Google Maps JavaScript SDK)
-  - Fixed tenant dropdown performance issue with retry mechanism and better error handling
+  - **Migrated tenant management to React Query** (hybrid React Query + Context pattern)
+    - Created `useUserTenantInfo` and `useAvailableTenants` custom hooks
+    - Implemented automatic caching with stale-while-revalidate pattern
+    - Built-in retry mechanism with exponential backoff
+    - Realtime subscriptions invalidate React Query cache
+    - Solves race condition issue - tenant dropdown loads instantly from cache on subsequent visits
 
 ## Project Architecture
 
