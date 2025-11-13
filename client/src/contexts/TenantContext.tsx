@@ -19,8 +19,11 @@ interface TenantContextType {
   availableTenants: Tenant[];
   isSuperAdmin: boolean;
   isLoading: boolean;
+  isLoadingTenants: boolean;
+  tenantsError: string | null;
   setSelectedTenant: (id: string) => void;
   effectiveTenantId: string | null;
+  retryLoadTenants: () => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -43,6 +46,8 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingTenants, setIsLoadingTenants] = useState(false);
+  const [tenantsError, setTenantsError] = useState<string | null>(null);
   const [userTenantId, setUserTenantId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -94,13 +99,16 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
 
   const loadUserInfo = async () => {
     try {
+      console.log("[TenantContext] Loading user info...");
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (!user) {
+        console.log("[TenantContext] No user found");
         setIsLoading(false);
         return;
       }
 
-      // Get user role and tenant
+      console.log("[TenantContext] User found, loading roles...");
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role, tenant_id")
@@ -109,39 +117,79 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
 
       if (roles) {
         const isSA = roles.role === "super_admin";
+        console.log(`[TenantContext] User role: ${roles.role}, isSuperAdmin: ${isSA}`);
         setIsSuperAdmin(isSA);
         setUserTenantId(roles.tenant_id);
 
         // If super admin, load all tenants
         if (isSA) {
+          console.log("[TenantContext] Super admin detected, loading tenants...");
           await loadAvailableTenants();
+        } else {
+          console.log("[TenantContext] Regular user, skipping tenant list load");
         }
       }
     } catch (error) {
-      console.error("Error loading user info:", error);
+      console.error("[TenantContext] Error loading user info:", error);
     } finally {
       setIsLoading(false);
+      console.log("[TenantContext] User info loading complete");
     }
   };
+  
+  const retryLoadTenants = () => {
+    console.log("[TenantContext] Manual retry requested");
+    loadAvailableTenants();
+  };
 
-  const loadAvailableTenants = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("tenants")
-        .select("tenant_id, name, slug")
-        .eq("status", "active")
-        .order("name");
+  const loadAvailableTenants = async (): Promise<boolean> => {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000;
+    
+    setIsLoadingTenants(true);
+    setTenantsError(null);
+    
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`[TenantContext] Loading tenants (attempt ${attempt + 1}/${MAX_RETRIES + 1})...`);
+        
+        const { data, error } = await supabase
+          .from("tenants")
+          .select("tenant_id, name, slug")
+          .eq("status", "active")
+          .order("name");
 
-      if (error) throw error;
-      setAvailableTenants(data || []);
-    } catch (error) {
-      console.error("Error loading tenants:", error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถโหลดรายชื่อ Tenant ได้",
-        variant: "destructive",
-      });
+        if (error) throw error;
+        
+        console.log(`[TenantContext] Successfully loaded ${data?.length || 0} tenants`);
+        setAvailableTenants(data || []);
+        setTenantsError(null);
+        setIsLoadingTenants(false);
+        return true;
+      } catch (error: any) {
+        console.error(`[TenantContext] Error loading tenants (attempt ${attempt + 1}):`, error);
+        
+        if (attempt < MAX_RETRIES) {
+          const delay = RETRY_DELAY * (attempt + 1);
+          console.log(`[TenantContext] Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          const errorMsg = error.message || "ไม่สามารถโหลดรายชื่อ Tenant ได้";
+          setTenantsError(errorMsg);
+          setIsLoadingTenants(false);
+          
+          toast({
+            title: "เกิดข้อผิดพลาด",
+            description: errorMsg + " (กรุณาลองใหม่อีกครั้ง)",
+            variant: "destructive",
+          });
+          
+          return false;
+        }
+      }
     }
+    
+    return false;
   };
 
   const loadTenantDetails = async (tenantId: string) => {
@@ -192,8 +240,11 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     availableTenants,
     isSuperAdmin,
     isLoading,
+    isLoadingTenants,
+    tenantsError,
     setSelectedTenant: setSelectedTenantId,
     effectiveTenantId,
+    retryLoadTenants,
   };
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
