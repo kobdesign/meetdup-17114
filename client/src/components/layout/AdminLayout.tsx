@@ -40,12 +40,16 @@ interface AdminLayoutProps {
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const navigate = useNavigate();
   const { 
-    isSuperAdmin, 
+    isSuperAdmin,
+    isReady,
     isLoadingUserInfo,
     userName, 
     userEmail, 
     userRole 
   } = useTenantContext();
+
+  // Wait for tenant selection to complete before showing content
+  const isContentReady = isReady;
 
   const handleLogout = async () => {
     try {
@@ -94,23 +98,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-64">
-                {isLoadingUserInfo ? (
+                {!isContentReady ? (
                   <div className="mb-4 mt-4">
                     <Skeleton className="h-24 w-full" />
                   </div>
-                ) : isSuperAdmin ? (
+                ) : isContentReady && isSuperAdmin ? (
                   <div className="mb-4 mt-4">
                     <TenantSelectorCard />
                   </div>
                 ) : null}
                 
                 <nav className="flex flex-col gap-2 mt-8">
-                  {navItems.map((item) => (
+                  {isContentReady && navItems.map((item) => (
                     <NavLink key={item.href} to={item.href} icon={item.icon}>
                       {item.label}
                     </NavLink>
                   ))}
-                  {userRole === "super_admin" && (
+                  {isContentReady && userRole === "super_admin" && (
                     <>
                       <div className="my-2 border-t" />
                       {superAdminNavItems.map((item) => (
@@ -184,11 +188,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       <div className="flex flex-1">
         <aside className="hidden w-64 border-r md:block">
           <div className="p-4">
-            {isLoadingUserInfo ? (
+            {!isContentReady ? (
               <div className="mb-4">
                 <Skeleton className="h-24 w-full" />
               </div>
-            ) : isSuperAdmin ? (
+            ) : isContentReady && isSuperAdmin ? (
               <div className="mb-4">
                 <TenantSelectorCard />
               </div>
@@ -196,12 +200,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
           
           <nav className="flex flex-col gap-2 px-4">
-            {navItems.map((item) => (
+            {isContentReady && navItems.map((item) => (
               <NavLink key={item.href} to={item.href} icon={item.icon}>
                 {item.label}
               </NavLink>
             ))}
-            {userRole === "super_admin" && (
+            {isContentReady && userRole === "super_admin" && (
               <>
                 <div className="my-2 border-t" />
                 <div className="text-xs font-semibold text-muted-foreground px-3 mb-2">
@@ -218,7 +222,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </aside>
 
         <main className="flex-1 p-6 md:p-8">
-          {children}
+          {isContentReady ? children : (
+            <div className="flex items-center justify-center h-full">
+              <Skeleton className="h-96 w-full max-w-4xl" />
+            </div>
+          )}
         </main>
       </div>
     </div>

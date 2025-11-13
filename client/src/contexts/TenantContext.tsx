@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserTenantInfo } from "@/hooks/useUserTenantInfo";
-import { useAvailableTenants } from "@/hooks/useAvailableTenants";
+import { useAccessibleTenants } from "@/hooks/useAccessibleTenants";
 
 interface Tenant {
   tenant_id: string;
@@ -21,7 +21,8 @@ interface TenantContextType {
   availableTenants: Tenant[];
   isSuperAdmin: boolean;
   isLoading: boolean;
-  setSelectedTenant: (id: string) => void;
+  isReady: boolean; // NEW: Indicates tenant selection is complete
+  setSelectedTenant: (id: string | null) => void; // Updated to accept null
   effectiveTenantId: string | null;
   userId: string | null;
   userRole: string | null;
@@ -48,39 +49,98 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   const queryClient = useQueryClient();
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [selectedTenantData, setSelectedTenantData] = useState<TenantDetails | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   // Use React Query hooks for data fetching
   const userInfoQuery = useUserTenantInfo();
-  const tenantsQuery = useAvailableTenants(userInfoQuery.data?.isSuperAdmin || false);
-
+  const userId = userInfoQuery.data?.userId || null;
   const isSuperAdmin = userInfoQuery.data?.isSuperAdmin || false;
   const userTenantId = userInfoQuery.data?.tenantId || null;
-  const availableTenants = tenantsQuery.data || [];
-  
-  // User profile data from the query
-  const userId = userInfoQuery.data?.userId || null;
   const userRole = userInfoQuery.data?.role || null;
   const userName = userInfoQuery.data?.userName || null;
   const userEmail = userInfoQuery.data?.userEmail || null;
   const isLoadingUserInfo = userInfoQuery.isLoading;
 
-  // Derive combined loading state
-  const isLoading = userInfoQuery.isLoading || (isSuperAdmin && tenantsQuery.isLoading && !tenantsQuery.data);
+  // Fetch accessible tenants based on user role
+  const tenantsQuery = useAccessibleTenants({
+    userId,
+    isSuperAdmin,
+    enabled: !!userId, // Only fetch when we have a user
+  });
 
-  // Load selected tenant from localStorage on mount
+  const availableTenants = tenantsQuery.data || [];
+  
+  // Derive combined loading state
+  const isLoading = userInfoQuery.isLoading || tenantsQuery.isLoading;
+
+  // Auto-selection and localStorage restoration
   useEffect(() => {
+    // Don't run until both queries are settled
+    if (isLoading || !userId) {
+      setIsReady(false);
+      return;
+    }
+
+    console.log("[TenantContext] Running auto-selection logic", {
+      isSuperAdmin,
+      availableTenantsCount: availableTenants.length,
+      userId,
+    });
+
+    // User-scoped localStorage key
+    const storageKey = `tenant_selection_${userId}`;
+    const savedTenantId = localStorage.getItem(storageKey);
+
     if (isSuperAdmin) {
-      const saved = localStorage.getItem("selected_tenant_id");
-      if (saved) {
-        console.log("[TenantContext] Loading saved tenant from localStorage:", saved);
-        setSelectedTenantId(saved);
+      // Super admin: default to null (All tenants mode)
+      // Restore saved selection if valid (including null)
+      if (savedTenantId === "null" || savedTenantId === null) {
+        console.log("[TenantContext] Super admin: defaulting to All tenants (null)");
+        setSelectedTenantId(null);
+        setIsReady(true);
+      } else if (savedTenantId && availableTenants.find(t => t.tenant_id === savedTenantId)) {
+        console.log("[TenantContext] Super admin: restoring valid saved tenant:", savedTenantId);
+        setSelectedTenantId(savedTenantId);
+        setIsReady(true);
+      } else {
+        console.log("[TenantContext] Super admin: no valid saved selection, defaulting to null");
+        setSelectedTenantId(null);
+        localStorage.setItem(storageKey, "null");
+        setIsReady(true);
+      }
+    } else {
+      // Chapter admin: auto-select based on available tenants
+      if (availableTenants.length === 0) {
+        console.warn("[TenantContext] Chapter admin has no accessible tenants!");
+        setSelectedTenantId(null);
+        setIsReady(true);
+      } else if (availableTenants.length === 1) {
+        // Auto-select the only tenant
+        const singleTenant = availableTenants[0];
+        console.log("[TenantContext] Chapter admin: auto-selecting single tenant:", singleTenant.name);
+        setSelectedTenantId(singleTenant.tenant_id);
+        localStorage.setItem(storageKey, singleTenant.tenant_id);
+        setIsReady(true);
+      } else {
+        // Multiple tenants: restore saved or select first
+        const validSaved = savedTenantId && availableTenants.find(t => t.tenant_id === savedTenantId);
+        if (validSaved) {
+          console.log("[TenantContext] Chapter admin: restoring saved tenant:", savedTenantId);
+          setSelectedTenantId(savedTenantId);
+        } else {
+          const firstTenant = availableTenants[0];
+          console.log("[TenantContext] Chapter admin: selecting first tenant:", firstTenant.name);
+          setSelectedTenantId(firstTenant.tenant_id);
+          localStorage.setItem(storageKey, firstTenant.tenant_id);
+        }
+        setIsReady(true);
       }
     }
-  }, [isSuperAdmin]);
+  }, [isLoading, userId, isSuperAdmin, availableTenants]);
 
-  // Subscribe to realtime updates for tenants (super admin only)
+  // Subscribe to realtime updates for accessible tenants
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!userId) return;
 
     console.log("[TenantContext] Setting up realtime subscription for tenants");
     const channel = supabase
@@ -94,7 +154,8 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
         },
         () => {
           console.log("[TenantContext] Tenant update detected, invalidating cache");
-          queryClient.invalidateQueries({ queryKey: ["/api/tenants"] });
+          // Invalidate with the new queryKey pattern
+          queryClient.invalidateQueries({ queryKey: ["/api/accessible-tenants", userId, isSuperAdmin] });
         }
       )
       .subscribe();
@@ -103,15 +164,23 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       console.log("[TenantContext] Cleaning up realtime subscription");
       supabase.removeChannel(channel);
     };
-  }, [isSuperAdmin, queryClient]);
+  }, [userId, isSuperAdmin, queryClient]);
 
-  // Save selected tenant to localStorage when changed
-  useEffect(() => {
-    if (isSuperAdmin && selectedTenantId) {
-      console.log("[TenantContext] Saving selected tenant to localStorage:", selectedTenantId);
-      localStorage.setItem("selected_tenant_id", selectedTenantId);
+  // Save selected tenant to localStorage when manually changed
+  const handleSetSelectedTenant = (id: string | null) => {
+    if (!userId) return;
+    
+    const storageKey = `tenant_selection_${userId}`;
+    console.log("[TenantContext] Manually setting selected tenant:", id);
+    setSelectedTenantId(id);
+    
+    // Save to localStorage (including null for "All tenants")
+    if (id === null) {
+      localStorage.setItem(storageKey, "null");
+    } else {
+      localStorage.setItem(storageKey, id);
     }
-  }, [selectedTenantId, isSuperAdmin]);
+  };
 
   const loadTenantDetails = async (tenantId: string) => {
     try {
@@ -153,8 +222,9 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     }
   }, [selectedTenantId]);
 
-  // Effective tenant ID: for super admin use selected, for regular users use their tenant
-  const effectiveTenantId = isSuperAdmin ? selectedTenantId : userTenantId;
+  // Effective tenant ID: use selected if available, fallback to user's tenant
+  // This allows both super admin AND chapter admin to switch tenants
+  const effectiveTenantId = selectedTenantId !== null ? selectedTenantId : userTenantId;
 
   const value: TenantContextType = {
     selectedTenantId,
@@ -162,7 +232,8 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     availableTenants,
     isSuperAdmin,
     isLoading,
-    setSelectedTenant: setSelectedTenantId,
+    isReady,
+    setSelectedTenant: handleSetSelectedTenant,
     effectiveTenantId,
     userId,
     userRole,

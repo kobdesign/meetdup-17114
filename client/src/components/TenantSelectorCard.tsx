@@ -1,6 +1,4 @@
 import { useTenantContext } from "@/contexts/TenantContext";
-import { useUserTenantInfo } from "@/hooks/useUserTenantInfo";
-import { useAvailableTenants } from "@/hooks/useAvailableTenants";
 import {
   Select,
   SelectContent,
@@ -9,24 +7,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building2, RefreshCw, AlertCircle } from "lucide-react";
+import { Building2, RefreshCw, Globe } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const TenantSelectorCard = () => {
   const { 
-    selectedTenant, 
-    setSelectedTenant, 
-    isLoading: contextLoading,
+    selectedTenant,
+    selectedTenantId,
+    availableTenants,
+    setSelectedTenant,
+    isLoading,
+    isReady,
+    isSuperAdmin,
   } = useTenantContext();
-  
-  // Get query states directly
-  const userInfoQuery = useUserTenantInfo();
-  const tenantsQuery = useAvailableTenants(userInfoQuery.data?.isSuperAdmin || false);
 
-  // Show skeleton only during true initial load (no cached data)
-  const isInitialLoading = contextLoading && !tenantsQuery.data;
+  // Show skeleton while loading or before ready state
+  const isInitialLoading = isLoading || !isReady;
 
   if (isInitialLoading) {
     return (
@@ -38,49 +34,24 @@ const TenantSelectorCard = () => {
     );
   }
 
-  // Show error state with retry button
-  if (tenantsQuery.isError) {
-    return (
-      <Card className="border-2">
-        <CardContent className="p-3 space-y-2">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="ml-2">
-              {tenantsQuery.error?.message || "ไม่สามารถโหลดรายชื่อ Tenant ได้"}
-            </AlertDescription>
-          </Alert>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => tenantsQuery.refetch()}
-            disabled={tenantsQuery.isFetching}
-            className="w-full"
-            data-testid="button-retry-tenants"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${tenantsQuery.isFetching ? 'animate-spin' : ''}`} />
-            {tenantsQuery.isFetching ? 'กำลังโหลด...' : 'ลองใหม่'}
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Handle value change: convert "__all__" to null
+  const handleValueChange = (value: string) => {
+    if (value === "__all__") {
+      setSelectedTenant(null);
+    } else {
+      setSelectedTenant(value);
+    }
+  };
 
-  // Show loading state while fetching (but show stale data underneath)
-  const availableTenants = tenantsQuery.data || [];
+  // Determine select value: null → "__all__"
+  const selectValue = selectedTenantId === null ? "__all__" : (selectedTenantId || "");
 
   return (
     <Card className="border-2">
       <CardContent className="p-3">
-        {tenantsQuery.isFetching && tenantsQuery.data && (
-          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-            <RefreshCw className="h-3 w-3 animate-spin" />
-            <span>กำลังอัปเดต...</span>
-          </div>
-        )}
-        
         <Select 
-          value={selectedTenant?.tenant_id || ""} 
-          onValueChange={setSelectedTenant}
+          value={selectValue} 
+          onValueChange={handleValueChange}
           data-testid="select-tenant"
         >
           <SelectTrigger className="border-0 focus:ring-0 h-auto p-0" data-testid="trigger-tenant">
@@ -93,7 +64,11 @@ const TenantSelectorCard = () => {
                 />
               ) : (
                 <div className="h-10 w-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
-                  <Building2 className="h-5 w-5 text-muted-foreground" />
+                  {selectedTenantId === null ? (
+                    <Globe className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <Building2 className="h-5 w-5 text-muted-foreground" />
+                  )}
                 </div>
               )}
               
@@ -101,6 +76,8 @@ const TenantSelectorCard = () => {
                 <SelectValue placeholder="เลือก Chapter">
                   {selectedTenant ? (
                     <span className="font-medium truncate block">{selectedTenant.name}</span>
+                  ) : selectedTenantId === null && isSuperAdmin ? (
+                    <span className="font-medium">All Tenants</span>
                   ) : (
                     <span className="text-muted-foreground">เลือก Chapter</span>
                   )}
@@ -110,6 +87,15 @@ const TenantSelectorCard = () => {
           </SelectTrigger>
           
           <SelectContent>
+            {isSuperAdmin && (
+              <SelectItem value="__all__" data-testid="item-tenant-all">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  <span className="font-medium">All Tenants</span>
+                </div>
+              </SelectItem>
+            )}
+            
             {availableTenants.map((tenant) => (
               <SelectItem 
                 key={tenant.tenant_id} 
