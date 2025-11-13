@@ -53,14 +53,14 @@ export default function RichMenuPage() {
 
   // Fetch rich menus
   const { data: richMenusData, isLoading } = useQuery<{ richMenus: RichMenu[] }>({
-    queryKey: ["/api/line-rich-menu", effectiveTenantId],
+    queryKey: ["/api/line/rich-menu", effectiveTenantId],
     enabled: !!effectiveTenantId,
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-rich-menu?tenantId=${effectiveTenantId}`,
+        `/api/line/rich-menu?tenantId=${effectiveTenantId}`,
         {
           headers: {
             "Authorization": `Bearer ${session.access_token}`,
@@ -83,7 +83,7 @@ export default function RichMenuPage() {
       if (!session) throw new Error("Not authenticated");
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-rich-menu?richMenuId=${richMenuId}`,
+        `/api/line/rich-menu/${richMenuId}?tenantId=${effectiveTenantId}`,
         {
           method: "DELETE",
           headers: {
@@ -100,7 +100,7 @@ export default function RichMenuPage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/line-rich-menu", effectiveTenantId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/line/rich-menu", effectiveTenantId] });
       toast({
         title: "Success",
         description: "Rich menu deleted successfully",
@@ -122,7 +122,7 @@ export default function RichMenuPage() {
       if (!session) throw new Error("Not authenticated");
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-rich-menu/set-default`,
+        `/api/line/rich-menu/set-default`,
         {
           method: "POST",
           headers: {
@@ -141,7 +141,7 @@ export default function RichMenuPage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/line-rich-menu", effectiveTenantId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/line/rich-menu", effectiveTenantId] });
       toast({
         title: "Success",
         description: "Default rich menu updated",
@@ -180,7 +180,7 @@ export default function RichMenuPage() {
                 tenantId={effectiveTenantId || ""}
                 onSuccess={() => {
                   setIsCreateDialogOpen(false);
-                  queryClient.invalidateQueries({ queryKey: ["/api/line-rich-menu", effectiveTenantId] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/line/rich-menu", effectiveTenantId] });
                 }}
               />
             </DialogContent>
@@ -422,7 +422,7 @@ function CreateRichMenuForm({ tenantId, onSuccess }: { tenantId: string; onSucce
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-rich-menu`,
+        `/api/line/rich-menu`,
         {
           method: "POST",
           headers: {

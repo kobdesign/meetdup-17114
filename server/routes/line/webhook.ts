@@ -1,0 +1,98 @@
+import { Router, Request, Response } from "express";
+import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
+import { getCredentialsByBotUserId } from "../../services/line/credentials";
+import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
+
+const router = Router();
+
+router.post("/", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[LINE Webhook:${requestId}]`;
+
+  try {
+    console.log(`${logPrefix} Incoming webhook request`);
+
+    const signature = req.headers["x-line-signature"] as string;
+    const authHeader = req.headers.authorization;
+    const body = JSON.stringify(req.body);
+
+    // Check if this is an internal test
+    const isInternalTest = authHeader && authHeader.startsWith("Bearer ");
+
+    if (!isInternalTest && !signature) {
+      console.error(`${logPrefix} Missing LINE signature`);
+      console.error(`${logPrefix} Headers:`, {
+        "content-type": req.headers["content-type"],
+        "x-line-signature": "missing",
+        "user-agent": req.headers["user-agent"],
+      });
+      return res.status(400).json({ 
+        error: "Missing x-line-signature header",
+        hint: "LINE webhooks must include x-line-signature for HMAC validation"
+      });
+    }
+
+    const payload: LineWebhookPayload = req.body;
+
+    if (!payload.destination) {
+      console.error(`${logPrefix} Missing destination field in payload`);
+      console.error(`${logPrefix} Payload keys:`, Object.keys(payload));
+      console.error(`${logPrefix} Payload sample:`, JSON.stringify(payload).slice(0, 200));
+      return res.status(400).json({ 
+        error: "Missing destination field",
+        hint: "Webhook payload must include 'destination' (bot user ID) for tenant resolution"
+      });
+    }
+
+    if (!payload.events || !Array.isArray(payload.events)) {
+      console.error(`${logPrefix} Invalid events field`);
+      return res.status(400).json({ error: "Invalid events field" });
+    }
+
+    // For internal tests with auth header, skip signature validation
+    if (isInternalTest) {
+      console.log(`${logPrefix} Internal test mode detected`);
+      console.log(`${logPrefix} Test payload:`, payload);
+      return res.json({ 
+        success: true, 
+        mode: "test",
+        eventsReceived: payload.events.length
+      });
+    }
+
+    // Resolve tenant by bot user ID (destination)
+    const credentials = await getCredentialsByBotUserId(payload.destination);
+
+    if (!credentials) {
+      console.error(`${logPrefix} No credentials found for destination: ${payload.destination}`);
+      return res.status(404).json({ error: "Tenant not found for this LINE bot" });
+    }
+
+    console.log(`${logPrefix} Resolved to tenant: ${credentials.tenantId}`);
+
+    // Validate HMAC signature
+    const isValid = validateLineSignature(body, signature, credentials.channelSecret);
+
+    if (!isValid) {
+      console.error(`${logPrefix} Invalid signature for tenant ${credentials.tenantId}`);
+      return res.status(403).json({ error: "Invalid signature" });
+    }
+
+    console.log(`${logPrefix} Signature validated for tenant ${credentials.tenantId}`);
+
+    // Process events
+    await processWebhookEvents(payload.events, credentials.tenantId);
+
+    console.log(`${logPrefix} Successfully processed ${payload.events.length} events`);
+    
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ 
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+export default router;

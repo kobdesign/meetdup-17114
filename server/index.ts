@@ -1,9 +1,13 @@
 import express from "express";
 import { registerVite } from "./vite";
+import lineRouter from "./routes/line/index";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// LINE Integration routes
+app.use("/api/line", lineRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();

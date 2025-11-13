@@ -36,13 +36,12 @@ export default function LineConfigPage() {
   });
 
   const { data: config, isLoading: isLoadingConfig } = useQuery({
-    queryKey: ["/api/line-config", effectiveTenantId],
+    queryKey: ["/api/line/config", effectiveTenantId],
     queryFn: async () => {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const { data: { session } } = await supabase.auth.getSession();
       
       const response = await fetch(
-        `${supabaseUrl}/functions/v1/line-config?tenantId=${effectiveTenantId}`,
+        `/api/line/config?tenantId=${effectiveTenantId}`,
         {
           headers: {
             "Authorization": `Bearer ${session?.access_token}`
@@ -72,11 +71,10 @@ export default function LineConfigPage() {
 
   const saveConfigMutation = useMutation({
     mutationFn: async (data: LineConfigForm) => {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const { data: { session } } = await supabase.auth.getSession();
 
       // Validate token with backend (avoid CORS)
-      const validateResponse = await fetch(`${supabaseUrl}/functions/v1/line-config/validate-token`, {
+      const validateResponse = await fetch("/api/line/config/validate-token", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -104,7 +102,7 @@ export default function LineConfigPage() {
       }
 
       // Save configuration
-      const response = await fetch(`${supabaseUrl}/functions/v1/line-config`, {
+      const response = await fetch("/api/line/config", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -141,16 +139,15 @@ export default function LineConfigPage() {
       setTestStatus("testing");
       
       const { data: { session } } = await supabase.auth.getSession();
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const webhookUrl = `${supabaseUrl}/functions/v1/line-webhook`;
       
-      const response = await fetch(webhookUrl, {
+      const response = await fetch("/api/line/webhook", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token}`,
         },
         body: JSON.stringify({
+          destination: config?.channelId || "test-bot-id",
           events: [{
             type: "message",
             replyToken: "test-token",
@@ -186,8 +183,8 @@ export default function LineConfigPage() {
   };
 
   const copyWebhookUrl = () => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const url = `${supabaseUrl}/functions/v1/line-webhook`;
+    const baseUrl = window.location.origin;
+    const url = `${baseUrl}/api/line/webhook`;
     navigator.clipboard.writeText(url);
     setWebhookUrl(url);
     toast({
