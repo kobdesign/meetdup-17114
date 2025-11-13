@@ -10,8 +10,6 @@ import { toast } from "sonner";
 import { Upload, Download, ExternalLink, Share2 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useTenantContext } from "@/contexts/TenantContext";
-import PasswordInput from "@/components/PasswordInput";
-import JsonEditor from "@/components/JsonEditor";
 
 export default function Settings() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
@@ -28,15 +26,6 @@ export default function Settings() {
     default_visitor_fee: 650,
     require_visitor_payment: true,
     payment_qr_payload: "",
-  });
-  
-  const [lineSecrets, setLineSecrets] = useState({
-    line_channel_id: "",
-    line_channel_secret: "",
-    line_access_token: "",
-    liff_id_share: "",
-    liff_id_checkin: "",
-    payment_provider_keys: {} as Record<string, any>,
   });
 
   useEffect(() => {
@@ -81,28 +70,6 @@ export default function Settings() {
           default_visitor_fee: settingsData.default_visitor_fee || 650,
           require_visitor_payment: settingsData.require_visitor_payment ?? true,
           payment_qr_payload: settingsData.payment_qr_payload || "",
-        });
-      }
-
-      // Load LINE secrets
-      const { data: secretsData } = await supabase
-        .from("tenant_secrets")
-        .select("line_channel_id, line_channel_secret, line_access_token, liff_id_share, liff_id_checkin, payment_provider_keys")
-        .eq("tenant_id", effectiveTenantId)
-        .single();
-
-      if (secretsData) {
-        setLineSecrets({
-          line_channel_id: secretsData.line_channel_id || "",
-          line_channel_secret: secretsData.line_channel_secret || "",
-          line_access_token: secretsData.line_access_token || "",
-          liff_id_share: secretsData.liff_id_share || "",
-          liff_id_checkin: secretsData.liff_id_checkin || "",
-          payment_provider_keys: (typeof secretsData.payment_provider_keys === 'object' && 
-            secretsData.payment_provider_keys !== null &&
-            !Array.isArray(secretsData.payment_provider_keys)) 
-            ? secretsData.payment_provider_keys as Record<string, any>
-            : {},
         });
       }
     } catch (error: any) {
@@ -189,40 +156,6 @@ export default function Settings() {
       toast.success("บันทึกการตั้งค่าสำเร็จ");
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveLineSecrets = async () => {
-    if (!effectiveTenantId) return;
-
-    setSaving(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast.error("กรุณาเข้าสู่ระบบอีกครั้ง");
-        return;
-      }
-
-      const response = await supabase.functions.invoke('update-tenant-secrets', {
-        body: {
-          tenant_id: effectiveTenantId,
-          secrets: lineSecrets
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      });
-
-      if (response.error) throw response.error;
-
-      toast.success("บันทึกการตั้งค่า LINE สำเร็จ");
-    } catch (error: any) {
-      console.error('Error saving LINE secrets:', error);
-      toast.error("เกิดข้อผิดพลาด: " + (error.message || "ไม่สามารถบันทึกได้"));
     } finally {
       setSaving(false);
     }
@@ -521,95 +454,6 @@ export default function Settings() {
                 ใช้ QR Code PromptPay หรือ QR Code ของธนาคาร
               </p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* LINE Integration Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>🔗 LINE Integration</CardTitle>
-            <CardDescription>
-              ตั้งค่า LINE Messaging API และ LIFF สำหรับการแจ้งเตือนและ check-in
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <Label htmlFor="line_channel_id">LINE Channel ID</Label>
-              <Input
-                id="line_channel_id"
-                value={lineSecrets.line_channel_id}
-                onChange={(e) => setLineSecrets({ ...lineSecrets, line_channel_id: e.target.value })}
-                placeholder="1234567890"
-                className="mt-2"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Channel ID จาก LINE Developers Console
-              </p>
-            </div>
-
-            <PasswordInput
-              id="line_channel_secret"
-              label="LINE Channel Secret"
-              value={lineSecrets.line_channel_secret}
-              onChange={(value) => setLineSecrets({ ...lineSecrets, line_channel_secret: value })}
-              hint="Channel Secret สำหรับ authentication"
-            />
-
-            <PasswordInput
-              id="line_access_token"
-              label="LINE Channel Access Token"
-              value={lineSecrets.line_access_token}
-              onChange={(value) => setLineSecrets({ ...lineSecrets, line_access_token: value })}
-              hint="Long-lived Channel Access Token"
-            />
-
-            <div className="border-t pt-6">
-              <h4 className="font-medium mb-4">LIFF Applications (Public)</h4>
-              
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="liff_id_share">LIFF ID (Share)</Label>
-                  <Input
-                    id="liff_id_share"
-                    value={lineSecrets.liff_id_share}
-                    onChange={(e) => setLineSecrets({ ...lineSecrets, liff_id_share: e.target.value })}
-                    placeholder="1234567890-abcdefgh"
-                    className="mt-2"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    ใช้สำหรับแชร์ข้อมูลการประชุม
-                  </p>
-                </div>
-
-                <div>
-                  <Label htmlFor="liff_id_checkin">LIFF ID (Check-in)</Label>
-                  <Input
-                    id="liff_id_checkin"
-                    value={lineSecrets.liff_id_checkin}
-                    onChange={(e) => setLineSecrets({ ...lineSecrets, liff_id_checkin: e.target.value })}
-                    placeholder="1234567890-ijklmnop"
-                    className="mt-2"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    ใช้สำหรับ scan QR code check-in
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t pt-6">
-              <JsonEditor
-                id="payment_provider_keys"
-                label="Payment Provider Keys (Optional)"
-                value={lineSecrets.payment_provider_keys}
-                onChange={(value) => setLineSecrets({ ...lineSecrets, payment_provider_keys: value })}
-                hint='JSON config สำหรับ payment gateway เช่น {"api_key": "xxx", "secret_key": "yyy"}'
-              />
-            </div>
-
-            <Button onClick={handleSaveLineSecrets} disabled={saving}>
-              {saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า LINE"}
-            </Button>
           </CardContent>
         </Card>
 

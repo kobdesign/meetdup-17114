@@ -24,8 +24,7 @@ import {
   UserPlus,
   QrCode,
   Shield,
-  RefreshCw,
-  Activity
+  RefreshCw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -115,7 +114,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
     { icon: <RefreshCw className="h-4 w-4" />, label: "ตรวจสอบการชำระเงิน", href: "/admin/payment-reviews" },
     { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
-    { icon: <Activity className="h-4 w-4" />, label: "Integration Logs", href: "/admin/integration-logs" },
   ];
 
   const superAdminNavItems = [

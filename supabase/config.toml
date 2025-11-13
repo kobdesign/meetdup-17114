@@ -8,18 +8,3 @@ verify_jwt = false
 
 [functions.check-in-participant]
 verify_jwt = false
-
-[functions.get-participant-card]
-verify_jwt = false
-
-[functions.resolve-tenant-secrets]
-verify_jwt = false
-
-[functions.update-tenant-secrets]
-verify_jwt = true
-
-[functions.line-webhook]
-verify_jwt = false
-
-[functions.unified-check-in]
-verify_jwt = false

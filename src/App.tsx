@@ -16,7 +16,6 @@ import MeetingDetails from "./pages/admin/MeetingDetails";
 import Visitors from "./pages/admin/Visitors";
 import CheckIn from "./pages/admin/CheckIn";
 import Settings from "./pages/admin/Settings";
-import IntegrationLogs from "./pages/admin/IntegrationLogs";
 import PaymentHistory from "./pages/admin/PaymentHistory";
 import PaymentReviews from "./pages/admin/PaymentReviews";
 import Authorization from "./pages/admin/Authorization";
@@ -25,8 +24,6 @@ import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import PaymentPage from "./pages/public/PaymentPage";
-import LiffShare from "./pages/public/LiffShare";
-import LiffCheckin from "./pages/public/LiffCheckin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,12 +48,6 @@ const App = () => (
           
           {/* Public Payment */}
           <Route path="/payment/:participantId" element={<PaymentPage />} />
-          
-          {/* LIFF Share */}
-          <Route path="/liff/share" element={<LiffShare />} />
-          
-          {/* LIFF Check-in */}
-          <Route path="/liff/checkin" element={<LiffCheckin />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
@@ -97,11 +88,6 @@ const App = () => (
           <Route path="/admin/settings" element={
             <ProtectedRoute>
               <Settings />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/integration-logs" element={
-            <ProtectedRoute>
-              <IntegrationLogs />
             </ProtectedRoute>
           } />
           <Route path="/admin/payment-history/:participantId" element={
