@@ -53,11 +53,29 @@ export async function canAccessTenant(
 
 /**
  * Enforce tenant access (throws if unauthorized)
+ * Accepts either AuthContext (cached) or userId (will query DB)
  */
 export async function enforceTenantAccess(
-  userId: string,
+  userIdOrContext: string | AuthContext,
   tenantId: string
 ): Promise<void> {
+  // If AuthContext provided, use cached data (no DB query)
+  if (typeof userIdOrContext === 'object') {
+    const ctx = userIdOrContext;
+    const hasAccess =
+      ctx.isSuperAdmin ||
+      ctx.tenantId === tenantId;
+
+    if (!hasAccess) {
+      throw new UnauthorizedError(
+        `User ${ctx.userId} does not have access to tenant ${tenantId}`
+      );
+    }
+    return;
+  }
+
+  // Fallback: userId provided, query DB
+  const userId = userIdOrContext;
   const hasAccess = await canAccessTenant(userId, tenantId);
   
   if (!hasAccess) {
@@ -82,8 +100,20 @@ export async function isSuperAdmin(userId: string): Promise<boolean> {
 
 /**
  * Enforce super admin access (throws if not super admin)
+ * Accepts either AuthContext (cached) or userId (will query DB)
  */
-export async function enforceSuperAdmin(userId: string): Promise<void> {
+export async function enforceSuperAdmin(userIdOrContext: string | AuthContext): Promise<void> {
+  // If AuthContext provided, use cached data (no DB query)
+  if (typeof userIdOrContext === 'object') {
+    const ctx = userIdOrContext;
+    if (!ctx.isSuperAdmin) {
+      throw new UnauthorizedError('Only super admins can perform this action');
+    }
+    return;
+  }
+
+  // Fallback: userId provided, query DB
+  const userId = userIdOrContext;
   const isAdmin = await isSuperAdmin(userId);
   
   if (!isAdmin) {

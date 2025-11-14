@@ -1,6 +1,6 @@
 import { query, transaction } from './pool';
 import { enforceTenantAccess } from './auth';
-import { DbError, NotFoundError, ValidationError, PaginatedResult } from './types';
+import { DbError, NotFoundError, ValidationError, PaginatedResult, AuthContext } from './types';
 
 /**
  * Participant (member/visitor)
@@ -46,13 +46,14 @@ export interface UpdateParticipantInput {
 export class ParticipantService {
   /**
    * Create participant
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async create(
-    userId: string,
+    userIdOrContext: string | AuthContext,
     input: CreateParticipantInput
   ): Promise<Participant> {
-    // Verify user has access to tenant
-    await enforceTenantAccess(userId, input.tenant_id);
+    // Verify user has access to tenant (uses cached AuthContext if provided)
+    await enforceTenantAccess(userIdOrContext, input.tenant_id);
 
     const result = await query<Participant>(
       `INSERT INTO participants (
@@ -84,11 +85,17 @@ export class ParticipantService {
 
   /**
    * Get participant by ID
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async getById(
-    userId: string,
+    userIdOrContext: string | AuthContext,
     participantId: string
   ): Promise<Participant | null> {
+    // Extract userId from context or use directly
+    const userId = typeof userIdOrContext === 'object'
+      ? userIdOrContext.userId
+      : userIdOrContext;
+
     const result = await query<Participant>(
       `SELECT p.* FROM participants p
        JOIN user_roles ur ON (
@@ -105,9 +112,10 @@ export class ParticipantService {
 
   /**
    * Get participants for a tenant with pagination
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async getByTenant(
-    userId: string,
+    userIdOrContext: string | AuthContext,
     tenantId: string,
     options: {
       status?: string;
@@ -115,8 +123,8 @@ export class ParticipantService {
       offset?: number;
     } = {}
   ): Promise<PaginatedResult<Participant>> {
-    // Verify access
-    await enforceTenantAccess(userId, tenantId);
+    // Verify access (uses cached AuthContext if provided)
+    await enforceTenantAccess(userIdOrContext, tenantId);
 
     const limit = Math.min(options.limit || 50, 100);
     const offset = options.offset || 0;
@@ -160,14 +168,15 @@ export class ParticipantService {
 
   /**
    * Update participant
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async update(
-    userId: string,
+    userIdOrContext: string | AuthContext,
     participantId: string,
     updates: UpdateParticipantInput
   ): Promise<Participant> {
     // First get participant to check access
-    const existing = await this.getById(userId, participantId);
+    const existing = await this.getById(userIdOrContext, participantId);
     if (!existing) {
       throw new NotFoundError('Participant');
     }
@@ -205,13 +214,14 @@ export class ParticipantService {
 
   /**
    * Delete participant
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async delete(
-    userId: string,
+    userIdOrContext: string | AuthContext,
     participantId: string
   ): Promise<void> {
     // First get participant to check access
-    const existing = await this.getById(userId, participantId);
+    const existing = await this.getById(userIdOrContext, participantId);
     if (!existing) {
       throw new NotFoundError('Participant');
     }
@@ -224,13 +234,14 @@ export class ParticipantService {
 
   /**
    * Get visitor analytics for a tenant
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async getVisitorAnalytics(
-    userId: string,
+    userIdOrContext: string | AuthContext,
     tenantId: string
   ): Promise<any> {
-    // Verify access
-    await enforceTenantAccess(userId, tenantId);
+    // Verify access (uses cached AuthContext if provided)
+    await enforceTenantAccess(userIdOrContext, tenantId);
 
     const result = await query(
       `SELECT 

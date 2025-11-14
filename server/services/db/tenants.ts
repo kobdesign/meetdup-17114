@@ -1,6 +1,6 @@
 import { query, transaction } from './pool';
-import { enforceSuperAdmin } from './auth';
-import { DbError, NotFoundError, ValidationError } from './types';
+import { enforceSuperAdmin, enforceTenantAccess } from './auth';
+import { DbError, NotFoundError, ValidationError, AuthContext } from './types';
 
 /**
  * Tenant with settings
@@ -43,13 +43,14 @@ export interface TenantWithSettings extends Tenant {
 export class TenantService {
   /**
    * Create tenant with settings (super admin only)
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async create(
-    userId: string,
+    userIdOrContext: string | AuthContext,
     input: CreateTenantInput
   ): Promise<TenantWithSettings> {
-    // Verify super admin
-    await enforceSuperAdmin(userId);
+    // Verify super admin (uses cached AuthContext if provided)
+    await enforceSuperAdmin(userIdOrContext);
 
     // Validate subdomain format
     const subdomainRegex = /^[a-z0-9-]+$/;
@@ -108,9 +109,16 @@ export class TenantService {
   }
 
   /**
-   * Get tenant by ID with settings
+   * Get tenant by ID with settings (requires authorization)
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
-  static async getById(tenantId: string): Promise<TenantWithSettings | null> {
+  static async getById(
+    userIdOrContext: string | AuthContext,
+    tenantId: string
+  ): Promise<TenantWithSettings | null> {
+    // Verify user has access to this tenant (uses cached AuthContext if provided)
+    await enforceTenantAccess(userIdOrContext, tenantId);
+
     const result = await query<TenantWithSettings>(
       `SELECT 
         t.*,
@@ -136,9 +144,10 @@ export class TenantService {
 
   /**
    * Get all tenants (super admin only)
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
-  static async getAll(userId: string): Promise<Tenant[]> {
-    await enforceSuperAdmin(userId);
+  static async getAll(userIdOrContext: string | AuthContext): Promise<Tenant[]> {
+    await enforceSuperAdmin(userIdOrContext);
 
     const result = await query<Tenant>(
       `SELECT * FROM tenants ORDER BY created_at DESC`
@@ -148,12 +157,17 @@ export class TenantService {
   }
 
   /**
-   * Update tenant settings
+   * Update tenant settings (requires authorization)
+   * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async updateSettings(
+    userIdOrContext: string | AuthContext,
     tenantId: string,
     settings: Partial<Omit<TenantSettings, 'tenant_id' | 'created_at' | 'updated_at'>>
   ): Promise<TenantSettings> {
+    // Verify user has access to this tenant (uses cached AuthContext if provided)
+    await enforceTenantAccess(userIdOrContext, tenantId);
+
     const fields: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
