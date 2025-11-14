@@ -191,19 +191,8 @@ export default function Participants() {
         .eq("participant_id", participantId)
         .limit(1);
 
-      const { data: payments } = await supabase
-        .from("payments")
-        .select("payment_id")
-        .eq("participant_id", participantId)
-        .limit(1);
-
       if (checkins && checkins.length > 0) {
         toast.error("ไม่สามารถลบได้ เนื่องจากมีประวัติการเช็คอิน");
-        return;
-      }
-
-      if (payments && payments.length > 0) {
-        toast.error("ไม่สามารถลบได้ เนื่องจากมีประวัติการชำระเงิน");
         return;
       }
 

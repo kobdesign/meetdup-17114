@@ -1,27 +1,23 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, CheckCircle, XCircle, Clock, Mail, Phone, Bell, History } from "lucide-react";
+import { Search, CheckCircle, XCircle, Clock, Mail, Phone } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 export default function Visitors() {
-  const navigate = useNavigate();
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
   const [visitors, setVisitors] = useState<any[]>([]);
   const [filteredVisitors, setFilteredVisitors] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sendingReminders, setSendingReminders] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -91,31 +87,6 @@ export default function Visitors() {
     }
   };
 
-  const sendPaymentReminders = async () => {
-    if (!effectiveTenantId) {
-      toast.error(isSuperAdmin 
-        ? "กรุณาเลือก Chapter ที่ต้องการจัดการก่อน" 
-        : "ไม่พบข้อมูล Tenant"
-      );
-      return;
-    }
-
-    setSendingReminders(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('send-payment-reminder', {
-        body: { tenant_id: effectiveTenantId }
-      });
-
-      if (error) throw error;
-
-      toast.success(`ส่งการแจ้งเตือนสำเร็จ ${data.sent} ข้อความ`);
-    } catch (error: any) {
-      toast.error("เกิดข้อผิดพลาด: " + error.message);
-    } finally {
-      setSendingReminders(false);
-    }
-  };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "visitor":
@@ -151,14 +122,6 @@ export default function Visitors() {
             <h1 className="text-3xl font-bold">จัดการผู้เยี่ยมชม</h1>
             <p className="text-muted-foreground">ดูรายชื่อและจัดการผู้เยี่ยมชมที่ลงทะเบียน</p>
           </div>
-          <Button 
-            onClick={sendPaymentReminders} 
-            disabled={sendingReminders}
-            variant="outline"
-          >
-            <Bell className="mr-2 h-4 w-4" />
-            {sendingReminders ? "กำลังส่ง..." : "ส่งการแจ้งเตือนชำระเงิน"}
-          </Button>
         </div>
 
         <div className="flex gap-4">
@@ -246,31 +209,19 @@ export default function Visitors() {
                         {new Date(visitor.created_at).toLocaleDateString("th-TH")}
                       </TableCell>
                         <TableCell className="text-right">
-                          <div className="space-y-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => navigate(`/admin/payment-history/${visitor.participant_id}`)}
-                              className="w-full"
-                            >
-                              <History className="h-4 w-4 mr-1" />
-                              ประวัติการชำระ
-                            </Button>
-                            
-                            <Select
-                              value={visitor.status}
-                              onValueChange={(value) => updateVisitorStatus(visitor.participant_id, value)}
-                            >
-                              <SelectTrigger className="w-[160px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
-                                  <SelectItem value="prospect">ผู้สนใจ</SelectItem>
-                                  <SelectItem value="declined">ไม่สนใจ</SelectItem>
-                                </SelectContent>
-                            </Select>
-                          </div>
+                          <Select
+                            value={visitor.status}
+                            onValueChange={(value) => updateVisitorStatus(visitor.participant_id, value)}
+                          >
+                            <SelectTrigger className="w-[160px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
+                                <SelectItem value="prospect">ผู้สนใจ</SelectItem>
+                                <SelectItem value="declined">ไม่สนใจ</SelectItem>
+                              </SelectContent>
+                          </Select>
                         </TableCell>
                     </TableRow>
                   ))}

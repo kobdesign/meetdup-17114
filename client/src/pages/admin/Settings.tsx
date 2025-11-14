@@ -25,8 +25,6 @@ export default function Settings() {
     currency: "THB",
     language: "th",
     default_visitor_fee: 650,
-    require_visitor_payment: true,
-    payment_qr_payload: "",
   });
 
   useEffect(() => {
@@ -69,8 +67,6 @@ export default function Settings() {
           currency: settingsData.currency || "THB",
           language: settingsData.language || "th",
           default_visitor_fee: settingsData.default_visitor_fee || 650,
-          require_visitor_payment: settingsData.require_visitor_payment ?? true,
-          payment_qr_payload: settingsData.payment_qr_payload || "",
         });
       }
     } catch (error: any) {
@@ -149,7 +145,6 @@ export default function Settings() {
           currency: settings.currency,
           language: settings.language,
           default_visitor_fee: settings.default_visitor_fee,
-          require_visitor_payment: settings.require_visitor_payment,
         });
 
       if (error) throw error;
@@ -332,117 +327,9 @@ export default function Settings() {
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="require_visitor_payment"
-                checked={settings.require_visitor_payment}
-                onChange={(e) => setSettings({ ...settings, require_visitor_payment: e.target.checked })}
-                className="w-4 h-4"
-              />
-              <Label htmlFor="require_visitor_payment" className="cursor-pointer">
-                บังคับให้ผู้เยี่ยมชมชำระเงิน
-              </Label>
-            </div>
-
             <Button onClick={handleSave} disabled={saving}>
               {saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Payment QR Code Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>QR Code สำหรับรับเงิน</CardTitle>
-            <CardDescription>
-              อัปโหลด QR Code ธนาคารสำหรับรับค่าเข้าร่วมประชุมจากผู้เยี่ยมชม
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {settings.payment_qr_payload && (
-              <div className="flex justify-center p-4 bg-white rounded-lg border">
-                <img
-                  src={settings.payment_qr_payload}
-                  alt="Payment QR Code"
-                  className="max-w-[200px]"
-                />
-              </div>
-            )}
-            <div>
-              <input
-                type="file"
-                id="qr-upload"
-                accept="image/*"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file || !effectiveTenantId) return;
-
-                  if (!file.type.startsWith("image/")) {
-                    toast.error("กรุณาเลือกไฟล์รูปภาพ");
-                    return;
-                  }
-
-                  if (file.size > 2 * 1024 * 1024) {
-                    toast.error("ขนาดไฟล์ต้องไม่เกิน 2MB");
-                    return;
-                  }
-
-                  setUploading(true);
-                  try {
-                    if (settings.payment_qr_payload) {
-                      const oldPath = settings.payment_qr_payload.split("/").pop();
-                      if (oldPath) {
-                        await supabase.storage.from("avatars").remove([`qr-codes/${oldPath}`]);
-                      }
-                    }
-
-                    const fileExt = file.name.split(".").pop();
-                    const fileName = `${effectiveTenantId}-qr-${Date.now()}.${fileExt}`;
-                    const filePath = `qr-codes/${fileName}`;
-
-                    const { error: uploadError } = await supabase.storage
-                      .from("avatars")
-                      .upload(filePath, file);
-
-                    if (uploadError) throw uploadError;
-
-                    const { data: { publicUrl } } = supabase.storage
-                      .from("avatars")
-                      .getPublicUrl(filePath);
-
-                    await supabase
-                      .from("tenant_settings")
-                      .upsert({
-                        tenant_id: effectiveTenantId,
-                        payment_qr_payload: publicUrl,
-                      });
-
-                    setSettings({ ...settings, payment_qr_payload: publicUrl });
-                    toast.success("อัปโหลด QR Code สำเร็จ");
-                  } catch (error: any) {
-                    toast.error("เกิดข้อผิดพลาด: " + error.message);
-                  } finally {
-                    setUploading(false);
-                  }
-                }}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => document.getElementById("qr-upload")?.click()}
-                disabled={uploading}
-                className="w-full"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                {uploading ? "กำลังอัปโหลด..." : "อัปโหลด QR Code"}
-              </Button>
-              <p className="text-sm text-muted-foreground mt-2">
-                รองรับไฟล์ JPG, PNG (ไม่เกิน 2MB)<br />
-                ใช้ QR Code PromptPay หรือ QR Code ของธนาคาร
-              </p>
-            </div>
           </CardContent>
         </Card>
 
