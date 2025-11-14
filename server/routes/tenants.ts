@@ -54,91 +54,41 @@ router.post("/create", verifySupabaseAuth, async (req: AuthenticatedRequest, res
       });
     }
 
-    // Use transaction to ensure atomicity
-    let tenantId: string | null = null;
-
-    try {
-      // Create tenant using service role (bypasses PostgREST)
-      const { data: tenant, error: tenantError } = await supabaseAdmin
-        .from("tenants")
-        .insert({
-          tenant_name,
-          subdomain,
-        })
-        .select()
-        .single();
-
-      if (tenantError) {
-        // Check for unique constraint violation
-        if (tenantError.code === '23505') {
-          return res.status(409).json({
-            error: "Subdomain already exists",
-            message: "This subdomain is already taken. Please choose another one."
-          });
-        }
-        throw tenantError;
+    // Use RPC function to bypass PostgREST schema cache
+    // This function handles transaction and rollback automatically
+    const { data: result, error: rpcError } = await supabaseAdmin.rpc(
+      'create_tenant_with_settings',
+      {
+        p_tenant_name: tenant_name,
+        p_subdomain: subdomain,
+        p_language: language || 'th',
+        p_currency: currency || 'THB',
+        p_default_visitor_fee: default_visitor_fee ? parseFloat(default_visitor_fee) : 650,
       }
+    );
 
-      tenantId = tenant.tenant_id;
-
-      // Create tenant settings using service role (bypasses PostgREST)
-      const { error: settingsError } = await supabaseAdmin
-        .from("tenant_settings")
-        .insert({
-          tenant_id: tenantId,
-          language: language || 'th',
-          currency: currency || 'THB',
-          default_visitor_fee: default_visitor_fee ? parseFloat(default_visitor_fee) : 650,
-          require_visitor_payment: true,
+    if (rpcError) {
+      // Check for duplicate subdomain error
+      if (rpcError.message.includes('Subdomain already exists')) {
+        return res.status(409).json({
+          error: "Subdomain already exists",
+          message: "This subdomain is already taken. Please choose another one."
         });
-
-      if (settingsError) {
-        // Rollback: delete tenant if settings creation failed
-        const { error: deleteError } = await supabaseAdmin
-          .from("tenants")
-          .delete()
-          .eq("tenant_id", tenantId);
-        
-        if (deleteError) {
-          console.error('CRITICAL: Failed to rollback tenant after settings error:', {
-            tenantId,
-            settingsError: settingsError.message,
-            deleteError: deleteError.message
-          });
-        }
-        
-        throw new Error(`Failed to create tenant settings: ${settingsError.message}`);
       }
-
-      res.json({
-        success: true,
-        tenant: {
-          tenant_id: tenant.tenant_id,
-          tenant_name: tenant.tenant_name,
-          subdomain: tenant.subdomain,
-        }
-      });
-
-    } catch (txError: any) {
-      // Ensure cleanup if anything goes wrong during transaction
-      if (tenantId && !txError.message.includes('Failed to create tenant settings')) {
-        // Only attempt cleanup if error is NOT from settings creation
-        // (settings error already tried rollback above)
-        const { error: cleanupError } = await supabaseAdmin
-          .from("tenants")
-          .delete()
-          .eq("tenant_id", tenantId);
-        
-        if (cleanupError) {
-          console.error('CRITICAL: Failed to cleanup tenant after error:', {
-            tenantId,
-            originalError: txError.message,
-            cleanupError: cleanupError.message
-          });
-        }
-      }
-      throw txError;
+      
+      console.error('Error creating tenant via RPC:', rpcError);
+      throw rpcError;
     }
+
+    // Return success response
+    res.json({
+      success: true,
+      tenant: {
+        tenant_id: result.tenant_id,
+        tenant_name: result.tenant_name,
+        subdomain: result.subdomain,
+      }
+    });
 
   } catch (error: any) {
     console.error('Error creating tenant:', error);
