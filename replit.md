@@ -36,6 +36,27 @@ None specified yet.
 
 ## Recent Changes
 
+### Member/Visitor Pipeline Separation (November 14, 2025)
+- **Complete UI Restructure**: Separated active member management from visitor pipeline analytics
+- **Active Members Page** (`/admin/participants`):
+  - Shows only participants with status='member'
+  - Focused on active member management with role assignment and contact details
+  - Simplified status filter (defaults to 'member' view)
+- **Visitor Pipeline Dashboard** (`/admin/visitors`):
+  - **Analytics KPIs**: 4 key metric cards showing prospects, visitors, engaged visitors (2+ check-ins), and declined
+  - **Engagement Metrics**: Average check-ins per visitor calculation
+  - **Status Breakdown**: Visual cards for each pipeline stage
+  - **Data Table**: Complete visitor list with status, check-in counts, and quick actions
+- **Backend API** (`/api/participants/visitor-analytics`):
+  - Returns aggregated visitor pipeline metrics
+  - **Security Features**:
+    * Multi-tenant authorization check (queries all user_roles to support multi-tenant users)
+    * Super admin support (role='super_admin' with tenant_id=NULL can access all chapters)
+    * 403 Forbidden for unauthorized tenant access
+  - Server-side aggregation with Supabase queries
+- **Navigation Update**: Visitor Pipeline moved under Members section in AdminLayout for better discoverability
+- **Architecture Decision**: Split analytics surface from member CRUD operations for better UX and performance
+
 ### Multi-Path Onboarding System Implementation (November 14, 2025)
 - **Feature Complete**: Implemented comprehensive 3-path user onboarding system for new users without chapter assignment
 - **Three Onboarding Flows:**
