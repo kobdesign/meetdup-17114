@@ -2,92 +2,109 @@ import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
 
-// Load environment variables
+// Supabase connection details
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error("❌ Missing Supabase credentials");
+  console.error("   Required: VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY");
   process.exit(1);
 }
 
-// Create Supabase admin client
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+// Extract project ID from URL
+const projectId = supabaseUrl!.replace('https://', '').split('.')[0];
 
-async function runMigration() {
+async function displayMigrationGuide() {
+  console.log("\n🔧 Supabase Production Migration Guide");
+  console.log("📍 Target:", supabaseUrl);
+  console.log("🆔 Project ID:", projectId, "\n");
+
+  // Read migration file
+  const migrationFile = process.argv[2] || "supabase/migrations/20251114_recreate_wide_tables.sql";
+  const migrationPath = path.resolve(process.cwd(), migrationFile);
+  
+  console.log("📄 Migration file:", migrationFile);
+  const sql = fs.readFileSync(migrationPath, "utf-8");
+  console.log("📊 Size:", sql.length, "bytes\n");
+
+  // Display instructions
+  console.log("═".repeat(80));
+  console.log("                    🚀 MANUAL DEPLOYMENT REQUIRED");
+  console.log("═".repeat(80));
+  console.log("\nℹ️  Supabase does not allow DDL execution via REST API for security.");
+  console.log("   You must run this migration in the Supabase SQL Editor.\n");
+
+  console.log("📋 STEPS TO DEPLOY:\n");
+  console.log("1️⃣  Open Supabase SQL Editor:");
+  console.log("   👉 https://supabase.com/dashboard/project/" + projectId + "/sql/new\n");
+
+  console.log("2️⃣  Copy the migration SQL:");
+  console.log("   • The SQL is displayed below");
+  console.log("   • Or read from: " + migrationFile + "\n");
+
+  console.log("3️⃣  Paste and Run:");
+  console.log("   • Paste the SQL into the editor");
+  console.log("   • Click 'Run' button");
+  console.log("   • Wait for 'Success' message\n");
+
+  console.log("4️⃣  Reload Schema Cache:");
+  console.log("   • Run in SQL Editor:");
+  console.log("     NOTIFY pgrst, 'reload schema';\n");
+
+  console.log("5️⃣  Verify (optional):");
+  console.log("   • Run in SQL Editor:");
+  console.log("     SELECT COUNT(*) FROM information_schema.columns");
+  console.log("     WHERE table_name IN ('tenant_settings', 'participants');");
+  console.log("   • Expected: 25 (9 + 16)\n");
+
+  console.log("═".repeat(80));
+  console.log("                         📝 MIGRATION SQL");
+  console.log("═".repeat(80));
+  console.log("\n" + sql + "\n");
+  console.log("═".repeat(80));
+
+  // Try to verify current state with Supabase client
+  console.log("\n🔍 Checking current database state...\n");
+  
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+
   try {
-    console.log("🚀 Running Supabase migration...\n");
-
-    // Read migration file (from workspace root, not server/scripts)
-    const migrationPath = path.join(
-      __dirname,
-      "../../supabase/migrations/20251114_add_chapter_invites_and_join_requests.sql"
-    );
-    const sqlContent = fs.readFileSync(migrationPath, "utf-8");
-
-    // Split SQL into individual statements (rough split by semicolons)
-    const statements = sqlContent
-      .split(";")
-      .map((s) => s.trim())
-      .filter(
-        (s) =>
-          s.length > 0 &&
-          !s.startsWith("--") &&
-          s !== "Success!" &&
-          !s.match(/^[\s\n\r]*$/)
-      );
-
-    console.log(`📝 Found ${statements.length} SQL statements to execute\n`);
-
-    // Execute each statement using Supabase REST API
-    // Note: Supabase client doesn't support raw SQL execution directly
-    // We need to use the postgres connection or REST API
-
-    console.log("⚠️  Important Note:");
-    console.log("   The Supabase JavaScript client doesn't support DDL operations.");
-    console.log("   You need to run this migration manually in Supabase Dashboard.\n");
-    console.log("📋 Steps:");
-    console.log("   1. Go to: https://supabase.com/dashboard/project/sbknunooplaezvwtyooi");
-    console.log("   2. Navigate to: SQL Editor");
-    console.log("   3. Create a new query");
-    console.log("   4. Paste the content from:");
-    console.log(`      ${migrationPath}`);
-    console.log("   5. Click 'Run'\n");
-
-    // Alternative: Show the SQL content for quick copy
-    console.log("💡 Or copy this SQL directly:\n");
-    console.log("=" .repeat(80));
-    console.log(sqlContent);
-    console.log("=".repeat(80));
-
-    // Test if tables exist (will fail if migration hasn't run)
-    console.log("\n🔍 Checking if tables exist...");
-    const { data: invites, error: invitesError } = await supabase
-      .from("chapter_invites")
-      .select("invite_id")
+    // Check if tables exist
+    const { data: tenantSettings, error: tsError } = await supabase
+      .from('tenant_settings')
+      .select('tenant_id')
       .limit(1);
 
-    const { data: requests, error: requestsError } = await supabase
-      .from("chapter_join_requests")
-      .select("request_id")
+    const { data: participants, error: pError } = await supabase
+      .from('participants')
+      .select('participant_id')
       .limit(1);
 
-    if (!invitesError && !requestsError) {
-      console.log("✅ Tables exist! Migration already completed.");
+    if (!tsError && !pError) {
+      console.log("✅ tenant_settings table exists");
+      console.log("✅ participants table exists");
+      console.log("\n⚠️  Tables found! Migration may have already been run.");
+      console.log("   Check column count to verify schema is correct.");
+    } else if (tsError?.message?.includes('does not exist') || pError?.message?.includes('does not exist')) {
+      console.log("ℹ️  Tables not found - migration needs to be run.");
+    } else if (tsError?.message?.includes('currency') || pError?.message?.includes('nickname')) {
+      console.log("⚠️  Schema mismatch detected!");
+      console.log("   Error:", tsError?.message || pError?.message);
+      console.log("\n   👉 This confirms you need to run the migration above!");
     } else {
-      console.log("❌ Tables don't exist yet. Please run the migration manually.");
-      console.log(`   Invite error: ${invitesError?.message}`);
-      console.log(`   Request error: ${requestsError?.message}`);
+      console.log("ℹ️  Could not determine current state");
+      if (tsError) console.log("   tenant_settings:", tsError.message);
+      if (pError) console.log("   participants:", pError.message);
     }
-  } catch (error: any) {
-    console.error("❌ Migration failed:", error.message);
-    process.exit(1);
+
+  } catch (err: any) {
+    console.log("⚠️  Could not check database state:", err.message);
   }
+
+  console.log("\n✨ Ready to deploy! Follow the steps above.\n");
 }
 
-runMigration();
+displayMigrationGuide();
