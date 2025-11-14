@@ -67,6 +67,17 @@ None specified yet.
   - Auth.tsx properly respects redirect query parameters
   - Cache management with `await refetchQueries({ type: 'all' })`
 - **Super Admin Setup:** kobdesign@gmail.com assigned as first Super Admin
+- **Security Hardening** (November 14, 2025):
+  - **Final Migration**: `supabase/migrations/20251114_fix_permissions_final.sql`
+  - **Admin-Only Invite Access**: Only chapter admins can view/create/delete invite tokens
+  - **Role-Based Join Request Visibility**: Admins see all requests; users see own only
+  - **RLS Policies**: Tightened to prevent token enumeration and data exposure
+  - **Backend Service Role**: Invite acceptance handled server-side (no client token queries)
+  - **Privacy Protection**: Regular members cannot see invite metadata or others' join requests
+  - **Verification Scripts**: 
+    - `npm run verify-migration` - Checks table existence
+    - `npm run check-data` - Displays all Supabase data with error handling
+  - **Documentation**: Complete user journey guide in `docs/USER_JOURNEY_ONBOARDING.md`
 
 ### Database Migration to User-Owned Supabase (November 13, 2025)
 - **Successfully migrated** from Lovable-owned Supabase (`nzenqhtautbitmbmgyjk`) to user-owned Supabase (`sbknunooplaezvwtyooi`)
