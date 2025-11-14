@@ -104,9 +104,17 @@ None specified yet.
     - `npm run check-data` - Displays all Supabase data with error handling
   - **Documentation**: Complete user journey guide in `docs/USER_JOURNEY_ONBOARDING.md`
 
-### Schema Reconciliation Migration (November 14, 2025)
-- **Migration Complete**: Reconciled database schema with TypeScript code definitions across all tenant-related tables
-- **Migration File**: `supabase/migrations/20251114_reconcile_schema_with_code.sql`
+### Comprehensive Schema Migration (November 14, 2025)
+- **Migration Complete**: Added all missing columns to ensure production database matches TypeScript types
+- **Migration Files:**
+  1. `supabase/migrations/20251114_reconcile_schema_with_code.sql` - Initial reconciliation
+  2. `supabase/migrations/20251114_add_all_missing_columns.sql` - **Comprehensive fix (USE THIS)**
+  
+- **Final Migration** (`20251114_add_all_missing_columns.sql`):
+  - **Idempotent**: Uses `IF NOT EXISTS` - safe to run multiple times
+  - **Transactional**: Wrapped in BEGIN/COMMIT for safety
+  - **Complete**: Adds all potentially missing columns in one migration
+  
 - **Changes to `tenants` table:**
   - Renamed `name` → `tenant_name` (aligns with code)
   - Renamed `slug` → `subdomain` (matches AddTenantDialog and routing)
@@ -114,15 +122,24 @@ None specified yet.
   - Added `logo_url` (TEXT, nullable) - chapter logo storage reference
   - Created unique index `tenants_subdomain_unique` to enforce subdomain uniqueness
   - Dropped unused columns: `country`, `timezone`, `status` (not referenced in code)
-- **Changes to `tenant_settings` table:**
-  - Added `currency` (TEXT, DEFAULT 'THB') - for multi-currency support
-  - Added `require_visitor_payment` (BOOLEAN, DEFAULT true) - visitor payment requirement flag
+  
+- **Changes to `tenant_settings` table (6 columns added):**
+  - `branding_color` (TEXT, nullable) - chapter branding color
+  - `currency` (TEXT, DEFAULT 'THB') - for multi-currency support
+  - `default_visitor_fee` (NUMERIC, nullable) - default fee for visitors
+  - `language` (TEXT, DEFAULT 'en') - preferred language
+  - `logo_url` (TEXT, nullable) - settings logo URL
+  - `require_visitor_payment` (BOOLEAN, DEFAULT true) - visitor payment requirement flag
+  
+- **Changes to `participants` table (1 column added):**
+  - `business_type` (TEXT, nullable) - type of business/profession
 - **Migration Tools Created:**
   - `server/scripts/run-migration.ts` - PostgreSQL migration runner using `psql` command
     * Handles multi-statement files with BEGIN/COMMIT and DO blocks
     * Secure: Passes PGPASSWORD via environment variables (not command line)
   - `npm run migrate:run <migration-file>` - Generic migration executor
-  - `npm run migrate:reconcile` - Runs this specific reconciliation migration
+  - `npm run migrate:reconcile` - Initial reconciliation migration (deprecated - use add-columns)
+  - `npm run migrate:add-columns` - **Comprehensive migration (RECOMMENDED)** - adds all missing columns
 - **Settings UI Enhancement:**
   - Added Switch component for `require_visitor_payment` toggle
   - Fixed Settings.tsx to load, display, and persist all tenant_settings columns
