@@ -104,53 +104,78 @@ None specified yet.
     - `npm run check-data` - Displays all Supabase data with error handling
   - **Documentation**: Complete user journey guide in `docs/USER_JOURNEY_ONBOARDING.md`
 
-### Comprehensive Schema Migration (November 14, 2025)
-- **Migration Complete**: Added all missing columns to ensure production database matches TypeScript types
-- **Migration Files:**
-  1. `supabase/migrations/20251114_reconcile_schema_with_code.sql` - Initial reconciliation
-  2. `supabase/migrations/20251114_add_all_missing_columns.sql` - **Comprehensive fix (USE THIS)**
-  
-- **Final Migration** (`20251114_add_all_missing_columns.sql`):
-  - **Idempotent**: Uses `IF NOT EXISTS` - safe to run multiple times
-  - **Transactional**: Wrapped in BEGIN/COMMIT for safety
-  - **Complete**: Adds all potentially missing columns in one migration
-  
-- **Changes to `tenants` table:**
-  - Renamed `name` → `tenant_name` (aligns with code)
-  - Renamed `slug` → `subdomain` (matches AddTenantDialog and routing)
-  - Added `line_bot_basic_id` (TEXT, nullable) - stores LINE Bot ID for webhook routing
-  - Added `logo_url` (TEXT, nullable) - chapter logo storage reference
-  - Created unique index `tenants_subdomain_unique` to enforce subdomain uniqueness
-  - Dropped unused columns: `country`, `timezone`, `status` (not referenced in code)
-  
-- **Changes to `tenant_settings` table (6 columns added):**
-  - `branding_color` (TEXT, nullable) - chapter branding color
-  - `currency` (TEXT, DEFAULT 'THB') - for multi-currency support
-  - `default_visitor_fee` (NUMERIC, nullable) - default fee for visitors
-  - `language` (TEXT, DEFAULT 'en') - preferred language
-  - `logo_url` (TEXT, nullable) - settings logo URL
-  - `require_visitor_payment` (BOOLEAN, DEFAULT true) - visitor payment requirement flag
-  
-- **Changes to `participants` table (1 column added):**
-  - `business_type` (TEXT, nullable) - type of business/profession
-- **Migration Tools Created:**
-  - `server/scripts/run-migration.ts` - PostgreSQL migration runner using `psql` command
-    * Handles multi-statement files with BEGIN/COMMIT and DO blocks
-    * Secure: Passes PGPASSWORD via environment variables (not command line)
-  - `npm run migrate:run <migration-file>` - Generic migration executor
-  - `npm run migrate:reconcile` - Initial reconciliation migration (deprecated - use add-columns)
-  - `npm run migrate:add-columns` - **Comprehensive migration (RECOMMENDED)** - adds all missing columns
-- **Settings UI Enhancement:**
-  - Added Switch component for `require_visitor_payment` toggle
-  - Fixed Settings.tsx to load, display, and persist all tenant_settings columns
-  - Prevents NULL overwrites on upsert by including all fields
-- **PostgREST Schema Cache:**
-  - Fixed "column not found" errors by sending `NOTIFY pgrst, 'reload schema'`
-  - Required after direct PostgreSQL migrations to refresh Supabase API cache
-- **Verification:**
-  - All columns verified in database via `information_schema.columns` queries
-  - Existing tenant data preserved (BNI Integrity chapter intact)
-  - TypeScript types (types.ts) already matched expected schema before migration
+### Complete Schema Recreation with Wide Tables (November 14, 2025)
+- **PRODUCTION-READY MIGRATION**: Full table recreation to match TypeScript schema exactly
+- **Migration File:** `supabase/migrations/20251114_recreate_wide_tables.sql`
+- **Status:** ✅ Tested in development (Neon), ✅ Architect approved, ⏳ Awaiting production deployment
+
+#### Migration Strategy
+- **Approach:** DROP CASCADE old tables → CREATE new wide tables with complete schema
+- **Safety:** Transaction-wrapped (BEGIN/COMMIT), conditional execution for environment compatibility
+- **Data Loss:** ⚠️ DESTRUCTIVE - drops all data (user confirmed NO DATA in production)
+
+#### What It Does
+1. **Drops Old Tables:**
+   - `tenant_settings` (old key-value pattern from Lovable)
+   - `participants` (old incomplete schema)
+
+2. **Creates Wide Tables:**
+   - **tenant_settings**: 9 columns (tenant_id, branding_color, currency, default_visitor_fee, language, logo_url, require_visitor_payment, created_at, updated_at)
+   - **participants**: 16 columns (participant_id, tenant_id, line_user_id, display_name, **nickname**, email, phone, status, **business_type**, **goal**, **joined_date**, invited_by, created_at, updated_at, deleted_at, role)
+
+3. **Recreates Infrastructure:**
+   - **Indexes**: tenant_id (unique), status, line_user_id, invited_by
+   - **Foreign Keys**: tenant_id → tenants(tenant_id) CASCADE, invited_by → participants(participant_id) SET NULL
+   - **RLS**: Enabled on both tables
+
+4. **Conditional Security (Supabase-only):**
+   - **GRANT/REVOKE**: Only if 'authenticated' role exists
+   - **RLS Policies**: Only if 'auth' schema exists (uses auth.uid())
+   - **Development**: Skips grants/policies (Neon has no Supabase roles/auth schema)
+
+#### Environment Compatibility
+
+| Environment | Roles | Auth Schema | Grants Applied | Policies Created |
+|------------|-------|-------------|----------------|------------------|
+| Dev (Neon) | ✗ | ✗ | ✗ (skipped) | ✗ (skipped) |
+| Prod (Supabase) | ✓ | ✓ | ✓ (applied) | ✓ (created) |
+
+#### Running the Migration
+
+**Development Testing:**
+```bash
+npm run migrate:recreate
+```
+
+**Production Deployment (Supabase SQL Editor):**
+1. Copy contents of `supabase/migrations/20251114_recreate_wide_tables.sql`
+2. Paste into Supabase SQL Editor (https://supabase.com/dashboard/project/sbknunooplaezvwtyooi/sql)
+3. Execute migration
+4. Run schema cache reload:
+   ```sql
+   NOTIFY pgrst, 'reload schema';
+   ```
+5. Verify columns:
+   ```sql
+   SELECT COUNT(*) FROM information_schema.columns 
+   WHERE table_name IN ('tenant_settings', 'participants');
+   -- Expected: 25 total columns (9 + 16)
+   ```
+
+#### Technical Details
+- **Nested Delimiters:** Uses `$RLS$` and `$POLICY$` instead of `$$` to avoid syntax errors
+- **Removed Dependencies:** No longer references `tenants.status` (column doesn't exist)
+- **Multi-Tenant Security:** Policies use `public.has_tenant_access(auth.uid(), tenant_id)`
+- **Verification Block:** Confirms all expected columns exist post-migration
+
+#### Supersedes
+- ❌ `20251114_reconcile_schema_with_code.sql` (deprecated)
+- ❌ `20251114_add_all_missing_columns.sql` (deprecated - only added columns, didn't fix structure)
+
+#### Tools & Scripts
+- `server/scripts/run-migration.ts` - PostgreSQL migration runner via `psql`
+- `npm run migrate:recreate` - Runs recreation migration (dev only)
+- `npm run migrate:run <file>` - Generic migration executor
 
 ### Database Migration to User-Owned Supabase (November 13, 2025)
 - **Successfully migrated** from Lovable-owned Supabase (`nzenqhtautbitmbmgyjk`) to user-owned Supabase (`sbknunooplaezvwtyooi`)
