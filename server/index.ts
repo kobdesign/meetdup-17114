@@ -2,6 +2,7 @@ import express from "express";
 import { registerVite } from "./vite";
 import lineRouter from "./routes/line/index";
 import chaptersRouter from "./routes/chapters";
+import participantsRouter from "./routes/participants";
 
 const app = express();
 app.use(express.json());
@@ -45,6 +46,9 @@ app.use("/api/line", lineRouter);
 
 // Chapter management routes
 app.use("/api/chapters", chaptersRouter);
+
+// Participants analytics routes
+app.use("/api/participants", participantsRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();

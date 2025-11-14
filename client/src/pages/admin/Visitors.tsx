@@ -6,10 +6,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, CheckCircle, XCircle, Clock, Mail, Phone } from "lucide-react";
+import { Search, CheckCircle, XCircle, Clock, Mail, Phone, UserPlus, UserCheck, Users, TrendingUp } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
+
+interface VisitorAnalytics {
+  prospects: number;
+  visitors: number;
+  visitorsWithCheckins: number;
+  engagedVisitors: number;
+  members: number;
+  declined: number;
+  avgCheckinsPerVisitor: number;
+  totalInPipeline: number;
+}
 
 export default function Visitors() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
@@ -18,10 +29,21 @@ export default function Visitors() {
   const [filteredVisitors, setFilteredVisitors] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [analytics, setAnalytics] = useState<VisitorAnalytics>({
+    prospects: 0,
+    visitors: 0,
+    visitorsWithCheckins: 0,
+    engagedVisitors: 0,
+    members: 0,
+    declined: 0,
+    avgCheckinsPerVisitor: 0,
+    totalInPipeline: 0,
+  });
 
   useEffect(() => {
     if (effectiveTenantId) {
       loadVisitors();
+      loadAnalytics();
     }
   }, [effectiveTenantId]);
 
@@ -40,7 +62,7 @@ export default function Visitors() {
         .from("participants")
         .select("*")
         .eq("tenant_id", effectiveTenantId)
-        .in("status", ["visitor", "prospect"])
+        .in("status", ["visitor", "prospect", "declined"])
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -49,6 +71,39 @@ export default function Visitors() {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAnalytics = async () => {
+    if (!effectiveTenantId) return;
+
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) {
+        toast.error("กรุณาเข้าสู่ระบบ");
+        return;
+      }
+
+      const response = await fetch(
+        `/api/participants/visitor-analytics?tenant_id=${effectiveTenantId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.session.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load analytics");
+      }
+
+      const result = await response.json();
+      if (result.success && result.analytics) {
+        setAnalytics(result.analytics);
+      }
+    } catch (error: any) {
+      console.error("Analytics error:", error);
+      toast.error("ไม่สามารถโหลดข้อมูลสถิติได้");
     }
   };
 
@@ -82,6 +137,7 @@ export default function Visitors() {
 
       toast.success("อัปเดตสถานะสำเร็จ");
       loadVisitors();
+      loadAnalytics(); // Refresh analytics after status change
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
     }
@@ -119,9 +175,64 @@ export default function Visitors() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">จัดการผู้เยี่ยมชม</h1>
-            <p className="text-muted-foreground">ดูรายชื่อและจัดการผู้เยี่ยมชมที่ลงทะเบียน</p>
+            <h1 className="text-3xl font-bold">Visitor Pipeline</h1>
+            <p className="text-muted-foreground">ติดตามและวิเคราะห์กระบวนการดูแลผู้เยี่ยมชม</p>
           </div>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card data-testid="card-prospects">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">ผู้มุ่งหวัง</CardTitle>
+              <UserPlus className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-prospects">{analytics.prospects}</div>
+              <p className="text-xs text-muted-foreground">
+                กำลังพิจารณาเข้าร่วม
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-visitors-active">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">ผู้เยี่ยมชมที่มาแล้ว</CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-visitors-checkins">{analytics.visitorsWithCheckins}</div>
+              <p className="text-xs text-muted-foreground">
+                จาก {analytics.visitors} คน
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-engaged-visitors">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Hot Leads</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-engaged-visitors">{analytics.engagedVisitors}</div>
+              <p className="text-xs text-muted-foreground">
+                มา 2+ ครั้ง (พร้อม convert)
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-declined">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">ไม่ติดตาม</CardTitle>
+              <XCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-declined">{analytics.declined}</div>
+              <p className="text-xs text-muted-foreground">
+                หมดความสนใจ
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="flex gap-4">
@@ -140,8 +251,9 @@ export default function Visitors() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">ทุกสถานะ</SelectItem>
-              <SelectItem value="prospect">ผู้สนใจ</SelectItem>
+              <SelectItem value="prospect">ผู้มุ่งหวัง</SelectItem>
               <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
+              <SelectItem value="declined">ไม่ติดตาม</SelectItem>
             </SelectContent>
           </Select>
         </div>
