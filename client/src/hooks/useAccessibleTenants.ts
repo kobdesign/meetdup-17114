@@ -1,11 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
 
-interface Tenant {
-  tenant_id: string;
-  name: string;
-  slug: string;
-}
+type Tenant = Pick<Database["public"]["Tables"]["tenants"]["Row"], "tenant_id" | "tenant_name" | "subdomain">;
 
 interface UseAccessibleTenantsParams {
   userId: string | null;
@@ -34,9 +31,8 @@ export const useAccessibleTenants = ({ userId, isSuperAdmin, enabled }: UseAcces
         console.log("[useAccessibleTenants] User is super admin - fetching all tenants");
         const { data, error } = await supabase
           .from("tenants")
-          .select("tenant_id, name, slug")
-          .eq("status", "active")
-          .order("name");
+          .select("tenant_id, tenant_name, subdomain")
+          .order("tenant_name");
 
         if (error) {
           console.error("[useAccessibleTenants] Error loading all tenants:", error);
@@ -72,10 +68,9 @@ export const useAccessibleTenants = ({ userId, isSuperAdmin, enabled }: UseAcces
         // Fetch tenant details for assigned tenants
         const { data, error } = await supabase
           .from("tenants")
-          .select("tenant_id, name, slug")
+          .select("tenant_id, tenant_name, subdomain")
           .in("tenant_id", tenantIds)
-          .eq("status", "active")
-          .order("name");
+          .order("tenant_name");
 
         if (error) {
           console.error("[useAccessibleTenants] Error loading assigned tenants:", error);

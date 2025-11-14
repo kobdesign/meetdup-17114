@@ -168,7 +168,7 @@ export default function PaymentPage() {
             ชำระค่าเข้าร่วมประชุม
           </CardTitle>
           <CardDescription>
-            {participant.tenants?.name}
+            {participant.tenants?.tenant_name}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

@@ -3,15 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserTenantInfo, fetchUserTenantInfo } from "@/hooks/useUserTenantInfo";
 import { useAccessibleTenants } from "@/hooks/useAccessibleTenants";
+import { Database } from "@/integrations/supabase/types";
 
-interface Tenant {
-  tenant_id: string;
-  name: string;
-  slug: string;
-}
+type Tenant = Pick<Database["public"]["Tables"]["tenants"]["Row"], "tenant_id" | "tenant_name" | "subdomain">;
 
 interface TenantDetails extends Tenant {
   logo_url?: string;
+  line_bot_basic_id?: string;
   branding_color?: string;
 }
 
@@ -138,7 +136,7 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       } else if (availableTenants.length === 1) {
         // Auto-select the only tenant
         const singleTenant = availableTenants[0];
-        console.log("[TenantContext] Chapter admin: auto-selecting single tenant:", singleTenant.name);
+        console.log("[TenantContext] Chapter admin: auto-selecting single tenant:", singleTenant.tenant_name);
         setSelectedTenantId(singleTenant.tenant_id);
         localStorage.setItem(storageKey, singleTenant.tenant_id);
         setIsReady(true);
@@ -150,7 +148,7 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
           setSelectedTenantId(savedTenantId);
         } else {
           const firstTenant = availableTenants[0];
-          console.log("[TenantContext] Chapter admin: selecting first tenant:", firstTenant.name);
+          console.log("[TenantContext] Chapter admin: selecting first tenant:", firstTenant.tenant_name);
           setSelectedTenantId(firstTenant.tenant_id);
           localStorage.setItem(storageKey, firstTenant.tenant_id);
         }
@@ -208,13 +206,13 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       console.log("[TenantContext] Loading details for tenant:", tenantId);
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("tenant_id, name, slug")
+        .select("tenant_id, tenant_name, subdomain, logo_url, line_bot_basic_id")
         .eq("tenant_id", tenantId)
         .single();
 
       const { data: settingsData, error: settingsError } = await supabase
         .from("tenant_settings")
-        .select("logo_url, branding_color")
+        .select("branding_color")
         .eq("tenant_id", tenantId)
         .maybeSingle();
 
@@ -225,7 +223,6 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       if (tenantData) {
         setSelectedTenantData({
           ...tenantData,
-          logo_url: settingsData?.logo_url,
           branding_color: settingsData?.branding_color,
         });
       }

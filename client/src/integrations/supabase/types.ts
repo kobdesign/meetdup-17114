@@ -714,33 +714,30 @@ export type Database = {
       }
       tenants: {
         Row: {
-          country: string
           created_at: string
-          name: string
-          slug: string
-          status: Database["public"]["Enums"]["tenant_status"]
+          line_bot_basic_id: string | null
+          logo_url: string | null
+          subdomain: string
           tenant_id: string
-          timezone: string
+          tenant_name: string
           updated_at: string
         }
         Insert: {
-          country?: string
           created_at?: string
-          name: string
-          slug: string
-          status?: Database["public"]["Enums"]["tenant_status"]
+          line_bot_basic_id?: string | null
+          logo_url?: string | null
+          subdomain: string
           tenant_id?: string
-          timezone?: string
+          tenant_name: string
           updated_at?: string
         }
         Update: {
-          country?: string
           created_at?: string
-          name?: string
-          slug?: string
-          status?: Database["public"]["Enums"]["tenant_status"]
+          line_bot_basic_id?: string | null
+          logo_url?: string | null
+          subdomain?: string
           tenant_id?: string
-          timezone?: string
+          tenant_name?: string
           updated_at?: string
         }
         Relationships: []

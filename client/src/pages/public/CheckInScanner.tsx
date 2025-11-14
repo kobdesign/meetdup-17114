@@ -196,7 +196,7 @@ export default function CheckInScanner() {
             <h1 className="text-2xl font-bold">เช็คอินสำเร็จ!</h1>
             <p className="text-muted-foreground">
               ยินดีต้อนรับเข้าสู่การประชุม<br />
-              {meeting.tenants?.name}
+              {meeting.tenants?.tenant_name}
             </p>
             <Button
               onClick={() => navigate(`/chapter/${meeting.tenants?.slug}`)}
@@ -218,7 +218,7 @@ export default function CheckInScanner() {
         <CardHeader>
           <CardTitle>Check-In เข้าประชุม</CardTitle>
           <CardDescription>
-            {meeting.tenants?.name}
+            {meeting.tenants?.tenant_name}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

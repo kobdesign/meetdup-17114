@@ -43,7 +43,7 @@ interface UserRole {
 
 interface Tenant {
   tenant_id: string;
-  name: string;
+  tenant_name: string;
 }
 
 export default function Authorization() {
@@ -128,14 +128,14 @@ export default function Authorization() {
       // Load tenants
       const { data: tenantsData, error: tenantsError } = await supabase
         .from("tenants")
-        .select("tenant_id, name")
-        .order("name");
+        .select("tenant_id, tenant_name")
+        .order("tenant_name");
 
       if (tenantsError) throw tenantsError;
       setTenants(tenantsData || []);
 
       // Create tenants map
-      const tenantsMap = new Map(tenantsData?.map(t => [t.tenant_id, t.name]) || []);
+      const tenantsMap = new Map(tenantsData?.map(t => [t.tenant_id, t.tenant_name]) || []);
 
       // Merge data
       const enrichedRoles = rolesData?.map(role => ({
@@ -360,7 +360,7 @@ export default function Authorization() {
                       <SelectContent>
                         {tenants.map((tenant) => (
                           <SelectItem key={tenant.tenant_id} value={tenant.tenant_id}>
-                            {tenant.name}
+                            {tenant.tenant_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -520,7 +520,7 @@ export default function Authorization() {
                     <SelectContent>
                       {tenants.map((tenant) => (
                         <SelectItem key={tenant.tenant_id} value={tenant.tenant_id}>
-                          {tenant.name}
+                          {tenant.tenant_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
