@@ -50,12 +50,16 @@ export default function CreateChapter() {
         }
       );
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("สร้าง Chapter สำเร็จ!");
-      queryClient.invalidateQueries({ queryKey: ["/api/user-tenant-info"] });
-      setTimeout(() => {
-        navigate("/admin");
-      }, 1000);
+      
+      // Wait for cache to refresh before navigating (use type: 'all' to ensure fresh data)
+      console.log("[CreateChapter] Invalidating and refetching user-tenant-info...");
+      await queryClient.invalidateQueries({ queryKey: ["/api/user-tenant-info"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/user-tenant-info"], type: 'all' });
+      console.log("[CreateChapter] Cache refreshed, navigating to /admin");
+      
+      navigate("/admin");
     },
     onError: (error: any) => {
       toast.error(error.message || "เกิดข้อผิดพลาดในการสร้าง Chapter");

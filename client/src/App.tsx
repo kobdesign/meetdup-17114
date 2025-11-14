@@ -11,6 +11,8 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Welcome from "./pages/Welcome";
 import CreateChapter from "./pages/CreateChapter";
+import AcceptInvite from "./pages/AcceptInvite";
+import DiscoverChapters from "./pages/DiscoverChapters";
 import Profile from "./pages/Profile";
 import Dashboard from "./pages/admin/Dashboard";
 import Participants from "./pages/admin/Participants";
@@ -25,6 +27,7 @@ import Authorization from "./pages/admin/Authorization";
 import RefundApprovals from "./pages/admin/RefundApprovals";
 import LineConfigPage from "./pages/admin/LineConfigPage";
 import RichMenuPage from "./pages/admin/RichMenuPage";
+import MembersManagement from "./pages/admin/MembersManagement";
 import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
@@ -42,16 +45,10 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/welcome" element={
-            <ProtectedRoute>
-              <Welcome />
-            </ProtectedRoute>
-          } />
-          <Route path="/create-chapter" element={
-            <ProtectedRoute>
-              <CreateChapter />
-            </ProtectedRoute>
-          } />
+          <Route path="/welcome" element={<Welcome />} />
+          <Route path="/create-chapter" element={<CreateChapter />} />
+          <Route path="/invite/:token" element={<AcceptInvite />} />
+          <Route path="/discover-chapters" element={<DiscoverChapters />} />
           
           {/* Public Chapter Profile */}
           <Route path="/chapter/:slug" element={<ChapterProfile />} />
@@ -131,6 +128,11 @@ const App = () => (
           <Route path="/admin/rich-menu" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <RichMenuPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/members-management" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <MembersManagement />
             </ProtectedRoute>
           } />
           

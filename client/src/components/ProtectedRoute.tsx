@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useUserTenantInfo } from "@/hooks/useUserTenantInfo";
 import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
@@ -8,91 +8,89 @@ interface ProtectedRouteProps {
   requiredRole?: "super_admin" | "chapter_admin" | "member";
 }
 
+// Routes that authenticated users can access even without a chapter/role
+const ONBOARDING_ROUTES = [
+  '/welcome',
+  '/create-chapter',
+  '/discover-chapters',
+  '/invite/',  // Any invite token route
+];
+
+// Role mapping helper (defined before component to avoid TDZ)
+const roleMapping: Record<string, string> = {
+  super_admin: "super_admin",
+  chapter_admin: "chapter_admin",
+  member: "chapter_member",
+};
+
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const location = useLocation();
+  
+  // Use React Query hook instead of manual Supabase checks
+  const userInfoQuery = useUserTenantInfo();
+  const { data: userInfo, isLoading, isFetching } = userInfoQuery;
+
+  const isOnboardingRoute = () => {
+    return ONBOARDING_ROUTES.some(route => location.pathname.startsWith(route));
+  };
 
   useEffect(() => {
-    checkAuth();
+    // Wait for query to finish loading before making decisions
+    if (isLoading || isFetching) {
+      console.log("[ProtectedRoute] Query loading, showing loader");
+      return;
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        navigate("/auth");
-      } else if (requiredRole) {
-        checkRole(session.user.id);
-      } else {
-        setAuthorized(true);
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate, requiredRole]);
-
-  const checkAuth = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        navigate("/auth");
-        return;
-      }
-
-      if (requiredRole) {
-        await checkRole(session.user.id);
-      } else {
-        setAuthorized(true);
-      }
-    } catch (error) {
-      console.error("Auth check error:", error);
+    // Check if user is authenticated
+    if (!userInfo?.userId) {
+      console.log("[ProtectedRoute] No user, redirecting to /auth");
       navigate("/auth");
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
 
-  const checkRole = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
+    // Always allow onboarding routes without any role check
+    if (isOnboardingRoute()) {
+      console.log("[ProtectedRoute] Onboarding route detected, allowing access");
+      return;
+    }
 
-      if (error || !data || data.length === 0) {
-        navigate("/");
-        return;
-      }
-
-      // Get the highest priority role
-      // Priority: super_admin > chapter_admin > chapter_member
-      const roleHierarchy = { super_admin: 3, chapter_admin: 2, chapter_member: 1 };
-      const highestRole = data.reduce((highest, current) => {
-        const currentPriority = roleHierarchy[current.role as keyof typeof roleHierarchy] || 0;
-        const highestPriority = roleHierarchy[highest.role as keyof typeof roleHierarchy] || 0;
-        return currentPriority > highestPriority ? current : highest;
-      });
-
+    // After query is done and user is authenticated, check roles
+    if (requiredRole) {
       // Super admin can access everything
-      if (highestRole.role === "super_admin") {
-        setAuthorized(true);
+      if (userInfo.isSuperAdmin) {
+        console.log("[ProtectedRoute] Super admin access granted");
         return;
       }
 
-      // Check if user has required role
-      if (requiredRole && highestRole.role !== requiredRole) {
+      // Map requiredRole to actual role values
+      const roleMapping: Record<string, string> = {
+        super_admin: "super_admin",
+        chapter_admin: "chapter_admin",
+        member: "chapter_member",
+      };
+
+      const expectedRole = roleMapping[requiredRole];
+      
+      if (userInfo.role !== expectedRole) {
+        console.log("[ProtectedRoute] Insufficient role, redirecting to /");
         navigate("/");
         return;
       }
-
-      setAuthorized(true);
-    } catch (error) {
-      console.error("Role check error:", error);
-      navigate("/");
     }
-  };
 
-  if (loading) {
+    // If no specific role required, just check if user has any role
+    if (!requiredRole && !userInfo.role) {
+      console.log("[ProtectedRoute] No role assigned, redirecting to /welcome");
+      navigate("/welcome");
+      return;
+    }
+
+    console.log("[ProtectedRoute] Access granted");
+  }, [isLoading, isFetching, userInfo, location.pathname, requiredRole, navigate]);
+
+  // Show loader while query is fetching
+  if (isLoading || isFetching) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -100,8 +98,23 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     );
   }
 
-  if (!authorized) {
+  // If not authenticated, don't render anything (redirect will happen in useEffect)
+  if (!userInfo?.userId) {
     return null;
+  }
+
+  // If onboarding route, always render
+  if (isOnboardingRoute()) {
+    return <>{children}</>;
+  }
+
+  // For protected routes, check role requirements
+  if (requiredRole) {
+    if (!userInfo.isSuperAdmin && userInfo.role !== roleMapping[requiredRole]) {
+      return null; // Redirect will happen in useEffect
+    }
+  } else if (!userInfo.role) {
+    return null; // Redirect will happen in useEffect
   }
 
   return <>{children}</>;

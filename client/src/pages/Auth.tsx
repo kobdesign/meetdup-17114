@@ -22,11 +22,19 @@ export default function Auth() {
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
+  // Get redirect parameter from URL
+  const getRedirectPath = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('redirect');
+  };
+
   useEffect(() => {
+    const redirectPath = getRedirectPath();
+    
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        checkUserRole(session.user.id);
+        checkUserRole(session.user.id, redirectPath);
       }
     });
 
@@ -36,7 +44,7 @@ export default function Auth() {
       
       if (event === 'SIGNED_IN' && session) {
         console.log("[Auth] User signed in, checking role...");
-        checkUserRole(session.user.id);
+        checkUserRole(session.user.id, redirectPath);
       }
     });
 
@@ -45,14 +53,28 @@ export default function Auth() {
     };
   }, []);
 
-  const checkUserRole = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .single();
+  const checkUserRole = async (userId: string, redirectPath?: string | null) => {
+    // If there's a redirect path (e.g., /invite/:token), use it
+    if (redirectPath) {
+      console.log("[Auth] Redirecting to:", redirectPath);
+      navigate(redirectPath);
+      return;
+    }
 
-    if (data?.role === "super_admin") {
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role, tenant_id")
+      .eq("user_id", userId);
+
+    // If no roles assigned, redirect to welcome page
+    if (!roles || roles.length === 0) {
+      navigate("/welcome");
+      return;
+    }
+
+    // Check if user is super admin
+    const isSuperAdmin = roles.some(r => r.role === "super_admin");
+    if (isSuperAdmin) {
       navigate("/super-admin/tenants");
     } else {
       navigate("/admin");
@@ -136,7 +158,8 @@ export default function Auth() {
       if (error) throw error;
 
       if (data.user) {
-        await checkUserRole(data.user.id);
+        const redirectPath = getRedirectPath();
+        await checkUserRole(data.user.id, redirectPath);
       }
     } catch (error: any) {
       toast.error(error.message);

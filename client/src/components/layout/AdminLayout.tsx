@@ -75,6 +75,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const navItems = [
     { icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard", href: "/admin" },
     { icon: <Users className="h-4 w-4" />, label: "สมาชิก", href: "/admin/participants" },
+    { icon: <UserPlus className="h-4 w-4" />, label: "จัดการสมาชิก", href: "/admin/members-management" },
     { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
     { icon: <UserPlus className="h-4 w-4" />, label: "ผู้เยี่ยมชม", href: "/admin/visitors" },
     { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
