@@ -94,10 +94,18 @@ router.post("/create", verifySupabaseAuth, async (req: AuthenticatedRequest, res
 
       if (settingsError) {
         // Rollback: delete tenant if settings creation failed
-        await supabaseAdmin
+        const { error: deleteError } = await supabaseAdmin
           .from("tenants")
           .delete()
           .eq("tenant_id", tenantId);
+        
+        if (deleteError) {
+          console.error('CRITICAL: Failed to rollback tenant after settings error:', {
+            tenantId,
+            settingsError: settingsError.message,
+            deleteError: deleteError.message
+          });
+        }
         
         throw new Error(`Failed to create tenant settings: ${settingsError.message}`);
       }
@@ -112,12 +120,22 @@ router.post("/create", verifySupabaseAuth, async (req: AuthenticatedRequest, res
       });
 
     } catch (txError: any) {
-      // Ensure cleanup if anything goes wrong
-      if (tenantId) {
-        await supabaseAdmin
+      // Ensure cleanup if anything goes wrong during transaction
+      if (tenantId && !txError.message.includes('Failed to create tenant settings')) {
+        // Only attempt cleanup if error is NOT from settings creation
+        // (settings error already tried rollback above)
+        const { error: cleanupError } = await supabaseAdmin
           .from("tenants")
           .delete()
           .eq("tenant_id", tenantId);
+        
+        if (cleanupError) {
+          console.error('CRITICAL: Failed to cleanup tenant after error:', {
+            tenantId,
+            originalError: txError.message,
+            cleanupError: cleanupError.message
+          });
+        }
       }
       throw txError;
     }

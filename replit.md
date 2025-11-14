@@ -36,6 +36,31 @@ None specified yet.
 
 ## Recent Changes
 
+### Tenant Settings Schema Fix & PostgREST Cache Workaround (November 14, 2025)
+- **Problem Resolved**: `tenant_settings` table had incorrect key-value schema instead of column-based schema from migration file
+  - Error: "Could not find the 'currency' column of 'tenant_settings' in the schema cache"
+  - **Root Cause**: Supabase PostgREST schema cache doesn't refresh with NOTIFY commands in hosted environment
+- **Solution Implemented**:
+  1. **Database Schema Fix**: Recreated `tenant_settings` table with correct column-based schema (9 columns including currency)
+  2. **Server-Side API Endpoint**: Created `/api/tenants/create` endpoint bypassing PostgREST cache
+     - Uses `supabaseAdmin` service role to access database directly
+     - Bypasses REST API layer and schema cache entirely
+  3. **Super Admin Authorization**: Explicit check for `role='super_admin' AND tenant_id IS NULL`
+  4. **Transaction-Like Rollback**:
+     - Wraps tenant + tenant_settings INSERT in try-catch
+     - Deletes tenant if settings creation fails (leverages ON DELETE CASCADE)
+     - Logs CRITICAL errors if rollback fails
+     - Avoids duplicate cleanup attempts
+  5. **Frontend Updates**: 
+     - `AddTenantDialog.tsx` uses server API instead of Supabase client
+     - Auto-invalidates tenant query cache after successful creation
+- **Database Constraints Verified**:
+  - `tenant_settings` has `ON DELETE CASCADE` foreign key to `tenants`
+  - Prevents orphaned settings records
+- **Migration File**: `supabase/migrations/20251114_fix_tenant_settings_schema.sql` documents schema fix
+- **Architecture Decision**: Use server-side endpoints with service role for critical operations affected by PostgREST cache
+- **Production Ready**: Architect verified rollback reliability and data integrity
+
 ### Member/Visitor Pipeline Separation (November 14, 2025)
 - **Complete UI Restructure**: Separated active member management from visitor pipeline analytics
 - **Active Members Page** (`/admin/participants`):
