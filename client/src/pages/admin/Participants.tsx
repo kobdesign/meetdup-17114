@@ -50,7 +50,7 @@ export default function Participants() {
     company: "",
     business_type: "",
     goal: "",
-    status: "prospect" as const,
+    status: "member" as const,
     notes: "",
   });
 
@@ -75,6 +75,7 @@ export default function Participants() {
         .from("participants")
         .select("*")
         .eq("tenant_id", effectiveTenantId)
+        .eq("status", "member")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -129,7 +130,7 @@ export default function Participants() {
         company: "",
         business_type: "",
         goal: "",
-        status: "prospect",
+        status: "member",
         notes: "",
       });
       fetchParticipants();
@@ -232,8 +233,8 @@ export default function Participants() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Participants</h1>
-            <p className="text-muted-foreground">Manage members and visitors</p>
+            <h1 className="text-3xl font-bold">สมาชิก</h1>
+            <p className="text-muted-foreground">จัดการสมาชิกที่ Active</p>
           </div>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
