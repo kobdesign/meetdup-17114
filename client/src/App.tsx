@@ -21,17 +21,13 @@ import MeetingDetails from "./pages/admin/MeetingDetails";
 import Visitors from "./pages/admin/Visitors";
 import CheckIn from "./pages/admin/CheckIn";
 import Settings from "./pages/admin/Settings";
-import PaymentHistory from "./pages/admin/PaymentHistory";
-import PaymentReviews from "./pages/admin/PaymentReviews";
 import Authorization from "./pages/admin/Authorization";
-import RefundApprovals from "./pages/admin/RefundApprovals";
 import LineConfigPage from "./pages/admin/LineConfigPage";
 import RichMenuPage from "./pages/admin/RichMenuPage";
 import MembersManagement from "./pages/admin/MembersManagement";
 import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
-import PaymentPage from "./pages/public/PaymentPage";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -55,9 +51,6 @@ const App = () => (
           
           {/* Public Check-In */}
           <Route path="/checkin/:meetingId" element={<CheckInScanner />} />
-          
-          {/* Public Payment */}
-          <Route path="/payment/:participantId" element={<PaymentPage />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
@@ -100,24 +93,9 @@ const App = () => (
               <Settings />
             </ProtectedRoute>
           } />
-          <Route path="/admin/payment-history/:participantId" element={
-            <ProtectedRoute>
-              <PaymentHistory />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/payment-reviews" element={
-            <ProtectedRoute>
-              <PaymentReviews />
-            </ProtectedRoute>
-          } />
           <Route path="/admin/authorization" element={
             <ProtectedRoute requiredRole="super_admin">
               <Authorization />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/refund-approvals" element={
-            <ProtectedRoute requiredRole="super_admin">
-              <RefundApprovals />
             </ProtectedRoute>
           } />
           <Route path="/admin/line-config" element={
