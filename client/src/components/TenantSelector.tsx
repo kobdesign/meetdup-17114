@@ -30,7 +30,7 @@ const TenantSelector = () => {
         <SelectContent>
           {availableTenants.map((tenant) => (
             <SelectItem key={tenant.tenant_id} value={tenant.tenant_id}>
-              {tenant.name}
+              {tenant.tenant_name}
             </SelectItem>
           ))}
         </SelectContent>

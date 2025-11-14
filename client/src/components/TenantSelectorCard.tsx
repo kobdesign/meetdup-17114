@@ -75,7 +75,7 @@ const TenantSelectorCard = () => {
               <div className="flex-1 text-left min-w-0">
                 <SelectValue placeholder="เลือก Chapter">
                   {selectedTenant ? (
-                    <span className="font-medium truncate block">{selectedTenant.name}</span>
+                    <span className="font-medium truncate block">{selectedTenant.tenant_name}</span>
                   ) : selectedTenantId === null && isSuperAdmin ? (
                     <span className="font-medium">All Tenants</span>
                   ) : (
@@ -104,7 +104,7 @@ const TenantSelectorCard = () => {
               >
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4" />
-                  {tenant.name}
+                  {tenant.tenant_name}
                 </div>
               </SelectItem>
             ))}
