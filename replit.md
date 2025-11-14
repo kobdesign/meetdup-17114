@@ -66,7 +66,11 @@ None specified yet.
   - Fixed race conditions in AcceptInvite and CreateChapter pages
   - Auth.tsx properly respects redirect query parameters
   - Cache management with `await refetchQueries({ type: 'all' })`
-- **Super Admin Setup:** kobdesign@gmail.com assigned as first Super Admin
+- **Super Admin Setup:** 
+  - Schema migration for nullable tenant_id (`20251114_make_tenant_id_nullable.sql`)
+  - Script to assign super_admin role: `npm run set-super-admin`
+  - kobdesign@gmail.com can be assigned as first Super Admin
+  - Guide: `docs/SET_SUPER_ADMIN_GUIDE.md`
 - **Security Hardening** (November 14, 2025):
   - **Final Migration**: `supabase/migrations/20251114_fix_permissions_final.sql`
   - **Admin-Only Invite Access**: Only chapter admins can view/create/delete invite tokens
