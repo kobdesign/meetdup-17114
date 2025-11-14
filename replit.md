@@ -104,6 +104,37 @@ None specified yet.
     - `npm run check-data` - Displays all Supabase data with error handling
   - **Documentation**: Complete user journey guide in `docs/USER_JOURNEY_ONBOARDING.md`
 
+### Schema Reconciliation Migration (November 14, 2025)
+- **Migration Complete**: Reconciled database schema with TypeScript code definitions across all tenant-related tables
+- **Migration File**: `supabase/migrations/20251114_reconcile_schema_with_code.sql`
+- **Changes to `tenants` table:**
+  - Renamed `name` → `tenant_name` (aligns with code)
+  - Renamed `slug` → `subdomain` (matches AddTenantDialog and routing)
+  - Added `line_bot_basic_id` (TEXT, nullable) - stores LINE Bot ID for webhook routing
+  - Added `logo_url` (TEXT, nullable) - chapter logo storage reference
+  - Created unique index `tenants_subdomain_unique` to enforce subdomain uniqueness
+  - Dropped unused columns: `country`, `timezone`, `status` (not referenced in code)
+- **Changes to `tenant_settings` table:**
+  - Added `currency` (TEXT, DEFAULT 'THB') - for multi-currency support
+  - Added `require_visitor_payment` (BOOLEAN, DEFAULT true) - visitor payment requirement flag
+- **Migration Tools Created:**
+  - `server/scripts/run-migration.ts` - PostgreSQL migration runner using `psql` command
+    * Handles multi-statement files with BEGIN/COMMIT and DO blocks
+    * Secure: Passes PGPASSWORD via environment variables (not command line)
+  - `npm run migrate:run <migration-file>` - Generic migration executor
+  - `npm run migrate:reconcile` - Runs this specific reconciliation migration
+- **Settings UI Enhancement:**
+  - Added Switch component for `require_visitor_payment` toggle
+  - Fixed Settings.tsx to load, display, and persist all tenant_settings columns
+  - Prevents NULL overwrites on upsert by including all fields
+- **PostgREST Schema Cache:**
+  - Fixed "column not found" errors by sending `NOTIFY pgrst, 'reload schema'`
+  - Required after direct PostgreSQL migrations to refresh Supabase API cache
+- **Verification:**
+  - All columns verified in database via `information_schema.columns` queries
+  - Existing tenant data preserved (BNI Integrity chapter intact)
+  - TypeScript types (types.ts) already matched expected schema before migration
+
 ### Database Migration to User-Owned Supabase (November 13, 2025)
 - **Successfully migrated** from Lovable-owned Supabase (`nzenqhtautbitmbmgyjk`) to user-owned Supabase (`sbknunooplaezvwtyooi`)
 - **Migration Process:**
