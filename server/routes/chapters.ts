@@ -393,15 +393,18 @@ router.get("/invites", verifySupabaseAuth, async (req: AuthenticatedRequest, res
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Check if user is admin
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is admin (support both super_admin with NULL tenant_id and chapter_admin)
+    const { data: userRoles } = await supabaseAdmin
       .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("tenant_id", tenant_id as string)
-      .single();
+      .select("role, tenant_id")
+      .eq("user_id", userId);
 
-    if (!userRole || !["chapter_admin", "super_admin"].includes(userRole.role)) {
+    const hasAccess = userRoles?.some(r => 
+      r.role === "super_admin" || 
+      (r.tenant_id === tenant_id && ["chapter_admin", "super_admin"].includes(r.role))
+    );
+
+    if (!hasAccess) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
@@ -431,15 +434,18 @@ router.get("/join-requests", verifySupabaseAuth, async (req: AuthenticatedReques
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Check if user is admin
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is admin (support both super_admin with NULL tenant_id and chapter_admin)
+    const { data: userRoles } = await supabaseAdmin
       .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("tenant_id", tenant_id as string)
-      .single();
+      .select("role, tenant_id")
+      .eq("user_id", userId);
 
-    if (!userRole || !["chapter_admin", "super_admin"].includes(userRole.role)) {
+    const hasAccess = userRoles?.some(r => 
+      r.role === "super_admin" || 
+      (r.tenant_id === tenant_id && ["chapter_admin", "super_admin"].includes(r.role))
+    );
+
+    if (!hasAccess) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
