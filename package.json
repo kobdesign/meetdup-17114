@@ -7,7 +7,8 @@
     "dev": "tsx watch --ignore 'vite.config.ts.timestamp-*' server/index.ts",
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "verify-migration": "tsx server/scripts/verify-migration.ts"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
