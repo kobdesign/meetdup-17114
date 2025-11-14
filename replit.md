@@ -36,6 +36,38 @@ None specified yet.
 
 ## Recent Changes
 
+### Multi-Path Onboarding System Implementation (November 14, 2025)
+- **Feature Complete**: Implemented comprehensive 3-path user onboarding system for new users without chapter assignment
+- **Three Onboarding Flows:**
+  1. **Pioneer Flow** (`/create-chapter`): Create new chapter and become admin
+  2. **Invite Flow** (`/invite/:token`): Accept invite link and auto-join chapter
+  3. **Discovery Flow** (`/discover-chapters`): Search chapters and request membership
+- **Backend APIs Created:**
+  - `POST /api/chapters/create` - Chapter creation with auto admin assignment
+  - `POST /api/chapters/invite/generate` - Generate invite tokens with expiration
+  - `POST /api/chapters/invite/accept/:token` - Accept invite and auto-join
+  - `GET /api/chapters/discover` - Search available chapters
+  - `POST /api/chapters/join-request` - Request chapter membership
+  - `GET/PATCH /api/chapters/join-requests` - Admin approval workflow
+- **Database Schema:**
+  - `chapter_invites` table: invite token management with expiration and usage tracking
+  - `chapter_join_requests` table: pending membership request workflow
+  - **user_roles schema migration**: Restructured to support global Super Admin roles
+    - Removed composite primary key `(user_id, tenant_id)`
+    - Added `id serial PRIMARY KEY`
+    - Made `tenant_id` nullable (NULL = global Super Admin)
+    - Created unique indexes to prevent duplicate role assignments
+- **Components:**
+  - `OnboardingGuard` component: Session-gated wrapper using `useUserTenantInfo` hook
+  - LoginPrompt UI for anonymous users with redirect handling
+  - MembersManagement admin page for invite generation and role management
+- **Auth Flow Improvements:**
+  - ProtectedRoute refactored to use React Query (`useUserTenantInfo`)
+  - Fixed race conditions in AcceptInvite and CreateChapter pages
+  - Auth.tsx properly respects redirect query parameters
+  - Cache management with `await refetchQueries({ type: 'all' })`
+- **Super Admin Setup:** kobdesign@gmail.com assigned as first Super Admin
+
 ### Database Migration to User-Owned Supabase (November 13, 2025)
 - **Successfully migrated** from Lovable-owned Supabase (`nzenqhtautbitmbmgyjk`) to user-owned Supabase (`sbknunooplaezvwtyooi`)
 - **Migration Process:**
