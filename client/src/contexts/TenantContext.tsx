@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserTenantInfo, fetchUserTenantInfo } from "@/hooks/useUserTenantInfo";
+import { useUserTenantInfo, fetchUserTenantInfo, type UserChapter } from "@/hooks/useUserTenantInfo";
 import { useAccessibleTenants } from "@/hooks/useAccessibleTenants";
 import { Database } from "@/integrations/supabase/types";
 
@@ -17,10 +17,12 @@ interface TenantContextType {
   selectedTenantId: string | null;
   selectedTenant: TenantDetails | null;
   availableTenants: Tenant[];
+  userChapters: UserChapter[]; // NEW: All chapters user belongs to
   isSuperAdmin: boolean;
   isLoading: boolean;
   isReady: boolean; // NEW: Indicates tenant selection is complete
   setSelectedTenant: (id: string | null) => void; // Updated to accept null
+  setSelectedChapter: (tenantId: string) => void; // NEW: Switch chapter with query invalidation
   effectiveTenantId: string | null;
   userId: string | null;
   userRole: string | null;
@@ -57,6 +59,7 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   const userRole = userInfoQuery.data?.role || null;
   const userName = userInfoQuery.data?.userName || null;
   const userEmail = userInfoQuery.data?.userEmail || null;
+  const userChapters = userInfoQuery.data?.userChapters || [];
   const isLoadingUserInfo = userInfoQuery.isLoading;
 
   // Fetch accessible tenants based on user role
@@ -201,6 +204,25 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     }
   };
 
+  // NEW: Switch chapter and invalidate all queries for fresh data
+  const handleSetSelectedChapter = async (tenantId: string) => {
+    if (!userId) return;
+    
+    const storageKey = `tenant_selection_${userId}`;
+    console.log("[TenantContext] Switching to chapter:", tenantId);
+    
+    // Update selected tenant
+    setSelectedTenantId(tenantId);
+    localStorage.setItem(storageKey, tenantId);
+    
+    // Invalidate all queries to refetch data for new chapter
+    console.log("[TenantContext] Invalidating all queries after chapter switch...");
+    await queryClient.invalidateQueries();
+    
+    // Force refetch user info to update selected chapter role
+    await queryClient.refetchQueries({ queryKey: ["/api/user-tenant-info"] });
+  };
+
   const loadTenantDetails = async (tenantId: string) => {
     try {
       console.log("[TenantContext] Loading details for tenant:", tenantId);
@@ -244,17 +266,30 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   // This allows both super admin AND chapter admin to switch tenants
   const effectiveTenantId = selectedTenantId !== null ? selectedTenantId : userTenantId;
 
+  // Derive userRole based on selectedTenantId to ensure role stays in sync with chapter selection
+  let derivedUserRole = userRole; // fallback to default
+  if (isSuperAdmin) {
+    derivedUserRole = "super_admin";
+  } else if (selectedTenantId && userChapters.length > 0) {
+    const selectedChapter = userChapters.find(c => c.tenantId === selectedTenantId);
+    if (selectedChapter) {
+      derivedUserRole = selectedChapter.role;
+    }
+  }
+
   const value: TenantContextType = {
     selectedTenantId,
     selectedTenant: selectedTenantData,
     availableTenants,
+    userChapters,
     isSuperAdmin,
     isLoading,
     isReady,
     setSelectedTenant: handleSetSelectedTenant,
+    setSelectedChapter: handleSetSelectedChapter,
     effectiveTenantId,
     userId,
-    userRole,
+    userRole: derivedUserRole, // Use derived role that matches selected chapter
     userName,
     userEmail,
     isLoadingUserInfo,

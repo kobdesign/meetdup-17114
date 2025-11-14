@@ -42,15 +42,10 @@ export const fetchUserTenantInfo = async (): Promise<UserTenantInfo> => {
 
   console.log("[fetchUserTenantInfo] User found, loading roles and profile...");
   
-  // Fetch all roles with tenant names (user might have multiple chapters)
+  // Fetch all user roles first (including super_admin with tenant_id = null)
   const { data: rolesData, error: rolesError } = await supabase
     .from("user_roles")
-    .select(`
-      role, 
-      tenant_id,
-      created_at,
-      tenants!inner(tenant_name)
-    `)
+    .select("role, tenant_id, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
 
@@ -59,14 +54,28 @@ export const fetchUserTenantInfo = async (): Promise<UserTenantInfo> => {
     throw rolesError;
   }
 
-  // Build userChapters array
+  // Check if user is super_admin
+  const isSuperAdmin = rolesData?.some(r => r.role === "super_admin") || false;
+
+  // Build userChapters array (only chapter-specific roles, exclude super_admin)
   const userChapters: UserChapter[] = [];
-  if (rolesData && rolesData.length > 0) {
-    for (const roleRow of rolesData) {
-      if (roleRow.tenant_id && roleRow.tenants) {
+  const chapterRoles = rolesData?.filter(r => r.tenant_id !== null && r.role !== "super_admin") || [];
+  
+  if (chapterRoles.length > 0) {
+    // Fetch tenant names separately using left join
+    const tenantIds = chapterRoles.map(r => r.tenant_id);
+    const { data: tenantsData } = await supabase
+      .from("tenants")
+      .select("tenant_id, tenant_name")
+      .in("tenant_id", tenantIds);
+
+    const tenantMap = new Map(tenantsData?.map(t => [t.tenant_id, t.tenant_name]) || []);
+
+    for (const roleRow of chapterRoles) {
+      if (roleRow.tenant_id) {
         userChapters.push({
           tenantId: roleRow.tenant_id,
-          tenantName: (roleRow.tenants as any).tenant_name || "Unknown Chapter",
+          tenantName: tenantMap.get(roleRow.tenant_id) || "Unknown Chapter",
           role: roleRow.role,
           createdAt: roleRow.created_at || new Date().toISOString(),
         });
@@ -74,32 +83,19 @@ export const fetchUserTenantInfo = async (): Promise<UserTenantInfo> => {
     }
   }
 
-  // Determine selected chapter from localStorage or default
-  const storedChapterId = localStorage.getItem("meetdup_selected_chapter");
+  // Chapter selection will be handled by TenantContext
+  // This query function returns raw data only (no localStorage side effects)
   let selectedRole = null;
   let selectedTenantId = null;
 
-  if (rolesData && rolesData.length > 0) {
-    // Check if user has super_admin role
-    const superAdminRole = rolesData.find(r => r.role === "super_admin");
-    if (superAdminRole) {
-      selectedRole = "super_admin";
-      selectedTenantId = null; // Super admin has no specific tenant
-    } else {
-      // Find selected chapter from localStorage
-      const selectedChapter = userChapters.find(c => c.tenantId === storedChapterId);
-      
-      if (selectedChapter) {
-        selectedRole = selectedChapter.role;
-        selectedTenantId = selectedChapter.tenantId;
-      } else if (userChapters.length > 0) {
-        // Default to first chapter
-        const firstChapter = userChapters[0];
-        selectedRole = firstChapter.role;
-        selectedTenantId = firstChapter.tenantId;
-        localStorage.setItem("meetdup_selected_chapter", firstChapter.tenantId);
-      }
-    }
+  if (isSuperAdmin) {
+    selectedRole = "super_admin";
+    selectedTenantId = null;
+  } else if (userChapters.length > 0) {
+    // Default to first chapter (TenantContext will override with stored selection)
+    const firstChapter = userChapters[0];
+    selectedRole = firstChapter.role;
+    selectedTenantId = firstChapter.tenantId;
   }
 
   // Fetch profile
@@ -113,7 +109,6 @@ export const fetchUserTenantInfo = async (): Promise<UserTenantInfo> => {
     console.error("[fetchUserTenantInfo] Error loading profile:", profileError);
   }
 
-  const isSuperAdmin = selectedRole === "super_admin";
   console.log(`[fetchUserTenantInfo] Role: ${selectedRole}, isSuperAdmin: ${isSuperAdmin}, userName: ${profile?.full_name}, chapters: ${userChapters.length}`);
 
   return {
