@@ -3,7 +3,6 @@ import { registerVite } from "./vite";
 import lineRouter from "./routes/line/index";
 import chaptersRouter from "./routes/chapters";
 import participantsRouter from "./routes/participants";
-import tenantsRouter from "./routes/tenants";
 
 const app = express();
 app.use(express.json());
@@ -50,9 +49,6 @@ app.use("/api/chapters", chaptersRouter);
 
 // Participants analytics routes
 app.use("/api/participants", participantsRouter);
-
-// Tenants management routes (bypasses PostgREST cache)
-app.use("/api/tenants", tenantsRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();
