@@ -78,6 +78,12 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
       }
 
       toast.success("สร้าง tenant สำเร็จ");
+      
+      // Invalidate tenant queries to refetch list
+      const { queryClient } = await import("@/lib/queryClient");
+      await queryClient.invalidateQueries({ queryKey: ['/api/accessible-tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      
       onSuccess();
       onOpenChange(false);
       
