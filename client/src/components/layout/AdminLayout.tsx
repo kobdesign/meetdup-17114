@@ -79,7 +79,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
     { icon: <UserPlus className="h-4 w-4" />, label: "ผู้เยี่ยมชม", href: "/admin/visitors" },
     { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
-    { icon: <RefreshCw className="h-4 w-4" />, label: "ตรวจสอบการชำระเงิน", href: "/admin/payment-reviews" },
     { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/admin/line-config" },
     { icon: <LayoutGrid className="h-4 w-4" />, label: "LINE Rich Menu", href: "/admin/rich-menu" },
     { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
@@ -88,7 +87,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const superAdminNavItems = [
     { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },
     { icon: <Shield className="h-4 w-4" />, label: "จัดการสิทธิ์", href: "/admin/authorization" },
-    { icon: <RefreshCw className="h-4 w-4" />, label: "อนุมัติคืนเงิน", href: "/admin/refund-approvals" },
   ];
 
   return (
@@ -173,10 +171,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   <DropdownMenuItem onClick={() => navigate("/admin/authorization")}>
                     <Shield className="mr-2 h-4 w-4" />
                     <span>จัดการสิทธิ์</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/admin/refund-approvals")}>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    <span>อนุมัติคืนเงิน</span>
                   </DropdownMenuItem>
                 </>
               )}
