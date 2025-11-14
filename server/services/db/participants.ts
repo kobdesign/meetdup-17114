@@ -233,7 +233,7 @@ export class ParticipantService {
   }
 
   /**
-   * Get visitor analytics for a tenant
+   * Get visitor analytics for a tenant with check-in metrics
    * Accepts AuthContext (from middleware) or userId (fallback)
    */
   static async getVisitorAnalytics(
@@ -243,7 +243,14 @@ export class ParticipantService {
     // Verify access (uses cached AuthContext if provided)
     await enforceTenantAccess(userIdOrContext, tenantId);
 
-    const result = await query(
+    // Get status counts
+    const statusResult = await query<{
+      prospects: string;
+      visitors: string;
+      members: string;
+      declined: string;
+      alumni: string;
+    }>(
       `SELECT 
         COUNT(*) FILTER (WHERE status = 'prospect') as prospects,
         COUNT(*) FILTER (WHERE status = 'visitor') as visitors,
@@ -255,6 +262,57 @@ export class ParticipantService {
       [tenantId]
     );
 
-    return result.rows[0];
+    const statusCounts = statusResult.rows[0];
+    const prospects = parseInt(statusCounts.prospects);
+    const visitors = parseInt(statusCounts.visitors);
+    const members = parseInt(statusCounts.members);
+    const declined = parseInt(statusCounts.declined);
+    const alumni = parseInt(statusCounts.alumni);
+
+    // Get check-in metrics for visitors only
+    const checkinResult = await query<{
+      total_checkins: string;
+      visitors_with_checkins: string;
+      engaged_visitors: string;
+    }>(
+      `WITH visitor_checkins AS (
+        SELECT 
+          p.participant_id,
+          COUNT(c.checkin_id) as checkin_count
+        FROM participants p
+        LEFT JOIN checkins c ON p.participant_id = c.participant_id
+        WHERE p.tenant_id = $1 AND p.status = 'visitor'
+        GROUP BY p.participant_id
+      )
+      SELECT 
+        COALESCE(SUM(checkin_count), 0)::text as total_checkins,
+        COUNT(CASE WHEN checkin_count > 0 THEN 1 END)::text as visitors_with_checkins,
+        COUNT(CASE WHEN checkin_count >= 2 THEN 1 END)::text as engaged_visitors
+      FROM visitor_checkins`,
+      [tenantId]
+    );
+
+    const checkinMetrics = checkinResult.rows[0];
+    const totalCheckins = parseInt(checkinMetrics.total_checkins || '0');
+    const visitorsWithCheckins = parseInt(checkinMetrics.visitors_with_checkins || '0');
+    const engagedVisitors = parseInt(checkinMetrics.engaged_visitors || '0');
+
+    const avgCheckinsPerVisitor = visitors > 0
+      ? parseFloat((totalCheckins / visitors).toFixed(1))
+      : 0;
+
+    const totalInPipeline = prospects + visitors;
+
+    return {
+      prospects,
+      visitors,
+      visitorsWithCheckins,
+      engagedVisitors,
+      members,
+      declined,
+      alumni,
+      avgCheckinsPerVisitor,
+      totalInPipeline,
+    };
   }
 }

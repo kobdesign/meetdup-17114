@@ -22,13 +22,19 @@ export async function getAuthContext(userId: string): Promise<AuthContext> {
     (r) => r.role === 'super_admin' && r.tenant_id === null
   );
 
+  // Get all tenant IDs (excluding null from super admin role)
+  const tenantIds = result.rows
+    .filter((r) => r.tenant_id !== null)
+    .map((r) => r.tenant_id as string);
+
   // Get primary tenant (first non-null tenant_id or null for super admin)
-  const tenantId = result.rows.find((r) => r.tenant_id !== null)?.tenant_id || null;
+  const primaryTenantId = tenantIds[0] || null;
   const role = result.rows[0].role;
 
   return {
     userId,
-    tenantId,
+    tenantIds,
+    primaryTenantId,
     role,
     isSuperAdmin,
   };
@@ -62,9 +68,10 @@ export async function enforceTenantAccess(
   // If AuthContext provided, use cached data (no DB query)
   if (typeof userIdOrContext === 'object') {
     const ctx = userIdOrContext;
+    // Check if user is super admin OR tenant is in their tenant list
     const hasAccess =
       ctx.isSuperAdmin ||
-      ctx.tenantId === tenantId;
+      ctx.tenantIds.includes(tenantId);
 
     if (!hasAccess) {
       throw new UnauthorizedError(

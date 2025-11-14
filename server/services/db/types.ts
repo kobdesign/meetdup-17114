@@ -25,7 +25,8 @@ export interface PaginatedResult<T> {
  */
 export interface AuthContext {
   userId: string;
-  tenantId?: string | null;
+  tenantIds: string[]; // All tenants user has access to
+  primaryTenantId?: string | null; // Primary tenant (first non-null)
   role?: string;
   isSuperAdmin: boolean;
 }
