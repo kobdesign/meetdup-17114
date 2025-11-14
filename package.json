@@ -8,7 +8,8 @@
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "eslint .",
-    "verify-migration": "tsx server/scripts/verify-migration.ts"
+    "verify-migration": "tsx server/scripts/verify-migration.ts",
+    "check-data": "tsx server/scripts/check-supabase-data.ts"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
