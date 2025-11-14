@@ -34,6 +34,7 @@ import NavLink from "@/components/NavLink";
 import { toast } from "sonner";
 import TenantSelectorCard from "@/components/TenantSelectorCard";
 import { useTenantContext } from "@/contexts/TenantContext";
+import { ChapterSwitcher } from "@/components/layout/ChapterSwitcher";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -47,7 +48,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     isLoadingUserInfo,
     userName, 
     userEmail, 
-    userRole 
+    userRole,
+    userChapters 
   } = useTenantContext();
 
   // Wait for tenant selection to complete before showing content
@@ -136,7 +138,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </Link>
           </div>
 
-          <DropdownMenu>
+          <div className="flex items-center gap-4">
+            {/* Show ChapterSwitcher if user has multiple chapters */}
+            {isContentReady && userChapters.length > 0 && (
+              <ChapterSwitcher />
+            )}
+
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                 <Avatar className="h-10 w-10">
@@ -180,7 +188,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <span>ออกจากระบบ</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 

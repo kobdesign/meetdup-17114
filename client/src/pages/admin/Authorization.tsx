@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, UserPlus, Trash2, Search, Pencil } from "lucide-react";
+import { Shield, UserPlus, Trash2, Search, Pencil, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -169,6 +169,22 @@ export default function Authorization() {
 
     setFilteredRoles(filtered);
   };
+
+  // Group roles by user for display
+  const groupedByUser = filteredRoles.reduce((acc, role) => {
+    const userId = role.user_id;
+    if (!acc[userId]) {
+      acc[userId] = {
+        user_id: userId,
+        user_email: role.user_email,
+        roles: []
+      };
+    }
+    acc[userId].roles.push(role);
+    return acc;
+  }, {} as Record<string, { user_id: string; user_email: string; roles: UserRole[] }>);
+
+  const groupedUsers = Object.values(groupedByUser);
 
   const handleAddRole = async () => {
     if (!newUserEmail || !newUserRole) {
@@ -403,89 +419,109 @@ export default function Authorization() {
           </Select>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              รายการสิทธิ์ผู้ใช้ ({filteredRoles.length})
-            </CardTitle>
-            <CardDescription>จัดการสิทธิ์และบทบาทของผู้ใช้ในระบบ</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {filteredRoles.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">รายการผู้ใช้ ({groupedUsers.length})</h2>
+              <p className="text-sm text-muted-foreground">แสดงผู้ใช้และบทบาทในแต่ละ Chapter</p>
+            </div>
+          </div>
+
+          {filteredRoles.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-8 text-muted-foreground">
                 {searchTerm || roleFilter !== "all"
                   ? "ไม่พบข้อมูลที่ตรงกับเงื่อนไข"
                   : "ยังไม่มีสิทธิ์ผู้ใช้ในระบบ"}
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>อีเมล</TableHead>
-                    <TableHead>บทบาท</TableHead>
-                    <TableHead>Chapter</TableHead>
-                    <TableHead>วันที่เพิ่ม</TableHead>
-                    <TableHead className="text-right">จัดการ</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRoles.map((role) => (
-                    <TableRow key={role.id}>
-                      <TableCell className="font-medium">{role.user_email}</TableCell>
-                      <TableCell>{getRoleBadge(role.role)}</TableCell>
-                      <TableCell>{role.tenant_name || "-"}</TableCell>
-                      <TableCell>
-                        {new Date(role.created_at).toLocaleDateString("th-TH", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => startEditRole(role)}
-                            disabled={role.user_id === currentUserId}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="destructive">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>ยืนยันการลบสิทธิ์</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  คุณต้องการลบสิทธิ์ {role.role} ของ {role.user_email} ใช่หรือไม่?
-                                  การดำเนินการนี้ไม่สามารถย้อนกลับได้
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteRole(role.id)}
-                                  className="bg-destructive hover:bg-destructive/90"
-                                >
-                                  ลบสิทธิ์
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {groupedUsers.map((userGroup) => (
+                <Card key={userGroup.user_id}>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      {userGroup.user_email}
+                    </CardTitle>
+                    <CardDescription>
+                      {userGroup.roles.length} บทบาท
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {userGroup.roles.map((role) => (
+                        <div 
+                          key={role.id} 
+                          className="flex items-center justify-between p-3 border rounded-md hover-elevate"
+                          data-testid={`user-role-${role.id}`}
+                        >
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                {getRoleBadge(role.role)}
+                                {role.tenant_name && (
+                                  <>
+                                    <span className="text-muted-foreground">•</span>
+                                    <span className="text-sm font-medium">{role.tenant_name}</span>
+                                  </>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                เพิ่มเมื่อ {new Date(role.created_at).toLocaleDateString("th-TH", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => startEditRole(role)}
+                              disabled={role.user_id === currentUserId}
+                              data-testid={`button-edit-role-${role.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="destructive" data-testid={`button-delete-role-${role.id}`}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>ยืนยันการลบสิทธิ์</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    คุณต้องการลบสิทธิ์ {role.role} ของ {role.user_email} 
+                                    {role.tenant_name && ` ใน Chapter ${role.tenant_name}`} ใช่หรือไม่?
+                                    การดำเนินการนี้ไม่สามารถย้อนกลับได้
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteRole(role.id)}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                    ลบสิทธิ์
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Edit Role Dialog */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

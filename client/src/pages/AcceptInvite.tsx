@@ -7,10 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 export default function AcceptInvite() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const { setSelectedChapter } = useTenantContext();
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,12 +42,24 @@ export default function AcceptInvite() {
       setAccepted(true);
       toast.success(data.message || "เข้าร่วม Chapter สำเร็จ!");
       
-      // Wait for cache to refresh before navigating (use type: 'all' to ensure fresh data)
+      // Wait for cache to refresh completely before switching chapter
       console.log("[AcceptInvite] Invalidating and refetching user-tenant-info...");
       await queryClient.invalidateQueries({ queryKey: ["/api/user-tenant-info"] });
-      await queryClient.refetchQueries({ queryKey: ["/api/user-tenant-info"], type: 'all' });
-      console.log("[AcceptInvite] Cache refreshed, navigating to /admin");
       
+      // CRITICAL: Must await refetch to complete so userChapters includes new chapter
+      await queryClient.refetchQueries({ queryKey: ["/api/user-tenant-info"], type: 'all' });
+      console.log("[AcceptInvite] Refetch complete, userChapters now includes new chapter");
+      
+      // Small delay to ensure context updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Auto-switch to new chapter (now safe because userChapters is updated)
+      if (data.tenant_id) {
+        console.log("[AcceptInvite] Auto-switching to new chapter:", data.tenant_id);
+        setSelectedChapter(data.tenant_id);
+      }
+      
+      console.log("[AcceptInvite] Cache refreshed, navigating to /admin");
       navigate("/admin");
     },
     onError: (error: any) => {
