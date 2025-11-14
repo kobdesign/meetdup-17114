@@ -107,6 +107,42 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- HELPER FUNCTIONS (conditional - only in Supabase with auth schema)
+-- ============================================================================
+
+DO $FUNCTIONS$
+BEGIN
+  -- Only create helper functions if auth schema exists (Supabase production)
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'auth') THEN
+    
+    -- Create has_tenant_access function for RLS policies
+    EXECUTE $FUNC_DEF$
+      CREATE OR REPLACE FUNCTION public.has_tenant_access(_user_id uuid, _tenant_id uuid) 
+      RETURNS boolean
+      LANGUAGE sql 
+      STABLE 
+      SECURITY DEFINER
+      SET search_path TO 'public'
+      AS $$
+        SELECT EXISTS (
+          SELECT 1
+          FROM public.user_roles
+          WHERE user_id = _user_id
+            AND (
+              role = 'super_admin' 
+              OR tenant_id = _tenant_id
+            )
+        )
+      $$
+    $FUNC_DEF$;
+    
+    RAISE NOTICE '✓ Created has_tenant_access() function';
+  ELSE
+    RAISE NOTICE '⚠ Skipping has_tenant_access() - auth schema not found (development environment)';
+  END IF;
+END $FUNCTIONS$;
+
+-- ============================================================================
 -- RLS POLICIES (conditional - only in Supabase with auth schema)
 -- ============================================================================
 
