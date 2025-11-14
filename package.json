@@ -13,6 +13,7 @@
     "migrate:run": "tsx server/scripts/run-migration.ts",
     "migrate:reconcile": "tsx server/scripts/run-migration.ts supabase/migrations/20251114_reconcile_schema_with_code.sql",
     "migrate:add-columns": "tsx server/scripts/run-migration.ts supabase/migrations/20251114_add_all_missing_columns.sql",
+    "migrate:recreate": "tsx server/scripts/run-migration.ts supabase/migrations/20251114_recreate_wide_tables.sql",
     "migration:guide": "echo '\n📖 See docs/MIGRATION_GUIDE.md for instructions\n'",
     "set-super-admin": "tsx server/scripts/set-super-admin.ts"
   },
