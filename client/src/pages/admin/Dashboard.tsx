@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Calendar, CheckCircle, CalendarIcon } from "lucide-react";
+import { Users, UserPlus, UserCheck, UserX, CalendarIcon } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { format, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -348,43 +348,56 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* Member Pipeline Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">สมาชิกทั้งหมด</CardTitle>
+          <Card data-testid="card-active-members">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">สมาชิกปัจจุบัน</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics.totalParticipants}</div>
+              <div className="text-2xl font-bold" data-testid="text-active-members">{analytics.activeMembers}</div>
               <p className="text-xs text-muted-foreground">
-                สมาชิก {analytics.activeMembers} | ผู้สนใจ {analytics.prospects}
+                สมาชิกที่ active
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">การประชุม</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+          <Card data-testid="card-prospects">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">ผู้มุ่งหวัง</CardTitle>
+              <UserPlus className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics.totalMeetings}</div>
+              <div className="text-2xl font-bold" data-testid="text-prospects">{analytics.prospects}</div>
               <p className="text-xs text-muted-foreground">
-                เดือนนี้ {analytics.thisMonthMeetings} ครั้ง
+                กำลังพิจารณาเข้าร่วม
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">การเข้าร่วม</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          <Card data-testid="card-visitors">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">ผู้เยี่ยมชม</CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics.totalCheckins}</div>
+              <div className="text-2xl font-bold" data-testid="text-visitors">{analytics.visitorsWithCheckins}</div>
               <p className="text-xs text-muted-foreground">
-                ทั้งหมด
+                มาร่วมประชุมแล้ว
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-declined">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">ไม่ติดตาม</CardTitle>
+              <UserX className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-declined">{analytics.declined}</div>
+              <p className="text-xs text-muted-foreground">
+                หมดความสนใจ
               </p>
             </CardContent>
           </Card>
