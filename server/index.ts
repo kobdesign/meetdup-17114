@@ -1,6 +1,7 @@
 import express from "express";
 import { registerVite } from "./vite";
 import lineRouter from "./routes/line/index";
+import chaptersRouter from "./routes/chapters";
 
 const app = express();
 app.use(express.json());
@@ -41,6 +42,9 @@ app.get("/api/health", async (req, res) => {
 
 // LINE Integration routes
 app.use("/api/line", lineRouter);
+
+// Chapter management routes
+app.use("/api/chapters", chaptersRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();

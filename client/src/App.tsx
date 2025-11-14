@@ -9,6 +9,8 @@ import { TenantProvider } from "./contexts/TenantContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
+import Welcome from "./pages/Welcome";
+import CreateChapter from "./pages/CreateChapter";
 import Profile from "./pages/Profile";
 import Dashboard from "./pages/admin/Dashboard";
 import Participants from "./pages/admin/Participants";
@@ -40,6 +42,16 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/welcome" element={
+            <ProtectedRoute>
+              <Welcome />
+            </ProtectedRoute>
+          } />
+          <Route path="/create-chapter" element={
+            <ProtectedRoute>
+              <CreateChapter />
+            </ProtectedRoute>
+          } />
           
           {/* Public Chapter Profile */}
           <Route path="/chapter/:slug" element={<ChapterProfile />} />
