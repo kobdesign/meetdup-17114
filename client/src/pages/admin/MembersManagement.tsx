@@ -10,9 +10,10 @@ import { toast } from "sonner";
 import { Copy, Loader2, Check, X, Link2, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 export default function MembersManagement() {
-  const { effectiveTenantId } = useTenantContext();
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [copiedLink, setCopiedLink] = useState(false);
 
   const { data: invites = [] } = useQuery({
@@ -96,6 +97,14 @@ export default function MembersManagement() {
     toast.success("คัดลอก link แล้ว!");
     setTimeout(() => setCopiedLink(false), 2000);
   };
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <SelectTenantPrompt />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>

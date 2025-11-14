@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 interface RichMenuArea {
   bounds: {
@@ -47,7 +48,7 @@ interface RichMenu {
 }
 
 export default function RichMenuPage() {
-  const { effectiveTenantId } = useTenantContext();
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
@@ -157,6 +158,14 @@ export default function RichMenuPage() {
   });
 
   const richMenus = richMenusData?.richMenus || [];
+
+  if (!effectiveTenantId && isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <SelectTenantPrompt />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>

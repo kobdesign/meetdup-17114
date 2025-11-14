@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, RefreshCw, FileText, CheckCircle, XCircle, AlertCircle, Edit, Clock, Plus, Trash2, Upload } from "lucide-react";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,7 +81,11 @@ export default function PaymentHistory() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    if (effectiveTenantId && participantId) {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+    if (participantId) {
       loadData();
     }
   }, [participantId, effectiveTenantId]);
@@ -364,34 +369,18 @@ export default function PaymentHistory() {
     }
   };
 
-  if (loading) {
+  if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }
 
-  if (!effectiveTenantId && isSuperAdmin) {
+  if (loading) {
     return (
       <AdminLayout>
-        <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/admin/visitors")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold">ประวัติการชำระเงิน</h1>
-            </div>
-          </div>
-          <Card>
-            <CardContent className="py-8">
-              <p className="text-center text-muted-foreground">
-                กรุณาเลือก Chapter ที่ต้องการจัดการ
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
       </AdminLayout>
     );
   }

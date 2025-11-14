@@ -10,6 +10,7 @@ import MapDisplay from "@/components/MapDisplay";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useTenantContext } from "@/contexts/TenantContext";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 import QRCodeDialog from "@/components/dialogs/QRCodeDialog";
 
 export default function MeetingDetails() {
@@ -25,7 +26,11 @@ export default function MeetingDetails() {
   const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
-    if (effectiveTenantId && meetingId) {
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
+    }
+    if (meetingId) {
       loadMeetingDetails();
     }
   }, [meetingId, effectiveTenantId]);
@@ -200,35 +205,18 @@ export default function MeetingDetails() {
     }
   };
 
-  if (loading) {
+  if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }
 
-  if (!effectiveTenantId && isSuperAdmin) {
+  if (loading) {
     return (
       <AdminLayout>
-        <div className="space-y-6">
-          <div>
-            <Button variant="ghost" onClick={() => navigate("/admin/meetings")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              กลับ
-            </Button>
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">รายละเอียดการประชุม</h1>
-          </div>
-          <Card>
-            <CardContent className="py-8">
-              <p className="text-center text-muted-foreground">
-                กรุณาเลือก Chapter ที่ต้องการจัดการ
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
       </AdminLayout>
     );
   }

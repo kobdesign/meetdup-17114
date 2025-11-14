@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RefreshCw, CheckCircle, XCircle, AlertCircle, Search, Image as ImageIcon } from "lucide-react";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 import {
   Dialog,
   DialogContent,
@@ -57,9 +58,11 @@ export default function PaymentReviews() {
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    if (effectiveTenantId) {
-      loadPaymentSlips();
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
     }
+    loadPaymentSlips();
   }, [effectiveTenantId]);
 
   useEffect(() => {
@@ -216,27 +219,18 @@ export default function PaymentReviews() {
     return { pending, approvedToday, totalToday };
   };
 
-  if (loading) {
+  if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }
 
-  if (!effectiveTenantId && isSuperAdmin) {
+  if (loading) {
     return (
       <AdminLayout>
-        <div className="space-y-6">
-          <h1 className="text-3xl font-bold">ตรวจสอบการชำระเงิน</h1>
-          <Card>
-            <CardContent className="py-8">
-              <p className="text-center text-muted-foreground">
-                กรุณาเลือก Chapter ที่ต้องการจัดการ
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
       </AdminLayout>
     );
   }

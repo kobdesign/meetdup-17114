@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Upload, Download, ExternalLink, Share2 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useTenantContext } from "@/contexts/TenantContext";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 export default function Settings() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
@@ -134,7 +135,7 @@ export default function Settings() {
     try {
       const { error: tenantError } = await supabase
         .from("tenants")
-        .update({ name: tenantName })
+        .update({ tenant_name: tenantName })
         .eq("tenant_id", effectiveTenantId);
 
       if (tenantError) throw tenantError;
@@ -191,30 +192,18 @@ export default function Settings() {
     toast.success("คัดลอกลิงก์แล้ว");
   };
 
-  if (loading) {
+  if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }
 
-  if (!effectiveTenantId && isSuperAdmin) {
+  if (loading) {
     return (
       <AdminLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">การตั้งค่า Chapter</h1>
-            <p className="text-muted-foreground">จัดการโลโก้ สี และข้อมูลองค์กร</p>
-          </div>
-          <Card>
-            <CardContent className="py-8">
-              <p className="text-center text-muted-foreground">
-                กรุณาเลือก Chapter ที่ต้องการจัดการ
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
       </AdminLayout>
     );
   }

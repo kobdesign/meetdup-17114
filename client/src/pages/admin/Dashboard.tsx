@@ -12,6 +12,7 @@ import { Users, Calendar, CheckCircle, DollarSign, CalendarIcon } from "lucide-r
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { format, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 interface AnalyticsData {
   totalParticipants: number;
@@ -149,9 +150,11 @@ export default function Dashboard() {
   }, []); // Run only once on mount
 
   useEffect(() => {
-    if (effectiveTenantId) {
-      loadAnalytics();
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
     }
+    loadAnalytics();
   }, [effectiveTenantId, dateRange, statusFilter]);
 
   const loadAnalytics = async () => {
@@ -309,30 +312,18 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) {
+  if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }
 
-  if (!effectiveTenantId && isSuperAdmin) {
+  if (loading) {
     return (
       <AdminLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Dashboard</h1>
-            <p className="text-muted-foreground">Chapter overview and statistics</p>
-          </div>
-          <Card>
-            <CardContent className="py-8">
-              <p className="text-center text-muted-foreground">
-                กรุณาเลือก Chapter ที่ต้องการดูข้อมูล
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
       </AdminLayout>
     );
   }

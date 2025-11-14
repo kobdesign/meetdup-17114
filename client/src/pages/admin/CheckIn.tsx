@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { QrCode, Calendar, Users, Download, Copy, ExternalLink, Info } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useTenantContext } from "@/contexts/TenantContext";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 export default function CheckIn() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
@@ -128,30 +129,18 @@ export default function CheckIn() {
     window.open(checkinUrl, '_blank');
   };
 
-  if (loading) {
+  if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }
 
-  if (!effectiveTenantId && isSuperAdmin) {
+  if (loading) {
     return (
       <AdminLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Check-In ด้วย QR Code</h1>
-            <p className="text-muted-foreground">สร้าง QR code สำหรับเช็คอินเข้าประชุม</p>
-          </div>
-          <Card>
-            <CardContent className="py-8">
-              <p className="text-center text-muted-foreground">
-                กรุณาเลือก Chapter ที่ต้องการจัดการ
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
       </AdminLayout>
     );
   }

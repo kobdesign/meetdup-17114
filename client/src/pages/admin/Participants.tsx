@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 import {
   Dialog,
   DialogContent,
@@ -59,9 +60,11 @@ export default function Participants() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (effectiveTenantId) {
-      fetchParticipants();
+    if (!effectiveTenantId) {
+      setLoading(false);
+      return;
     }
+    fetchParticipants();
   }, [effectiveTenantId]);
 
   const fetchParticipants = async () => {
@@ -230,19 +233,7 @@ export default function Participants() {
   if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Participants</h1>
-            <p className="text-muted-foreground">Manage members and visitors</p>
-          </div>
-          <Card>
-            <CardContent className="py-8">
-              <p className="text-center text-muted-foreground">
-                กรุณาเลือก Chapter ที่ต้องการจัดการ
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }

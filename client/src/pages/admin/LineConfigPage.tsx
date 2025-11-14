@@ -13,6 +13,7 @@ import { Loader2, CheckCircle, XCircle, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { supabase } from "@/integrations/supabase/client";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 const lineConfigSchema = z.object({
   channelAccessToken: z.string().min(1, "กรุณากรอก Channel Access Token"),
@@ -23,7 +24,7 @@ type LineConfigForm = z.infer<typeof lineConfigSchema>;
 
 export default function LineConfigPage() {
   const { toast } = useToast();
-  const { effectiveTenantId } = useTenantContext();
+  const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [webhookUrl, setWebhookUrl] = useState("");
 
@@ -193,14 +194,10 @@ export default function LineConfigPage() {
     });
   };
 
-  if (!effectiveTenantId) {
+  if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <Alert>
-          <AlertDescription>
-            กรุณาเลือก Chapter ก่อนตั้งค่า LINE Integration
-          </AlertDescription>
-        </Alert>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }

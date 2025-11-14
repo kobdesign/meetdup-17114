@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Search, CheckCircle, XCircle, Clock, Mail, Phone, Bell, History } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useTenantContext } from "@/contexts/TenantContext";
+import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 export default function Visitors() {
   const navigate = useNavigate();
@@ -126,30 +127,18 @@ export default function Visitors() {
     }
   };
 
-  if (loading) {
+  if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+        <SelectTenantPrompt />
       </AdminLayout>
     );
   }
 
-  if (!effectiveTenantId && isSuperAdmin) {
+  if (loading) {
     return (
       <AdminLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">จัดการผู้เยี่ยมชม</h1>
-            <p className="text-muted-foreground">ดูรายชื่อและจัดการผู้เยี่ยมชมที่ลงทะเบียน</p>
-          </div>
-          <Card>
-            <CardContent className="py-8">
-              <p className="text-center text-muted-foreground">
-                กรุณาเลือก Chapter ที่ต้องการจัดการ
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
       </AdminLayout>
     );
   }
