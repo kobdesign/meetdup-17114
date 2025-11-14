@@ -255,17 +255,22 @@ created_at   timestamptz
 
 ## Row Level Security (RLS) Policies
 
-### chapter_invites
+### chapter_invites (Admin-Only Access)
 - **SELECT**: 
-  - Tenant members can view their chapter's invites
-  - Anyone can view invite by token (for accept page)
+  - ✅ **Only chapter admins** can view their chapter's invites
+  - ❌ Regular members **cannot** see invite tokens
+  - ❌ Anonymous users **cannot** access invites
 - **INSERT**: Only admins can create invites
-- **UPDATE**: Service role can update uses_count
+- **DELETE**: Only admins can delete/revoke invites
+- **UPDATE**: Service role only (increments uses_count during acceptance)
 
-### chapter_join_requests
+**Note**: Invite acceptance is handled entirely by backend service role. Users never directly query invite tokens - they only click invite links and the backend validates them server-side.
+
+### chapter_join_requests (Role-Based Visibility)
 - **SELECT**: 
-  - Tenant members can view requests for their chapter
-  - Users can view their own requests
+  - ✅ **Admins** can view **all** requests for their chapter
+  - ✅ **Regular users** can view **only their own** requests
+  - ❌ Users **cannot** see other users' requests
 - **INSERT**: Authenticated users can create requests
 - **UPDATE**: Only admins can approve/reject
 - **DELETE**: Users can delete their own pending requests
@@ -279,16 +284,24 @@ created_at   timestamptz
    - Tokens expire after set date
    - Max uses prevent token abuse
    - One-time tokens recommended for sensitive chapters
+   - **Admin-only visibility**: Regular members cannot see or enumerate tokens
 
 2. **Permission Checks**:
    - All admin actions verify user has chapter_admin or super_admin role
    - RLS policies prevent unauthorized data access
    - Service role used only for trusted backend operations
+   - **Invite tokens**: Only admins can view/create/delete
+   - **Join requests**: Admins see all, users see own only
 
 3. **Input Validation**:
    - Subdomain sanitized to prevent XSS
    - User inputs validated before database operations
    - Duplicate request prevention
+
+4. **Privacy Protection**:
+   - Regular members **cannot** see other users' join requests
+   - Invite metadata (token, uses, expiry) hidden from non-admins
+   - Backend service role validates tokens (prevents enumeration attacks)
 
 ---
 
@@ -303,24 +316,29 @@ created_at   timestamptz
 6. Check database: user has `chapter_admin` role
 
 ### Test Flow 2: Invite
-1. As admin, go to Members Management
+1. As **admin**, go to Members Management
 2. Click "Generate Invite Link"
 3. Copy invite URL
-4. Open in incognito/new browser
-5. Sign up with new email
-6. Accept invite
-7. Verify redirect to `/admin`
-8. Check database: user has `member` role
+4. **Verify**: Regular members **cannot** see this invite in Members list
+5. Open invite URL in incognito/new browser
+6. Sign up with new email
+7. Accept invite
+8. Verify redirect to `/admin`
+9. Check database: user has `member` role
+10. **Verify**: New member **cannot** see invite tokens in Members page
 
 ### Test Flow 3: Discovery
 1. Create account (not assigned to chapter)
 2. Navigate to `/discover-chapters`
 3. Search for chapter
 4. Click "Request to Join"
-5. As admin, go to Members Management
-6. See pending request
-7. Click "Approve"
-8. Verify user now has access
+5. **Verify**: User can see their own request in "My Requests"
+6. As **admin**, go to Members Management
+7. **Verify**: Admin sees pending request
+8. As **regular member**, check Members Management
+9. **Verify**: Regular member **cannot** see pending request (admin-only)
+10. As **admin**, click "Approve"
+11. Verify user now has access as member
 
 ---
 
@@ -356,14 +374,25 @@ SELECT * FROM chapter_invites WHERE token = 'your-token';
 ### Join Request Not Showing
 **Causes**:
 - User already member
-- RLS policy issue
 - Request already approved/rejected
+- **User is a regular member** (only admins see all requests)
+- RLS policy issue
 
 **Debug**:
 ```bash
 npm run check-data
 # Look at JOIN REQUESTS section
 ```
+
+**Note**: Regular members can only see their **own** join requests. If you're an admin and don't see a request, check if it was approved/rejected. If you're a member and don't see someone else's request, this is expected behavior (admin-only visibility).
+
+### "Cannot See Invites" (Members)
+**Cause**: This is **expected behavior**
+- Only chapter admins can view/create/delete invite tokens
+- Regular members do not have access to invite management
+- This prevents token enumeration and maintains security
+
+**Solution**: Contact your chapter admin to generate invite links
 
 ---
 
