@@ -15,13 +15,10 @@ import { cn } from "@/lib/utils";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 interface AnalyticsData {
-  totalParticipants: number;
   activeMembers: number;
   prospects: number;
-  visitors: number;
-  totalMeetings: number;
-  thisMonthMeetings: number;
-  totalCheckins: number;
+  visitorsWithCheckins: number;
+  declined: number;
   participantsByStatus: { name: string; value: number }[];
   monthlyCheckins: { month: string; checkins: number }[];
 }
@@ -39,13 +36,10 @@ export default function Dashboard() {
   const [dateRangePreset, setDateRangePreset] = useState<string>("current_month");
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData>({
-    totalParticipants: 0,
     activeMembers: 0,
     prospects: 0,
-    visitors: 0,
-    totalMeetings: 0,
-    thisMonthMeetings: 0,
-    totalCheckins: 0,
+    visitorsWithCheckins: 0,
+    declined: 0,
     participantsByStatus: [],
     monthlyCheckins: [],
   });
@@ -152,13 +146,11 @@ export default function Dashboard() {
     }
 
     try {
-      // Fetch participants data with filters
+      // Fetch all participants (no date filter - we want current state)
       let participantsQuery = supabase
         .from("participants")
-        .select("status, created_at")
-        .eq("tenant_id", effectiveTenantId)
-        .gte("created_at", dateRange.from.toISOString())
-        .lte("created_at", dateRange.to.toISOString());
+        .select("participant_id, status, created_at")
+        .eq("tenant_id", effectiveTenantId);
 
       if (statusFilter !== "all") {
         participantsQuery = participantsQuery.eq("status", statusFilter as any);
@@ -166,21 +158,35 @@ export default function Dashboard() {
 
       const { data: participants } = await participantsQuery;
 
-      // Fetch meetings data with date range
-      const { data: meetings } = await supabase
-        .from("meetings")
-        .select("meeting_date, created_at")
+      // Count visitors with at least one check-in
+      const { data: visitorsWithCheckins } = await supabase
+        .from("participants")
+        .select("participant_id")
         .eq("tenant_id", effectiveTenantId)
-        .gte("meeting_date", dateRange.from.toISOString().split('T')[0])
-        .lte("meeting_date", dateRange.to.toISOString().split('T')[0]);
+        .eq("status", "visitor");
 
-      // Fetch checkins data with date range
+      let visitorsWithCheckinsCount = 0;
+      if (visitorsWithCheckins && visitorsWithCheckins.length > 0) {
+        const participantIds = visitorsWithCheckins.map(p => p.participant_id);
+        const { data: checkedInVisitors } = await supabase
+          .from("checkins")
+          .select("participant_id")
+          .eq("tenant_id", effectiveTenantId)
+          .in("participant_id", participantIds);
+
+        // Count unique participant_ids
+        const uniqueVisitors = new Set(checkedInVisitors?.map(c => c.participant_id) || []);
+        visitorsWithCheckinsCount = uniqueVisitors.size;
+      }
+
+      // Fetch checkins data for monthly chart (last 6 months)
+      const now = new Date();
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
       const { data: checkins } = await supabase
         .from("checkins")
         .select("checkin_time")
         .eq("tenant_id", effectiveTenantId)
-        .gte("checkin_time", dateRange.from.toISOString())
-        .lte("checkin_time", dateRange.to.toISOString());
+        .gte("checkin_time", sixMonthsAgo.toISOString());
 
       // Process participants by status
       const statusCount = participants?.reduce((acc: any, p) => {
@@ -191,23 +197,16 @@ export default function Dashboard() {
       const participantsByStatus = Object.entries(statusCount).map(([name, value]) => ({
         name:
           name === "member"
-            ? "สมาชิก"
+            ? "สมาชิกปัจจุบัน"
             : name === "prospect"
-            ? "ผู้สนใจ"
+            ? "ผู้มุ่งหวัง"
             : name === "visitor"
             ? "ผู้เยี่ยมชม"
             : name === "declined"
-            ? "ไม่สนใจ"
+            ? "ไม่ติดตาม"
             : "อดีตสมาชิก",
         value: value as number,
       }));
-
-      // Calculate this month's meetings
-      const now = new Date();
-      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const thisMonthMeetings = meetings?.filter(
-        m => new Date(m.meeting_date) >= thisMonthStart
-      ).length || 0;
 
       // Process monthly checkins (last 6 months)
       const monthlyCheckinsMap = new Map<string, number>();
@@ -231,13 +230,10 @@ export default function Dashboard() {
       }));
 
       setAnalytics({
-        totalParticipants: participants?.length || 0,
         activeMembers: statusCount.member || 0,
         prospects: statusCount.prospect || 0,
-        visitors: statusCount.visitor || 0,
-        totalMeetings: meetings?.length || 0,
-        thisMonthMeetings,
-        totalCheckins: checkins?.length || 0,
+        visitorsWithCheckins: visitorsWithCheckinsCount,
+        declined: statusCount.declined || 0,
         participantsByStatus,
         monthlyCheckins,
       });
