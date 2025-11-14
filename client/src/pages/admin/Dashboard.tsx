@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Calendar, CheckCircle, DollarSign, CalendarIcon } from "lucide-react";
+import { Users, Calendar, CheckCircle, CalendarIcon } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { format, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -22,14 +22,8 @@ interface AnalyticsData {
   totalMeetings: number;
   thisMonthMeetings: number;
   totalCheckins: number;
-  totalRevenue: number;
-  paidPayments: number;
-  pendingPayments: number;
-  outstandingAmount: number;
   participantsByStatus: { name: string; value: number }[];
-  paymentsByStatus: { name: string; value: number }[];
   monthlyCheckins: { month: string; checkins: number }[];
-  monthlyRevenue: { month: string; revenue: number }[];
 }
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--success))", "hsl(var(--warning))", "hsl(var(--destructive))", "hsl(var(--muted))"];
@@ -52,14 +46,8 @@ export default function Dashboard() {
     totalMeetings: 0,
     thisMonthMeetings: 0,
     totalCheckins: 0,
-    totalRevenue: 0,
-    paidPayments: 0,
-    pendingPayments: 0,
-    outstandingAmount: 0,
     participantsByStatus: [],
-    paymentsByStatus: [],
     monthlyCheckins: [],
-    monthlyRevenue: [],
   });
 
   // Helper function to get date ranges based on preset
@@ -194,14 +182,6 @@ export default function Dashboard() {
         .gte("checkin_time", dateRange.from.toISOString())
         .lte("checkin_time", dateRange.to.toISOString());
 
-      // Fetch payments data with date range
-      const { data: payments } = await supabase
-        .from("payments")
-        .select("amount, created_at, status")
-        .eq("tenant_id", effectiveTenantId)
-        .gte("created_at", dateRange.from.toISOString())
-        .lte("created_at", dateRange.to.toISOString());
-
       // Process participants by status
       const statusCount = participants?.reduce((acc: any, p) => {
         acc[p.status] = (acc[p.status] || 0) + 1;
@@ -250,43 +230,6 @@ export default function Dashboard() {
         checkins,
       }));
 
-      // Process monthly revenue (last 6 months)
-      const monthlyRevenueMap = new Map<string, number>();
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthKey = date.toLocaleDateString("th-TH", { month: "short", year: "2-digit" });
-        monthlyRevenueMap.set(monthKey, 0);
-      }
-
-      payments?.forEach(p => {
-        const date = new Date(p.created_at);
-        const monthKey = date.toLocaleDateString("th-TH", { month: "short", year: "2-digit" });
-        if (monthlyRevenueMap.has(monthKey)) {
-          monthlyRevenueMap.set(monthKey, monthlyRevenueMap.get(monthKey)! + Number(p.amount));
-        }
-      });
-
-      const monthlyRevenue = Array.from(monthlyRevenueMap.entries()).map(([month, revenue]) => ({
-        month,
-        revenue,
-      }));
-
-      const totalRevenue = payments?.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-      const paidPayments = payments?.filter(p => p.status === 'paid').length || 0;
-      const pendingPayments = payments?.filter(p => p.status === 'pending').length || 0;
-      const outstandingAmount = payments?.filter(p => p.status === 'pending').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-
-      // Payment status breakdown
-      const paymentStatusCount = payments?.reduce((acc: any, p) => {
-        acc[p.status] = (acc[p.status] || 0) + 1;
-        return acc;
-      }, {}) || {};
-
-      const paymentsByStatus = Object.entries(paymentStatusCount).map(([name, value]) => ({
-        name: name === "paid" ? "ชำระแล้ว" : name === "pending" ? "รอชำระ" : name === "failed" ? "ล้มเหลว" : name === "refunded" ? "คืนเงิน" : "ยกเว้น",
-        value: value as number,
-      }));
-
       setAnalytics({
         totalParticipants: participants?.length || 0,
         activeMembers: statusCount.member || 0,
@@ -295,14 +238,8 @@ export default function Dashboard() {
         totalMeetings: meetings?.length || 0,
         thisMonthMeetings,
         totalCheckins: checkins?.length || 0,
-        totalRevenue,
-        paidPayments,
-        pendingPayments,
-        outstandingAmount,
         participantsByStatus,
-        paymentsByStatus,
         monthlyCheckins,
-        monthlyRevenue,
       });
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
@@ -455,46 +392,7 @@ export default function Dashboard() {
               </p>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">รายได้</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {analytics.totalRevenue.toLocaleString()} ฿
-              </div>
-              <p className="text-xs text-muted-foreground">
-                ชำระแล้ว {analytics.paidPayments} | รอชำระ {analytics.pendingPayments}
-              </p>
-            </CardContent>
-          </Card>
         </div>
-
-        {/* Payment Status Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>สถานะการชำระเงิน</CardTitle>
-            <CardDescription>ภาพรวมการชำระเงินทั้งหมด</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">ชำระเงินแล้ว</p>
-                <p className="text-2xl font-bold text-green-600">{analytics.paidPayments}</p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">รอชำระเงิน</p>
-                <p className="text-2xl font-bold text-yellow-600">{analytics.pendingPayments}</p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">ยอดค้างรับ</p>
-                <p className="text-2xl font-bold text-orange-600">{analytics.outstandingAmount.toLocaleString()} ฿</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Charts */}
         <div className="grid gap-4 md:grid-cols-2">
@@ -526,34 +424,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>สถานะการชำระเงิน</CardTitle>
-              <CardDescription>แยกตามสถานะ</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={analytics.paymentsByStatus}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="hsl(var(--secondary))"
-                    dataKey="value"
-                  >
-                    {analytics.paymentsByStatus.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle>การเข้าร่วมประชุม</CardTitle>
@@ -569,32 +439,6 @@ export default function Dashboard() {
                   <Legend />
                   <Bar dataKey="checkins" name="จำนวนเข้าร่วม" fill="hsl(var(--primary))" />
                 </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>รายได้รายเดือน</CardTitle>
-              <CardDescription>6 เดือนที่ผ่านมา</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={analytics.monthlyRevenue}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="revenue" 
-                    name="รายได้ (฿)" 
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={2}
-                    dot={{ fill: "hsl(var(--primary))" }}
-                  />
-                </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
