@@ -9,7 +9,8 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "eslint .",
     "verify-migration": "tsx server/scripts/verify-migration.ts",
-    "check-data": "tsx server/scripts/check-supabase-data.ts"
+    "check-data": "tsx server/scripts/check-supabase-data.ts",
+    "migration:guide": "echo '\n📖 See docs/MIGRATION_GUIDE.md for instructions\n'"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
