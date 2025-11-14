@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Download, ExternalLink, Share2 } from "lucide-react";
@@ -25,6 +26,7 @@ export default function Settings() {
     currency: "THB",
     language: "th",
     default_visitor_fee: 650,
+    require_visitor_payment: true,
   });
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export default function Settings() {
           currency: settingsData.currency || "THB",
           language: settingsData.language || "th",
           default_visitor_fee: settingsData.default_visitor_fee || 650,
+          require_visitor_payment: settingsData.require_visitor_payment ?? true,
         });
       }
     } catch (error: any) {
@@ -145,6 +148,7 @@ export default function Settings() {
           currency: settings.currency,
           language: settings.language,
           default_visitor_fee: settings.default_visitor_fee,
+          require_visitor_payment: settings.require_visitor_payment,
         });
 
       if (error) throw error;
@@ -327,7 +331,22 @@ export default function Settings() {
               />
             </div>
 
-            <Button onClick={handleSave} disabled={saving}>
+            <div className="flex items-center justify-between space-x-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="require_visitor_payment">ต้องชำระเงินสำหรับผู้เยี่ยมชม</Label>
+                <div className="text-sm text-muted-foreground">
+                  เปิดใช้งานเพื่อให้ผู้เยี่ยมชมต้องชำระค่าเข้าชมก่อนเข้าร่วมกิจกรรม
+                </div>
+              </div>
+              <Switch
+                id="require_visitor_payment"
+                checked={settings.require_visitor_payment}
+                onCheckedChange={(checked) => setSettings({ ...settings, require_visitor_payment: checked })}
+                data-testid="switch-require-visitor-payment"
+              />
+            </div>
+
+            <Button onClick={handleSave} disabled={saving} data-testid="button-save-settings">
               {saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
             </Button>
           </CardContent>
