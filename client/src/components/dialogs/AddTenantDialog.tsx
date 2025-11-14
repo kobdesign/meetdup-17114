@@ -49,30 +49,33 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
         return;
       }
 
-      // Create tenant
-      const { data: tenant, error: tenantError } = await supabase
-        .from("tenants")
-        .insert({
+      // Create tenant via API endpoint (bypasses PostgREST schema cache)
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session) {
+        toast.error("กรุณาเข้าสู่ระบบก่อน");
+        return;
+      }
+
+      const response = await fetch('/api/tenants/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.session.access_token}`,
+        },
+        body: JSON.stringify({
           tenant_name: formData.tenant_name,
           subdomain: formData.subdomain,
-        })
-        .select()
-        .single();
-
-      if (tenantError) throw tenantError;
-
-      // Create tenant settings
-      const { error: settingsError } = await supabase
-        .from("tenant_settings")
-        .insert({
-          tenant_id: tenant.tenant_id,
           language: formData.language,
           currency: formData.currency,
-          default_visitor_fee: parseFloat(formData.defaultVisitorFee),
-          require_visitor_payment: true,
-        });
+          default_visitor_fee: formData.defaultVisitorFee,
+        }),
+      });
 
-      if (settingsError) throw settingsError;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || result.error || 'Failed to create tenant');
+      }
 
       toast.success("สร้าง tenant สำเร็จ");
       onSuccess();
@@ -88,7 +91,7 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
       });
     } catch (error: any) {
       console.error('Error creating tenant:', error);
-      if (error.code === '23505') {
+      if (error.message.includes('already')) {
         toast.error("Subdomain นี้ถูกใช้งานแล้ว กรุณาเลือก subdomain อื่น");
       } else {
         toast.error(error.message || "ไม่สามารถสร้าง tenant ได้");
