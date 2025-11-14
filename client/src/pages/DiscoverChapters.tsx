@@ -8,6 +8,7 @@ import { ArrowLeft, Search, Loader2, Building2, CheckCircle2 } from "lucide-reac
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { OnboardingGuard } from "@/components/OnboardingGuard";
 
 interface Chapter {
   tenant_id: string;
@@ -73,90 +74,92 @@ export default function DiscoverChapters() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 p-4">
-      <div className="max-w-4xl mx-auto">
-        <Button
-          variant="ghost"
-          onClick={() => navigate("/welcome")}
-          className="mb-4"
-          data-testid="button-back"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          ย้อนกลับ
-        </Button>
+    <OnboardingGuard>
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 p-4">
+        <div className="max-w-4xl mx-auto">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/welcome")}
+            className="mb-4"
+            data-testid="button-back"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            ย้อนกลับ
+          </Button>
 
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">ค้นหา Chapter</h1>
-          <p className="text-muted-foreground">
-            เลือก Chapter ที่คุณต้องการเข้าร่วมและส่งคำขอ
-          </p>
-        </div>
-
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="ค้นหาชื่อ Chapter..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-              data-testid="input-search"
-            />
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold mb-2">ค้นหา Chapter</h1>
+            <p className="text-muted-foreground">
+              เลือก Chapter ที่คุณต้องการเข้าร่วมและส่งคำขอ
+            </p>
           </div>
-        </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="ค้นหาชื่อ Chapter..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+                data-testid="input-search"
+              />
+            </div>
           </div>
-        ) : chapters.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">
-                {searchQuery ? "ไม่พบ Chapter ที่ตรงกับการค้นหา" : "ยังไม่มี Chapter ในระบบ"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {chapters.map((chapter: Chapter) => (
-              <Card
-                key={chapter.tenant_id}
-                className="hover-elevate transition-all"
-                data-testid={`chapter-card-${chapter.tenant_id}`}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex gap-4">
-                      <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <Building2 className="h-6 w-6 text-primary" />
+
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : chapters.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-muted-foreground">
+                  {searchQuery ? "ไม่พบ Chapter ที่ตรงกับการค้นหา" : "ยังไม่มี Chapter ในระบบ"}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {chapters.map((chapter: Chapter) => (
+                <Card
+                  key={chapter.tenant_id}
+                  className="hover-elevate transition-all"
+                  data-testid={`chapter-card-${chapter.tenant_id}`}
+                >
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex gap-4">
+                        <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Building2 className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{chapter.tenant_name}</CardTitle>
+                          <CardDescription>
+                            Subdomain: {chapter.subdomain}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <div>
-                        <CardTitle className="text-lg">{chapter.tenant_name}</CardTitle>
-                        <CardDescription>
-                          Subdomain: {chapter.subdomain}
-                        </CardDescription>
-                      </div>
+                      <Button
+                        onClick={() => handleJoinRequest(chapter.tenant_id)}
+                        disabled={joinRequestMutation.isPending}
+                        data-testid={`button-request-join-${chapter.tenant_id}`}
+                      >
+                        {joinRequestMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                        )}
+                        ขอเข้าร่วม
+                      </Button>
                     </div>
-                    <Button
-                      onClick={() => handleJoinRequest(chapter.tenant_id)}
-                      disabled={joinRequestMutation.isPending}
-                      data-testid={`button-request-join-${chapter.tenant_id}`}
-                    >
-                      {joinRequestMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                      )}
-                      ขอเข้าร่วม
-                    </Button>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        )}
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </OnboardingGuard>
   );
 }
