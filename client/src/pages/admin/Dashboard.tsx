@@ -276,10 +276,10 @@ export default function Dashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">ทั้งหมด</SelectItem>
-                <SelectItem value="member">สมาชิก</SelectItem>
-                <SelectItem value="prospect">ผู้สนใจ</SelectItem>
+                <SelectItem value="member">สมาชิกปัจจุบัน</SelectItem>
+                <SelectItem value="prospect">ผู้มุ่งหวัง</SelectItem>
                 <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
-                <SelectItem value="declined">ไม่สนใจ</SelectItem>
+                <SelectItem value="declined">ไม่ติดตาม</SelectItem>
                 <SelectItem value="alumni">อดีตสมาชิก</SelectItem>
               </SelectContent>
             </Select>
