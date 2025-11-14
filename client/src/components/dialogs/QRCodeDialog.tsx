@@ -7,18 +7,18 @@ import { toast } from "sonner";
 interface QRCodeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  slug: string;
-  name: string;
+  subdomain: string;
+  tenantName: string;
   meetingId?: string;
 }
 
-export default function QRCodeDialog({ open, onOpenChange, slug, name, meetingId }: QRCodeDialogProps) {
+export default function QRCodeDialog({ open, onOpenChange, subdomain, tenantName, meetingId }: QRCodeDialogProps) {
   const profileUrl = meetingId
-    ? `${window.location.origin}/chapter/${slug}?meeting=${meetingId}`
-    : `${window.location.origin}/chapter/${slug}`;
+    ? `${window.location.origin}/chapter/${subdomain}?meeting=${meetingId}`
+    : `${window.location.origin}/chapter/${subdomain}`;
 
   const downloadQRCode = () => {
-    const svg = document.getElementById(`qr-code-${slug}`);
+    const svg = document.getElementById(`qr-code-${subdomain}`);
     if (!svg) return;
 
     const svgData = new XMLSerializer().serializeToString(svg);
@@ -33,7 +33,7 @@ export default function QRCodeDialog({ open, onOpenChange, slug, name, meetingId
       const pngFile = canvas.toDataURL("image/png");
 
       const downloadLink = document.createElement("a");
-      downloadLink.download = `${slug}-qr-code.png`;
+      downloadLink.download = `${subdomain}-qr-code.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
       
@@ -47,7 +47,7 @@ export default function QRCodeDialog({ open, onOpenChange, slug, name, meetingId
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>QR Code - {name}</DialogTitle>
+          <DialogTitle>QR Code - {tenantName}</DialogTitle>
           <DialogDescription>
             {meetingId 
               ? "QR code สำหรับลงทะเบียนเข้าร่วมการประชุมนี้โดยตรง"
@@ -58,7 +58,7 @@ export default function QRCodeDialog({ open, onOpenChange, slug, name, meetingId
         <div className="flex flex-col items-center gap-4 py-4">
           <div className="p-4 bg-white rounded-lg border">
             <QRCode
-              id={`qr-code-${slug}`}
+              id={`qr-code-${subdomain}`}
               value={profileUrl}
               size={256}
               level="H"

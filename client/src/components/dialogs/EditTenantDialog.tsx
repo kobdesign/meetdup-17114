@@ -17,21 +17,15 @@ interface EditTenantDialogProps {
 export default function EditTenantDialog({ open, onOpenChange, onSuccess, tenant }: EditTenantDialogProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
-    slug: "",
-    country: "TH",
-    timezone: "Asia/Bangkok",
-    status: "active" as "active" | "cancelled" | "suspended",
+    tenant_name: "",
+    subdomain: "",
   });
 
   useEffect(() => {
     if (tenant) {
       setFormData({
-        name: tenant.name || "",
-        slug: tenant.slug || "",
-        country: tenant.country || "TH",
-        timezone: tenant.timezone || "Asia/Bangkok",
-        status: tenant.status || "active",
+        tenant_name: tenant.tenant_name || "",
+        subdomain: tenant.subdomain || "",
       });
     }
   }, [tenant]);
@@ -44,11 +38,8 @@ export default function EditTenantDialog({ open, onOpenChange, onSuccess, tenant
       const { error } = await supabase
         .from("tenants")
         .update({
-          name: formData.name,
-          slug: formData.slug,
-          country: formData.country,
-          timezone: formData.timezone,
-          status: formData.status,
+          tenant_name: formData.tenant_name,
+          subdomain: formData.subdomain,
         })
         .eq("tenant_id", tenant.tenant_id);
 
@@ -72,67 +63,26 @@ export default function EditTenantDialog({ open, onOpenChange, onSuccess, tenant
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="name">ชื่อ Chapter *</Label>
+            <Label htmlFor="tenant_name">ชื่อ Chapter *</Label>
             <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              id="tenant_name"
+              value={formData.tenant_name}
+              onChange={(e) => setFormData({ ...formData, tenant_name: e.target.value })}
               required
             />
           </div>
 
           <div>
-            <Label htmlFor="slug">Slug *</Label>
+            <Label htmlFor="subdomain">Subdomain *</Label>
             <Input
-              id="slug"
-              value={formData.slug}
-              onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") })}
+              id="subdomain"
+              value={formData.subdomain}
+              onChange={(e) => setFormData({ ...formData, subdomain: e.target.value.toLowerCase().replace(/\s+/g, "-") })}
               required
             />
-          </div>
-
-          <div>
-            <Label htmlFor="country">ประเทศ *</Label>
-            <Select value={formData.country} onValueChange={(value) => setFormData({ ...formData, country: value })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="TH">Thailand</SelectItem>
-                <SelectItem value="SG">Singapore</SelectItem>
-                <SelectItem value="MY">Malaysia</SelectItem>
-                <SelectItem value="ID">Indonesia</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="timezone">Timezone *</Label>
-            <Select value={formData.timezone} onValueChange={(value) => setFormData({ ...formData, timezone: value })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Asia/Bangkok">Asia/Bangkok</SelectItem>
-                <SelectItem value="Asia/Singapore">Asia/Singapore</SelectItem>
-                <SelectItem value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur</SelectItem>
-                <SelectItem value="Asia/Jakarta">Asia/Jakarta</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="status">สถานะ *</Label>
-            <Select value={formData.status} onValueChange={(value: any) => setFormData({ ...formData, status: value })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-              </SelectContent>
-            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              ใช้สำหรับ URL และต้องไม่ซ้ำกัน
+            </p>
           </div>
 
           <DialogFooter>

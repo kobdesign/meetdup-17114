@@ -56,14 +56,14 @@ export default function MeetingDetails() {
       
       setMeeting(meetingData);
 
-      // Load tenant slug for QR code
+      // Load tenant subdomain for QR code
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("slug")
+        .select("subdomain")
         .eq("tenant_id", effectiveTenantId)
         .single();
 
-      if (tenantData) setTenantSlug(tenantData.slug);
+      if (tenantData) setTenantSlug(tenantData.subdomain);
 
       // Load registrations
       const { data: regsData, error: regsError } = await supabase

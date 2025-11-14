@@ -4,7 +4,6 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StatusBadge } from "@/components/StatusBadge";
 import AddTenantDialog from "@/components/dialogs/AddTenantDialog";
 import EditTenantDialog from "@/components/dialogs/EditTenantDialog";
 import QRCodeDialog from "@/components/dialogs/QRCodeDialog";
@@ -106,8 +105,8 @@ export default function Tenants() {
         <QRCodeDialog
           open={showQRDialog}
           onOpenChange={setShowQRDialog}
-          slug={selectedTenant?.slug || ""}
-          name={selectedTenant?.name || ""}
+          subdomain={selectedTenant?.subdomain || ""}
+          tenantName={selectedTenant?.tenant_name || ""}
         />
 
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -115,7 +114,7 @@ export default function Tenants() {
             <AlertDialogHeader>
               <AlertDialogTitle>ยืนยันการลบ</AlertDialogTitle>
               <AlertDialogDescription>
-                คุณแน่ใจหรือไม่ที่จะลบ tenant "{selectedTenant?.name}"? การกระทำนี้ไม่สามารถย้อนกลับได้
+                คุณแน่ใจหรือไม่ที่จะลบ tenant "{selectedTenant?.tenant_name}"? การกระทำนี้ไม่สามารถย้อนกลับได้
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -138,11 +137,9 @@ export default function Tenants() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Slug</TableHead>
-                    <TableHead>Country</TableHead>
-                    <TableHead>Timezone</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Chapter Name</TableHead>
+                    <TableHead>Subdomain</TableHead>
+                    <TableHead>LINE Bot ID</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -150,20 +147,16 @@ export default function Tenants() {
                 <TableBody>
                   {tenants.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
                         No tenants found
                       </TableCell>
                     </TableRow>
                   ) : (
                     tenants.map((tenant) => (
                       <TableRow key={tenant.tenant_id}>
-                        <TableCell className="font-medium">{tenant.name}</TableCell>
-                        <TableCell>{tenant.slug}</TableCell>
-                        <TableCell>{tenant.country}</TableCell>
-                        <TableCell>{tenant.timezone}</TableCell>
-                        <TableCell>
-                          <StatusBadge status={tenant.status} />
-                        </TableCell>
+                        <TableCell className="font-medium">{tenant.tenant_name}</TableCell>
+                        <TableCell>{tenant.subdomain}</TableCell>
+                        <TableCell className="text-muted-foreground">{tenant.line_bot_basic_id || "-"}</TableCell>
                         <TableCell>
                           {new Date(tenant.created_at).toLocaleDateString()}
                         </TableCell>
@@ -183,7 +176,7 @@ export default function Tenants() {
                               asChild
                               title="ดู Public Profile"
                             >
-                              <Link to={`/chapter/${tenant.slug}`} target="_blank">
+                              <Link to={`/chapter/${tenant.subdomain}`} target="_blank">
                                 <ExternalLink className="h-4 w-4" />
                               </Link>
                             </Button>

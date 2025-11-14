@@ -30,10 +30,8 @@ interface AddTenantDialogProps {
 export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTenantDialogProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
-    slug: "",
-    country: "TH",
-    timezone: "Asia/Bangkok",
+    tenant_name: "",
+    subdomain: "",
     language: "th",
     currency: "THB",
     defaultVisitorFee: "650",
@@ -44,10 +42,10 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
     setLoading(true);
 
     try {
-      // Validate slug format
-      const slugRegex = /^[a-z0-9-]+$/;
-      if (!slugRegex.test(formData.slug)) {
-        toast.error("Slug ต้องเป็นตัวอักษรภาษาอังกฤษพิมพ์เล็ก ตัวเลข และขีดกลางเท่านั้น");
+      // Validate subdomain format
+      const subdomainRegex = /^[a-z0-9-]+$/;
+      if (!subdomainRegex.test(formData.subdomain)) {
+        toast.error("Subdomain ต้องเป็นตัวอักษรภาษาอังกฤษพิมพ์เล็ก ตัวเลข และขีดกลางเท่านั้น");
         return;
       }
 
@@ -55,11 +53,8 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
       const { data: tenant, error: tenantError } = await supabase
         .from("tenants")
         .insert({
-          name: formData.name,
-          slug: formData.slug,
-          country: formData.country,
-          timezone: formData.timezone,
-          status: "active",
+          tenant_name: formData.tenant_name,
+          subdomain: formData.subdomain,
         })
         .select()
         .single();
@@ -85,10 +80,8 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
       
       // Reset form
       setFormData({
-        name: "",
-        slug: "",
-        country: "TH",
-        timezone: "Asia/Bangkok",
+        tenant_name: "",
+        subdomain: "",
         language: "th",
         currency: "THB",
         defaultVisitorFee: "650",
@@ -96,7 +89,7 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
     } catch (error: any) {
       console.error('Error creating tenant:', error);
       if (error.code === '23505') {
-        toast.error("Slug นี้ถูกใช้งานแล้ว กรุณาเลือก slug อื่น");
+        toast.error("Subdomain นี้ถูกใช้งานแล้ว กรุณาเลือก subdomain อื่น");
       } else {
         toast.error(error.message || "ไม่สามารถสร้าง tenant ได้");
       }
@@ -105,7 +98,7 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
     }
   };
 
-  const generateSlug = (name: string) => {
+  const generateSubdomain = (name: string) => {
     return name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -115,8 +108,8 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
   const handleNameChange = (value: string) => {
     setFormData(prev => ({
       ...prev,
-      name: value,
-      slug: generateSlug(value),
+      tenant_name: value,
+      subdomain: generateSubdomain(value),
     }));
   };
 
@@ -133,66 +126,28 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">ชื่อ Chapter *</Label>
+              <Label htmlFor="tenant_name">ชื่อ Chapter *</Label>
               <Input
-                id="name"
+                id="tenant_name"
                 placeholder="BNI Bangkok Central"
-                value={formData.name}
+                value={formData.tenant_name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 required
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="slug">Slug *</Label>
+              <Label htmlFor="subdomain">Subdomain *</Label>
               <Input
-                id="slug"
+                id="subdomain"
                 placeholder="bni-bangkok-central"
-                value={formData.slug}
-                onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                value={formData.subdomain}
+                onChange={(e) => setFormData(prev => ({ ...prev, subdomain: e.target.value }))}
                 required
               />
               <p className="text-xs text-muted-foreground">
                 ใช้สำหรับ URL และต้องไม่ซ้ำกัน (เช่น bni-bangkok-central)
               </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="country">ประเทศ</Label>
-                <Select
-                  value={formData.country}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, country: value }))}
-                >
-                  <SelectTrigger id="country">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TH">ประเทศไทย</SelectItem>
-                    <SelectItem value="SG">สิงคโปร์</SelectItem>
-                    <SelectItem value="MY">มาเลเซีย</SelectItem>
-                    <SelectItem value="ID">อินโดนีเซีย</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="timezone">เขตเวลา</Label>
-                <Select
-                  value={formData.timezone}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, timezone: value }))}
-                >
-                  <SelectTrigger id="timezone">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Asia/Bangkok">Asia/Bangkok</SelectItem>
-                    <SelectItem value="Asia/Singapore">Asia/Singapore</SelectItem>
-                    <SelectItem value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur</SelectItem>
-                    <SelectItem value="Asia/Jakarta">Asia/Jakarta</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

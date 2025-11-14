@@ -146,7 +146,7 @@ export default function PaymentPage() {
               จะติดต่อกลับหลังตรวจสอบ
             </p>
             <Button
-              onClick={() => navigate(`/chapter/${participant.tenants?.slug}`)}
+              onClick={() => navigate(`/chapter/${participant.tenants?.subdomain}`)}
               variant="outline"
               className="mt-4"
             >

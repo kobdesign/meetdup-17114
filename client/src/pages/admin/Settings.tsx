@@ -43,13 +43,13 @@ export default function Settings() {
     try {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("slug, name")
+        .select("subdomain, tenant_name")
         .eq("tenant_id", effectiveTenantId)
         .single();
 
       if (tenantData) {
-        setTenantSlug(tenantData.slug);
-        setTenantName(tenantData.name);
+        setTenantSlug(tenantData.subdomain);
+        setTenantName(tenantData.tenant_name);
       }
 
       const { data, error } = await supabase

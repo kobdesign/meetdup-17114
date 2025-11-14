@@ -34,8 +34,8 @@ export default function CheckInScanner() {
         .select(`
           *,
           tenants:tenant_id (
-            name,
-            slug
+            tenant_name,
+            subdomain
           )
         `)
         .eq("meeting_id", meetingId)
@@ -199,7 +199,7 @@ export default function CheckInScanner() {
               {meeting.tenants?.tenant_name}
             </p>
             <Button
-              onClick={() => navigate(`/chapter/${meeting.tenants?.slug}`)}
+              onClick={() => navigate(`/chapter/${meeting.tenants?.subdomain}`)}
               variant="outline"
               className="mt-4"
             >
