@@ -40,16 +40,45 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const { tenantId, channelAccessToken, channelSecret, channelId } = req.body;
 
-    if (!tenantId || !channelAccessToken || !channelSecret || !channelId) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId" });
     }
 
+    // SECURITY: Check tenant access BEFORE touching any credentials
     const hasAccess = await checkTenantAccess(req.user!.id, tenantId);
     if (!hasAccess) {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    await saveLineCredentials(tenantId, channelAccessToken, channelSecret, channelId);
+    // Check if this is a partial update or full config
+    const hasToken = channelAccessToken && channelAccessToken.trim().length > 0;
+    const hasSecret = channelSecret && channelSecret.trim().length > 0;
+    const hasChannelId = channelId && channelId.trim().length > 0;
+
+    // Get existing credentials to merge with new values (AFTER access check)
+    const existingCreds = await getLineCredentials(tenantId);
+
+    // For new config, require all three fields
+    if (!existingCreds && (!hasToken || !hasSecret || !hasChannelId)) {
+      return res.status(400).json({ error: "Missing required fields for new LINE configuration" });
+    }
+
+    // For updates, require at least one field
+    if (existingCreds && !hasToken && !hasSecret && !hasChannelId) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    // Merge with existing values for partial updates
+    const finalToken = hasToken ? channelAccessToken : existingCreds?.channelAccessToken || "";
+    const finalSecret = hasSecret ? channelSecret : existingCreds?.channelSecret || "";
+    const finalChannelId = hasChannelId ? channelId : existingCreds?.channelId || "";
+
+    // Validate we have all required values after merging
+    if (!finalToken || !finalSecret || !finalChannelId) {
+      return res.status(400).json({ error: "Missing required LINE credentials" });
+    }
+
+    await saveLineCredentials(tenantId, finalToken, finalSecret, finalChannelId);
 
     return res.json({ success: true });
   } catch (error) {

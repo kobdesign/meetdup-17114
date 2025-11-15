@@ -16,8 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
 const lineConfigSchema = z.object({
-  channelAccessToken: z.string().min(1, "กรุณากรอก Channel Access Token"),
-  channelSecret: z.string().min(1, "กรุณากรอก Channel Secret"),
+  channelAccessToken: z.string().optional(),
+  channelSecret: z.string().optional(),
 });
 
 type LineConfigForm = z.infer<typeof lineConfigSchema>;
@@ -74,50 +74,79 @@ export default function LineConfigPage() {
     mutationFn: async (data: LineConfigForm) => {
       const { data: { session } } = await supabase.auth.getSession();
 
-      // Validate token with backend (avoid CORS)
-      const validateResponse = await fetch("/api/line/config/validate-token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({
-          accessToken: data.channelAccessToken
-        })
-      });
-
-      if (!validateResponse.ok) {
-        throw new Error("ไม่สามารถตรวจสอบ Access Token ได้");
-      }
-
-      const validationResult = await validateResponse.json();
+      const isUpdate = config?.configured;
       
-      if (!validationResult.valid) {
-        throw new Error(validationResult.error || "Invalid LINE Channel Access Token");
+      // Check if user provided any new values
+      const hasNewToken = data.channelAccessToken && data.channelAccessToken.trim().length > 0;
+      const hasNewSecret = data.channelSecret && data.channelSecret.trim().length > 0;
+      
+      // For new config, require both fields
+      if (!isUpdate && (!hasNewToken || !hasNewSecret)) {
+        throw new Error("กรุณากรอก Channel Access Token และ Channel Secret");
       }
 
-      const channelId = validationResult.botUserId;
-
-      if (!channelId) {
-        throw new Error("ไม่สามารถดึง LINE Bot User ID ได้");
+      // For updates, need at least one field to change
+      if (isUpdate && !hasNewToken && !hasNewSecret) {
+        throw new Error("กรุณากรอกข้อมูลที่ต้องการเปลี่ยนแปลง");
       }
 
-      // Save configuration
+      // Build payload with only fields that user provided
+      const payload: any = {
+        tenantId: effectiveTenantId,
+      };
+
+      // Validate and get channel ID only if new token is provided
+      if (hasNewToken) {
+        const validateResponse = await fetch("/api/line/config/validate-token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({
+            accessToken: data.channelAccessToken
+          })
+        });
+
+        if (!validateResponse.ok) {
+          throw new Error("ไม่สามารถตรวจสอบ Access Token ได้");
+        }
+
+        const validationResult = await validateResponse.json();
+        
+        if (!validationResult.valid) {
+          throw new Error(validationResult.error || "Invalid LINE Channel Access Token");
+        }
+
+        payload.channelId = validationResult.botUserId;
+
+        if (!payload.channelId) {
+          throw new Error("ไม่สามารถดึง LINE Bot User ID ได้");
+        }
+        
+        payload.channelAccessToken = data.channelAccessToken;
+      }
+
+      // Add secret if provided
+      if (hasNewSecret) {
+        payload.channelSecret = data.channelSecret;
+      }
+
+      // Backend will merge with existing values and validate
       const response = await fetch("/api/line/config", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify({
-          tenantId: effectiveTenantId,
-          channelAccessToken: data.channelAccessToken,
-          channelSecret: data.channelSecret,
-          channelId,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error("Failed to save configuration");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || "Failed to save configuration");
+      }
+      
       return response.json();
     },
     onSuccess: () => {
@@ -247,6 +276,21 @@ export default function LineConfigPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {config?.configured && (
+              <Alert className="mb-4" data-testid="alert-config-status">
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>LINE Integration ตั้งค่าแล้ว</strong>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Channel ID: {config.channelId}
+                  </div>
+                  <div className="mt-1 text-sm">
+                    ถ้าไม่ต้องการเปลี่ยนค่า ไม่จำเป็นต้องกรอกใหม่
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
@@ -254,11 +298,18 @@ export default function LineConfigPage() {
                   name="channelAccessToken"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Channel Access Token</FormLabel>
+                      <FormLabel>
+                        Channel Access Token
+                        {config?.configured && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            (ปัจจุบัน: {config.channelAccessToken})
+                          </span>
+                        )}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           type="password"
-                          placeholder="xxxxxxxxxx..."
+                          placeholder={config?.configured ? "กรอกเฉพาะเมื่อต้องการเปลี่ยนแปลง..." : "xxxxxxxxxx..."}
                           {...field}
                           data-testid="input-channel-access-token"
                         />
@@ -276,11 +327,18 @@ export default function LineConfigPage() {
                   name="channelSecret"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Channel Secret</FormLabel>
+                      <FormLabel>
+                        Channel Secret
+                        {config?.configured && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            (ปัจจุบัน: {config.channelSecret})
+                          </span>
+                        )}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           type="password"
-                          placeholder="xxxxxxxxxx..."
+                          placeholder={config?.configured ? "กรอกเฉพาะเมื่อต้องการเปลี่ยนแปลง..." : "xxxxxxxxxx..."}
                           {...field}
                           data-testid="input-channel-secret"
                         />
