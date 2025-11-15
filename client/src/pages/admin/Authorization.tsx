@@ -107,18 +107,25 @@ export default function Authorization() {
 
       if (rolesError) throw rolesError;
 
-      // Load user emails from auth.users via edge function
+      // Load user emails from auth.users via API
       const userIds = [...new Set(rolesData?.map(r => r.user_id) || [])];
       const usersMap = new Map<string, string>();
 
+      const { data: { session } } = await supabase.auth.getSession();
+
       for (const userId of userIds) {
         try {
-          const { data: userData, error: userError } = await supabase.functions.invoke('manage-user-roles', {
-            body: { action: 'get_user_by_id', userId }
+          const response = await fetch(`/api/users/${userId}`, {
+            headers: {
+              "Authorization": `Bearer ${session?.access_token}`
+            }
           });
           
-          if (!userError && userData?.user?.email) {
-            usersMap.set(userId, userData.user.email);
+          if (response.ok) {
+            const userData = await response.json();
+            if (userData?.user?.email) {
+              usersMap.set(userId, userData.user.email);
+            }
           }
         } catch (error) {
           console.error('Error fetching user:', error);
@@ -199,12 +206,21 @@ export default function Authorization() {
 
     setAdding(true);
     try {
-      // Find user by email via edge function
-      const { data, error: findError } = await supabase.functions.invoke('manage-user-roles', {
-        body: { action: 'get_user_by_email', email: newUserEmail }
+      // Find user by email via API
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(`/api/users/by-email/${encodeURIComponent(newUserEmail)}`, {
+        headers: {
+          "Authorization": `Bearer ${session?.access_token}`
+        }
       });
 
-      if (findError) throw findError;
+      if (!response.ok) {
+        toast.error("ไม่พบผู้ใช้ด้วยอีเมลนี้");
+        return;
+      }
+
+      const data = await response.json();
 
       if (!data?.user) {
         toast.error("ไม่พบผู้ใช้ด้วยอีเมลนี้");

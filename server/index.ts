@@ -3,6 +3,7 @@ import { registerVite } from "./vite";
 import lineRouter from "./routes/line/index";
 import chaptersRouter from "./routes/chapters";
 import participantsRouter from "./routes/participants";
+import usersRouter from "./routes/users";
 
 const app = express();
 app.use(express.json());
@@ -49,6 +50,9 @@ app.use("/api/chapters", chaptersRouter);
 
 // Participants analytics routes
 app.use("/api/participants", participantsRouter);
+
+// User management routes (Super Admin only)
+app.use("/api/users", usersRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();
