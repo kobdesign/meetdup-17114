@@ -122,16 +122,29 @@ router.post("/invite/generate", verifySupabaseAuth, async (req: AuthenticatedReq
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Check if user is admin of this chapter
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is super admin OR chapter admin of this specific chapter
+    // First check for super admin (tenant_id = NULL)
+    const { data: superAdminRole } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("tenant_id", tenant_id)
-      .single();
+      .is("tenant_id", null)
+      .eq("role", "super_admin")
+      .maybeSingle();
 
-    if (!userRole || !["chapter_admin", "super_admin"].includes(userRole.role)) {
-      return res.status(403).json({ error: "Not authorized to create invites" });
+    if (!superAdminRole) {
+      // Not a super admin, check if chapter admin for this specific chapter
+      const { data: chapterAdminRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenant_id)
+        .eq("role", "chapter_admin")
+        .maybeSingle();
+
+      if (!chapterAdminRole) {
+        return res.status(403).json({ error: "Not authorized to create invites" });
+      }
     }
 
     // Generate unique token
@@ -486,16 +499,28 @@ router.post("/join-request/:requestId/:action", verifySupabaseAuth, async (req: 
       return res.status(404).json({ error: "Request not found" });
     }
 
-    // Check if user is admin of this chapter
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is super admin OR chapter admin of this specific chapter
+    const { data: superAdminRole } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("tenant_id", request.tenant_id)
-      .single();
+      .is("tenant_id", null)
+      .eq("role", "super_admin")
+      .maybeSingle();
 
-    if (!userRole || !["chapter_admin", "super_admin"].includes(userRole.role)) {
-      return res.status(403).json({ error: "Not authorized" });
+    if (!superAdminRole) {
+      // Not a super admin, check if chapter admin for this specific chapter
+      const { data: chapterAdminRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", request.tenant_id)
+        .eq("role", "chapter_admin")
+        .maybeSingle();
+
+      if (!chapterAdminRole) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
     }
 
     if (action === "approve") {
