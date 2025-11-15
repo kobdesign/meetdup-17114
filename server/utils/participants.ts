@@ -29,7 +29,12 @@ export async function syncUserToParticipants(params: SyncParticipantParams) {
       .maybeSingle();
 
     // Step 2: Fetch auth user data as fallback
-    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(user_id);
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(user_id);
+    
+    // Log warning if auth fetch fails (but don't fail the whole operation)
+    if (authError) {
+      console.warn(`[syncUserToParticipants] Failed to fetch auth user ${user_id}:`, authError.message);
+    }
     
     // Step 3: Extract data with fallback chain: profile → auth.user_metadata → auth.email → placeholder
     const full_name = 
