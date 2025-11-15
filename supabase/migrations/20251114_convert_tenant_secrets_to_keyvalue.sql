@@ -54,8 +54,6 @@ CREATE TABLE tenant_secrets (
 CREATE INDEX IF NOT EXISTS tenant_secrets_tenant_id_idx ON tenant_secrets(tenant_id);
 CREATE INDEX IF NOT EXISTS tenant_secrets_secret_key_idx ON tenant_secrets(secret_key);
 
-RAISE NOTICE '✓ Created tenant_secrets with key-value pattern';
-
 -- ============================================================================
 -- STEP 3: MIGRATE DATA FROM BACKUP (if exists)
 -- ============================================================================
@@ -153,24 +151,57 @@ BEGIN
   END IF;
 END $RLS$;
 
+-- ============================================================================
+-- STEP 7: VERIFY SCHEMA
+-- ============================================================================
+
+DO $$
+DECLARE
+  column_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO column_count
+  FROM information_schema.columns
+  WHERE table_name = 'tenant_secrets'
+  AND column_name IN ('tenant_id', 'secret_key', 'secret_value', 'created_at', 'updated_at');
+  
+  IF column_count = 5 THEN
+    RAISE NOTICE '✅ Schema verification passed - all 5 columns present';
+  ELSE
+    RAISE WARNING '⚠️  Expected 5 columns, found %', column_count;
+  END IF;
+END $$;
+
 COMMIT;
 
 -- ============================================================================
 -- POST-MIGRATION INSTRUCTIONS
 -- ============================================================================
 
--- After running this migration:
+-- After running this migration, execute these commands:
+
 -- 1. Reload PostgREST schema cache:
 --    NOTIFY pgrst, 'reload schema';
---
+
 -- 2. Verify schema:
 --    SELECT column_name, data_type 
 --    FROM information_schema.columns 
---    WHERE table_name = 'tenant_secrets';
---
--- Expected columns: tenant_id, secret_key, secret_value, created_at, updated_at
---
--- 3. Test LINE config save via UI or API:
---    POST /api/line-config
---
--- 4. LINE Rich Menu should work after credentials are saved
+--    WHERE table_name = 'tenant_secrets'
+--    ORDER BY ordinal_position;
+
+-- Expected output:
+--   tenant_id     | uuid
+--   secret_key    | text
+--   secret_value  | text
+--   created_at    | timestamp with time zone
+--   updated_at    | timestamp with time zone
+
+-- 3. Test LINE config save:
+--    - Go to /admin/line-config
+--    - Enter Channel Access Token and Channel Secret
+--    - Click "บันทึกการตั้งค่า"
+--    - Should save successfully
+
+-- 4. Verify data:
+--    SELECT tenant_id, secret_key, length(secret_value) as encrypted_length
+--    FROM tenant_secrets
+--    ORDER BY tenant_id, secret_key;
