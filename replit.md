@@ -32,6 +32,7 @@ None specified yet.
 - **Multi-Path Onboarding System**: Implemented three onboarding flows: Pioneer (create chapter), Invite (accept invite link), and Discovery (search chapters). This includes new backend APIs for chapter creation, invite management, and join requests, alongside schema migrations for `chapter_invites` and `chapter_join_requests`, and a refactored `user_roles` table to support global Super Admin roles.
 - **Schema Management**: Database schema recreation using "wide tables" to match TypeScript definitions, including `tenant_settings` and `participants` tables with comprehensive columns and RLS policies.
 - **Backend Migration**: User management APIs migrated from Supabase Edge Functions to Express API routes for enhanced control and to resolve previous authorization issues.
+- **Super Admin Authorization Fix** (Nov 15, 2025): Fixed critical authorization bug where Super Admin (tenant_id = NULL) couldn't create invite links or approve join requests. Implemented two-step authorization check: first check for super admin role, then fallback to chapter admin role for tenant-specific access.
 
 ## External Dependencies
 
