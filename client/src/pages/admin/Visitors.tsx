@@ -94,7 +94,13 @@ export default function Visitors() {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to load analytics");
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error("Analytics API error:", {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+        throw new Error(errorData.error || errorData.message || "Failed to load analytics");
       }
 
       const result = await response.json();
@@ -102,8 +108,12 @@ export default function Visitors() {
         setAnalytics(result.analytics);
       }
     } catch (error: any) {
-      console.error("Analytics error:", error);
-      toast.error("ไม่สามารถโหลดข้อมูลสถิติได้");
+      console.error("Analytics error:", {
+        message: error.message,
+        stack: error.stack,
+        error: error
+      });
+      toast.error("ไม่สามารถโหลดข้อมูลสถิติได้: " + (error.message || "Unknown error"));
     }
   };
 
