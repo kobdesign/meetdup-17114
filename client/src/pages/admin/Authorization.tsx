@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Shield, UserPlus, Trash2, Search, Pencil, User } from "lucide-react";
@@ -39,6 +40,9 @@ interface UserRole {
   created_at: string;
   user_email?: string;
   tenant_name?: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  last_sign_in_at?: string | null;
 }
 
 interface Tenant {
@@ -107,12 +111,13 @@ export default function Authorization() {
 
       if (rolesError) throw rolesError;
 
-      // Load user emails from auth.users via API
+      // Load user data from auth.users and profiles
       const userIds = [...new Set(rolesData?.map(r => r.user_id) || [])];
-      const usersMap = new Map<string, string>();
+      const usersMap = new Map<string, any>();
 
       const { data: { session } } = await supabase.auth.getSession();
 
+      // Fetch auth data (email, last_sign_in_at) from API
       for (const userId of userIds) {
         try {
           const response = await fetch(`/api/users/${userId}`, {
@@ -123,14 +128,27 @@ export default function Authorization() {
           
           if (response.ok) {
             const userData = await response.json();
-            if (userData?.user?.email) {
-              usersMap.set(userId, userData.user.email);
+            if (userData?.user) {
+              usersMap.set(userId, {
+                email: userData.user.email,
+                last_sign_in_at: userData.user.last_sign_in_at,
+              });
             }
           }
         } catch (error) {
           console.error('Error fetching user:', error);
         }
       }
+
+      // Fetch profiles data (full_name, avatar_url)
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", userIds);
+
+      const profilesMap = new Map(
+        profilesData?.map(p => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }]) || []
+      );
 
       // Load tenants
       const { data: tenantsData, error: tenantsError } = await supabase
@@ -145,11 +163,19 @@ export default function Authorization() {
       const tenantsMap = new Map(tenantsData?.map(t => [t.tenant_id, t.tenant_name]) || []);
 
       // Merge data
-      const enrichedRoles = rolesData?.map(role => ({
-        ...role,
-        user_email: usersMap.get(role.user_id) || "Unknown",
-        tenant_name: role.tenant_id ? tenantsMap.get(role.tenant_id) : null,
-      })) || [];
+      const enrichedRoles = rolesData?.map(role => {
+        const authData = usersMap.get(role.user_id);
+        const profileData = profilesMap.get(role.user_id);
+        
+        return {
+          ...role,
+          user_email: authData?.email || "Unknown",
+          last_sign_in_at: authData?.last_sign_in_at || null,
+          full_name: profileData?.full_name || null,
+          avatar_url: profileData?.avatar_url || null,
+          tenant_name: role.tenant_id ? tenantsMap.get(role.tenant_id) : null,
+        };
+      }) || [];
 
       setUserRoles(enrichedRoles);
     } catch (error: any) {
@@ -170,6 +196,7 @@ export default function Authorization() {
     if (searchTerm) {
       filtered = filtered.filter(r =>
         r.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.tenant_name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -184,14 +211,63 @@ export default function Authorization() {
       acc[userId] = {
         user_id: userId,
         user_email: role.user_email,
+        full_name: role.full_name,
+        avatar_url: role.avatar_url,
+        last_sign_in_at: role.last_sign_in_at,
         roles: []
       };
     }
     acc[userId].roles.push(role);
     return acc;
-  }, {} as Record<string, { user_id: string; user_email: string; roles: UserRole[] }>);
+  }, {} as Record<string, { 
+    user_id: string; 
+    user_email: string; 
+    full_name?: string | null;
+    avatar_url?: string | null;
+    last_sign_in_at?: string | null;
+    roles: UserRole[] 
+  }>);
 
   const groupedUsers = Object.values(groupedByUser);
+
+  // Helper function to get user initials
+  const getUserInitials = (fullName?: string | null, email?: string) => {
+    if (fullName) {
+      const parts = fullName.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+      return fullName.substring(0, 2).toUpperCase();
+    }
+    if (email) {
+      return email.substring(0, 2).toUpperCase();
+    }
+    return "??";
+  };
+
+  // Helper function to format last sign in
+  const formatLastSignIn = (lastSignIn?: string | null) => {
+    if (!lastSignIn) return null;
+    
+    const date = new Date(lastSignIn);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return "วันนี้";
+    } else if (diffDays === 1) {
+      return "เมื่อวาน";
+    } else if (diffDays < 7) {
+      return `${diffDays} วันที่แล้ว`;
+    } else {
+      return date.toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      });
+    }
+  };
 
   const handleAddRole = async () => {
     if (!newUserEmail || !newUserRole) {
@@ -456,13 +532,30 @@ export default function Authorization() {
               {groupedUsers.map((userGroup) => (
                 <Card key={userGroup.user_id}>
                   <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      {userGroup.user_email}
-                    </CardTitle>
-                    <CardDescription>
-                      {userGroup.roles.length} บทบาท
-                    </CardDescription>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={userGroup.avatar_url || undefined} />
+                        <AvatarFallback>
+                          {getUserInitials(userGroup.full_name, userGroup.user_email)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base truncate">
+                          {userGroup.full_name || userGroup.user_email}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-2 flex-wrap">
+                          <span className="truncate">
+                            {userGroup.full_name ? userGroup.user_email : `${userGroup.roles.length} บทบาท`}
+                          </span>
+                          {formatLastSignIn(userGroup.last_sign_in_at) && (
+                            <>
+                              <span>•</span>
+                              <span>เข้าสู่ระบบ{formatLastSignIn(userGroup.last_sign_in_at)}</span>
+                            </>
+                          )}
+                        </CardDescription>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
@@ -504,7 +597,12 @@ export default function Authorization() {
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="destructive" data-testid={`button-delete-role-${role.id}`}>
+                                <Button 
+                                  size="sm" 
+                                  variant="destructive" 
+                                  disabled={role.user_id === currentUserId}
+                                  data-testid={`button-delete-role-${role.id}`}
+                                >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
