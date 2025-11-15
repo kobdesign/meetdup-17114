@@ -13,196 +13,31 @@ None specified yet.
 - **Routing**: React Router v6
 - **State Management**: TanStack React Query, React Context API
 - **Forms**: React Hook Form with Zod validation
-- **Backend**: Express.js (development server)
+- **Backend**: Express.js
 - **Database**: PostgreSQL via Supabase
 - **Authentication & Storage**: Supabase Auth, Supabase Storage
 - **Deployment**: Replit Autoscale
 
 ### Core Architectural Decisions
-- **Multi-Tenancy**: Implemented with tenant-based data isolation, chapter-specific branding, and settings. Utilizes `tenants` table for chapter records and `tenant_secrets` for encrypted API keys.
-- **Role-Based Access Control (RBAC)**: Supports Super Admin, Chapter Admin, and Member roles, with `user_roles` table managing permissions.
-- **Data Fetching & State Management**: Leverages TanStack React Query for data fetching, caching (stale-while-revalidate), retries, and invalidation, combined with React Context API for global state management. A singleton `QueryClient` is used to prevent re-instantiation issues.
-- **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive, and consistent user interface.
-- **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, and secure credential management. This includes rich menu management (create, list, delete, set default) and a quick reply system for interactive communication.
-- **Robust Error Handling**: Implemented across the system, including specific fixes for React Query context errors and infinite loops related to authentication state changes, ensuring stability and a smooth user experience.
-- **Modular Design**: Project structured into `client/`, `server/`, `supabase/`, and `shared/` directories to promote maintainability and scalability, following the Replit fullstack pattern.
-- **Payment Processing**: Supports multiple payment methods (PromptPay, Transfer, Cash) with features for payment slip upload, review, and a refund request workflow.
-- **Check-In System**: Utilizes QR code-based check-ins and integrates with LINE webhooks for automatic status progression and communication.
-
-### Feature Specifications
-- **Member Management**: Tracks participant status (Prospect, Visitor, Member, Alumni), manages contact information, and logs status changes.
-- **Meeting Management**: Facilitates scheduling with recurrence, venue management (integrated with Google Maps), and attendance tracking.
-- **Administrative Features**: Provides a dashboard with analytics, user role management, tenant configuration, and approval workflows for payments and refunds.
-
-## Recent Changes
-
-### Member/Visitor Pipeline Separation (November 14, 2025)
-- **Complete UI Restructure**: Separated active member management from visitor pipeline analytics
-- **Active Members Page** (`/admin/participants`):
-  - Shows only participants with status='member'
-  - Focused on active member management with role assignment and contact details
-  - Simplified status filter (defaults to 'member' view)
-- **Visitor Pipeline Dashboard** (`/admin/visitors`):
-  - **Analytics KPIs**: 4 key metric cards showing prospects, visitors, engaged visitors (2+ check-ins), and declined
-  - **Engagement Metrics**: Average check-ins per visitor calculation
-  - **Status Breakdown**: Visual cards for each pipeline stage
-  - **Data Table**: Complete visitor list with status, check-in counts, and quick actions
-- **Backend API** (`/api/participants/visitor-analytics`):
-  - Returns aggregated visitor pipeline metrics
-  - **Security Features**:
-    * Multi-tenant authorization check (queries all user_roles to support multi-tenant users)
-    * Super admin support (role='super_admin' with tenant_id=NULL can access all chapters)
-    * 403 Forbidden for unauthorized tenant access
-  - Server-side aggregation with Supabase queries
-- **Navigation Update**: Visitor Pipeline moved under Members section in AdminLayout for better discoverability
-- **Architecture Decision**: Split analytics surface from member CRUD operations for better UX and performance
-
-### Multi-Path Onboarding System Implementation (November 14, 2025)
-- **Feature Complete**: Implemented comprehensive 3-path user onboarding system for new users without chapter assignment
-- **Three Onboarding Flows:**
-  1. **Pioneer Flow** (`/create-chapter`): Create new chapter and become admin
-  2. **Invite Flow** (`/invite/:token`): Accept invite link and auto-join chapter
-  3. **Discovery Flow** (`/discover-chapters`): Search chapters and request membership
-- **Backend APIs Created:**
-  - `POST /api/chapters/create` - Chapter creation with auto admin assignment
-  - `POST /api/chapters/invite/generate` - Generate invite tokens with expiration
-  - `POST /api/chapters/invite/accept/:token` - Accept invite and auto-join
-  - `GET /api/chapters/discover` - Search available chapters
-  - `POST /api/chapters/join-request` - Request chapter membership
-  - `GET/PATCH /api/chapters/join-requests` - Admin approval workflow
-- **Database Schema:**
-  - `chapter_invites` table: invite token management with expiration and usage tracking
-  - `chapter_join_requests` table: pending membership request workflow
-  - **user_roles schema migration**: Restructured to support global Super Admin roles
-    - Removed composite primary key `(user_id, tenant_id)`
-    - Added `id serial PRIMARY KEY`
-    - Made `tenant_id` nullable (NULL = global Super Admin)
-    - Created unique indexes to prevent duplicate role assignments
-- **Components:**
-  - `OnboardingGuard` component: Session-gated wrapper using `useUserTenantInfo` hook
-  - LoginPrompt UI for anonymous users with redirect handling
-  - MembersManagement admin page for invite generation and role management
-- **Auth Flow Improvements:**
-  - ProtectedRoute refactored to use React Query (`useUserTenantInfo`)
-  - Fixed race conditions in AcceptInvite and CreateChapter pages
-  - Auth.tsx properly respects redirect query parameters
-  - Cache management with `await refetchQueries({ type: 'all' })`
-- **Super Admin Setup:** 
-  - Schema migration for nullable tenant_id (`20251114_make_tenant_id_nullable.sql`)
-  - Script to assign super_admin role: `npm run set-super-admin`
-  - kobdesign@gmail.com can be assigned as first Super Admin
-  - Guide: `docs/SET_SUPER_ADMIN_GUIDE.md`
-- **Security Hardening** (November 14, 2025):
-  - **Final Migration**: `supabase/migrations/20251114_fix_permissions_final.sql`
-  - **Admin-Only Invite Access**: Only chapter admins can view/create/delete invite tokens
-  - **Role-Based Join Request Visibility**: Admins see all requests; users see own only
-  - **RLS Policies**: Tightened to prevent token enumeration and data exposure
-  - **Backend Service Role**: Invite acceptance handled server-side (no client token queries)
-  - **Privacy Protection**: Regular members cannot see invite metadata or others' join requests
-  - **Verification Scripts**: 
-    - `npm run verify-migration` - Checks table existence
-    - `npm run check-data` - Displays all Supabase data with error handling
-  - **Documentation**: Complete user journey guide in `docs/USER_JOURNEY_ONBOARDING.md`
-
-### Complete Schema Recreation with Wide Tables (November 14, 2025)
-- **PRODUCTION-READY MIGRATION**: Full table recreation to match TypeScript schema exactly
-- **Migration File:** `supabase/migrations/20251114_recreate_wide_tables.sql`
-- **Status:** ✅ Tested in development (Neon), ✅ Architect approved, ⏳ Awaiting production deployment
-
-#### Migration Strategy
-- **Approach:** DROP CASCADE old tables → CREATE new wide tables with complete schema
-- **Safety:** Transaction-wrapped (BEGIN/COMMIT), conditional execution for environment compatibility
-- **Data Loss:** ⚠️ DESTRUCTIVE - drops all data (user confirmed NO DATA in production)
-
-#### What It Does
-1. **Drops Old Tables:**
-   - `tenant_settings` (old key-value pattern from Lovable)
-   - `participants` (old incomplete schema)
-
-2. **Creates Wide Tables:**
-   - **tenant_settings**: 9 columns (tenant_id, branding_color, currency, default_visitor_fee, language, logo_url, require_visitor_payment, created_at, updated_at)
-   - **participants**: 16 columns (participant_id, tenant_id, line_user_id, display_name, **nickname**, email, phone, status, **business_type**, **goal**, **joined_date**, invited_by, created_at, updated_at, deleted_at, role)
-
-3. **Recreates Infrastructure:**
-   - **Indexes**: tenant_id (unique), status, line_user_id, invited_by
-   - **Foreign Keys**: tenant_id → tenants(tenant_id) CASCADE, invited_by → participants(participant_id) SET NULL
-   - **RLS**: Enabled on both tables
-
-4. **Conditional Security (Supabase-only):**
-   - **GRANT/REVOKE**: Only if 'authenticated' role exists
-   - **RLS Policies**: Only if 'auth' schema exists (uses auth.uid())
-   - **Development**: Skips grants/policies (Neon has no Supabase roles/auth schema)
-
-#### Environment Compatibility
-
-| Environment | Roles | Auth Schema | Grants Applied | Policies Created |
-|------------|-------|-------------|----------------|------------------|
-| Dev (Neon) | ✗ | ✗ | ✗ (skipped) | ✗ (skipped) |
-| Prod (Supabase) | ✓ | ✓ | ✓ (applied) | ✓ (created) |
-
-#### Running the Migration
-
-**Development Testing:**
-```bash
-npm run migrate:recreate
-```
-
-**Production Deployment (Supabase SQL Editor):**
-1. Copy contents of `supabase/migrations/20251114_recreate_wide_tables.sql`
-2. Paste into Supabase SQL Editor (https://supabase.com/dashboard/project/sbknunooplaezvwtyooi/sql)
-3. Execute migration
-4. Run schema cache reload:
-   ```sql
-   NOTIFY pgrst, 'reload schema';
-   ```
-5. Verify columns:
-   ```sql
-   SELECT COUNT(*) FROM information_schema.columns 
-   WHERE table_name IN ('tenant_settings', 'participants');
-   -- Expected: 25 total columns (9 + 16)
-   ```
-
-#### Technical Details
-- **Nested Delimiters:** Uses `$RLS$` and `$POLICY$` instead of `$$` to avoid syntax errors
-- **Removed Dependencies:** No longer references `tenants.status` (column doesn't exist)
-- **Multi-Tenant Security:** Policies use `public.has_tenant_access(auth.uid(), tenant_id)`
-- **Verification Block:** Confirms all expected columns exist post-migration
-
-#### Supersedes
-- ❌ `20251114_reconcile_schema_with_code.sql` (deprecated)
-- ❌ `20251114_add_all_missing_columns.sql` (deprecated - only added columns, didn't fix structure)
-
-#### Tools & Scripts
-- `server/scripts/run-migration.ts` - PostgreSQL migration runner via `psql`
-- `npm run migrate:recreate` - Runs recreation migration (dev only)
-- `npm run migrate:run <file>` - Generic migration executor
-
-### Database Migration to User-Owned Supabase (November 13, 2025)
-- **Successfully migrated** from Lovable-owned Supabase (`nzenqhtautbitmbmgyjk`) to user-owned Supabase (`sbknunooplaezvwtyooi`)
-- **Migration Process:**
-  1. Created new Supabase project with user account
-  2. Exported complete schema (18 tables, 8 custom types, 24 indexes, RLS policies)
-  3. Fixed table dependency ordering (tenants → participants → meetings → checkins)
-  4. Resolved RLS permission issues by granting service_role full access
-  5. Disabled RLS for testing phase; proper policies to be implemented later
-- **Backend Architecture:**
-  - **Express API Routes**: `/api/line/*` endpoints for LINE integration (Rich Menu, Webhook, Config)
-  - **Supabase Edge Functions**: Legacy functions remain in `supabase/functions/` directory (to be migrated)
-  - **Health Endpoint**: `/api/health` validates database connectivity via service role
-- **Environment Variables Updated:**
-  - `VITE_SUPABASE_URL`: `https://sbknunooplaezvwtyooi.supabase.co`
-  - `VITE_SUPABASE_PUBLISHABLE_KEY`: User-owned anon key
-  - `SUPABASE_SERVICE_ROLE_KEY`: User-owned service role key
-  - `LINE_ENCRYPTION_KEY`: Generated for tenant secrets encryption
-- **Migration Files:** Archived in `./migration_archive/` directory for reference
-- **Database Status:** ✅ Connected and verified (all 18 tables accessible)
+- **Multi-Tenancy**: Implemented with tenant-based data isolation, chapter-specific branding, and settings using `tenants` and `tenant_secrets` tables.
+- **Role-Based Access Control (RBAC)**: Supports Super Admin, Chapter Admin, and Member roles via a `user_roles` table.
+- **Data Fetching & State Management**: Leverages TanStack React Query for data operations and React Context API for global state.
+- **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface.
+- **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and a quick reply system.
+- **Robust Error Handling**: Implemented across the system for stability and a smooth user experience, including fixes for React Query context errors.
+- **Modular Design**: Project structured into `client/`, `server/`, `supabase/`, and `shared/` directories.
+- **Payment Processing**: Supports multiple payment methods (PromptPay, Transfer, Cash) with features for slip upload, review, and refund workflows.
+- **Check-In System**: Utilizes QR code-based check-ins and integrates with LINE webhooks for status progression and communication.
+- **Member/Visitor Pipeline Separation**: UI restructured to separate active member management from visitor pipeline analytics, with dedicated pages for active members and a visitor pipeline dashboard featuring analytics KPIs.
+- **Multi-Path Onboarding System**: Implemented three onboarding flows: Pioneer (create chapter), Invite (accept invite link), and Discovery (search chapters). This includes new backend APIs for chapter creation, invite management, and join requests, alongside schema migrations for `chapter_invites` and `chapter_join_requests`, and a refactored `user_roles` table to support global Super Admin roles.
+- **Schema Management**: Database schema recreation using "wide tables" to match TypeScript definitions, including `tenant_settings` and `participants` tables with comprehensive columns and RLS policies.
+- **Backend Migration**: User management APIs migrated from Supabase Edge Functions to Express API routes for enhanced control and to resolve previous authorization issues.
 
 ## External Dependencies
 
-- **Supabase** (User-owned: `sbknunooplaezvwtyooi`):
-    - **Database**: PostgreSQL (main data store) - 18 tables with multi-tenant architecture
+- **Supabase** (`sbknunooplaezvwtyooi`):
+    - **Database**: PostgreSQL (main data store with 18 tables and multi-tenant architecture)
     - **Authentication**: Supabase Auth (integrated with profiles table)
     - **Storage**: Supabase Storage (for payment slips and other files)
-    - **Backend**: All logic runs in Express.js (no Edge Functions due to Lovable ownership constraint)
-- **LINE Messaging API**: Integrated for communication, rich menus, and quick replies, including webhooks for real-time interactions.
+- **LINE Messaging API**: Integrated for communication, rich menus, quick replies, and webhooks.
 - **Google Maps API**: Utilized for location features, particularly in meeting venue management.
