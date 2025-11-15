@@ -33,6 +33,13 @@ None specified yet.
 - **Schema Management**: Database schema recreation using "wide tables" to match TypeScript definitions, including `tenant_settings` and `participants` tables with comprehensive columns and RLS policies.
 - **Backend Migration**: User management APIs migrated from Supabase Edge Functions to Express API routes for enhanced control and to resolve previous authorization issues.
 - **Super Admin Authorization Fix** (Nov 15, 2025): Fixed critical authorization bug where Super Admin (tenant_id = NULL) couldn't create invite links or approve join requests. Implemented two-step authorization check: first check for super admin role, then fallback to chapter admin role for tenant-specific access.
+- **Unified Member-Participant Architecture** (Nov 15, 2025): Implemented unified approach where every member must have records in BOTH `user_roles` (for access control) and `participants` (for chapter activities). Added `user_id` column (nullable) to `participants` table to link members to auth accounts while keeping visitors (without accounts) unlinked. Created shared `syncUserToParticipants()` helper function that:
+  - Sources data from profiles → auth.users → placeholder fallback
+  - Maps roles to participant status (chapter_admin/member → member, others → prospect)
+  - Uses UPSERT to prevent duplicates (unique constraint on user_id + tenant_id)
+  - Sets joined_date when user becomes member
+  - Integrated into all 3 onboarding flows (Pioneer, Invite, Discovery) with atomic rollback on failure
+  - Backfill migration created for existing users
 
 ## External Dependencies
 

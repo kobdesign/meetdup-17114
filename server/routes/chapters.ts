@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
+import { syncUserToParticipants } from "../utils/participants";
 import crypto from "crypto";
 
 const router = Router();
@@ -94,6 +95,31 @@ router.post("/create", verifySupabaseAuth, async (req: AuthenticatedRequest, res
       return res.status(500).json({ 
         error: "Failed to assign admin role",
         message: roleError.message
+      });
+    }
+
+    // Sync user to participants table
+    const participantResult = await syncUserToParticipants({
+      user_id: userId,
+      tenant_id: newTenant.tenant_id,
+      role: "chapter_admin",
+    });
+
+    if (!participantResult.success) {
+      console.error("Error syncing participant:", participantResult.error);
+      // Rollback: delete user_roles and tenant
+      await supabaseAdmin.from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .eq("tenant_id", newTenant.tenant_id);
+      
+      await supabaseAdmin.from("tenants")
+        .delete()
+        .eq("tenant_id", newTenant.tenant_id);
+
+      return res.status(500).json({ 
+        error: "Failed to create participant record",
+        message: participantResult.error
       });
     }
 
@@ -255,6 +281,27 @@ router.post("/invite/accept/:token", verifySupabaseAuth, async (req: Authenticat
     if (roleError) {
       console.error("Error assigning member role:", roleError);
       return res.status(500).json({ error: "Failed to join chapter" });
+    }
+
+    // Sync user to participants table
+    const participantResult = await syncUserToParticipants({
+      user_id: userId,
+      tenant_id: invite.tenant_id,
+      role: "member",
+    });
+
+    if (!participantResult.success) {
+      console.error("Error syncing participant:", participantResult.error);
+      // Rollback: delete user_roles
+      await supabaseAdmin.from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .eq("tenant_id", invite.tenant_id);
+
+      return res.status(500).json({ 
+        error: "Failed to create participant record",
+        message: participantResult.error
+      });
     }
 
     // Increment invite uses
@@ -549,6 +596,27 @@ router.post("/join-request/:requestId/:action", verifySupabaseAuth, async (req: 
       if (roleError) {
         console.error("Error assigning member role:", roleError);
         return res.status(500).json({ error: "Failed to approve request" });
+      }
+
+      // Sync user to participants table
+      const participantResult = await syncUserToParticipants({
+        user_id: request.user_id,
+        tenant_id: request.tenant_id,
+        role: "member",
+      });
+
+      if (!participantResult.success) {
+        console.error("Error syncing participant:", participantResult.error);
+        // Rollback: delete user_roles
+        await supabaseAdmin.from("user_roles")
+          .delete()
+          .eq("user_id", request.user_id)
+          .eq("tenant_id", request.tenant_id);
+
+        return res.status(500).json({ 
+          error: "Failed to create participant record",
+          message: participantResult.error
+        });
       }
     }
 
