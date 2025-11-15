@@ -32,7 +32,6 @@ export default function Dashboard() {
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     to: endOfMonth(new Date()),
   });
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateRangePreset, setDateRangePreset] = useState<string>("current_month");
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData>({
@@ -137,7 +136,7 @@ export default function Dashboard() {
       return;
     }
     loadAnalytics();
-  }, [effectiveTenantId, dateRange, statusFilter]);
+  }, [effectiveTenantId, dateRange]);
 
   const loadAnalytics = async () => {
     if (!effectiveTenantId) {
@@ -147,16 +146,10 @@ export default function Dashboard() {
 
     try {
       // Fetch all participants (no date filter - we want current state)
-      let participantsQuery = supabase
+      const { data: participants } = await supabase
         .from("participants")
         .select("participant_id, status, created_at")
         .eq("tenant_id", effectiveTenantId);
-
-      if (statusFilter !== "all") {
-        participantsQuery = participantsQuery.eq("status", statusFilter as any);
-      }
-
-      const { data: participants } = await participantsQuery;
 
       // Count visitors with at least one check-in
       const { data: visitorsWithCheckins } = await supabase
@@ -270,20 +263,6 @@ export default function Dashboard() {
             <p className="text-muted-foreground">Chapter overview and statistics</p>
           </div>
           <div className="flex gap-2">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="สถานะ" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทั้งหมด</SelectItem>
-                <SelectItem value="member">สมาชิกปัจจุบัน</SelectItem>
-                <SelectItem value="prospect">ผู้มุ่งหวัง</SelectItem>
-                <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
-                <SelectItem value="declined">ไม่ติดตาม</SelectItem>
-                <SelectItem value="alumni">อดีตสมาชิก</SelectItem>
-              </SelectContent>
-            </Select>
-            
             {/* Date Range Preset Dropdown */}
             <Select value={dateRangePreset} onValueChange={handlePresetChange}>
               <SelectTrigger className="w-[240px]">
