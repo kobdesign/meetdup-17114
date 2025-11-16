@@ -73,90 +73,55 @@ export default function CheckInScanner() {
         email: formData.email,
       });
 
-      console.log("payload types", {
-        meetingId: typeof meetingId,
-        full_name: typeof formData.full_name,
-        email: typeof formData.email,
-        phone: typeof formData.phone,
+      // Call Express API instead of Edge Function
+      const response = await fetch("/api/participants/check-in", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
-      // Attempt 1: Let SDK handle JSON serialization automatically
-      let { data, error } = await supabase.functions.invoke('check-in-participant', {
-        body: payload,
-      });
+      const data = await response.json();
 
-      // Fallback: If JSON parsing error, retry with explicit JSON.stringify
-      if (error && /Invalid JSON|Failed to parse/i.test(error.message || "")) {
-        console.warn("⚠️ Retrying with explicit JSON.stringify");
-        const retryResponse = await supabase.functions.invoke('check-in-participant', {
-          body: JSON.stringify(payload),
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        data = retryResponse.data;
-        error = retryResponse.error;
-      }
+      console.log("✅ API response:", { status: response.status, data });
 
-      console.log("✅ Edge function response:", { data, error });
-      console.log("📦 Full error object:", JSON.stringify(error, null, 2));
-      console.log("📦 Full data object:", JSON.stringify(data, null, 2));
-
-      // 1. Handle SDK/Network errors first
-      if (error) {
-        console.error("❌ Function invocation error:", error);
+      // Handle non-OK responses
+      if (!response.ok) {
+        console.error("❌ Check-in failed:", data);
         
-        // Try to parse error context for 4xx/5xx responses with body
-        const errorContext = error.context || {};
-        
-        if (errorContext.already_checked_in) {
-          console.log("⚠️ Already checked in (from error context)");
-          toast.error("คุณได้เช็คอินการประชุมนี้แล้ว");
-          setCheckedIn(true);
-          return;
-        }
-        
-        // Map specific error messages to Thai
-        if (error.message?.includes("Meeting not found")) {
+        // Handle specific error cases
+        if (response.status === 404) {
           toast.error("ไม่พบข้อมูลการประชุม");
-        } else if (error.message?.includes("Missing required fields")) {
-          toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
-        } else if (error.message?.includes("FunctionsHttpError")) {
-          toast.error("ไม่สามารถเชื่อมต่อกับระบบได้ กรุณาลองใหม่อีกครั้ง");
+        } else if (response.status === 400) {
+          toast.error(data.message || "กรุณากรอกข้อมูลให้ครบถ้วน");
         } else {
-          toast.error("เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
+          toast.error(data.message || "เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
         }
         return;
       }
 
-      // 2. Handle business logic responses (status 200)
-      if (data?.already_checked_in) {
-        console.log("⚠️ Already checked in (from data)");
+      // Handle business logic responses (success: false with 200 status)
+      if (data.already_checked_in) {
+        console.log("⚠️ Already checked in");
         toast.error("คุณได้เช็คอินการประชุมนี้แล้ว");
         setCheckedIn(true);
         return;
       }
 
-      if (!data?.success) {
-        console.error("❌ Check-in failed:", data?.error);
-        toast.error(data?.message || "เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
+      if (!data.success) {
+        console.error("❌ Check-in failed:", data.error);
+        toast.error(data.message || "เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
         return;
       }
 
-      // 3. Success!
+      // Success!
       console.log("🎉 Check-in successful!");
       toast.success("เช็คอินสำเร็จ! ยินดีต้อนรับเข้าสู่การประชุม");
       setCheckedIn(true);
     } catch (error: any) {
       console.error("❌ Unexpected error during check-in:", error);
-      
-      // Never show technical RLS errors to users
-      if (error.message?.includes("row-level security") || error.message?.includes("RLS")) {
-        console.error("🔒 RLS error detected - this should not happen!");
-        toast.error("เกิดข้อผิดพลาดในระบบ กรุณาติดต่อผู้ดูแลระบบ");
-      } else {
-        toast.error("เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
-      }
+      toast.error("เกิดข้อผิดพลาดในการเช็คอิน กรุณาลองใหม่อีกครั้ง");
     } finally {
       setChecking(false);
     }

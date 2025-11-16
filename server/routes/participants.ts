@@ -5,6 +5,175 @@ import { generateVCard, getVCardFilename, VCardData } from "../services/line/vca
 
 const router = Router();
 
+// Check-in participant to a meeting (public endpoint - no auth required)
+router.post("/check-in", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[check-in:${requestId}]`;
+
+  try {
+    const { meeting_id, full_name, email, phone } = req.body;
+
+    console.log(`${logPrefix} Incoming check-in request`, {
+      meeting_id,
+      full_name,
+      email,
+      phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
+    });
+
+    // Validate required fields
+    if (!meeting_id || !full_name || !email || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields",
+        message: "meeting_id, full_name, email, and phone are required"
+      });
+    }
+
+    // Get meeting details
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id")
+      .eq("meeting_id", meeting_id)
+      .single();
+
+    if (meetingError || !meeting) {
+      console.error(`${logPrefix} Meeting not found`, meetingError);
+      return res.status(404).json({
+        success: false,
+        error: "Meeting not found",
+        message: "The selected meeting does not exist"
+      });
+    }
+
+    // Check if participant exists
+    let participantId: string;
+    let participantStatus: string | null = null;
+
+    const { data: existingParticipant, error: lookupError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, status")
+      .eq("tenant_id", meeting.tenant_id)
+      .eq("email", email)
+      .maybeSingle();
+
+    if (lookupError) {
+      console.error(`${logPrefix} Error looking up participant:`, lookupError);
+    }
+
+    if (existingParticipant) {
+      console.log(`${logPrefix} Existing participant found`, existingParticipant);
+      participantId = existingParticipant.participant_id;
+      participantStatus = existingParticipant.status;
+    } else {
+      // Create new participant as 'prospect'
+      console.log(`${logPrefix} Creating new participant`);
+      const { data: newParticipant, error: participantError } = await supabaseAdmin
+        .from("participants")
+        .insert({
+          tenant_id: meeting.tenant_id,
+          full_name,
+          email,
+          phone,
+          status: "prospect",
+        })
+        .select()
+        .single();
+
+      if (participantError) {
+        console.error(`${logPrefix} Failed to create participant:`, participantError);
+        return res.status(500).json({
+          success: false,
+          error: "Failed to create participant",
+          message: participantError.message
+        });
+      }
+
+      participantId = newParticipant.participant_id;
+      participantStatus = "prospect";
+      console.log(`${logPrefix} New participant created:`, participantId);
+    }
+
+    // Check if already checked in
+    const { data: existingCheckin, error: checkLookupErr } = await supabaseAdmin
+      .from("checkins")
+      .select("checkin_id")
+      .eq("meeting_id", meeting_id)
+      .eq("participant_id", participantId)
+      .maybeSingle();
+
+    if (checkLookupErr) {
+      console.error(`${logPrefix} Error checking existing check-in:`, checkLookupErr);
+    }
+
+    if (existingCheckin) {
+      console.log(`${logPrefix} Participant already checked in`);
+      return res.json({
+        success: false,
+        already_checked_in: true,
+        message: "คุณได้เช็คอินการประชุมนี้แล้ว"
+      });
+    }
+
+    // Auto-upgrade from prospect to visitor upon first check-in
+    if (participantStatus === "prospect") {
+      console.log(`${logPrefix} Upgrading prospect to visitor`);
+      const { error: updateError } = await supabaseAdmin
+        .from("participants")
+        .update({ status: "visitor" })
+        .eq("participant_id", participantId);
+
+      if (updateError) {
+        console.error(`${logPrefix} Failed to update status to visitor:`, updateError);
+      } else {
+        // Write audit log (best-effort)
+        try {
+          await supabaseAdmin.from("status_audit").insert({
+            tenant_id: meeting.tenant_id,
+            participant_id: participantId,
+            reason: "First check-in (auto)",
+          });
+        } catch (e) {
+          console.warn(`${logPrefix} status_audit insert failed (ignored)`, e);
+        }
+      }
+    }
+
+    // Create check-in record
+    const { error: checkinError } = await supabaseAdmin
+      .from("checkins")
+      .insert({
+        tenant_id: meeting.tenant_id,
+        meeting_id,
+        participant_id: participantId,
+        source: "manual",
+      });
+
+    if (checkinError) {
+      console.error(`${logPrefix} Failed to create check-in:`, checkinError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to create check-in",
+        message: checkinError.message
+      });
+    }
+
+    console.log(`${logPrefix} Check-in successful`);
+    return res.json({
+      success: true,
+      participant_id: participantId,
+      message: "Check-in successful"
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error in check-in:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 // Register a visitor (public endpoint - no auth required)
 router.post("/register-visitor", async (req: Request, res: Response) => {
   try {

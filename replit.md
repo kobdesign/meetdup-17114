@@ -58,6 +58,15 @@ None specified yet.
   - Updated all affected queries in MeetingDetails.tsx, CheckIn.tsx, Visitors.tsx (backend visitor-analytics endpoint)
   - Changed embedded relationship alias from `participants` (plural) to `participant` (singular) to match PostgREST's singular embedding convention
   - After dropping tables (payments, invoices, refund_requests), reloaded Supabase schema cache via `NOTIFY pgrst, 'reload schema'` to clear cached metadata
+- **Check-In Migration to Express API** (Nov 16, 2025): Migrated check-in functionality from Supabase Edge Function to Express API for better reliability and control. Created POST `/api/participants/check-in` endpoint (public, no auth) that:
+  - Validates meeting existence and retrieves tenant_id
+  - Finds or creates participant record (new participants start as 'prospect')
+  - Prevents duplicate check-ins by querying existing checkins
+  - Auto-upgrades participant status from 'prospect' to 'visitor' upon first check-in
+  - Records check-in in `checkins` table with source='manual'
+  - Returns structured JSON responses with success/error states
+  - Updated CheckInScanner.tsx to call Express API via fetch() instead of supabase.functions.invoke()
+  - Resolves FunctionsFetchError and connection timeout issues with Edge Functions
 
 ## External Dependencies
 
