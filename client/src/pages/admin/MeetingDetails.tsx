@@ -87,7 +87,6 @@ export default function MeetingDetails() {
           )
         `)
         .eq("meeting_id", meetingId)
-        .eq("tenant_id", effectiveTenantId)
         .order("registered_at", { ascending: false });
 
       if (!regsError) setRegistrations(regsData || []);
