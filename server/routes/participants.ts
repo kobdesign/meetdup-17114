@@ -444,6 +444,30 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       // UPDATE MODE: Update existing participant
       console.log(`${logPrefix} Updating existing participant:`, participant_id);
 
+      // SECURITY: First verify participant belongs to this tenant
+      const { data: existingParticipant, error: verifyError } = await supabaseAdmin
+        .from("participants")
+        .select("tenant_id")
+        .eq("participant_id", participant_id)
+        .single();
+
+      if (verifyError || !existingParticipant) {
+        console.error(`${logPrefix} Participant not found:`, verifyError);
+        return res.status(404).json({
+          error: "Participant not found",
+          message: "The participant does not exist"
+        });
+      }
+
+      if (existingParticipant.tenant_id !== tenant_id) {
+        console.error(`${logPrefix} Cross-tenant update attempt! participant tenant: ${existingParticipant.tenant_id}, meeting tenant: ${tenant_id}`);
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You cannot update a participant from another chapter"
+        });
+      }
+
+      // Proceed with update
       const { data: updatedParticipant, error: updateError } = await supabaseAdmin
         .from("participants")
         .update({
@@ -457,7 +481,6 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
           referred_by_participant_id: referred_by_participant_id || null,
         })
         .eq("participant_id", participant_id)
-        .eq("tenant_id", tenant_id) // Security: ensure participant belongs to this tenant
         .select()
         .single();
 
@@ -585,7 +608,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
     return res.json({
       success: true,
       participant_id: participant.participant_id,
-      status: initialStatus,
+      status: participant.status,
       auto_checked_in: !!auto_checkin,
       message: auto_checkin 
         ? "Registration and check-in successful" 

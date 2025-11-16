@@ -33,6 +33,12 @@ export default function VisitorRegistrationDialog({
   const [members, setMembers] = useState<any[]>([]);
   const [selectedReferrer, setSelectedReferrer] = useState<string>("");
   const [referrerSearchOpen, setReferrerSearchOpen] = useState(false);
+  
+  // 2-step form state
+  const [step, setStep] = useState<"phone" | "form">("phone");
+  const [existingParticipant, setExistingParticipant] = useState<any>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -69,12 +75,23 @@ export default function VisitorRegistrationDialog({
       loadData();
     } else if (!open) {
       // Reset when dialog closes
+      setStep("phone");
+      setExistingParticipant(null);
       setSelectedMeetingId(undefined);
       setSelectedMeeting(null);
       setMeetings([]);
       setMembers([]);
       setSelectedReferrer("");
       setAllowChangeMeeting(false);
+      setFormData({
+        full_name: "",
+        email: "",
+        phone: "",
+        company: "",
+        business_type: "",
+        goal: "",
+        notes: "",
+      });
     }
   }, [open, tenantId, meetingId]);
 
@@ -143,6 +160,73 @@ export default function VisitorRegistrationDialog({
     }
   };
 
+  // Step 1: Phone lookup
+  const handlePhoneLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.phone) {
+      toast.error("กรุณากรอกเบอร์โทรศัพท์");
+      return;
+    }
+
+    if (!selectedMeetingId) {
+      toast.error("กรุณาเลือกการประชุมก่อน");
+      return;
+    }
+
+    setLookingUp(true);
+
+    try {
+      const response = await fetch("/api/participants/lookup-by-phone", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: formData.phone,
+          meeting_id: selectedMeetingId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to lookup phone");
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.exists && data.participant) {
+        // Found existing participant - pre-fill form
+        console.log("Found existing participant:", data.participant);
+        setExistingParticipant(data.participant);
+        setFormData({
+          full_name: data.participant.full_name || "",
+          email: data.participant.email || "",
+          phone: data.participant.phone || formData.phone,
+          company: data.participant.company || "",
+          business_type: data.participant.business_type || "",
+          goal: data.participant.goal || "",
+          notes: data.participant.notes || "",
+        });
+        setSelectedReferrer(data.participant.referred_by_participant_id || "");
+        toast.success("พบข้อมูลผู้เข้าร่วมแล้ว! กรุณาตรวจสอบและแก้ไข");
+      } else {
+        // New participant
+        console.log("New participant - no existing data");
+        setExistingParticipant(null);
+        toast.info("ผู้เข้าร่วมใหม่ กรุณากรอกข้อมูลเพื่อลงทะเบียน");
+      }
+
+      // Go to form step
+      setStep("form");
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาดในการค้นหา: " + error.message);
+      console.error("Phone lookup error:", error);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  // Step 2: Submit registration (INSERT or UPDATE)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -155,24 +239,33 @@ export default function VisitorRegistrationDialog({
     setLoading(true);
 
     try {
+      const payload: any = {
+        meeting_id: selectedMeetingId,
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone,
+        company: formData.company,
+        business_type: formData.business_type,
+        goal: formData.goal,
+        notes: formData.notes,
+        referred_by_participant_id: selectedReferrer || null,
+      };
+
+      // If updating existing participant, include participant_id
+      if (existingParticipant?.participant_id) {
+        payload.participant_id = existingParticipant.participant_id;
+        console.log("UPDATE mode - participant_id:", payload.participant_id);
+      } else {
+        console.log("INSERT mode - new participant");
+      }
+
       // Call Express API to register visitor (bypasses RLS)
       const response = await fetch("/api/participants/register-visitor", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          meeting_id: selectedMeetingId,
-          full_name: formData.full_name,
-          email: formData.email,
-          phone: formData.phone,
-          company: formData.company,
-          business_type: formData.business_type,
-          goal: formData.goal,
-          notes: formData.notes,
-          referred_by_participant_id: selectedReferrer || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -199,12 +292,22 @@ export default function VisitorRegistrationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>ลงทะเบียนผู้เยี่ยมชม</DialogTitle>
+          <DialogTitle>
+            {step === "phone" ? "ลงทะเบียนผู้เยี่ยมชม" : existingParticipant ? "ตรวจสอบและแก้ไขข้อมูล" : "ลงทะเบียนผู้เยี่ยมชม"}
+          </DialogTitle>
           <DialogDescription>
-            กรอกข้อมูลเพื่อลงทะเบียนเข้าร่วมการประชุมในฐานะผู้เยี่ยมชม
+            {step === "phone"
+              ? "กรอกเบอร์โทรศัพท์เพื่อตรวจสอบข้อมูล"
+              : existingParticipant
+                ? "พบข้อมูลแล้ว กรุณาตรวจสอบและแก้ไข (ถ้าจำเป็น)"
+                : "กรอกข้อมูลเพื่อลงทะเบียนเข้าร่วมการประชุม"
+            }
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        
+        {/* Step 1: Phone Lookup */}
+        {step === "phone" && (
+          <form onSubmit={handlePhoneLookup} className="space-y-4">
           {/* Meeting Selection - Show dropdown if no meetingId OR user wants to change */}
           {(!meetingId || allowChangeMeeting) && (
             <div className="space-y-2">
@@ -290,6 +393,38 @@ export default function VisitorRegistrationDialog({
             </div>
           )}
 
+          {/* Phone Input for Lookup */}
+          <div>
+            <Label htmlFor="phone">เบอร์โทรศัพท์ *</Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              required
+              placeholder="08X-XXX-XXXX"
+              maxLength={10}
+              data-testid="input-phone-lookup"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              ระบบจะตรวจสอบว่าเคยลงทะเบียนหรือไม่
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              ยกเลิก
+            </Button>
+            <Button type="submit" disabled={lookingUp}>
+              {lookingUp ? "กำลังค้นหา..." : "ถัดไป"}
+            </Button>
+          </DialogFooter>
+        </form>
+        )}
+
+        {/* Step 2: Full Registration Form */}
+        {step === "form" && (
+          <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="full_name">ชื่อ-นามสกุล *</Label>
             <Input
@@ -418,14 +553,15 @@ export default function VisitorRegistrationDialog({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              ยกเลิก
+            <Button type="button" variant="outline" onClick={() => setStep("phone")}>
+              ← กลับไปแก้ไขเบอร์
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "กำลังลงทะเบียน..." : "ลงทะเบียน"}
+              {loading ? "กำลังบันทึก..." : existingParticipant ? "บันทึกข้อมูล" : "ลงทะเบียน"}
             </Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

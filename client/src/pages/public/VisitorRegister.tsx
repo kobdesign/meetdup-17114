@@ -24,6 +24,11 @@ export default function VisitorRegister() {
   const [selectedReferrer, setSelectedReferrer] = useState<string>("");
   const [referrerSearchOpen, setReferrerSearchOpen] = useState(false);
   
+  // 2-step form state
+  const [step, setStep] = useState<"phone" | "form">("phone");
+  const [existingParticipant, setExistingParticipant] = useState<any>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  
   // Get params from URL
   const meetingId = searchParams.get("meeting_id");
   const prefilledPhone = searchParams.get("phone") || "";
@@ -97,6 +102,73 @@ export default function VisitorRegister() {
     }
   };
 
+  // Step 1: Phone lookup
+  const handlePhoneLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.phone) {
+      toast.error("กรุณากรอกเบอร์โทรศัพท์");
+      return;
+    }
+
+    if (!meetingId) {
+      toast.error("ไม่พบข้อมูลการประชุม");
+      return;
+    }
+
+    setLookingUp(true);
+
+    try {
+      const response = await fetch("/api/participants/lookup-by-phone", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: formData.phone,
+          meeting_id: meetingId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to lookup phone");
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.exists && data.participant) {
+        // Found existing participant - pre-fill form
+        console.log("Found existing participant:", data.participant);
+        setExistingParticipant(data.participant);
+        setFormData({
+          full_name: data.participant.full_name || "",
+          email: data.participant.email || "",
+          phone: data.participant.phone || formData.phone,
+          company: data.participant.company || "",
+          business_type: data.participant.business_type || "",
+          goal: data.participant.goal || "",
+          notes: data.participant.notes || "",
+        });
+        setSelectedReferrer(data.participant.referred_by_participant_id || "");
+        toast.success("พบข้อมูลของคุณแล้ว! กรุณาตรวจสอบและแก้ไข (ถ้าจำเป็น)");
+      } else {
+        // New participant - go to empty form
+        console.log("New participant - no existing data");
+        setExistingParticipant(null);
+        toast.info("ยินดีต้อนรับ! กรุณากรอกข้อมูลเพื่อลงทะเบียน");
+      }
+
+      // Go to form step
+      setStep("form");
+    } catch (error: any) {
+      toast.error("เกิดข้อผิดพลาดในการค้นหา: " + error.message);
+      console.error("Phone lookup error:", error);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  // Step 2: Submit registration (INSERT or UPDATE)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -113,23 +185,33 @@ export default function VisitorRegister() {
     setSubmitting(true);
 
     try {
+      const payload: any = {
+        meeting_id: meetingId, // Backend derives tenant_id from meeting_id
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone,
+        company: formData.company,
+        business_type: formData.business_type,
+        goal: formData.goal,
+        notes: formData.notes,
+        auto_checkin: autoCheckin, // Pass auto_checkin flag to API
+        referred_by_participant_id: selectedReferrer || null,
+      };
+
+      // If updating existing participant, include participant_id
+      if (existingParticipant?.participant_id) {
+        payload.participant_id = existingParticipant.participant_id;
+        console.log("UPDATE mode - participant_id:", payload.participant_id);
+      } else {
+        console.log("INSERT mode - new participant");
+      }
+
       const response = await fetch("/api/participants/register-visitor", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          meeting_id: meetingId, // Backend derives tenant_id from meeting_id
-          full_name: formData.full_name,
-          email: formData.email,
-          phone: formData.phone,
-          company: formData.company,
-          business_type: formData.business_type,
-          goal: formData.goal,
-          notes: formData.notes,
-          auto_checkin: autoCheckin, // Pass auto_checkin flag to API
-          referred_by_participant_id: selectedReferrer || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -226,17 +308,87 @@ export default function VisitorRegister() {
     );
   }
 
-  // Registration form
+  // Step 1: Phone Lookup Form
+  if (step === "phone") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle>
+              {autoCheckin ? "ลงทะเบียนและเช็คอิน" : "ลงทะเบียนผู้เยี่ยมชม"}
+            </CardTitle>
+            <CardDescription>
+              {tenant.tenant_name}
+              {autoCheckin && (
+                <span className="block mt-1 text-xs text-primary">
+                  ระบบจะเช็คอินให้อัตโนมัติหลังลงทะเบียน
+                </span>
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePhoneLookup} className="space-y-4">
+              <div>
+                <Label htmlFor="phone">เบอร์โทรศัพท์ *</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  required
+                  placeholder="08X-XXX-XXXX"
+                  maxLength={10}
+                  data-testid="input-phone-lookup"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  ระบบจะตรวจสอบว่าคุณเคยลงทะเบียนหรือไม่ เพื่อนำข้อมูลเดิมมาแสดงให้คุณ
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={lookingUp}
+                  data-testid="button-lookup-phone"
+                >
+                  {lookingUp ? "กำลังค้นหา..." : "ถัดไป"}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => navigate(`/checkin/${meetingId}`)}
+                  variant="outline"
+                  className="w-full"
+                  disabled={lookingUp}
+                  data-testid="button-back-to-checkin"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  กลับไปหน้าเช็คอิน
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Step 2: Registration Form
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <CardHeader>
           <CardTitle>
-            {autoCheckin ? "ลงทะเบียนและเช็คอิน" : "ลงทะเบียนผู้เยี่ยมชม"}
+            {existingParticipant ? "ตรวจสอบและแก้ไขข้อมูล" : (autoCheckin ? "ลงทะเบียนและเช็คอิน" : "ลงทะเบียนผู้เยี่ยมชม")}
           </CardTitle>
           <CardDescription>
             {tenant.tenant_name}
-            {autoCheckin && (
+            {existingParticipant && (
+              <span className="block mt-1 text-xs text-primary">
+                พบข้อมูลของคุณแล้ว กรุณาตรวจสอบและแก้ไข (ถ้าจำเป็น)
+              </span>
+            )}
+            {autoCheckin && !existingParticipant && (
               <span className="block mt-1 text-xs text-primary">
                 ระบบจะเช็คอินให้อัตโนมัติหลังลงทะเบียน
               </span>
@@ -395,21 +547,23 @@ export default function VisitorRegister() {
               >
                 {submitting 
                   ? "กำลังดำเนินการ..." 
-                  : autoCheckin 
-                    ? "ลงทะเบียนและเช็คอิน" 
-                    : "ลงทะเบียน"
+                  : existingParticipant
+                    ? "บันทึกข้อมูล"
+                    : autoCheckin 
+                      ? "ลงทะเบียนและเช็คอิน" 
+                      : "ลงทะเบียน"
                 }
               </Button>
               <Button
                 type="button"
-                onClick={() => navigate(`/checkin/${meetingId}`)}
+                onClick={() => setStep("phone")}
                 variant="outline"
                 className="w-full"
                 disabled={submitting}
-                data-testid="button-back-to-checkin"
+                data-testid="button-back-to-phone"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                กลับไปหน้าเช็คอิน
+                กลับไปแก้ไขเบอร์โทร
               </Button>
             </div>
           </form>
