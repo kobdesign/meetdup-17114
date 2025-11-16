@@ -66,6 +66,13 @@ export default function Visitors() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+      
+      console.log("[Visitors] Loaded visitors from Supabase:", data?.length);
+      console.log("[Visitors] Status breakdown:", data?.reduce((acc: any, v) => {
+        acc[v.status] = (acc[v.status] || 0) + 1;
+        return acc;
+      }, {}));
+      
       setVisitors(data || []);
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
@@ -104,8 +111,14 @@ export default function Visitors() {
       }
 
       const result = await response.json();
+      
+      console.log("[Visitors] API Response:", result);
+      
       if (result.success && result.analytics) {
+        console.log("[Visitors] Analytics data:", result.analytics);
         setAnalytics(result.analytics);
+      } else {
+        console.warn("[Visitors] No analytics in response:", result);
       }
     } catch (error: any) {
       console.error("Analytics error:", {

@@ -187,6 +187,11 @@ export default function Dashboard() {
         return acc;
       }, {}) || {};
 
+      // Debug logs
+      console.log("[Dashboard] Total participants:", participants?.length);
+      console.log("[Dashboard] Status counts:", statusCount);
+      console.log("[Dashboard] Visitors with checkins:", visitorsWithCheckinsCount);
+
       const participantsByStatus = Object.entries(statusCount).map(([name, value]) => ({
         name:
           name === "member"
@@ -222,14 +227,18 @@ export default function Dashboard() {
         checkins,
       }));
 
-      setAnalytics({
+      const analyticsData = {
         activeMembers: statusCount.member || 0,
         prospects: statusCount.prospect || 0,
         visitorsWithCheckins: visitorsWithCheckinsCount,
         declined: statusCount.declined || 0,
         participantsByStatus,
         monthlyCheckins,
-      });
+      };
+
+      console.log("[Dashboard] Final analytics:", analyticsData);
+
+      setAnalytics(analyticsData);
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
       console.error(error);
