@@ -351,7 +351,20 @@ export default function Meetings() {
   };
 
   const startEditMeeting = (meeting: any) => {
-    setEditingMeeting(meeting);
+    // Prevent editing recurrence for child instances
+    if (meeting.parent_meeting_id) {
+      setEditingMeeting({
+        ...meeting,
+        recurrence_pattern: "none",
+        recurrence_interval: 1,
+        recurrence_end_date: "",
+        recurrence_days_of_week: [],
+        recurrence_end_type: "never",
+        recurrence_occurrence_count: 10,
+      });
+    } else {
+      setEditingMeeting(meeting);
+    }
     setShowEditDialog(true);
     // Set advanced section visibility based on whether coordinates exist
     setShowAdvancedLocationEdit(!!(meeting.location_lat && meeting.location_lng));
@@ -380,7 +393,27 @@ export default function Meetings() {
         .eq("meeting_id", editingMeeting.meeting_id)
         .single();
 
-      // Update the main meeting record
+      // Handle recurring instances only if this is NOT a child instance
+      if (!originalMeeting?.parent_meeting_id) {
+        const wasRecurring = originalMeeting?.recurrence_pattern && originalMeeting.recurrence_pattern !== "none";
+        const isNowRecurring = editingMeeting.recurrence_pattern && editingMeeting.recurrence_pattern !== "none";
+
+        // Delete existing instances FIRST before updating parent
+        if (wasRecurring) {
+          const { error: deleteError } = await supabase
+            .from("meetings")
+            .delete()
+            .eq("parent_meeting_id", editingMeeting.meeting_id);
+
+          if (deleteError) {
+            toast.error("ไม่สามารถลบการประชุมรอบถัดไปได้ เนื่องจากมีการเช็คอินแล้ว กรุณาลบรายการที่มีการเช็คอินก่อน");
+            setUpdating(false);
+            return;
+          }
+        }
+      }
+
+      // Update the main meeting record AFTER deleting children
       const { error: updateError } = await supabase
         .from("meetings")
         .update({
@@ -403,18 +436,9 @@ export default function Meetings() {
 
       if (updateError) throw updateError;
 
-      // Handle recurring instances only if this is NOT a child instance
+      // Create new instances if now recurring
       if (!originalMeeting?.parent_meeting_id) {
-        const wasRecurring = originalMeeting?.recurrence_pattern && originalMeeting.recurrence_pattern !== "none";
         const isNowRecurring = editingMeeting.recurrence_pattern && editingMeeting.recurrence_pattern !== "none";
-
-        // Delete existing instances if they exist
-        if (wasRecurring) {
-          await supabase
-            .from("meetings")
-            .delete()
-            .eq("parent_meeting_id", editingMeeting.meeting_id);
-        }
 
         // Create new instances if now recurring
         if (isNowRecurring) {
