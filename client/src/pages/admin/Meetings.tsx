@@ -487,25 +487,32 @@ export default function Meetings() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="meeting_date">วันที่ประชุม *</Label>
-                    <Input
-                      id="meeting_date"
-                      type="date"
-                      value={newMeeting.meeting_date}
-                      onChange={(e) => setNewMeeting(prev => ({ ...prev, meeting_date: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="meeting_time">เวลา</Label>
-                    <Input
-                      id="meeting_time"
-                      type="time"
-                      value={newMeeting.meeting_time}
-                      onChange={(e) => setNewMeeting(prev => ({ ...prev, meeting_time: e.target.value }))}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="meeting_datetime">วันที่และเวลาประชุม *</Label>
+                  <Input
+                    id="meeting_datetime"
+                    type="datetime-local"
+                    value={newMeeting.meeting_date && newMeeting.meeting_time 
+                      ? `${newMeeting.meeting_date}T${newMeeting.meeting_time}` 
+                      : newMeeting.meeting_date || ''}
+                    onChange={(e) => {
+                      const datetime = e.target.value;
+                      if (datetime) {
+                        const [date, time] = datetime.split('T');
+                        setNewMeeting(prev => ({ 
+                          ...prev, 
+                          meeting_date: date,
+                          meeting_time: time || ''
+                        }));
+                      } else {
+                        setNewMeeting(prev => ({ 
+                          ...prev, 
+                          meeting_date: '',
+                          meeting_time: ''
+                        }));
+                      }
+                    }}
+                  />
                 </div>
 
                 <LocationSearch
@@ -699,25 +706,32 @@ export default function Meetings() {
               </DialogHeader>
               {editingMeeting && (
                 <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit_meeting_date">วันที่ประชุม *</Label>
-                      <Input
-                        id="edit_meeting_date"
-                        type="date"
-                        value={editingMeeting.meeting_date}
-                        onChange={(e) => setEditingMeeting(prev => ({ ...prev, meeting_date: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit_meeting_time">เวลา</Label>
-                      <Input
-                        id="edit_meeting_time"
-                        type="time"
-                        value={editingMeeting.meeting_time || ""}
-                        onChange={(e) => setEditingMeeting(prev => ({ ...prev, meeting_time: e.target.value }))}
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_meeting_datetime">วันที่และเวลาประชุม *</Label>
+                    <Input
+                      id="edit_meeting_datetime"
+                      type="datetime-local"
+                      value={editingMeeting.meeting_date && editingMeeting.meeting_time 
+                        ? `${editingMeeting.meeting_date}T${editingMeeting.meeting_time}` 
+                        : editingMeeting.meeting_date || ''}
+                      onChange={(e) => {
+                        const datetime = e.target.value;
+                        if (datetime) {
+                          const [date, time] = datetime.split('T');
+                          setEditingMeeting(prev => ({ 
+                            ...prev, 
+                            meeting_date: date,
+                            meeting_time: time || ''
+                          }));
+                        } else {
+                          setEditingMeeting(prev => ({ 
+                            ...prev, 
+                            meeting_date: '',
+                            meeting_time: ''
+                          }));
+                        }
+                      }}
+                    />
                   </div>
 
                   <LocationSearch
