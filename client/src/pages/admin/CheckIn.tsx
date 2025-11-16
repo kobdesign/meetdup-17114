@@ -75,7 +75,7 @@ export default function CheckIn() {
         .from("checkins")
         .select(`
           *,
-          participant:participants!checkins_participant_id_fkey (
+          participant:participants!fk_checkins_participant (
             full_name,
             company,
             status

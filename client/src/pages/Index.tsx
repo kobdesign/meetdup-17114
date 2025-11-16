@@ -62,7 +62,7 @@ const Index = () => {
             <Users className="h-12 w-12 text-primary mb-4" />
             <h3 className="text-lg font-semibold mb-2">Participant Management</h3>
             <p className="text-sm text-muted-foreground">
-              Track members, visitors, and payment status
+              Track members and visitors efficiently
             </p>
           </div>
 

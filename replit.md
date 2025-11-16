@@ -1,7 +1,7 @@
 # Meetdup - BNI Chapter Management System
 
 ## Overview
-Meetdup is a comprehensive multi-tenant SaaS application designed to streamline and manage BNI (Business Network International) chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, payment processing, and various administrative tasks. The system aims to enhance efficiency and organization for BNI chapters, offering a tailored experience through multi-tenancy and role-based access control.
+Meetdup is a comprehensive multi-tenant SaaS application designed to streamline and manage BNI (Business Network International) chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for BNI chapters, offering a tailored experience through multi-tenancy and role-based access control.
 
 ## User Preferences
 None specified yet.
@@ -26,7 +26,6 @@ None specified yet.
 - **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and a quick reply system. Includes Business Card feature via LINE Flex Messages with vCard download support, member search functionality, and corporate-style contact sharing.
 - **Robust Error Handling**: Implemented across the system for stability and a smooth user experience, including fixes for React Query context errors.
 - **Modular Design**: Project structured into `client/`, `server/`, `supabase/`, and `shared/` directories.
-- **Payment Processing**: Supports multiple payment methods (PromptPay, Transfer, Cash) with features for slip upload, review, and refund workflows.
 - **Check-In System**: Utilizes QR code-based check-ins and integrates with LINE webhooks for status progression and communication.
 - **Member/Visitor Pipeline Separation**: UI restructured to separate active member management from visitor pipeline analytics, with dedicated pages for active members and a visitor pipeline dashboard featuring analytics KPIs.
 - **Multi-Path Onboarding System**: Implemented three onboarding flows: Pioneer (create chapter), Invite (accept invite link), and Discovery (search chapters). This includes new backend APIs for chapter creation, invite management, and join requests, alongside schema migrations for `chapter_invites` and `chapter_join_requests`, and a refactored `user_roles` table to support global Super Admin roles.
@@ -51,19 +50,20 @@ None specified yet.
   - **Member Search**: Text-based search via LINE messages (e.g., "หาสมาชิก [ชื่อ]") with quick reply buttons for results
   - **Webhook Handlers**: Integrated postback handlers for view_card action and text message routing for member search
   - **Public API Endpoints**: `/api/participants/:id/business-card` (JSON) and `/api/participants/:id/vcard` (file download)
-  - **Payment Flow Removal**: Removed post-registration payment redirect, replaced with success message for cleaner UX
   - Migration: `supabase/migrations/20251116_add_business_card_fields.sql`
-- **Supabase Relationship Ambiguity Fix** (Nov 16, 2025): Resolved PGRST204/PGRST201 errors caused by multiple foreign keys pointing to the same table. When embedding `participants` from tables with multiple FK relationships (checkins, meeting_registrations, payments), Supabase couldn't determine which FK to use. Solution: Use explicit relationship hints with FK names in ALL directions:
-  - **FROM child tables TO participants**: `participants!checkins_participant_id_fkey(...)`, `participants!meeting_registrations_participant_id_fkey(...)`, `participants!payments_participant_id_fkey(...)`
-  - **FROM participants TO child tables**: `checkins!checkins_participant_id_fkey(...)`, `meeting_registrations!meeting_registrations_participant_id_fkey(...)`, `payments!payments_participant_id_fkey(...)`
-  - Updated all affected queries in MeetingDetails.tsx, CheckIn.tsx, Visitors.tsx (backend visitor-analytics endpoint), and send-payment-reminder edge function
+- **Supabase Relationship Ambiguity Fix** (Nov 16, 2025): Resolved PGRST204/PGRST201 errors caused by multiple foreign keys pointing to the same table. When embedding `participants` from tables with multiple FK relationships (checkins, meeting_registrations), Supabase couldn't determine which FK to use. Solution: Use explicit relationship hints with actual FK constraint names in ALL directions:
+  - **Actual FK Names**: `fk_checkins_participant`, `fk_meeting_registrations_participant` (verified from database schema, not the initially assumed `*_participant_id_fkey` pattern)
+  - **FROM child tables TO participants**: `participants!fk_checkins_participant(...)`, `participants!fk_meeting_registrations_participant(...)`
+  - **FROM participants TO child tables**: `checkins!fk_checkins_participant(...)`, `meeting_registrations!fk_meeting_registrations_participant(...)`
+  - Updated all affected queries in MeetingDetails.tsx, CheckIn.tsx, Visitors.tsx (backend visitor-analytics endpoint)
   - Changed embedded relationship alias from `participants` (plural) to `participant` (singular) to match PostgREST's singular embedding convention
+  - After dropping tables (payments, invoices, refund_requests), reloaded Supabase schema cache via `NOTIFY pgrst, 'reload schema'` to clear cached metadata
 
 ## External Dependencies
 
 - **Supabase** (`sbknunooplaezvwtyooi`):
-    - **Database**: PostgreSQL (main data store with 18 tables and multi-tenant architecture)
+    - **Database**: PostgreSQL (main data store with multi-tenant architecture)
     - **Authentication**: Supabase Auth (integrated with profiles table)
-    - **Storage**: Supabase Storage (for payment slips and other files)
+    - **Storage**: Supabase Storage (for file uploads)
 - **LINE Messaging API**: Integrated for communication, rich menus, quick replies, and webhooks.
 - **Google Maps API**: Utilized for location features, particularly in meeting venue management.

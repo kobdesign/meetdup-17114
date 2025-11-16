@@ -77,7 +77,7 @@ export default function MeetingDetails() {
           registration_id,
           registered_at,
           registration_status,
-          participant:participants!meeting_registrations_participant_id_fkey (
+          participant:participants!fk_meeting_registrations_participant (
             participant_id,
             full_name,
             email,
@@ -99,7 +99,7 @@ export default function MeetingDetails() {
           checkin_time,
           status,
           notes,
-          participant:participants!checkins_participant_id_fkey (
+          participant:participants!fk_checkins_participant (
             participant_id,
             full_name,
             company,

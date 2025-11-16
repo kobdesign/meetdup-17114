@@ -185,7 +185,7 @@ router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRe
       .from("participants")
       .select(`
         participant_id,
-        checkins!checkins_participant_id_fkey (
+        checkins!fk_checkins_participant (
           checkin_id
         )
       `)
@@ -209,7 +209,7 @@ router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRe
       .from("checkins")
       .select(`
         checkin_id,
-        participant:participants!checkins_participant_id_fkey!inner (
+        participant:participants!fk_checkins_participant!inner (
           participant_id,
           status,
           tenant_id
