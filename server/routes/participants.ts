@@ -185,7 +185,7 @@ router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRe
       .from("participants")
       .select(`
         participant_id,
-        checkins (
+        checkins!checkins_participant_id_fkey (
           checkin_id
         )
       `)
