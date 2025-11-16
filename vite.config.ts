@@ -10,7 +10,9 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: true,
   },
   server: {
+    host: "0.0.0.0",
     allowedHosts: true,
+    hmr: false,
   },
   plugins: [
     react(),
