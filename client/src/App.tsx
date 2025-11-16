@@ -47,7 +47,7 @@ const App = () => (
           <Route path="/discover-chapters" element={<DiscoverChapters />} />
           
           {/* Public Chapter Profile */}
-          <Route path="/chapter/:slug" element={<ChapterProfile />} />
+          <Route path="/chapter/:subdomain" element={<ChapterProfile />} />
           
           {/* Public Check-In */}
           <Route path="/checkin/:meetingId" element={<CheckInScanner />} />

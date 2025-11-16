@@ -12,8 +12,6 @@ interface ChapterData {
   tenant_id: string;
   name: string;
   subdomain: string;
-  country: string;
-  timezone: string;
   logo_url?: string;
   branding_color?: string;
 }
@@ -54,9 +52,8 @@ export default function ChapterProfile() {
       // Fetch tenant/chapter data
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
-        .select("tenant_id, tenant_name, subdomain, country, timezone")
+        .select("tenant_id, tenant_name, subdomain")
         .eq("subdomain", subdomain)
-        .eq("status", "active")
         .single();
 
       if (tenantError) throw tenantError;
@@ -76,8 +73,6 @@ export default function ChapterProfile() {
         tenant_id: tenantData.tenant_id,
         name: tenantData.tenant_name,
         subdomain: tenantData.subdomain,
-        country: tenantData.country,
-        timezone: tenantData.timezone,
         logo_url: settingsData?.logo_url || undefined,
         branding_color: settingsData?.branding_color || "#1e40af",
       });
@@ -146,7 +141,7 @@ export default function ChapterProfile() {
             <div>
               <h1 className="text-3xl font-bold">{chapter.name}</h1>
               <p className="text-muted-foreground">
-                BNI Chapter - {chapter.country}
+                BNI Chapter
               </p>
             </div>
           </div>
@@ -163,20 +158,10 @@ export default function ChapterProfile() {
               <CardDescription>รายละเอียดของ {chapter.name}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-2 text-sm">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span>ประเทศ: {chapter.country}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span>Timezone: {chapter.timezone}</span>
-              </div>
-              <div className="pt-4">
-                <p className="text-sm text-muted-foreground">
-                  BNI (Business Network International) เป็นองค์กรเครือข่ายธุรกิจที่ใหญ่ที่สุดในโลก
-                  ที่ช่วยให้ผู้ประกอบการสร้างโอกาสทางธุรกิจผ่านการแนะนำลูกค้า
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                BNI (Business Network International) เป็นองค์กรเครือข่ายธุรกิจที่ใหญ่ที่สุดในโลก
+                ที่ช่วยให้ผู้ประกอบการสร้างโอกาสทางธุรกิจผ่านการแนะนำลูกค้า
+              </p>
             </CardContent>
           </Card>
 
