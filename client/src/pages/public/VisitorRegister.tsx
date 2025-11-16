@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function VisitorRegister() {
   const [searchParams] = useSearchParams();
@@ -17,6 +20,9 @@ export default function VisitorRegister() {
   const [success, setSuccess] = useState(false);
   const [meeting, setMeeting] = useState<any>(null);
   const [tenant, setTenant] = useState<any>(null);
+  const [members, setMembers] = useState<any[]>([]);
+  const [selectedReferrer, setSelectedReferrer] = useState<string>("");
+  const [referrerSearchOpen, setReferrerSearchOpen] = useState(false);
   
   // Get params from URL
   const meetingId = searchParams.get("meeting_id");
@@ -61,11 +67,33 @@ export default function VisitorRegister() {
       
       setMeeting(data);
       setTenant(data.tenants);
+      
+      // Load members for referral dropdown
+      if (meetingId) {
+        await loadMembers(meetingId);
+      }
     } catch (error: any) {
       toast.error("ไม่พบข้อมูลการประชุม");
       console.error("Error loading meeting:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMembers = async (meetingId: string) => {
+    try {
+      const response = await fetch(
+        `/api/participants/members-for-referral?meeting_id=${meetingId}`
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.members) {
+          setMembers(result.members);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load members:", error);
     }
   };
 
@@ -100,6 +128,7 @@ export default function VisitorRegister() {
           goal: formData.goal,
           notes: formData.notes,
           auto_checkin: autoCheckin, // Pass auto_checkin flag to API
+          referred_by_participant_id: selectedReferrer || null,
         }),
       });
 
@@ -281,6 +310,56 @@ export default function VisitorRegister() {
                 placeholder="เช่น บริการทางการเงิน, IT, อสังหาริมทรัพย์"
                 data-testid="input-business-type"
               />
+            </div>
+
+            {/* Referral Combobox */}
+            <div>
+              <Label htmlFor="referrer">ผู้แนะนำ (ถ้ามี)</Label>
+              <Popover open={referrerSearchOpen} onOpenChange={setReferrerSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={referrerSearchOpen}
+                    className="w-full justify-between font-normal"
+                    data-testid="button-select-referrer"
+                  >
+                    {selectedReferrer
+                      ? members.find((m) => m.participant_id === selectedReferrer)?.display_name
+                      : "เลือกสมาชิกที่แนะนำคุณ (ถ้ามี)"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="ค้นหาสมาชิก..." />
+                    <CommandList>
+                      <CommandEmpty>ไม่พบสมาชิก</CommandEmpty>
+                      <CommandGroup>
+                        {members.map((member) => (
+                          <CommandItem
+                            key={member.participant_id}
+                            value={member.display_name}
+                            onSelect={() => {
+                              setSelectedReferrer(member.participant_id === selectedReferrer ? "" : member.participant_id);
+                              setReferrerSearchOpen(false);
+                            }}
+                            data-testid={`option-referrer-${member.participant_id}`}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedReferrer === member.participant_id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {member.display_name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>

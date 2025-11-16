@@ -284,7 +284,8 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       business_type, 
       goal, 
       notes,
-      auto_checkin // NEW: If true, create as visitor + auto check-in
+      auto_checkin, // NEW: If true, create as visitor + auto check-in
+      referred_by_participant_id // NEW: Referral tracking
     } = req.body;
 
     console.log(`${logPrefix} Registration request`, {
@@ -355,6 +356,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
         goal: goal || null,
         notes: notes || null,
         status: initialStatus,
+        referred_by_participant_id: referred_by_participant_id || null,
       })
       .select()
       .single();
@@ -913,6 +915,7 @@ router.get("/:participantId/vcard", async (req: Request, res: Response) => {
 
 // Get members for referral dropdown (public endpoint - used in registration forms)
 // Returns members with nickname and full_name for selection
+// Uses meeting_id for implicit tenant authorization (prevent data leaks)
 router.get("/members-for-referral", async (req: Request, res: Response) => {
   try {
     const { meeting_id } = req.query;
@@ -924,7 +927,7 @@ router.get("/members-for-referral", async (req: Request, res: Response) => {
       });
     }
 
-    // Get meeting to find tenant_id
+    // Get meeting to find tenant_id (security: prevents arbitrary tenant access)
     const { data: meeting, error: meetingError } = await supabaseAdmin
       .from("meetings")
       .select("tenant_id")

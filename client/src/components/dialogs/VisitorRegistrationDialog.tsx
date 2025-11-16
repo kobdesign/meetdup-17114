@@ -5,6 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -26,6 +30,9 @@ export default function VisitorRegistrationDialog({
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | undefined>(meetingId);
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
   const [allowChangeMeeting, setAllowChangeMeeting] = useState(false);
+  const [members, setMembers] = useState<any[]>([]);
+  const [selectedReferrer, setSelectedReferrer] = useState<string>("");
+  const [referrerSearchOpen, setReferrerSearchOpen] = useState(false);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -65,9 +72,18 @@ export default function VisitorRegistrationDialog({
       setSelectedMeetingId(undefined);
       setSelectedMeeting(null);
       setMeetings([]);
+      setMembers([]);
+      setSelectedReferrer("");
       setAllowChangeMeeting(false);
     }
   }, [open, tenantId, meetingId]);
+
+  // Load members when selectedMeetingId changes
+  useEffect(() => {
+    if (open && selectedMeetingId) {
+      loadMembers();
+    }
+  }, [open, selectedMeetingId]);
 
   const loadUpcomingMeetings = async () => {
     const today = new Date();
@@ -104,6 +120,29 @@ export default function VisitorRegistrationDialog({
     }
   };
 
+  const loadMembers = async () => {
+    try {
+      // Only load members if meeting is selected (security requirement)
+      if (!selectedMeetingId) {
+        console.log("[loadMembers] No meeting selected, skipping members load");
+        return;
+      }
+
+      const response = await fetch(
+        `/api/participants/members-for-referral?meeting_id=${selectedMeetingId}`
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.members) {
+          setMembers(result.members);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load members:", error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -132,6 +171,7 @@ export default function VisitorRegistrationDialog({
           business_type: formData.business_type,
           goal: formData.goal,
           notes: formData.notes,
+          referred_by_participant_id: selectedReferrer || null,
         }),
       });
 
@@ -303,6 +343,56 @@ export default function VisitorRegistrationDialog({
               onChange={(e) => setFormData({ ...formData, business_type: e.target.value })}
               placeholder="เช่น ร้านอาหาร, IT, การตลาด"
             />
+          </div>
+
+          {/* Referral Combobox */}
+          <div>
+            <Label htmlFor="referrer">ผู้แนะนำ (ถ้ามี)</Label>
+            <Popover open={referrerSearchOpen} onOpenChange={setReferrerSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={referrerSearchOpen}
+                  className="w-full justify-between font-normal"
+                  data-testid="button-select-referrer"
+                >
+                  {selectedReferrer
+                    ? members.find((m) => m.participant_id === selectedReferrer)?.display_name
+                    : "เลือกสมาชิกที่แนะนำคุณ (ถ้ามี)"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="ค้นหาสมาชิก..." />
+                  <CommandList>
+                    <CommandEmpty>ไม่พบสมาชิก</CommandEmpty>
+                    <CommandGroup>
+                      {members.map((member) => (
+                        <CommandItem
+                          key={member.participant_id}
+                          value={member.display_name}
+                          onSelect={() => {
+                            setSelectedReferrer(member.participant_id === selectedReferrer ? "" : member.participant_id);
+                            setReferrerSearchOpen(false);
+                          }}
+                          data-testid={`option-referrer-${member.participant_id}`}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedReferrer === member.participant_id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {member.display_name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div>
