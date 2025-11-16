@@ -27,6 +27,24 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       });
     }
 
+    // If meeting_id is provided, validate it exists and belongs to the tenant
+    if (meeting_id) {
+      const { data: meeting, error: meetingError } = await supabaseAdmin
+        .from("meetings")
+        .select("meeting_id, tenant_id")
+        .eq("meeting_id", meeting_id)
+        .eq("tenant_id", tenant_id)
+        .single();
+
+      if (meetingError || !meeting) {
+        console.error("Invalid meeting_id:", meetingError);
+        return res.status(400).json({ 
+          error: "Invalid meeting",
+          message: "The selected meeting does not exist or does not belong to this chapter"
+        });
+      }
+    }
+
     // Create participant record
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("participants")
@@ -64,8 +82,17 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
 
       if (registrationError) {
         console.error("Error creating meeting registration:", registrationError);
-        // Don't fail the whole request if just the registration fails
-        // The participant was created successfully
+        
+        // Delete the participant we just created to rollback
+        await supabaseAdmin
+          .from("participants")
+          .delete()
+          .eq("participant_id", participant.participant_id);
+
+        return res.status(500).json({ 
+          error: "Failed to create meeting registration",
+          message: "Could not register for the meeting. Please try again."
+        });
       }
     }
 
