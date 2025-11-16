@@ -1,8 +1,88 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 
 const router = Router();
+
+// Register a visitor (public endpoint - no auth required)
+router.post("/register-visitor", async (req: Request, res: Response) => {
+  try {
+    const { 
+      tenant_id, 
+      meeting_id, 
+      full_name, 
+      email, 
+      phone, 
+      company, 
+      business_type, 
+      goal, 
+      notes 
+    } = req.body;
+
+    // Validate required fields
+    if (!tenant_id || !full_name || !email || !phone) {
+      return res.status(400).json({ 
+        error: "Missing required fields",
+        message: "tenant_id, full_name, email, and phone are required"
+      });
+    }
+
+    // Create participant record
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .insert({
+        tenant_id,
+        full_name,
+        email,
+        phone,
+        company: company || null,
+        business_type: business_type || null,
+        goal: goal || null,
+        notes: notes || null,
+        status: meeting_id ? "visitor" : "prospect", // visitor if registering for a meeting, prospect otherwise
+      })
+      .select()
+      .single();
+
+    if (participantError) {
+      console.error("Error creating participant:", participantError);
+      return res.status(500).json({ 
+        error: "Failed to create participant",
+        message: participantError.message
+      });
+    }
+
+    // If meeting_id is provided, create a meeting registration
+    if (meeting_id) {
+      const { error: registrationError } = await supabaseAdmin
+        .from("meeting_registrations")
+        .insert({
+          participant_id: participant.participant_id,
+          meeting_id,
+          registration_status: "registered"
+        });
+
+      if (registrationError) {
+        console.error("Error creating meeting registration:", registrationError);
+        // Don't fail the whole request if just the registration fails
+        // The participant was created successfully
+      }
+    }
+
+    return res.json({
+      success: true,
+      participant_id: participant.participant_id,
+      message: "Registration successful"
+    });
+
+  } catch (error: any) {
+    console.error("Visitor registration error:", error);
+    return res.status(500).json({ 
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
 
 // Get visitor pipeline analytics
 router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
