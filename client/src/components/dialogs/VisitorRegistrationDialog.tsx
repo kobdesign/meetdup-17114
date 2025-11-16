@@ -206,8 +206,8 @@ export default function VisitorRegistrationDialog({
             </div>
           )}
 
-          {/* Meeting Details Display - Show when meeting is selected and user hasn't clicked change */}
-          {selectedMeeting && !allowChangeMeeting && (
+          {/* Meeting Details Display - Show when meeting is selected */}
+          {selectedMeeting && (
             <div className="bg-accent/50 rounded-lg p-4 space-y-2 border">
               <div className="flex justify-between items-start">
                 <p className="font-semibold">📋 ข้อมูลการประชุมที่เลือก</p>
