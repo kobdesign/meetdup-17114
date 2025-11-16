@@ -145,7 +145,6 @@ router.post("/check-in", async (req: Request, res: Response) => {
         tenant_id: meeting.tenant_id,
         meeting_id,
         participant_id: participantId,
-        source: "manual",
       });
 
     if (checkinError) {
