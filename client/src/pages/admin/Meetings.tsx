@@ -351,10 +351,8 @@ export default function Meetings() {
   const startEditMeeting = (meeting: any) => {
     setEditingMeeting(meeting);
     setShowEditDialog(true);
-    // Auto-expand if coordinates already exist
-    if (meeting.location_lat && meeting.location_lng) {
-      setShowAdvancedLocationEdit(true);
-    }
+    // Set advanced section visibility based on whether coordinates exist
+    setShowAdvancedLocationEdit(!!(meeting.location_lat && meeting.location_lng));
   };
 
   const handleUpdateMeeting = async () => {
@@ -466,7 +464,12 @@ export default function Meetings() {
               </Button>
             </div>
           </div>
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <Dialog open={showAddDialog} onOpenChange={(open) => {
+          setShowAddDialog(open);
+          if (!open) {
+            setShowAdvancedLocation(false);
+          }
+        }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -677,7 +680,12 @@ export default function Meetings() {
           </Dialog>
 
           {/* Edit Meeting Dialog */}
-          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <Dialog open={showEditDialog} onOpenChange={(open) => {
+            setShowEditDialog(open);
+            if (!open) {
+              setShowAdvancedLocationEdit(false);
+            }
+          }}>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>แก้ไขการประชุม</DialogTitle>
