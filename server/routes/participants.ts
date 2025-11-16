@@ -187,8 +187,7 @@ router.post("/check-in", async (req: Request, res: Response) => {
           tenant_id: meeting.tenant_id,
           meeting_id,
           participant_id,
-          status: "confirmed",
-          notes: "Auto-registered during check-in"
+          registration_status: "registered"
         });
 
       if (regError) {
@@ -656,7 +655,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
       });
     }
 
-    // Get participants (prospects, visitors, declined) with referred_by info
+    // Get participants (prospects, visitors, declined)
     const { data: participants, error: participantsError } = await supabaseAdmin
       .from("participants")
       .select(`
@@ -670,12 +669,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
         business_type,
         status,
         created_at,
-        referred_by_participant_id,
-        referred_by:participants!participants_referred_by_participant_id_fkey (
-          participant_id,
-          full_name,
-          nickname
-        )
+        referred_by_participant_id
       `)
       .eq("tenant_id", tenant_id)
       .in("status", ["prospect", "visitor", "declined"])
@@ -687,6 +681,27 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
         error: "Failed to fetch participants",
         message: participantsError.message
       });
+    }
+
+    // Get referred_by participant info separately (to avoid self-referencing issues)
+    const referredByIds = [...new Set(
+      participants
+        ?.map(p => p.referred_by_participant_id)
+        .filter(Boolean) || []
+    )];
+    
+    let referredByMap = new Map<string, any>();
+    if (referredByIds.length > 0) {
+      const { data: referredByParticipants } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id, full_name, nickname")
+        .in("participant_id", referredByIds);
+
+      if (referredByParticipants) {
+        referredByParticipants.forEach(p => {
+          referredByMap.set(p.participant_id, p);
+        });
+      }
     }
 
     // Get upcoming meetings for each participant
@@ -713,15 +728,35 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
       }
     }
 
-    // Combine data: add upcoming meeting to each participant
+    // Get check-ins count for each participant (for Hot Leads filtering)
+    let checkinCounts = new Map<string, number>();
+    if (participantIds.length > 0) {
+      const { data: checkinsData } = await supabaseAdmin
+        .from("checkins")
+        .select("participant_id")
+        .in("participant_id", participantIds);
+
+      if (checkinsData) {
+        checkinsData.forEach((checkin: any) => {
+          const count = checkinCounts.get(checkin.participant_id) || 0;
+          checkinCounts.set(checkin.participant_id, count + 1);
+        });
+      }
+    }
+
+    // Combine data: add upcoming meeting, referred_by info, and checkins count to each participant
     const enrichedParticipants = participants?.map((p: any) => {
       const upcomingReg = upcomingMeetings.find(r => r.participant_id === p.participant_id);
-      const referredBy = p.referred_by as any;
+      const referredBy = p.referred_by_participant_id 
+        ? referredByMap.get(p.referred_by_participant_id)
+        : null;
+      
       return {
         ...p,
         upcoming_meeting_date: upcomingReg?.meeting?.meeting_date || null,
         upcoming_meeting_time: upcomingReg?.meeting?.start_time || null,
-        referred_by_name: referredBy?.nickname || referredBy?.full_name || null
+        referred_by_name: referredBy?.nickname || referredBy?.full_name || null,
+        checkins_count: checkinCounts.get(p.participant_id) || 0
       };
     });
 

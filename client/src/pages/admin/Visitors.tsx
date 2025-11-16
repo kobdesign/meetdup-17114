@@ -153,9 +153,9 @@ export default function Visitors() {
 
     // Apply status filter or KPI-based filter
     if (statusFilter === "hot-leads") {
-      // Hot Leads = Visitors with upcoming meeting (likely to convert)
+      // Hot Leads = Visitors with 2+ check-ins (engaged visitors likely to convert)
       filtered = filtered.filter(v => 
-        v.status === "visitor" && v.upcoming_meeting_date
+        v.status === "visitor" && (v.checkins_count || 0) >= 2
       );
     } else if (statusFilter !== "all") {
       filtered = filtered.filter(v => v.status === statusFilter);
