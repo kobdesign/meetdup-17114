@@ -97,7 +97,8 @@ export default function MeetingDetails() {
         .select(`
           checkin_id,
           checkin_time,
-          source,
+          status,
+          notes,
           participants:participant_id (
             participant_id,
             full_name,
@@ -107,7 +108,6 @@ export default function MeetingDetails() {
           )
         `)
         .eq("meeting_id", meetingId)
-        .eq("tenant_id", effectiveTenantId)
         .order("checkin_time", { ascending: false });
 
       if (checkinsError) throw checkinsError;
