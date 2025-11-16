@@ -363,9 +363,25 @@ export default function Meetings() {
       return;
     }
 
+    if (!effectiveTenantId) {
+      toast.error(isSuperAdmin 
+        ? "กรุณาเลือก Chapter ที่ต้องการจัดการก่อน" 
+        : "ไม่พบข้อมูล Tenant"
+      );
+      return;
+    }
+
     setUpdating(true);
     try {
-      const { error } = await supabase
+      // Get original meeting to compare recurrence changes
+      const { data: originalMeeting } = await supabase
+        .from("meetings")
+        .select("recurrence_pattern, parent_meeting_id")
+        .eq("meeting_id", editingMeeting.meeting_id)
+        .single();
+
+      // Update the main meeting record
+      const { error: updateError } = await supabase
         .from("meetings")
         .update({
           meeting_name: editingMeeting.theme || "การประชุม",
@@ -385,9 +401,70 @@ export default function Meetings() {
         })
         .eq("meeting_id", editingMeeting.meeting_id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      toast.success("แก้ไขการประชุมสำเร็จ");
+      // Handle recurring instances only if this is NOT a child instance
+      if (!originalMeeting?.parent_meeting_id) {
+        const wasRecurring = originalMeeting?.recurrence_pattern && originalMeeting.recurrence_pattern !== "none";
+        const isNowRecurring = editingMeeting.recurrence_pattern && editingMeeting.recurrence_pattern !== "none";
+
+        // Delete existing instances if they exist
+        if (wasRecurring) {
+          await supabase
+            .from("meetings")
+            .delete()
+            .eq("parent_meeting_id", editingMeeting.meeting_id);
+        }
+
+        // Create new instances if now recurring
+        if (isNowRecurring) {
+          const instances = generateRecurringMeetings({
+            ...editingMeeting,
+            meeting_id: editingMeeting.meeting_id,
+            recurrence_end_type: editingMeeting.recurrence_end_type || "never",
+            recurrence_occurrence_count: editingMeeting.recurrence_occurrence_count || 10,
+          });
+
+          if (instances.length > 0) {
+            const instancesToInsert = instances.map(instance => ({
+              tenant_id: effectiveTenantId,
+              meeting_name: editingMeeting.theme || "การประชุม",
+              meeting_date: instance.instance_date,
+              meeting_time: editingMeeting.meeting_time || null,
+              venue: editingMeeting.venue || null,
+              location_details: editingMeeting.location_details || null,
+              location_lat: editingMeeting.location_lat ? parseFloat(editingMeeting.location_lat) : null,
+              location_lng: editingMeeting.location_lng ? parseFloat(editingMeeting.location_lng) : null,
+              theme: editingMeeting.theme || null,
+              description: editingMeeting.description || null,
+              visitor_fee: editingMeeting.visitor_fee,
+              recurrence_pattern: "none",
+              recurrence_interval: null,
+              recurrence_end_date: null,
+              recurrence_days_of_week: null,
+              parent_meeting_id: editingMeeting.meeting_id,
+            }));
+
+            const { error: instancesError } = await supabase
+              .from("meetings")
+              .insert(instancesToInsert);
+
+            if (instancesError) {
+              console.error("Error creating recurring instances:", instancesError);
+              toast.error("แก้ไขการประชุมสำเร็จ แต่เกิดข้อผิดพลาดในการสร้างรอบถัดไป");
+            } else {
+              toast.success(`แก้ไขการประชุมสำเร็จ (${instances.length + 1} รอบ)`);
+            }
+          } else {
+            toast.success("แก้ไขการประชุมสำเร็จ");
+          }
+        } else {
+          toast.success("แก้ไขการประชุมสำเร็จ");
+        }
+      } else {
+        toast.success("แก้ไขการประชุมสำเร็จ");
+      }
+
       setShowEditDialog(false);
       setShowAdvancedLocationEdit(false);
       setEditingMeeting(null);
