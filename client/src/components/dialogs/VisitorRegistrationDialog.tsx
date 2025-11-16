@@ -116,9 +116,13 @@ export default function VisitorRegistrationDialog({
     setLoading(true);
 
     try {
-      // Call backend function to register visitor (bypasses RLS)
-      const { data, error: functionError } = await supabase.functions.invoke("register-visitor", {
-        body: {
+      // Call Express API to register visitor (bypasses RLS)
+      const response = await fetch("/api/participants/register-visitor", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           tenant_id: tenantId,
           meeting_id: selectedMeetingId,
           full_name: formData.full_name,
@@ -128,10 +132,15 @@ export default function VisitorRegistrationDialog({
           business_type: formData.business_type,
           goal: formData.goal,
           notes: formData.notes,
-        },
+        }),
       });
 
-      if (functionError) throw functionError;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
 
       toast.success("ลงทะเบียนสำเร็จ! กำลังไปยังหน้าชำระเงิน...");
       
