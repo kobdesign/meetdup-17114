@@ -152,11 +152,15 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
         .eq("tenant_id", tenantId)
         .single();
 
-      const { data: settingsData } = await supabase
+      const { data: settingsData, error: settingsError } = await supabase
         .from("tenant_settings")
         .select("logo_url, branding_color")
         .eq("tenant_id", tenantId)
-        .single();
+        .maybeSingle();
+
+      if (settingsError && settingsError.code !== "PGRST116") {
+        throw settingsError;
+      }
 
       if (tenantData) {
         setSelectedTenantData({
