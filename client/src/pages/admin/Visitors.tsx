@@ -58,24 +58,42 @@ export default function Visitors() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("participants")
-        .select("*")
-        .eq("tenant_id", effectiveTenantId)
-        .in("status", ["visitor", "prospect", "declined"])
-        .order("created_at", { ascending: false });
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) {
+        toast.error("กรุณาเข้าสู่ระบบ");
+        setLoading(false);
+        return;
+      }
 
-      if (error) throw error;
+      const response = await fetch(
+        `/api/participants/visitor-pipeline?tenant_id=${effectiveTenantId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.session.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error("Visitor Pipeline API error:", errorData);
+        throw new Error(errorData.error || errorData.message || "Failed to load visitors");
+      }
+
+      const result = await response.json();
       
-      console.log("[Visitors] Loaded visitors from Supabase:", data?.length);
-      console.log("[Visitors] Status breakdown:", data?.reduce((acc: any, v) => {
-        acc[v.status] = (acc[v.status] || 0) + 1;
-        return acc;
-      }, {}));
-      
-      setVisitors(data || []);
+      if (result.success && result.participants) {
+        console.log("[Visitors] Loaded visitors from API:", result.participants.length);
+        console.log("[Visitors] Sample data:", result.participants[0]);
+        setVisitors(result.participants);
+      } else {
+        console.warn("[Visitors] No participants in response:", result);
+        setVisitors([]);
+      }
     } catch (error: any) {
+      console.error("[Visitors] Error:", error);
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
+      setVisitors([]);
     } finally {
       setLoading(false);
     }
@@ -133,10 +151,17 @@ export default function Visitors() {
   const filterVisitors = () => {
     let filtered = [...visitors];
 
-    if (statusFilter !== "all") {
+    // Apply status filter or KPI-based filter
+    if (statusFilter === "hot-leads") {
+      // Hot Leads = Visitors with upcoming meeting (likely to convert)
+      filtered = filtered.filter(v => 
+        v.status === "visitor" && v.upcoming_meeting_date
+      );
+    } else if (statusFilter !== "all") {
       filtered = filtered.filter(v => v.status === statusFilter);
     }
 
+    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(v =>
         v.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -147,6 +172,11 @@ export default function Visitors() {
     }
 
     setFilteredVisitors(filtered);
+  };
+
+  const handleKPICardClick = (filterType: string) => {
+    setStatusFilter(filterType);
+    setSearchTerm(""); // Clear search when clicking KPI card
   };
 
   const updateVisitorStatus = async (participantId: string, newStatus: string) => {
@@ -205,7 +235,11 @@ export default function Visitors() {
 
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card data-testid="card-prospects">
+          <Card 
+            data-testid="card-prospects" 
+            className="cursor-pointer hover-elevate"
+            onClick={() => handleKPICardClick("prospect")}
+          >
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">ผู้มุ่งหวัง</CardTitle>
               <UserPlus className="h-4 w-4 text-muted-foreground" />
@@ -218,7 +252,11 @@ export default function Visitors() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-visitors-active">
+          <Card 
+            data-testid="card-visitors-active"
+            className="cursor-pointer hover-elevate"
+            onClick={() => handleKPICardClick("visitor")}
+          >
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">ผู้เยี่ยมชมที่มาแล้ว</CardTitle>
               <UserCheck className="h-4 w-4 text-muted-foreground" />
@@ -231,7 +269,11 @@ export default function Visitors() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-engaged-visitors">
+          <Card 
+            data-testid="card-engaged-visitors"
+            className="cursor-pointer hover-elevate"
+            onClick={() => handleKPICardClick("hot-leads")}
+          >
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Hot Leads</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -244,7 +286,11 @@ export default function Visitors() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-declined">
+          <Card 
+            data-testid="card-declined"
+            className="cursor-pointer hover-elevate"
+            onClick={() => handleKPICardClick("declined")}
+          >
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">ไม่ติดตาม</CardTitle>
               <XCircle className="h-4 w-4 text-muted-foreground" />
@@ -300,7 +346,8 @@ export default function Visitors() {
                     <TableHead>ติดต่อ</TableHead>
                     <TableHead>บริษัท/ธุรกิจ</TableHead>
                     <TableHead>สถานะ</TableHead>
-                    <TableHead>วันที่ลงทะเบียน</TableHead>
+                    <TableHead>วันประชุมถัดไป</TableHead>
+                    <TableHead>ผู้แนะนำ</TableHead>
                     <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -341,7 +388,13 @@ export default function Visitors() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {new Date(visitor.created_at).toLocaleDateString("th-TH")}
+                        {visitor.upcoming_meeting_date 
+                          ? new Date(visitor.upcoming_meeting_date).toLocaleDateString("th-TH")
+                          : <span className="text-muted-foreground">-</span>
+                        }
+                      </TableCell>
+                      <TableCell>
+                        {visitor.referred_by_name || <span className="text-muted-foreground">-</span>}
                       </TableCell>
                         <TableCell className="text-right">
                           <Select

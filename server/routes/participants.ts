@@ -171,6 +171,34 @@ router.post("/check-in", async (req: Request, res: Response) => {
       });
     }
 
+    // Auto-create meeting_registration if not exists
+    const { data: existingRegistration } = await supabaseAdmin
+      .from("meeting_registrations")
+      .select("registration_id")
+      .eq("meeting_id", meeting_id)
+      .eq("participant_id", participant_id)
+      .maybeSingle();
+
+    if (!existingRegistration) {
+      console.log(`${logPrefix} Auto-creating meeting_registration`);
+      const { error: regError } = await supabaseAdmin
+        .from("meeting_registrations")
+        .insert({
+          tenant_id: meeting.tenant_id,
+          meeting_id,
+          participant_id,
+          status: "confirmed",
+          notes: "Auto-registered during check-in"
+        });
+
+      if (regError) {
+        console.error(`${logPrefix} Failed to auto-create registration:`, regError);
+        // Don't fail the check-in, just log the error
+      } else {
+        console.log(`${logPrefix} Auto-registration successful`);
+      }
+    }
+
     // Prepare check-in notes for Alumni revisit
     let checkinNotes = null;
     if (participant.status === "alumni") {
@@ -588,6 +616,129 @@ router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRe
   }
 });
 
+// Get visitor pipeline data with upcoming meeting dates and referral info (authenticated endpoint)
+router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { tenant_id } = req.query;
+    const userId = req.user?.id;
+
+    if (!tenant_id) {
+      return res.status(400).json({
+        error: "Missing tenant_id",
+        message: "tenant_id is required"
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Verify user has access to this tenant
+    const { data: userRoles, error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .select("role, tenant_id")
+      .eq("user_id", userId);
+
+    if (roleError || !userRoles || userRoles.length === 0) {
+      return res.status(403).json({ 
+        error: "Forbidden",
+        message: "You don't have access to any chapter"
+      });
+    }
+
+    const isSuperAdmin = userRoles.some(r => r.role === "super_admin" && !r.tenant_id);
+    const hasAccessToTenant = userRoles.some(r => r.tenant_id === tenant_id);
+    
+    if (!isSuperAdmin && !hasAccessToTenant) {
+      return res.status(403).json({ 
+        error: "Forbidden",
+        message: "You don't have access to this chapter"
+      });
+    }
+
+    // Get participants (prospects, visitors, declined) with referred_by info
+    const { data: participants, error: participantsError } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name,
+        email,
+        phone,
+        company,
+        nickname,
+        business_type,
+        status,
+        created_at,
+        referred_by_participant_id,
+        referred_by:participants!participants_referred_by_participant_id_fkey (
+          participant_id,
+          full_name,
+          nickname
+        )
+      `)
+      .eq("tenant_id", tenant_id)
+      .in("status", ["prospect", "visitor", "declined"])
+      .order("created_at", { ascending: false });
+
+    if (participantsError) {
+      console.error("Error fetching participants:", participantsError);
+      return res.status(500).json({ 
+        error: "Failed to fetch participants",
+        message: participantsError.message
+      });
+    }
+
+    // Get upcoming meetings for each participant
+    const participantIds = participants?.map(p => p.participant_id) || [];
+    
+    let upcomingMeetings: any[] = [];
+    if (participantIds.length > 0) {
+      const { data: registrations, error: regError } = await supabaseAdmin
+        .from("meeting_registrations")
+        .select(`
+          participant_id,
+          meeting:meetings!fk_meeting_registrations_meeting (
+            meeting_id,
+            meeting_date,
+            start_time
+          )
+        `)
+        .in("participant_id", participantIds)
+        .gte("meeting.meeting_date", new Date().toISOString().split('T')[0])
+        .order("meeting.meeting_date", { ascending: true });
+
+      if (!regError && registrations) {
+        upcomingMeetings = registrations;
+      }
+    }
+
+    // Combine data: add upcoming meeting to each participant
+    const enrichedParticipants = participants?.map((p: any) => {
+      const upcomingReg = upcomingMeetings.find(r => r.participant_id === p.participant_id);
+      const referredBy = p.referred_by as any;
+      return {
+        ...p,
+        upcoming_meeting_date: upcomingReg?.meeting?.meeting_date || null,
+        upcoming_meeting_time: upcomingReg?.meeting?.start_time || null,
+        referred_by_name: referredBy?.nickname || referredBy?.full_name || null
+      };
+    });
+
+    return res.json({
+      success: true,
+      participants: enrichedParticipants || []
+    });
+
+  } catch (error: any) {
+    console.error("Visitor pipeline error:", error);
+    return res.status(500).json({ 
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 // Get participant business card data (public endpoint - for LINE integration)
 // Security: Only returns business cards for members (not prospects/visitors)
 router.get("/:participantId/business-card", async (req: Request, res: Response) => {
@@ -718,6 +869,72 @@ router.get("/:participantId/vcard", async (req: Request, res: Response) => {
 
   } catch (error: any) {
     console.error("vCard generation error:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Get members for referral dropdown (public endpoint - used in registration forms)
+// Returns members with nickname and full_name for selection
+router.get("/members-for-referral", async (req: Request, res: Response) => {
+  try {
+    const { meeting_id } = req.query;
+
+    if (!meeting_id) {
+      return res.status(400).json({
+        error: "Missing meeting_id",
+        message: "meeting_id query parameter is required"
+      });
+    }
+
+    // Get meeting to find tenant_id
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("tenant_id")
+      .eq("meeting_id", meeting_id)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({
+        error: "Meeting not found",
+        message: "The selected meeting does not exist"
+      });
+    }
+
+    // Query active members only
+    const { data: members, error } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name, nickname")
+      .eq("tenant_id", meeting.tenant_id)
+      .eq("status", "member")
+      .order("nickname", { ascending: true, nullsFirst: false })
+      .order("full_name", { ascending: true });
+
+    if (error) {
+      console.error("Failed to fetch members:", error);
+      return res.status(500).json({
+        error: "Database error",
+        message: error.message
+      });
+    }
+
+    // Return members with display_name (nickname or full_name)
+    const membersWithDisplay = (members || []).map(m => ({
+      participant_id: m.participant_id,
+      full_name: m.full_name,
+      nickname: m.nickname,
+      display_name: m.nickname || m.full_name
+    }));
+
+    return res.json({
+      success: true,
+      members: membersWithDisplay
+    });
+
+  } catch (error: any) {
+    console.error("Members query error:", error);
     return res.status(500).json({
       error: "Internal server error",
       message: error.message
