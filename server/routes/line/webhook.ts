@@ -1,7 +1,9 @@
 import { Router, Request, Response } from "express";
+import crypto from "crypto";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
+import { handleViewCard, handleMemberSearch } from "../../services/line/handlers/businessCardHandler";
 
 const router = Router();
 
@@ -80,8 +82,15 @@ router.post("/", async (req: Request, res: Response) => {
 
     console.log(`${logPrefix} Signature validated for tenant ${credentials.tenantId}`);
 
-    // Process events
-    await processWebhookEvents(payload.events, credentials.tenantId);
+    // Process each event
+    for (const event of payload.events) {
+      try {
+        await processEvent(event, credentials.tenantId, credentials.channelAccessToken, logPrefix);
+      } catch (eventError: any) {
+        console.error(`${logPrefix} Error processing event:`, eventError);
+        // Continue processing other events even if one fails
+      }
+    }
 
     console.log(`${logPrefix} Successfully processed ${payload.events.length} events`);
     
@@ -94,5 +103,63 @@ router.post("/", async (req: Request, res: Response) => {
     });
   }
 });
+
+/**
+ * Process individual LINE webhook event
+ */
+async function processEvent(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  console.log(`${logPrefix} Processing event type: ${event.type}`);
+
+  // Handle text messages
+  if (event.type === "message" && event.message?.type === "text") {
+    const text = event.message.text.trim();
+    
+    // Check for member search commands
+    const searchPattern = /^(หา|ค้นหา|search)\s*สมาชิก\s+(.+)$/i;
+    const match = text.match(searchPattern);
+    
+    if (match) {
+      const searchTerm = match[2].trim();
+      await handleMemberSearch(event, tenantId, accessToken, searchTerm);
+      return;
+    }
+
+    // Handle other text messages
+    console.log(`${logPrefix} Text message: ${text}`);
+    // Add more text message handlers here as needed
+  }
+
+  // Handle postback events
+  if (event.type === "postback") {
+    const params = new URLSearchParams(event.postback.data);
+    const action = params.get("action");
+
+    console.log(`${logPrefix} Postback action: ${action}`);
+
+    switch (action) {
+      case "view_card":
+        await handleViewCard(event, tenantId, accessToken, params);
+        break;
+      
+      default:
+        console.log(`${logPrefix} Unknown postback action: ${action}`);
+    }
+  }
+
+  // Handle follow/unfollow events
+  if (event.type === "follow") {
+    console.log(`${logPrefix} User followed: ${event.source.userId}`);
+    // TODO: Send welcome message with business card introduction
+  }
+
+  if (event.type === "unfollow") {
+    console.log(`${logPrefix} User unfollowed: ${event.source.userId}`);
+  }
+}
 
 export default router;

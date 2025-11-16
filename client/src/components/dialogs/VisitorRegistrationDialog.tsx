@@ -142,17 +142,12 @@ export default function VisitorRegistrationDialog({
 
       const data = await response.json();
 
-      toast.success("ลงทะเบียนสำเร็จ! กำลังไปยังหน้าชำระเงิน...");
+      toast.success("ลงทะเบียนสำเร็จ! ยินดีต้อนรับสู่ชุมชน BNI");
       
-      // Redirect to payment page
-      if (data?.participant_id) {
-        const paymentUrl = `/payment/${data.participant_id}`;
-        setTimeout(() => {
-          window.location.href = paymentUrl;
-        }, 1000);
-      } else {
+      // Close dialog after successful registration
+      setTimeout(() => {
         onOpenChange(false);
-      }
+      }, 1000);
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
     } finally {

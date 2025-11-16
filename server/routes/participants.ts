@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
+import { generateVCard, getVCardFilename, VCardData } from "../services/line/vcard";
 
 const router = Router();
 
@@ -258,6 +259,143 @@ router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRe
   } catch (error: any) {
     console.error("Visitor analytics error:", error);
     return res.status(500).json({ 
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Get participant business card data (public endpoint - for LINE integration)
+// Security: Only returns business cards for members (not prospects/visitors)
+router.get("/:participantId/business-card", async (req: Request, res: Response) => {
+  try {
+    const { participantId } = req.params;
+    const { tenant_id } = req.query;
+
+    if (!participantId) {
+      return res.status(400).json({
+        error: "Missing participant ID",
+        message: "participantId is required"
+      });
+    }
+
+    // Require tenant_id for security scoping
+    if (!tenant_id) {
+      return res.status(400).json({
+        error: "Missing tenant ID",
+        message: "tenant_id query parameter is required"
+      });
+    }
+
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        email,
+        phone,
+        company,
+        position,
+        business_type,
+        tagline,
+        photo_url,
+        website_url,
+        business_address,
+        facebook_url,
+        instagram_url,
+        line_user_id,
+        status,
+        tenant_id
+      `)
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenant_id)
+      .in("status", ["member", "visitor"]) // Only show active members/visitors
+      .single();
+
+    if (error || !participant) {
+      console.error("Participant not found:", error);
+      return res.status(404).json({
+        error: "Participant not found",
+        message: "No participant found with this ID or you don't have permission to view"
+      });
+    }
+
+    // Return business card data
+    return res.json({
+      success: true,
+      businessCard: participant
+    });
+
+  } catch (error: any) {
+    console.error("Business card fetch error:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Download vCard (.vcf file) for a participant (public endpoint - for LINE integration)
+// Security: Only returns vCards for members (not prospects/visitors)
+router.get("/:participantId/vcard", async (req: Request, res: Response) => {
+  try {
+    const { participantId } = req.params;
+    const { tenant_id } = req.query;
+
+    if (!participantId) {
+      return res.status(400).json({
+        error: "Missing participant ID",
+        message: "participantId is required"
+      });
+    }
+
+    // Require tenant_id for security scoping
+    if (!tenant_id) {
+      return res.status(400).json({
+        error: "Missing tenant ID",
+        message: "tenant_id query parameter is required"
+      });
+    }
+
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        full_name,
+        position,
+        company,
+        email,
+        phone,
+        website_url,
+        business_address,
+        photo_url,
+        status
+      `)
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenant_id)
+      .in("status", ["member", "visitor"]) // Only show active members/visitors
+      .single();
+
+    if (error || !participant) {
+      console.error("Participant not found:", error);
+      return res.status(404).json({
+        error: "Participant not found",
+        message: "No participant found with this ID or you don't have permission to view"
+      });
+    }
+
+    // Generate vCard content
+    const vCardContent = generateVCard(participant as VCardData);
+    const filename = getVCardFilename(participant.full_name);
+
+    // Set headers for file download
+    res.setHeader("Content-Type", "text/vcard; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    
+    return res.send(vCardContent);
+
+  } catch (error: any) {
+    console.error("vCard generation error:", error);
+    return res.status(500).json({
       error: "Internal server error",
       message: error.message
     });

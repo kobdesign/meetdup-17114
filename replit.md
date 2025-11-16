@@ -23,7 +23,7 @@ None specified yet.
 - **Role-Based Access Control (RBAC)**: Supports Super Admin, Chapter Admin, and Member roles via a `user_roles` table.
 - **Data Fetching & State Management**: Leverages TanStack React Query for data operations and React Context API for global state.
 - **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface.
-- **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and a quick reply system.
+- **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and a quick reply system. Includes Business Card feature via LINE Flex Messages with vCard download support, member search functionality, and corporate-style contact sharing.
 - **Robust Error Handling**: Implemented across the system for stability and a smooth user experience, including fixes for React Query context errors.
 - **Modular Design**: Project structured into `client/`, `server/`, `supabase/`, and `shared/` directories.
 - **Payment Processing**: Supports multiple payment methods (PromptPay, Transfer, Cash) with features for slip upload, review, and refund workflows.
@@ -43,6 +43,16 @@ None specified yet.
 - **Meeting Location UX Enhancement** (Nov 16, 2025): Improved meeting creation/edit forms by moving latitude/longitude fields into collapsible "Advanced Location Settings" sections. LocationSearch component auto-fills coordinates, but users can manually override when Google Places API fails or returns incorrect data. Helper text and Info icon (lucide-react) clarify auto-fill behavior. This preserves all functionality while keeping the UI cleaner and more user-friendly.
   - **Auto-Expand & Visual Feedback** (Nov 16, 2025): Enhanced Advanced Location Settings with auto-expansion when users select a location from LocationSearch, making coordinate updates immediately visible. Added green check icon (✓) with "มีพิกัด" text as visual indicator when coordinates exist. Implemented proper state management with dialog lifecycle hooks to prevent stale state bugs (section resets on dialog close, adapts to current meeting's coordinate data). This ensures users always see clear feedback when location coordinates are populated.
   - **Schema Alignment Fix** (Nov 16, 2025): Fixed PGRST204 errors by fully aligning `meetings` table schema with TypeScript types. Added missing columns: `description`, `location_details`, `meeting_time`, `theme`, `visitor_fee`, `recurrence_pattern`, `recurrence_interval`, `recurrence_end_date`, `recurrence_days_of_week`, and `parent_meeting_id`. Renamed `venue_lat`/`venue_lng` to `location_lat`/`location_lng`. Created performance indexes on `parent_meeting_id`, `meeting_date`, and composite `tenant_id + meeting_date`. Migration files: `supabase/migrations/20251116_fix_meetings_schema.sql` and `supabase/migrations/20251116_complete_meetings_schema.sql`. This ensures database schema stays in sync with TypeScript types for the wide tables architecture and supports recurring meetings functionality.
+- **LINE Business Card Feature** (Nov 16, 2025): Implemented comprehensive Business Card system via LINE Messaging API featuring:
+  - **Database Schema**: Extended `participants` table with business card fields (photo_url, position, tagline, website_url, facebook_url, instagram_url, business_address)
+  - **Corporate Flex Message Template**: Professional LINE Flex Message design with responsive layouts, photo headers, contact info sections, and action buttons
+  - **Interactive Actions**: Call (tel:), email (mailto:), website links, LINE chat, vCard download, and social media sharing
+  - **vCard Generator**: RFC 6350-compliant vCard 3.0 generation with automatic filename sanitization for .vcf downloads
+  - **Member Search**: Text-based search via LINE messages (e.g., "หาสมาชิก [ชื่อ]") with quick reply buttons for results
+  - **Webhook Handlers**: Integrated postback handlers for view_card action and text message routing for member search
+  - **Public API Endpoints**: `/api/participants/:id/business-card` (JSON) and `/api/participants/:id/vcard` (file download)
+  - **Payment Flow Removal**: Removed post-registration payment redirect, replaced with success message for cleaner UX
+  - Migration: `supabase/migrations/20251116_add_business_card_fields.sql`
 
 ## External Dependencies
 
