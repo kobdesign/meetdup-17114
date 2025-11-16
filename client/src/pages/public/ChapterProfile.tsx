@@ -11,7 +11,7 @@ import VisitorRegistrationDialog from "@/components/dialogs/VisitorRegistrationD
 interface ChapterData {
   tenant_id: string;
   name: string;
-  slug: string;
+  subdomain: string;
   country: string;
   timezone: string;
   logo_url?: string;
@@ -26,7 +26,7 @@ interface Meeting {
 }
 
 export default function ChapterProfile() {
-  const { slug } = useParams<{ slug: string }>();
+  const { subdomain } = useParams<{ subdomain: string }>();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [chapter, setChapter] = useState<ChapterData | null>(null);
@@ -36,7 +36,7 @@ export default function ChapterProfile() {
 
   useEffect(() => {
     loadChapterData();
-  }, [slug]);
+  }, [subdomain]);
 
   // Auto-open registration dialog if meeting param exists
   useEffect(() => {
@@ -54,8 +54,8 @@ export default function ChapterProfile() {
       // Fetch tenant/chapter data
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
-        .select("tenant_id, name, slug, country, timezone")
-        .eq("slug", slug)
+        .select("tenant_id, tenant_name, subdomain, country, timezone")
+        .eq("subdomain", subdomain)
         .eq("status", "active")
         .single();
 
@@ -73,7 +73,11 @@ export default function ChapterProfile() {
         .single();
 
       setChapter({
-        ...tenantData,
+        tenant_id: tenantData.tenant_id,
+        name: tenantData.tenant_name,
+        subdomain: tenantData.subdomain,
+        country: tenantData.country,
+        timezone: tenantData.timezone,
         logo_url: settingsData?.logo_url || undefined,
         branding_color: settingsData?.branding_color || "#1e40af",
       });
