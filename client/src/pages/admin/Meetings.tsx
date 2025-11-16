@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye as EyeIcon, Repeat, LayoutGrid, List, Info } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye as EyeIcon, Repeat, LayoutGrid, List, Info, Check } from "lucide-react";
 import { toast } from "sonner";
 import MeetingsCalendar from "@/components/MeetingsCalendar";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
@@ -322,6 +322,7 @@ export default function Meetings() {
       }
 
       setShowAddDialog(false);
+      setShowAdvancedLocation(false);
       setNewMeeting({
         meeting_date: "",
         meeting_time: "",
@@ -350,6 +351,10 @@ export default function Meetings() {
   const startEditMeeting = (meeting: any) => {
     setEditingMeeting(meeting);
     setShowEditDialog(true);
+    // Auto-expand if coordinates already exist
+    if (meeting.location_lat && meeting.location_lng) {
+      setShowAdvancedLocationEdit(true);
+    }
   };
 
   const handleUpdateMeeting = async () => {
@@ -383,6 +388,7 @@ export default function Meetings() {
 
       toast.success("แก้ไขการประชุมสำเร็จ");
       setShowEditDialog(false);
+      setShowAdvancedLocationEdit(false);
       setEditingMeeting(null);
       fetchMeetings();
     } catch (error: any) {
@@ -507,6 +513,7 @@ export default function Meetings() {
                       location_lat: lat.toString(),
                       location_lng: lng.toString(),
                     }));
+                    setShowAdvancedLocation(true);
                   }}
                   placeholder="ค้นหาสถานที่... (เช่น โรงแรม ABC)"
                 />
@@ -521,9 +528,19 @@ export default function Meetings() {
                   />
                 </div>
 
-                <details className="space-y-2">
-                  <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                    ตั้งค่าพิกัดขั้นสูง (Advanced Location Settings)
+                <details 
+                  className="space-y-2"
+                  open={showAdvancedLocation}
+                  onToggle={(e) => setShowAdvancedLocation((e.target as HTMLDetailsElement).open)}
+                >
+                  <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">
+                    <span>ตั้งค่าพิกัดขั้นสูง (Advanced Location Settings)</span>
+                    {newMeeting.location_lat && newMeeting.location_lng && (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" />
+                        มีพิกัด
+                      </span>
+                    )}
                   </summary>
                   <div className="grid grid-cols-2 gap-4 pt-2">
                     <div className="space-y-2">
@@ -702,6 +719,7 @@ export default function Meetings() {
                         location_lat: lat.toString(),
                         location_lng: lng.toString(),
                       }));
+                      setShowAdvancedLocationEdit(true);
                     }}
                     placeholder="ค้นหาสถานที่... (เช่น โรงแรม ABC)"
                   />
@@ -716,9 +734,19 @@ export default function Meetings() {
                     />
                   </div>
 
-                  <details className="space-y-2">
-                    <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                      ตั้งค่าพิกัดขั้นสูง (Advanced Location Settings)
+                  <details 
+                    className="space-y-2"
+                    open={showAdvancedLocationEdit}
+                    onToggle={(e) => setShowAdvancedLocationEdit((e.target as HTMLDetailsElement).open)}
+                  >
+                    <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">
+                      <span>ตั้งค่าพิกัดขั้นสูง (Advanced Location Settings)</span>
+                      {editingMeeting.location_lat && editingMeeting.location_lng && (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                          <Check className="h-3 w-3" />
+                          มีพิกัด
+                        </span>
+                      )}
                     </summary>
                     <div className="grid grid-cols-2 gap-4 pt-2">
                       <div className="space-y-2">
