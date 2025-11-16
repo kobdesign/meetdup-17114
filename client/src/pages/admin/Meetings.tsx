@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye as EyeIcon, Repeat, LayoutGrid, List } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Pencil, Trash2, Eye as EyeIcon, Repeat, LayoutGrid, List, Info } from "lucide-react";
 import { toast } from "sonner";
 import MeetingsCalendar from "@/components/MeetingsCalendar";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
@@ -517,30 +517,47 @@ export default function Meetings() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="location_lat">ละติจูด (Latitude)</Label>
-                    <Input
-                      id="location_lat"
-                      type="number"
-                      step="any"
-                      value={newMeeting.location_lat}
-                      onChange={(e) => setNewMeeting(prev => ({ ...prev, location_lat: e.target.value }))}
-                      placeholder="13.7563"
-                    />
+                <details className="space-y-2">
+                  <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                    ตั้งค่าพิกัดขั้นสูง (Advanced Location Settings)
+                  </summary>
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="location_lat" className="text-xs">
+                        ละติจูด (Latitude)
+                        <span className="text-muted-foreground ml-1">- กรอกอัตโนมัติ</span>
+                      </Label>
+                      <Input
+                        id="location_lat"
+                        type="number"
+                        step="any"
+                        value={newMeeting.location_lat}
+                        onChange={(e) => setNewMeeting(prev => ({ ...prev, location_lat: e.target.value }))}
+                        placeholder="13.7563"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="location_lng" className="text-xs">
+                        ลองจิจูด (Longitude)
+                        <span className="text-muted-foreground ml-1">- กรอกอัตโนมัติ</span>
+                      </Label>
+                      <Input
+                        id="location_lng"
+                        type="number"
+                        step="any"
+                        value={newMeeting.location_lng}
+                        onChange={(e) => setNewMeeting(prev => ({ ...prev, location_lng: e.target.value }))}
+                        placeholder="100.5018"
+                        className="text-sm"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="location_lng">ลองจิจูด (Longitude)</Label>
-                    <Input
-                      id="location_lng"
-                      type="number"
-                      step="any"
-                      value={newMeeting.location_lng}
-                      onChange={(e) => setNewMeeting(prev => ({ ...prev, location_lng: e.target.value }))}
-                      placeholder="100.5018"
-                    />
-                  </div>
-                </div>
+                  <p className="text-xs text-muted-foreground pt-1 flex items-start gap-1">
+                    <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                    <span>พิกัดจะถูกกรอกอัตโนมัติเมื่อคุณเลือกสถานที่จากช่องค้นหา หากต้องการแก้ไขหรือกรอกเอง สามารถทำได้ที่นี่</span>
+                  </p>
+                </details>
 
                 <div className="space-y-2">
                   <Label htmlFor="theme">หัวข้อ/ธีม *</Label>
@@ -695,30 +712,47 @@ export default function Meetings() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit_location_lat">ละติจูด (Latitude)</Label>
-                      <Input
-                        id="edit_location_lat"
-                        type="number"
-                        step="any"
-                        value={editingMeeting.location_lat || ""}
-                        onChange={(e) => setEditingMeeting(prev => ({ ...prev, location_lat: e.target.value }))}
-                        placeholder="13.7563"
-                      />
+                  <details className="space-y-2">
+                    <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                      ตั้งค่าพิกัดขั้นสูง (Advanced Location Settings)
+                    </summary>
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_location_lat" className="text-xs">
+                          ละติจูด (Latitude)
+                          <span className="text-muted-foreground ml-1">- กรอกอัตโนมัติ</span>
+                        </Label>
+                        <Input
+                          id="edit_location_lat"
+                          type="number"
+                          step="any"
+                          value={editingMeeting.location_lat || ""}
+                          onChange={(e) => setEditingMeeting(prev => ({ ...prev, location_lat: e.target.value }))}
+                          placeholder="13.7563"
+                          className="text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_location_lng" className="text-xs">
+                          ลองจิจูด (Longitude)
+                          <span className="text-muted-foreground ml-1">- กรอกอัตโนมัติ</span>
+                        </Label>
+                        <Input
+                          id="edit_location_lng"
+                          type="number"
+                          step="any"
+                          value={editingMeeting.location_lng || ""}
+                          onChange={(e) => setEditingMeeting(prev => ({ ...prev, location_lng: e.target.value }))}
+                          placeholder="100.5018"
+                          className="text-sm"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit_location_lng">ลองจิจูด (Longitude)</Label>
-                      <Input
-                        id="edit_location_lng"
-                        type="number"
-                        step="any"
-                        value={editingMeeting.location_lng || ""}
-                        onChange={(e) => setEditingMeeting(prev => ({ ...prev, location_lng: e.target.value }))}
-                        placeholder="100.5018"
-                      />
-                    </div>
-                  </div>
+                    <p className="text-xs text-muted-foreground pt-1 flex items-start gap-1">
+                      <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                      <span>พิกัดจะถูกกรอกอัตโนมัติเมื่อคุณเลือกสถานที่จากช่องค้นหา หากต้องการแก้ไขหรือกรอกเอง สามารถทำได้ที่นี่</span>
+                    </p>
+                  </details>
 
                   <div className="space-y-2">
                     <Label htmlFor="edit_theme">หัวข้อ/ธีม *</Label>
