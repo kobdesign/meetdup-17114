@@ -268,14 +268,111 @@ router.post("/check-in", async (req: Request, res: Response) => {
   }
 });
 
+// Lookup participant by phone number (public endpoint - no auth required)
+// Used for 2-step registration: check if phone exists, then pre-fill form
+router.post("/lookup-by-phone", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[lookup-by-phone:${requestId}]`;
+
+  try {
+    const { phone, meeting_id } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        error: "Missing phone number",
+        message: "phone is required"
+      });
+    }
+
+    if (!meeting_id) {
+      return res.status(400).json({
+        error: "Missing meeting_id",
+        message: "meeting_id is required"
+      });
+    }
+
+    // Normalize phone (strip non-digits)
+    const normalizedPhone = String(phone).replace(/\D/g, "");
+    console.log(`${logPrefix} Looking up phone:`, normalizedPhone.slice(0, 3) + '****');
+
+    // Get meeting to derive tenant_id (security: prevents cross-tenant lookups)
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("tenant_id")
+      .eq("meeting_id", meeting_id)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(400).json({
+        error: "Invalid meeting",
+        message: "The selected meeting does not exist"
+      });
+    }
+
+    // Lookup participant by phone within this tenant
+    const { data: participant, error: lookupError } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        email,
+        phone,
+        company,
+        business_type,
+        goal,
+        notes,
+        status,
+        referred_by_participant_id
+      `)
+      .eq("phone", normalizedPhone)
+      .eq("tenant_id", meeting.tenant_id)
+      .maybeSingle();
+
+    if (lookupError) {
+      console.error(`${logPrefix} Lookup error:`, lookupError);
+      return res.status(500).json({
+        error: "Lookup failed",
+        message: lookupError.message
+      });
+    }
+
+    if (participant) {
+      console.log(`${logPrefix} Found existing participant:`, participant.participant_id);
+      return res.json({
+        success: true,
+        exists: true,
+        participant
+      });
+    } else {
+      console.log(`${logPrefix} No participant found for this phone`);
+      return res.json({
+        success: true,
+        exists: false,
+        participant: null
+      });
+    }
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error in phone lookup:`, error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 // Register a visitor (public endpoint - no auth required)
-// Supports two modes: regular registration (status=prospect) and auto-checkin (status=visitor + immediate check-in)
+// Supports two modes:
+//   1. INSERT: Create new participant (participant_id not provided)
+//   2. UPDATE: Update existing participant (participant_id provided from phone lookup)
+// Also supports auto-checkin (status=visitor + immediate check-in)
 router.post("/register-visitor", async (req: Request, res: Response) => {
   const requestId = crypto.randomUUID();
   const logPrefix = `[register-visitor:${requestId}]`;
 
   try {
     const { 
+      participant_id, // NEW: If provided, UPDATE existing participant instead of INSERT
       meeting_id, 
       full_name, 
       email, 
@@ -284,11 +381,13 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       business_type, 
       goal, 
       notes,
-      auto_checkin, // NEW: If true, create as visitor + auto check-in
-      referred_by_participant_id // NEW: Referral tracking
+      auto_checkin, // If true, create as visitor + auto check-in
+      referred_by_participant_id // Referral tracking
     } = req.body;
 
-    console.log(`${logPrefix} Registration request`, {
+    const isUpdate = !!participant_id;
+    console.log(`${logPrefix} Registration request (${isUpdate ? 'UPDATE' : 'INSERT'})`, {
+      participant_id,
       meeting_id,
       phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
       auto_checkin: !!auto_checkin,
@@ -339,44 +438,82 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       });
     }
 
-    // Determine initial status based on auto_checkin flag
-    const initialStatus = auto_checkin ? "visitor" : "prospect";
-    console.log(`${logPrefix} Creating participant with status: ${initialStatus}`);
+    let participant: any;
 
-    // Create participant record (using normalized phone)
-    const { data: participant, error: participantError } = await supabaseAdmin
-      .from("participants")
-      .insert({
-        tenant_id,
-        full_name,
-        email,
-        phone: normalizedPhone,
-        company: company || null,
-        business_type: business_type || null,
-        goal: goal || null,
-        notes: notes || null,
-        status: initialStatus,
-        referred_by_participant_id: referred_by_participant_id || null,
-      })
-      .select()
-      .single();
+    if (isUpdate) {
+      // UPDATE MODE: Update existing participant
+      console.log(`${logPrefix} Updating existing participant:`, participant_id);
 
-    if (participantError) {
-      console.error(`${logPrefix} Error creating participant:`, participantError);
-      
-      // Check if it's a unique constraint violation (Postgres error code 23505)
-      // This catches duplicate phone numbers for the same tenant
-      if (participantError.code === '23505') {
-        return res.status(409).json({ 
-          error: "Duplicate phone number",
-          message: "หากเคยลงทะเบียนแล้ว ให้เช็คอินด้วยเบอร์โทรศัพท์โดยตรง"
+      const { data: updatedParticipant, error: updateError } = await supabaseAdmin
+        .from("participants")
+        .update({
+          full_name,
+          email,
+          phone: normalizedPhone,
+          company: company || null,
+          business_type: business_type || null,
+          goal: goal || null,
+          notes: notes || null,
+          referred_by_participant_id: referred_by_participant_id || null,
+        })
+        .eq("participant_id", participant_id)
+        .eq("tenant_id", tenant_id) // Security: ensure participant belongs to this tenant
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error(`${logPrefix} Error updating participant:`, updateError);
+        return res.status(500).json({ 
+          error: "Failed to update participant",
+          message: updateError.message
         });
       }
-      
-      return res.status(500).json({ 
-        error: "Failed to create participant",
-        message: participantError.message
-      });
+
+      participant = updatedParticipant;
+      console.log(`${logPrefix} Participant updated successfully`);
+
+    } else {
+      // INSERT MODE: Create new participant
+      const initialStatus = auto_checkin ? "visitor" : "prospect";
+      console.log(`${logPrefix} Creating new participant with status: ${initialStatus}`);
+
+      const { data: newParticipant, error: participantError } = await supabaseAdmin
+        .from("participants")
+        .insert({
+          tenant_id,
+          full_name,
+          email,
+          phone: normalizedPhone,
+          company: company || null,
+          business_type: business_type || null,
+          goal: goal || null,
+          notes: notes || null,
+          status: initialStatus,
+          referred_by_participant_id: referred_by_participant_id || null,
+        })
+        .select()
+        .single();
+
+      if (participantError) {
+        console.error(`${logPrefix} Error creating participant:`, participantError);
+        
+        // Check if it's a unique constraint violation (Postgres error code 23505)
+        // This catches duplicate phone numbers for the same tenant
+        if (participantError.code === '23505') {
+          return res.status(409).json({ 
+            error: "Duplicate phone number",
+            message: "หากเคยลงทะเบียนแล้ว ให้เช็คอินด้วยเบอร์โทรศัพท์โดยตรง"
+          });
+        }
+        
+        return res.status(500).json({ 
+          error: "Failed to create participant",
+          message: participantError.message
+        });
+      }
+
+      participant = newParticipant;
+      console.log(`${logPrefix} Participant created successfully`);
     }
 
     console.log(`${logPrefix} Participant created:`, participant.participant_id);
