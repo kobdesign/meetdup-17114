@@ -112,7 +112,8 @@ export default function Meetings() {
         .from("meetings")
         .select(`
           *,
-          checkins(count)
+          checkins(count),
+          meeting_registrations(count)
         `)
         .eq("tenant_id", effectiveTenantId)
         .order("meeting_date", { ascending: false });
@@ -1067,7 +1068,7 @@ export default function Meetings() {
                     <TableHead>Date</TableHead>
                     <TableHead>Venue</TableHead>
                     <TableHead>Theme</TableHead>
-                    <TableHead>Visitor Fee</TableHead>
+                    <TableHead>จำนวนคนที่ลงทะเบียน</TableHead>
                     <TableHead>Attendance</TableHead>
                     <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
@@ -1101,7 +1102,11 @@ export default function Meetings() {
                             {meeting.theme || "-"}
                           </div>
                         </TableCell>
-                        <TableCell>฿{meeting.visitor_fee}</TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {meeting.meeting_registrations?.[0]?.count || 0} คน
+                          </span>
+                        </TableCell>
                         <TableCell>
                           <span className="text-sm text-muted-foreground">
                             {meeting.checkins?.[0]?.count || 0} attendees
