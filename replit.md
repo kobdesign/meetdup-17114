@@ -53,7 +53,11 @@ None specified yet.
   - **Public API Endpoints**: `/api/participants/:id/business-card` (JSON) and `/api/participants/:id/vcard` (file download)
   - **Payment Flow Removal**: Removed post-registration payment redirect, replaced with success message for cleaner UX
   - Migration: `supabase/migrations/20251116_add_business_card_fields.sql`
-- **Supabase Relationship Ambiguity Fix** (Nov 16, 2025): Resolved PGRST204 errors caused by multiple foreign keys pointing to the same table. When embedding `participants` from tables with multiple FK relationships (checkins, meeting_registrations, payments), Supabase couldn't determine which FK to use. Solution: Use explicit relationship hints with FK names in all queries: `participants!checkins_participant_id_fkey(...)`, `participants!meeting_registrations_participant_id_fkey(...)`, `participants!payments_participant_id_fkey(...)`. Updated all affected queries in MeetingDetails.tsx, CheckIn.tsx, Visitors.tsx (backend), and send-payment-reminder edge function. Changed embedded relationship alias from `participants` to `participant` (singular) to match PostgREST's singular embedding convention.
+- **Supabase Relationship Ambiguity Fix** (Nov 16, 2025): Resolved PGRST204/PGRST201 errors caused by multiple foreign keys pointing to the same table. When embedding `participants` from tables with multiple FK relationships (checkins, meeting_registrations, payments), Supabase couldn't determine which FK to use. Solution: Use explicit relationship hints with FK names in ALL directions:
+  - **FROM child tables TO participants**: `participants!checkins_participant_id_fkey(...)`, `participants!meeting_registrations_participant_id_fkey(...)`, `participants!payments_participant_id_fkey(...)`
+  - **FROM participants TO child tables**: `checkins!checkins_participant_id_fkey(...)`, `meeting_registrations!meeting_registrations_participant_id_fkey(...)`, `payments!payments_participant_id_fkey(...)`
+  - Updated all affected queries in MeetingDetails.tsx, CheckIn.tsx, Visitors.tsx (backend visitor-analytics endpoint), and send-payment-reminder edge function
+  - Changed embedded relationship alias from `participants` (plural) to `participant` (singular) to match PostgREST's singular embedding convention
 
 ## External Dependencies
 
