@@ -226,7 +226,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
         business_type: business_type || null,
         goal: goal || null,
         notes: notes || null,
-        status: meeting_id ? "visitor" : "prospect", // visitor if registering for a meeting, prospect otherwise
+        status: "prospect", // Always start as prospect, will upgrade to visitor on first check-in
       })
       .select()
       .single();
