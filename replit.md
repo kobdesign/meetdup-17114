@@ -40,6 +40,7 @@ None specified yet.
   - Sets joined_date when user becomes member
   - Integrated into all 3 onboarding flows (Pioneer, Invite, Discovery) with atomic rollback on failure
   - Backfill migration created for existing users
+- **Meeting Location UX Enhancement** (Nov 16, 2025): Improved meeting creation/edit forms by moving latitude/longitude fields into collapsible "Advanced Location Settings" sections. LocationSearch component auto-fills coordinates, but users can manually override when Google Places API fails or returns incorrect data. Helper text and Info icon (lucide-react) clarify auto-fill behavior. This preserves all functionality while keeping the UI cleaner and more user-friendly.
 
 ## External Dependencies
 
