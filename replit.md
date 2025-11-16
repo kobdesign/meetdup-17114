@@ -60,13 +60,24 @@ None specified yet.
   - After dropping tables (payments, invoices, refund_requests), reloaded Supabase schema cache via `NOTIFY pgrst, 'reload schema'` to clear cached metadata
 - **Check-In Migration to Express API** (Nov 16, 2025): Migrated check-in functionality from Supabase Edge Function to Express API for better reliability and control. Created POST `/api/participants/check-in` endpoint (public, no auth) that:
   - Validates meeting existence and retrieves tenant_id
-  - Finds or creates participant record (new participants start as 'prospect')
+  - Finds or create participant record (new participants start as 'prospect')
   - Prevents duplicate check-ins by querying existing checkins
   - Auto-upgrades participant status from 'prospect' to 'visitor' upon first check-in
-  - Records check-in in `checkins` table with source='manual'
+  - Records check-in in `checkins` table (removed non-existent 'source' column, kept tenant_id as required)
   - Returns structured JSON responses with success/error states
   - Updated CheckInScanner.tsx to call Express API via fetch() instead of supabase.functions.invoke()
   - Resolves FunctionsFetchError and connection timeout issues with Edge Functions
+- **Visitor Registration Status Fix** (Nov 16, 2025): Fixed incorrect status flow in `/api/participants/register-visitor` endpoint. Changed from `status: meeting_id ? "visitor" : "prospect"` to `status: "prospect"` (always). This ensures proper visitor pipeline progression: **Prospect** (registered) → **Visitor** (first check-in) → **Member** (paid/approved) → **Alumni** (former member). Database enum only supports: prospect, visitor, member, alumni (no hot_lead or declined in actual database despite TypeScript types).
+- **Mock Data Implementation** (Nov 16, 2025): Created comprehensive mock data covering all visitor pipeline scenarios for Dashboard analytics testing:
+  - **5 Meetings**: 2 past, 1 today, 2 future with realistic Thai business themes
+  - **13 Participants** across all statuses:
+    - 4 Prospects (including 1 "declined" via notes field)
+    - 5 Visitors (3 regular + 2 "hot leads" with 3+ check-ins)
+    - 3 Members (active members)
+    - 1 Alumni (former member)
+  - **18 Meeting Registrations**: Prospects for future, Visitors/Hot Leads for past/today
+  - **18 Check-ins**: Realistic timestamps, varied attendance patterns
+  - Discovered database schema discrepancies: `meeting_registrations` and `checkins` tables lack `tenant_id` column despite TypeScript types, `checkin_status` enum is pending/approved/rejected (not present/late/absent)
 
 ## External Dependencies
 
