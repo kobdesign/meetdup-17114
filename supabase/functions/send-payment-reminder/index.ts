@@ -49,7 +49,7 @@ serve(async (req) => {
       .select(`
         participant_id,
         status,
-        participants:participant_id (
+        participant:participants!payments_participant_id_fkey (
           participant_id,
           full_name,
           line_user_id,
@@ -65,7 +65,7 @@ serve(async (req) => {
     }
 
     const visitors = (pendingPayments || [])
-      .map((p: any) => p.participants)
+      .map((p: any) => p.participant)
       .filter((v: any) => !!v);
 
     if (!visitors || visitors.length === 0) {

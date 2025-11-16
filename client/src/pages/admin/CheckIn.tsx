@@ -75,7 +75,7 @@ export default function CheckIn() {
         .from("checkins")
         .select(`
           *,
-          participants:participant_id (
+          participant:participants!checkins_participant_id_fkey (
             full_name,
             company,
             status
@@ -278,11 +278,11 @@ export default function CheckIn() {
                           >
                             <div>
                               <div className="font-medium">
-                                {checkin.participants?.full_name || "ไม่ระบุชื่อ"}
+                                {checkin.participant?.full_name || "ไม่ระบุชื่อ"}
                               </div>
-                              {checkin.participants?.company && (
+                              {checkin.participant?.company && (
                                 <div className="text-xs text-muted-foreground">
-                                  {checkin.participants.company}
+                                  {checkin.participant.company}
                                 </div>
                               )}
                             </div>

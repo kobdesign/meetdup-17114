@@ -209,7 +209,7 @@ router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRe
       .from("checkins")
       .select(`
         checkin_id,
-        participant:participants!inner (
+        participant:participants!checkins_participant_id_fkey!inner (
           participant_id,
           status,
           tenant_id

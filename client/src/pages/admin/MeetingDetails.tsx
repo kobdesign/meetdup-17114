@@ -77,7 +77,7 @@ export default function MeetingDetails() {
           registration_id,
           registered_at,
           registration_status,
-          participants:participant_id (
+          participant:participants!meeting_registrations_participant_id_fkey (
             participant_id,
             full_name,
             email,
@@ -99,7 +99,7 @@ export default function MeetingDetails() {
           checkin_time,
           status,
           notes,
-          participants:participant_id (
+          participant:participants!checkins_participant_id_fkey (
             participant_id,
             full_name,
             company,
@@ -441,17 +441,17 @@ export default function MeetingDetails() {
                   >
                     <Avatar>
                       <AvatarFallback className="bg-blue-500 text-white">
-                        {getInitials(reg.participants?.full_name || "")}
+                        {getInitials(reg.participant?.full_name || "")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{reg.participants?.full_name || "ไม่ระบุชื่อ"}</p>
-                      {reg.participants?.company && (
-                        <p className="text-sm text-muted-foreground truncate">{reg.participants.company}</p>
+                      <p className="font-medium truncate">{reg.participant?.full_name || "ไม่ระบุชื่อ"}</p>
+                      {reg.participant?.company && (
+                        <p className="text-sm text-muted-foreground truncate">{reg.participant.company}</p>
                       )}
-                      {reg.participants?.status && (
+                      {reg.participant?.status && (
                         <Badge variant="secondary" className="mt-1 text-xs">
-                          {reg.participants.status}
+                          {reg.participant.status}
                         </Badge>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
@@ -483,17 +483,17 @@ export default function MeetingDetails() {
                   >
                     <Avatar>
                       <AvatarFallback className="bg-primary text-primary-foreground">
-                        {getInitials(checkin.participants?.full_name || "")}
+                        {getInitials(checkin.participant?.full_name || "")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{checkin.participants?.full_name || "ไม่ระบุชื่อ"}</p>
-                      {checkin.participants?.company && (
-                        <p className="text-sm text-muted-foreground truncate">{checkin.participants.company}</p>
+                      <p className="font-medium truncate">{checkin.participant?.full_name || "ไม่ระบุชื่อ"}</p>
+                      {checkin.participant?.company && (
+                        <p className="text-sm text-muted-foreground truncate">{checkin.participant.company}</p>
                       )}
-                      {checkin.participants?.status && (
+                      {checkin.participant?.status && (
                         <Badge variant="secondary" className="mt-1 text-xs">
-                          {checkin.participants.status}
+                          {checkin.participant.status}
                         </Badge>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
