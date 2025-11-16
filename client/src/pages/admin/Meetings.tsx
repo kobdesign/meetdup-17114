@@ -251,6 +251,7 @@ export default function Meetings() {
         .from("meetings")
         .insert({
           tenant_id: effectiveTenantId,
+          meeting_name: newMeeting.theme || "การประชุม",
           meeting_date: newMeeting.meeting_date,
           meeting_time: newMeeting.meeting_time || null,
           venue: newMeeting.venue || null,
@@ -288,6 +289,7 @@ export default function Meetings() {
         if (instances.length > 0) {
           const instancesToInsert = instances.map(instance => ({
             tenant_id: effectiveTenantId,
+            meeting_name: newMeeting.theme || "การประชุม",
             meeting_date: instance.instance_date,
             meeting_time: newMeeting.meeting_time || null,
             venue: newMeeting.venue || null,
