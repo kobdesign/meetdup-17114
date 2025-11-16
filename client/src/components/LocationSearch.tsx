@@ -7,7 +7,7 @@ import { searchPlaces, getPlaceDetails, type PlaceAutocompleteResult } from '@/l
 interface LocationSearchProps {
   value: string;
   onChange: (value: string) => void;
-  onLocationSelect: (lat: number, lng: number, placeName: string) => void;
+  onLocationSelect: (lat: number, lng: number, placeName: string, fullAddress: string) => void;
   label?: string;
   placeholder?: string;
 }
@@ -69,6 +69,7 @@ const LocationSearch = ({ value, onChange, onLocationSelect, label, placeholder 
       onLocationSelect(
         placeDetails.lat,
         placeDetails.lng,
+        result.mainText,
         placeDetails.formattedAddress || result.description
       );
     } catch (error) {

@@ -512,10 +512,11 @@ export default function Meetings() {
                   label="สถานที่"
                   value={newMeeting.venue}
                   onChange={(value) => setNewMeeting(prev => ({ ...prev, venue: value }))}
-                  onLocationSelect={(lat, lng, placeName) => {
+                  onLocationSelect={(lat, lng, placeName, fullAddress) => {
                     setNewMeeting(prev => ({
                       ...prev,
-                      venue: placeName.split(',')[0].trim(),
+                      venue: placeName,
+                      location_details: fullAddress,
                       location_lat: lat.toString(),
                       location_lng: lng.toString(),
                     }));
@@ -723,10 +724,11 @@ export default function Meetings() {
                     label="สถานที่"
                     value={editingMeeting.venue || ""}
                     onChange={(value) => setEditingMeeting(prev => ({ ...prev, venue: value }))}
-                    onLocationSelect={(lat, lng, placeName) => {
+                    onLocationSelect={(lat, lng, placeName, fullAddress) => {
                       setEditingMeeting(prev => ({
                         ...prev,
-                        venue: placeName.split(',')[0].trim(),
+                        venue: placeName,
+                        location_details: fullAddress,
                         location_lat: lat.toString(),
                         location_lng: lng.toString(),
                       }));
