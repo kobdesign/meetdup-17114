@@ -88,6 +88,10 @@ export default function Meetings() {
   const [editingMeeting, setEditingMeeting] = useState<any | null>(null);
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  
+  // Advanced location settings visibility
+  const [showAdvancedLocation, setShowAdvancedLocation] = useState(false);
+  const [showAdvancedLocationEdit, setShowAdvancedLocationEdit] = useState(false);
 
   useEffect(() => {
     if (!effectiveTenantId) {
