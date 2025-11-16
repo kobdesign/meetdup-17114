@@ -33,7 +33,8 @@ None specified yet.
 - **Backend Migration**: User management and check-in APIs migrated from Supabase Edge Functions to Express API routes for enhanced control and reliability.
 - **Unified Member-Participant Architecture**: Every member must have records in both `user_roles` (for access control) and `participants` (for chapter activities), linked via `user_id`. Includes a shared `syncUserToParticipants()` helper function.
 - **Supabase Relationship Ambiguity Fix**: Resolved issues with multiple foreign keys pointing to the same table by using explicit relationship hints with actual FK constraint names.
-- **Visitor Registration Status Flow**: Standardized visitor pipeline progression: Prospect (registered) → Visitor (first check-in) → Member (paid/approved) → Alumni (former member).
+- **Visitor Registration Status Flow**: Standardized visitor pipeline progression: Prospect (registered) → Visitor (first check-in) → Member (paid/approved) → Alumni (former member) or Declined (rejected).
+- **2-Step Registration Flow**: Implemented phone-based lookup system for visitor registration. Step 1: Phone number entry and lookup. Step 2: Pre-filled form (if existing) or empty form (if new). Supports both INSERT (new) and UPDATE (existing) modes with tenant ownership validation for security.
 
 ## External Dependencies
 
