@@ -78,6 +78,23 @@ None specified yet.
   - **18 Meeting Registrations**: Prospects for future, Visitors/Hot Leads for past/today
   - **18 Check-ins**: Realistic timestamps, varied attendance patterns
   - Discovered database schema discrepancies: `meeting_registrations` and `checkins` tables lack `tenant_id` column despite TypeScript types, `checkin_status` enum is pending/approved/rejected (not present/late/absent)
+- **Phone-Based Check-in Flow Redesign** (Nov 16, 2025): Complete UX redesign of check-in system with phone number as primary identifier:
+  - **Unique Identifier**: Phone number is the unique key for participant identity across tenant (unique constraint on `tenant_id` + `phone_number`)
+  - **Check-in Flow**: 
+    1. Scan QR Code → Enter phone number (10 digits)
+    2. Lookup participant by phone in database
+    3. If found: Display info + confirm check-in
+    4. If not found: Redirect to registration form with `auto_checkin=true` flag
+  - **Two Registration Modes**:
+    - **Regular Registration** (from Meeting Detail page): Create participant (status=prospect) + meeting_registration, NO auto check-in
+    - **Registration from Check-in** (via QR flow): Create participant + meeting_registration + auto check-in immediately (status=visitor, skipping prospect)
+  - **Status Transition Rules**:
+    - Prospect → Visitor (first check-in, auto-upgrade)
+    - Visitor → Visitor (subsequent check-ins)
+    - Member → Member (check-in records attendance)
+    - Alumni → Alumni (check-in with remark in `checkins.notes`, no status change)
+  - **Alumni Revisit Policy**: When Alumni return and check-in, they remain Alumni status with a remark noted in the check-in record
+  - **Duplicate Prevention**: System prevents duplicate registrations using phone number uniqueness constraint per tenant
 
 ## External Dependencies
 

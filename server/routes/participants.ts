@@ -5,27 +5,110 @@ import { generateVCard, getVCardFilename, VCardData } from "../services/line/vca
 
 const router = Router();
 
+// Lookup participant by phone number (public endpoint - no auth required)
+// Used in check-in flow to find existing participants
+router.get("/lookup-by-phone", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[lookup-by-phone:${requestId}]`;
+
+  try {
+    const { phone, meeting_id } = req.query;
+
+    console.log(`${logPrefix} Looking up participant`, {
+      phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
+      meeting_id,
+    });
+
+    // Validate required fields
+    if (!phone || !meeting_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required parameters",
+        message: "phone and meeting_id are required"
+      });
+    }
+
+    // Normalize phone (strip non-digits)
+    const normalizedPhone = String(phone).replace(/\D/g, "");
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid phone number",
+        message: "Phone number must contain digits"
+      });
+    }
+
+    // Get meeting to find tenant_id
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("tenant_id")
+      .eq("meeting_id", meeting_id)
+      .single();
+
+    if (meetingError || !meeting) {
+      console.error(`${logPrefix} Meeting not found`, meetingError);
+      return res.status(404).json({
+        success: false,
+        error: "Meeting not found",
+        message: "The selected meeting does not exist"
+      });
+    }
+
+    // Lookup participant by phone (using normalized phone)
+    const { data: participant, error: lookupError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name, email, phone, status, company, nickname")
+      .eq("tenant_id", meeting.tenant_id)
+      .eq("phone", normalizedPhone)
+      .maybeSingle();
+
+    if (lookupError) {
+      console.error(`${logPrefix} Error looking up participant:`, lookupError);
+      return res.status(500).json({
+        success: false,
+        error: "Database error",
+        message: lookupError.message
+      });
+    }
+
+    console.log(`${logPrefix} Participant ${participant ? 'found' : 'not found'}`);
+
+    return res.json({
+      success: true,
+      found: !!participant,
+      participant: participant || null
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Unexpected error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 // Check-in participant to a meeting (public endpoint - no auth required)
+// New flow: Frontend looks up participant first, then sends participant_id
 router.post("/check-in", async (req: Request, res: Response) => {
   const requestId = crypto.randomUUID();
   const logPrefix = `[check-in:${requestId}]`;
 
   try {
-    const { meeting_id, full_name, email, phone } = req.body;
+    const { meeting_id, participant_id } = req.body;
 
     console.log(`${logPrefix} Incoming check-in request`, {
       meeting_id,
-      full_name,
-      email,
-      phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
+      participant_id,
     });
 
     // Validate required fields
-    if (!meeting_id || !full_name || !email || !phone) {
+    if (!meeting_id || !participant_id) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
-        message: "meeting_id, full_name, email, and phone are required"
+        message: "meeting_id and participant_id are required"
       });
     }
 
@@ -45,60 +128,34 @@ router.post("/check-in", async (req: Request, res: Response) => {
       });
     }
 
-    // Check if participant exists
-    let participantId: string;
-    let participantStatus: string | null = null;
-
-    const { data: existingParticipant, error: lookupError } = await supabaseAdmin
+    // Get participant details
+    const { data: participant, error: participantError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, status")
+      .select("participant_id, full_name, status")
+      .eq("participant_id", participant_id)
       .eq("tenant_id", meeting.tenant_id)
-      .eq("email", email)
-      .maybeSingle();
+      .single();
 
-    if (lookupError) {
-      console.error(`${logPrefix} Error looking up participant:`, lookupError);
+    if (participantError || !participant) {
+      console.error(`${logPrefix} Participant not found`, participantError);
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found",
+        message: "Participant does not exist in this tenant"
+      });
     }
 
-    if (existingParticipant) {
-      console.log(`${logPrefix} Existing participant found`, existingParticipant);
-      participantId = existingParticipant.participant_id;
-      participantStatus = existingParticipant.status;
-    } else {
-      // Create new participant as 'prospect'
-      console.log(`${logPrefix} Creating new participant`);
-      const { data: newParticipant, error: participantError } = await supabaseAdmin
-        .from("participants")
-        .insert({
-          tenant_id: meeting.tenant_id,
-          full_name,
-          email,
-          phone,
-          status: "prospect",
-        })
-        .select()
-        .single();
-
-      if (participantError) {
-        console.error(`${logPrefix} Failed to create participant:`, participantError);
-        return res.status(500).json({
-          success: false,
-          error: "Failed to create participant",
-          message: participantError.message
-        });
-      }
-
-      participantId = newParticipant.participant_id;
-      participantStatus = "prospect";
-      console.log(`${logPrefix} New participant created:`, participantId);
-    }
+    console.log(`${logPrefix} Participant found`, {
+      participant_id: participant.participant_id,
+      status: participant.status,
+    });
 
     // Check if already checked in
     const { data: existingCheckin, error: checkLookupErr } = await supabaseAdmin
       .from("checkins")
       .select("checkin_id")
       .eq("meeting_id", meeting_id)
-      .eq("participant_id", participantId)
+      .eq("participant_id", participant_id)
       .maybeSingle();
 
     if (checkLookupErr) {
@@ -114,13 +171,20 @@ router.post("/check-in", async (req: Request, res: Response) => {
       });
     }
 
+    // Prepare check-in notes for Alumni revisit
+    let checkinNotes = null;
+    if (participant.status === "alumni") {
+      checkinNotes = `Alumni revisit - ${participant.full_name} กลับมาเยี่ยมชม`;
+      console.log(`${logPrefix} Alumni revisit detected`);
+    }
+
     // Auto-upgrade from prospect to visitor upon first check-in
-    if (participantStatus === "prospect") {
+    if (participant.status === "prospect") {
       console.log(`${logPrefix} Upgrading prospect to visitor`);
       const { error: updateError } = await supabaseAdmin
         .from("participants")
         .update({ status: "visitor" })
-        .eq("participant_id", participantId);
+        .eq("participant_id", participant_id);
 
       if (updateError) {
         console.error(`${logPrefix} Failed to update status to visitor:`, updateError);
@@ -129,7 +193,7 @@ router.post("/check-in", async (req: Request, res: Response) => {
         try {
           await supabaseAdmin.from("status_audit").insert({
             tenant_id: meeting.tenant_id,
-            participant_id: participantId,
+            participant_id: participant_id,
             reason: "First check-in (auto)",
           });
         } catch (e) {
@@ -144,7 +208,9 @@ router.post("/check-in", async (req: Request, res: Response) => {
       .insert({
         tenant_id: meeting.tenant_id,
         meeting_id,
-        participant_id: participantId,
+        participant_id,
+        notes: checkinNotes,
+        status: "approved", // Auto-approve check-ins
       });
 
     if (checkinError) {
@@ -159,7 +225,9 @@ router.post("/check-in", async (req: Request, res: Response) => {
     console.log(`${logPrefix} Check-in successful`);
     return res.json({
       success: true,
-      participant_id: participantId,
+      participant_id: participant_id,
+      participant_name: participant.full_name,
+      participant_status: participant.status,
       message: "Check-in successful"
     });
 
@@ -174,10 +242,13 @@ router.post("/check-in", async (req: Request, res: Response) => {
 });
 
 // Register a visitor (public endpoint - no auth required)
+// Supports two modes: regular registration (status=prospect) and auto-checkin (status=visitor + immediate check-in)
 router.post("/register-visitor", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[register-visitor:${requestId}]`;
+
   try {
     const { 
-      tenant_id, 
       meeting_id, 
       full_name, 
       email, 
@@ -185,59 +256,101 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       company, 
       business_type, 
       goal, 
-      notes 
+      notes,
+      auto_checkin // NEW: If true, create as visitor + auto check-in
     } = req.body;
 
+    console.log(`${logPrefix} Registration request`, {
+      meeting_id,
+      phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
+      auto_checkin: !!auto_checkin,
+    });
+
     // Validate required fields
-    if (!tenant_id || !full_name || !email || !phone) {
+    if (!full_name || !email || !phone) {
       return res.status(400).json({ 
         error: "Missing required fields",
-        message: "tenant_id, full_name, email, and phone are required"
+        message: "full_name, email, and phone are required"
       });
     }
 
-    // If meeting_id is provided, validate it exists and belongs to the tenant
+    // Normalize phone (strip non-digits)
+    const normalizedPhone = String(phone).replace(/\D/g, "");
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        error: "Invalid phone number",
+        message: "Phone number must contain digits"
+      });
+    }
+
+    // Derive tenant_id from meeting_id (SECURITY: prevent tenant spoofing)
+    let tenant_id: string;
+    
     if (meeting_id) {
       const { data: meeting, error: meetingError } = await supabaseAdmin
         .from("meetings")
-        .select("meeting_id, tenant_id")
+        .select("tenant_id")
         .eq("meeting_id", meeting_id)
-        .eq("tenant_id", tenant_id)
         .single();
 
       if (meetingError || !meeting) {
-        console.error("Invalid meeting_id:", meetingError);
+        console.error(`${logPrefix} Invalid meeting_id:`, meetingError);
         return res.status(400).json({ 
           error: "Invalid meeting",
-          message: "The selected meeting does not exist or does not belong to this chapter"
+          message: "The selected meeting does not exist"
         });
       }
+
+      tenant_id = meeting.tenant_id;
+      console.log(`${logPrefix} Derived tenant_id from meeting:`, tenant_id);
+    } else {
+      // If no meeting_id, reject request (tenant_id is required)
+      return res.status(400).json({
+        error: "Missing meeting_id",
+        message: "meeting_id is required to determine the chapter"
+      });
     }
 
-    // Create participant record
+    // Determine initial status based on auto_checkin flag
+    const initialStatus = auto_checkin ? "visitor" : "prospect";
+    console.log(`${logPrefix} Creating participant with status: ${initialStatus}`);
+
+    // Create participant record (using normalized phone)
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("participants")
       .insert({
         tenant_id,
         full_name,
         email,
-        phone,
+        phone: normalizedPhone,
         company: company || null,
         business_type: business_type || null,
         goal: goal || null,
         notes: notes || null,
-        status: "prospect", // Always start as prospect, will upgrade to visitor on first check-in
+        status: initialStatus,
       })
       .select()
       .single();
 
     if (participantError) {
-      console.error("Error creating participant:", participantError);
+      console.error(`${logPrefix} Error creating participant:`, participantError);
+      
+      // Check if it's a unique constraint violation (Postgres error code 23505)
+      // This catches duplicate phone numbers for the same tenant
+      if (participantError.code === '23505') {
+        return res.status(409).json({ 
+          error: "Duplicate phone number",
+          message: "หากเคยลงทะเบียนแล้ว ให้เช็คอินด้วยเบอร์โทรศัพท์โดยตรง"
+        });
+      }
+      
       return res.status(500).json({ 
         error: "Failed to create participant",
         message: participantError.message
       });
     }
+
+    console.log(`${logPrefix} Participant created:`, participant.participant_id);
 
     // If meeting_id is provided, create a meeting registration
     if (meeting_id) {
@@ -250,7 +363,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
         });
 
       if (registrationError) {
-        console.error("Error creating meeting registration:", registrationError);
+        console.error(`${logPrefix} Error creating meeting registration:`, registrationError);
         
         // Delete the participant we just created to rollback
         await supabaseAdmin
@@ -265,14 +378,56 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       }
     }
 
+    // If auto_checkin is enabled, create check-in record immediately
+    if (auto_checkin && meeting_id) {
+      console.log(`${logPrefix} Creating auto check-in`);
+      
+      const { error: checkinError } = await supabaseAdmin
+        .from("checkins")
+        .insert({
+          tenant_id,
+          meeting_id,
+          participant_id: participant.participant_id,
+          status: "approved",
+          notes: "Auto check-in from registration"
+        });
+
+      if (checkinError) {
+        console.error(`${logPrefix} Error creating auto check-in:`, checkinError);
+        
+        // Rollback: delete registration and participant
+        await supabaseAdmin
+          .from("meeting_registrations")
+          .delete()
+          .eq("participant_id", participant.participant_id)
+          .eq("meeting_id", meeting_id);
+        
+        await supabaseAdmin
+          .from("participants")
+          .delete()
+          .eq("participant_id", participant.participant_id);
+
+        return res.status(500).json({ 
+          error: "Failed to auto check-in",
+          message: "Could not complete auto check-in. Please try again."
+        });
+      }
+
+      console.log(`${logPrefix} Auto check-in successful`);
+    }
+
     return res.json({
       success: true,
       participant_id: participant.participant_id,
-      message: "Registration successful"
+      status: initialStatus,
+      auto_checked_in: !!auto_checkin,
+      message: auto_checkin 
+        ? "Registration and check-in successful" 
+        : "Registration successful"
     });
 
   } catch (error: any) {
-    console.error("Visitor registration error:", error);
+    console.error(`${logPrefix} Visitor registration error:`, error);
     return res.status(500).json({ 
       error: "Internal server error",
       message: error.message

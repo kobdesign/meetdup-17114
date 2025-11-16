@@ -28,6 +28,7 @@ import MembersManagement from "./pages/admin/MembersManagement";
 import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
+import VisitorRegister from "./pages/public/VisitorRegister";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -49,8 +50,9 @@ const App = () => (
           {/* Public Chapter Profile */}
           <Route path="/chapter/:subdomain" element={<ChapterProfile />} />
           
-          {/* Public Check-In */}
+          {/* Public Check-In & Registration */}
           <Route path="/checkin/:meetingId" element={<CheckInScanner />} />
+          <Route path="/register" element={<VisitorRegister />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
