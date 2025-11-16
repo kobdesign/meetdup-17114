@@ -368,6 +368,7 @@ export default function Meetings() {
       const { error } = await supabase
         .from("meetings")
         .update({
+          meeting_name: editingMeeting.theme || "การประชุม",
           meeting_date: editingMeeting.meeting_date,
           meeting_time: editingMeeting.meeting_time || null,
           venue: editingMeeting.venue || null,
