@@ -515,8 +515,8 @@ export default function MeetingDetails() {
       <QRCodeDialog
         open={showQRDialog}
         onOpenChange={setShowQRDialog}
-        slug={tenantSlug}
-        name={`${meeting.theme || "การประชุม"} - ${new Date(meeting.meeting_date).toLocaleDateString("th-TH")}`}
+        subdomain={tenantSlug}
+        tenantName={`${meeting.theme || "การประชุม"} - ${new Date(meeting.meeting_date).toLocaleDateString("th-TH")}`}
         meetingId={meetingId}
       />
     </AdminLayout>
