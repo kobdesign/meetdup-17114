@@ -274,7 +274,7 @@ export default function LineConfigPage() {
             </div>
             <Alert data-testid="alert-webhook-info">
               <AlertDescription className="text-sm">
-                <strong>หมายเหตุ:</strong> Webhook URL นี้เป็น Express API endpoint ที่ทำงานบน Replit
+                <strong>หมายเหตุ:</strong> Webhook URL นี้เป็น Express API endpoint ที่ทำงานบน backend server ของระบบ
               </AlertDescription>
             </Alert>
           </CardContent>
