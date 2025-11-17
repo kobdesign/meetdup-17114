@@ -15,12 +15,12 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Enable RLS on storage.objects
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- Note: RLS is already enabled on storage.objects by Supabase
+-- No need to ALTER TABLE storage.objects
 
 -- Policy: Allow authenticated users to upload their own avatars
 -- Path format: {user_id}/{filename} or logos/{filename}
-CREATE POLICY "Users can upload their own avatars"
+CREATE POLICY IF NOT EXISTS "Users can upload their own avatars"
 ON storage.objects
 FOR INSERT
 TO authenticated
@@ -36,7 +36,7 @@ WITH CHECK (
 );
 
 -- Policy: Allow authenticated users to update their own avatars
-CREATE POLICY "Users can update their own avatars"
+CREATE POLICY IF NOT EXISTS "Users can update their own avatars"
 ON storage.objects
 FOR UPDATE
 TO authenticated
@@ -58,7 +58,7 @@ WITH CHECK (
 );
 
 -- Policy: Allow authenticated users to delete their own avatars
-CREATE POLICY "Users can delete their own avatars"
+CREATE POLICY IF NOT EXISTS "Users can delete their own avatars"
 ON storage.objects
 FOR DELETE
 TO authenticated
@@ -72,7 +72,7 @@ USING (
 );
 
 -- Policy: Allow public read access to all avatars
-CREATE POLICY "Public can view all avatars"
+CREATE POLICY IF NOT EXISTS "Public can view all avatars"
 ON storage.objects
 FOR SELECT
 TO public
