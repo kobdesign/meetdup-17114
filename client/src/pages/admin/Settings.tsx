@@ -40,11 +40,14 @@ export default function Settings() {
     }
 
     try {
-      const { data: tenantData } = await supabase
+      const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
         .select("subdomain, tenant_name")
         .eq("tenant_id", effectiveTenantId)
         .single();
+
+      // Handle case where tenant doesn't exist yet (shouldn't happen normally)
+      if (tenantError && tenantError.code !== "PGRST116") throw tenantError;
 
       if (tenantData) {
         setTenantSlug(tenantData.subdomain);
