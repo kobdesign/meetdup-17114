@@ -1720,11 +1720,12 @@ router.post("/lookup-by-line-phone", async (req: Request, res: Response) => {
   const logPrefix = `[lookup-by-line-phone:${requestId}]`;
 
   try {
-    const { phone, line_user_id } = req.body;
+    const { phone, line_user_id, tenant_id } = req.body;
 
     console.log(`${logPrefix} Looking up participant for LINE registration`, {
       phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
       line_user_id_masked: line_user_id ? `${line_user_id.slice(0, 5)}...` : undefined,
+      tenant_id,
     });
 
     if (!phone) {
@@ -1732,6 +1733,14 @@ router.post("/lookup-by-line-phone", async (req: Request, res: Response) => {
         success: false,
         error: "Missing phone number",
         message: "Phone number is required",
+      });
+    }
+
+    if (!tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing tenant_id",
+        message: "Chapter information is required",
       });
     }
 
@@ -1745,12 +1754,13 @@ router.post("/lookup-by-line-phone", async (req: Request, res: Response) => {
       });
     }
 
-    // Lookup participant by phone across ALL tenants
-    // (Since LINE registration doesn't have tenant context yet)
-    const { data: participants, error: lookupError } = await supabaseAdmin
+    // Lookup participant by phone within the specified tenant
+    const { data: participant, error: lookupError } = await supabaseAdmin
       .from("participants")
       .select("participant_id, tenant_id, full_name, email, phone, company, business_type, goal, notes, status, line_user_id")
-      .eq("phone", normalizedPhone);
+      .eq("tenant_id", tenant_id)
+      .eq("phone", normalizedPhone)
+      .maybeSingle();
 
     if (lookupError) {
       console.error(`${logPrefix} Error looking up participant:`, lookupError);
@@ -1761,8 +1771,8 @@ router.post("/lookup-by-line-phone", async (req: Request, res: Response) => {
       });
     }
 
-    if (!participants || participants.length === 0) {
-      console.log(`${logPrefix} No participant found`);
+    if (!participant) {
+      console.log(`${logPrefix} No participant found in tenant ${tenant_id}`);
       return res.json({
         success: true,
         found: false,
@@ -1770,10 +1780,7 @@ router.post("/lookup-by-line-phone", async (req: Request, res: Response) => {
       });
     }
 
-    // If multiple participants found (different tenants), take the first one
-    // TODO: In future, allow user to select which tenant
-    const participant = participants[0];
-    console.log(`${logPrefix} Participant found (tenant: ${participant.tenant_id})`);
+    console.log(`${logPrefix} Participant found in tenant ${participant.tenant_id}`);
 
     return res.json({
       success: true,
@@ -1798,6 +1805,7 @@ router.post("/line-register", async (req: Request, res: Response) => {
 
   try {
     const {
+      tenant_id,
       line_user_id,
       line_display_name,
       line_picture_url,
@@ -1813,12 +1821,21 @@ router.post("/line-register", async (req: Request, res: Response) => {
     } = req.body;
 
     console.log(`${logPrefix} LINE registration request (${is_update ? 'UPDATE' : 'INSERT'})`, {
+      tenant_id,
       line_user_id_masked: line_user_id ? `${line_user_id.slice(0, 5)}...` : undefined,
       phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
       is_update,
     });
 
     // Validate required fields
+    if (!tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing tenant_id",
+        message: "Chapter information is required",
+      });
+    }
+
     if (!line_user_id || !phone || !full_name || !email) {
       return res.status(400).json({
         success: false,
@@ -1843,11 +1860,12 @@ router.post("/line-register", async (req: Request, res: Response) => {
       // UPDATE MODE: Link LINE User ID to existing participant
       console.log(`${logPrefix} Updating existing participant: ${participant_id}`);
 
-      // Verify participant exists
+      // Verify participant exists and belongs to the correct tenant
       const { data: existing, error: checkError } = await supabaseAdmin
         .from("participants")
         .select("participant_id, tenant_id, line_user_id")
         .eq("participant_id", participant_id)
+        .eq("tenant_id", tenant_id)
         .single();
 
       if (checkError || !existing) {
@@ -1855,7 +1873,7 @@ router.post("/line-register", async (req: Request, res: Response) => {
         return res.status(404).json({
           success: false,
           error: "Participant not found",
-          message: "The participant does not exist",
+          message: "The participant does not exist in this chapter",
         });
       }
 
@@ -1900,12 +1918,13 @@ router.post("/line-register", async (req: Request, res: Response) => {
 
     } else {
       // INSERT MODE: Create new participant with LINE User ID
-      console.log(`${logPrefix} Creating new participant with LINE link`);
+      console.log(`${logPrefix} Creating new participant with LINE link in tenant ${tenant_id}`);
 
-      // Check if LINE User ID is already used
+      // Check if LINE User ID is already used in this tenant
       const { data: existingLineUser } = await supabaseAdmin
         .from("participants")
         .select("participant_id")
+        .eq("tenant_id", tenant_id)
         .eq("line_user_id", line_user_id)
         .maybeSingle();
 
@@ -1913,28 +1932,27 @@ router.post("/line-register", async (req: Request, res: Response) => {
         return res.status(409).json({
           success: false,
           error: "LINE account already registered",
-          message: "This LINE account is already linked to another participant",
+          message: "This LINE account is already linked to another participant in this chapter",
         });
       }
 
-      // Determine tenant_id
-      // For now, we'll need to pass tenant_id or derive it
-      // TODO: Get tenant from LIFF URL params
-      // For MVP, we'll fail if no tenant context
-      const { data: tenants } = await supabaseAdmin
+      // Verify tenant exists
+      const { data: tenant, error: tenantError } = await supabaseAdmin
         .from("tenants")
-        .select("tenant_id")
-        .limit(1);
+        .select("tenant_id, name")
+        .eq("tenant_id", tenant_id)
+        .single();
 
-      if (!tenants || tenants.length === 0) {
-        return res.status(500).json({
+      if (tenantError || !tenant) {
+        console.error(`${logPrefix} Tenant not found:`, tenantError);
+        return res.status(404).json({
           success: false,
-          error: "No tenant found",
-          message: "Unable to determine chapter. Please contact support.",
+          error: "Chapter not found",
+          message: "The specified chapter does not exist",
         });
       }
 
-      const tenant_id = tenants[0].tenant_id;
+      console.log(`${logPrefix} Verified tenant: ${tenant.name}`);
 
       // Create new participant
       const { data: newParticipant, error: insertError } = await supabaseAdmin

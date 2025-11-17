@@ -889,8 +889,20 @@ async function sendLiffRegistration(event: LineEvent, credentials: TenantCredent
     return;
   }
 
-  // Construct LIFF URL
-  const liffUrl = `https://liff.line.me/${liffId}`;
+  // Get tenant_id from credentials
+  const tenantId = credentials.tenantId;
+  if (!tenantId) {
+    console.error(`${logPrefix} Tenant ID not found in credentials`);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ ไม่พบข้อมูล Chapter\nกรุณาติดต่อผู้ดูแลระบบ"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  // Construct LIFF URL with tenant_id parameter
+  const liffUrl = `https://liff.line.me/${liffId}?tenant_id=${encodeURIComponent(tenantId)}`;
+  console.log(`${logPrefix} Generated LIFF URL with tenant: ${tenantId}`);
 
   // Send Flex Message with registration link
   const flexMessage = {

@@ -28,11 +28,13 @@
 |-------|-------|
 | **LIFF app name** | `Meetdup Registration` (หรือชื่อที่ต้องการ) |
 | **Size** | `Full` (แนะนำ) |
-| **Endpoint URL** | `https://meetdup.replit.app/line-register` |
+| **Endpoint URL** | `https://meetdup.replit.app/line-register?tenant_id={tenant_id}` |
 | **Scope** | ✅ `profile`<br>✅ `openid` |
 | **Bot link feature** | `On (Aggressive)` (แนะนำ) |
 | **Scan QR** | `Off` |
 | **Module Mode** | `Off` |
+
+> **หมายเหตุ:** LINE webhook จะส่ง tenant_id อัตโนมัติตาม bot ที่ผู้ใช้พิมพ์ "ลงทะเบียน"
 
 5. คลิก **Add** → จะได้ **LIFF ID** (ตัวอย่าง: `1234567890-AbCdEfGh`)
 

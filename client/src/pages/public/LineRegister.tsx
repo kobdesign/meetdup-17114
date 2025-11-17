@@ -55,6 +55,9 @@ export default function LineRegister() {
     notes: "",
   });
 
+  // Get tenant_id from URL params
+  const [tenantId, setTenantId] = useState<string>("");
+
   // Initialize LIFF
   useEffect(() => {
     const initLiff = async () => {
@@ -75,6 +78,7 @@ export default function LineRegister() {
         // Get LIFF ID from URL parameter
         const urlParams = new URLSearchParams(window.location.search);
         const liffId = urlParams.get('liff_id') || import.meta.env.VITE_LIFF_ID;
+        const tenant = urlParams.get('tenant_id') || "";
 
         if (!liffId) {
           console.error("❌ LIFF ID not found");
@@ -85,6 +89,19 @@ export default function LineRegister() {
           });
           return;
         }
+
+        if (!tenant) {
+          console.error("❌ Tenant ID not found in URL");
+          toast({
+            title: "ข้อผิดพลาด",
+            description: "ไม่พบข้อมูล Chapter กรุณาติดต่อผู้ดูแลระบบ",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setTenantId(tenant);
+        console.log("📍 Tenant ID:", tenant);
 
         await window.liff.init({ liffId });
         console.log("✅ LIFF initialized successfully");
@@ -175,6 +192,7 @@ export default function LineRegister() {
         body: JSON.stringify({
           phone: cleanPhone,
           line_user_id: liffProfile?.userId,
+          tenant_id: tenantId,
         }),
       });
 
@@ -268,6 +286,7 @@ export default function LineRegister() {
       console.log("📝 Submitting registration/link...");
 
       const payload = {
+        tenant_id: tenantId,
         line_user_id: liffProfile.userId,
         line_display_name: liffProfile.displayName,
         line_picture_url: liffProfile.pictureUrl,
