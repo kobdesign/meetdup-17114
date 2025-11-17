@@ -1,9 +1,7 @@
 // @ts-ignore Deno imports
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-// @ts-ignore Deno imports
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 // @ts-ignore Deno imports
-import { createHmac } from "https://deno.land/std@0.190.0/node/crypto.ts";
+import { createHmac } from "node:crypto";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,7 +110,7 @@ async function getTenantCredentials(
   return credentials;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
