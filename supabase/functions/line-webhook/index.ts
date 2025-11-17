@@ -805,10 +805,8 @@ async function searchAndShowBusinessCard(
 ) {
   console.log(`${logPrefix} Searching participants with term: "${searchTerm}"`);
 
-  // URL encode search term to handle Thai/Unicode characters
-  const encodedTerm = encodeURIComponent(searchTerm);
-  
   // Search by full_name or nickname (case-insensitive)
+  // Note: Using filter() instead of or() to properly handle Thai/Unicode characters
   const { data: participants, error } = await supabase
     .from("participants")
     .select(`
@@ -828,7 +826,7 @@ async function searchAndShowBusinessCard(
       )
     `)
     .eq("tenant_id", credentials.tenantId)
-    .or(`full_name.ilike.%${encodedTerm}%,nickname.ilike.%${encodedTerm}%`)
+    .or(`full_name.ilike.%${searchTerm}%,nickname.ilike.%${searchTerm}%`)
     .order("status", { ascending: true })
     .order("full_name", { ascending: true })
     .limit(10);
