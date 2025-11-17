@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +24,6 @@ interface ParticipantProfile {
 }
 
 export default function ParticipantProfile() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -47,8 +45,7 @@ export default function ParticipantProfile() {
     const urlToken = params.get('token');
     
     if (!urlToken) {
-      toast.error("ลิงก์ไม่ถูกต้อง");
-      navigate("/");
+      toast.error("ลิงก์ไม่ถูกต้อง - กรุณาเปิดจาก LINE");
       return;
     }
     
@@ -79,7 +76,6 @@ export default function ParticipantProfile() {
     } catch (error: any) {
       console.error("Error loading profile:", error);
       toast.error(error.message || "ไม่สามารถโหลดข้อมูลได้");
-      navigate("/");
     } finally {
       setLoading(false);
     }
