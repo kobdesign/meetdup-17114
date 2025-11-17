@@ -59,27 +59,24 @@ export async function getLineCredentials(tenantId: string): Promise<{
 } | null> {
   const { data, error } = await supabaseAdmin
     .from("tenant_secrets")
-    .select("secret_key, secret_value")
+    .select("line_channel_id, line_access_token_encrypted, line_channel_secret_encrypted")
     .eq("tenant_id", tenantId)
-    .in("secret_key", ["line_channel_access_token", "line_channel_secret", "line_channel_id"]);
+    .single();
 
-  if (error || !data || data.length === 0) {
+  if (error || !data || !data.line_access_token_encrypted || !data.line_channel_secret_encrypted || !data.line_channel_id) {
     return null;
   }
 
-  const secrets = Object.fromEntries(
-    data.map((item) => [item.secret_key, decryptValue(item.secret_value)])
-  );
-
-  if (!secrets.line_channel_access_token || !secrets.line_channel_secret || !secrets.line_channel_id) {
+  try {
+    return {
+      channelAccessToken: decryptValue(data.line_access_token_encrypted),
+      channelSecret: decryptValue(data.line_channel_secret_encrypted),
+      channelId: data.line_channel_id,
+    };
+  } catch (decryptError) {
+    console.error("Failed to decrypt LINE credentials:", decryptError);
     return null;
   }
-
-  return {
-    channelAccessToken: secrets.line_channel_access_token,
-    channelSecret: secrets.line_channel_secret,
-    channelId: secrets.line_channel_id,
-  };
 }
 
 export async function saveLineCredentials(
@@ -88,28 +85,23 @@ export async function saveLineCredentials(
   channelSecret: string,
   channelId: string
 ): Promise<void> {
-  const secrets = [
-    {
-      tenant_id: tenantId,
-      secret_key: "line_channel_access_token",
-      secret_value: encryptValue(channelAccessToken),
-    },
-    {
-      tenant_id: tenantId,
-      secret_key: "line_channel_secret",
-      secret_value: encryptValue(channelSecret),
-    },
-    {
-      tenant_id: tenantId,
-      secret_key: "line_channel_id",
-      secret_value: encryptValue(channelId),
-    },
-  ];
+  const payload = {
+    tenant_id: tenantId,
+    line_channel_id: channelId,
+    line_access_token_encrypted: encryptValue(channelAccessToken),
+    line_channel_secret_encrypted: encryptValue(channelSecret),
+  };
 
-  for (const secret of secrets) {
-    await supabaseAdmin
-      .from("tenant_secrets")
-      .upsert(secret, { onConflict: "tenant_id,secret_key" });
+  const { error } = await supabaseAdmin
+    .from("tenant_secrets")
+    .upsert(payload, { 
+      onConflict: "tenant_id",
+      ignoreDuplicates: false 
+    });
+
+  if (error) {
+    console.error("Error saving LINE credentials:", error);
+    throw new Error(`Failed to save LINE credentials: ${error.message}`);
   }
 }
 
@@ -119,31 +111,26 @@ export async function getCredentialsByBotUserId(botUserId: string): Promise<{
   channelSecret: string;
   channelId: string;
 } | null> {
-  const { data: channelIdSecrets } = await supabaseAdmin
+  const { data: secrets } = await supabaseAdmin
     .from("tenant_secrets")
-    .select("tenant_id, secret_value")
-    .eq("secret_key", "line_channel_id");
+    .select("tenant_id, line_channel_id, line_access_token_encrypted, line_channel_secret_encrypted")
+    .eq("line_channel_id", botUserId);
 
-  if (!channelIdSecrets || channelIdSecrets.length === 0) {
+  if (!secrets || secrets.length === 0) {
     return null;
   }
 
-  for (const item of channelIdSecrets) {
-    try {
-      const decryptedChannelId = decryptValue(item.secret_value);
-      if (decryptedChannelId === botUserId) {
-        const credentials = await getLineCredentials(item.tenant_id);
-        if (credentials) {
-          return {
-            tenantId: item.tenant_id,
-            ...credentials,
-          };
-        }
-      }
-    } catch (error) {
-      console.error(`Failed to decrypt channel ID for tenant ${item.tenant_id}:`, error);
-    }
+  const secret = secrets[0];
+  
+  try {
+    return {
+      tenantId: secret.tenant_id,
+      channelAccessToken: decryptValue(secret.line_access_token_encrypted),
+      channelSecret: decryptValue(secret.line_channel_secret_encrypted),
+      channelId: secret.line_channel_id,
+    };
+  } catch (error) {
+    console.error(`Failed to decrypt credentials for bot ${botUserId}:`, error);
+    return null;
   }
-
-  return null;
 }
