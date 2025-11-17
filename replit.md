@@ -24,6 +24,7 @@ None specified yet.
 - **Data Fetching & State Management**: Leverages TanStack React Query and React Context API.
 - **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface. Meeting location fields are enhanced with collapsible sections and visual feedback.
 - **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, quick reply system, and a Business Card feature via LINE Flex Messages with vCard download support.
+- **LIFF Self-Registration (Option 1)**: Implemented LIFF-based LINE registration system using LINE Login channel (separate from Messaging API channel). Users can type "ลงทะเบียน" in LINE bot → opens LIFF app → register or link existing account. System uses phone number as unique identifier with automatic LINE User ID linking. **Important:** LIFF apps must be created in LINE Login channel (not Messaging API channel per LINE policy since 2020). Channels must be linked for unified User IDs.
 - **Robust Error Handling**: Implemented across the system for stability and a smooth user experience.
 - **Modular Design**: Project structured into `client/`, `server/`, `supabase/`, and `shared/` directories.
 - **Check-In System**: Utilizes QR code-based check-ins and integrates with LINE webhooks for status progression and communication. Redesigned with phone number as the primary unique identifier, including normalization, lookup, and auto-registration flows.
