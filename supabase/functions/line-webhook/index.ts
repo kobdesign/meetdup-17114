@@ -805,9 +805,8 @@ async function searchAndShowBusinessCard(
 ) {
   console.log(`${logPrefix} Searching participants with term: "${searchTerm}"`);
 
-  // Search by full_name or nickname (case-insensitive)
-  // Note: Using filter() instead of or() to properly handle Thai/Unicode characters
-  const { data: participants, error } = await supabase
+  // Search by full_name (first query)
+  const { data: byFullName, error: error1 } = await supabase
     .from("participants")
     .select(`
       participant_id,
@@ -826,13 +825,34 @@ async function searchAndShowBusinessCard(
       )
     `)
     .eq("tenant_id", credentials.tenantId)
-    .or(`full_name.ilike.%${searchTerm}%,nickname.ilike.%${searchTerm}%`)
-    .order("status", { ascending: true })
-    .order("full_name", { ascending: true })
+    .ilike("full_name", `%${searchTerm}%`)
     .limit(10);
 
-  if (error) {
-    console.error(`${logPrefix} Search error:`, error);
+  // Search by nickname (second query)
+  const { data: byNickname, error: error2 } = await supabase
+    .from("participants")
+    .select(`
+      participant_id,
+      full_name,
+      nickname,
+      email,
+      phone,
+      company,
+      business_type,
+      goal,
+      status,
+      line_user_id,
+      tenants!inner (
+        tenant_name,
+        logo_url
+      )
+    `)
+    .eq("tenant_id", credentials.tenantId)
+    .ilike("nickname", `%${searchTerm}%`)
+    .limit(10);
+
+  if (error1 || error2) {
+    console.error(`${logPrefix} Search error:`, error1 || error2);
     await replyMessage(event.replyToken, {
       type: "text",
       text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
@@ -840,10 +860,29 @@ async function searchAndShowBusinessCard(
     return;
   }
 
-  if (!participants || participants.length === 0) {
+  // Merge results and remove duplicates
+  const allResults = [...(byFullName || []), ...(byNickname || [])];
+  const uniqueMap = new Map();
+  for (const p of allResults) {
+    if (!uniqueMap.has(p.participant_id)) {
+      uniqueMap.set(p.participant_id, p);
+    }
+  }
+  const participants = Array.from(uniqueMap.values())
+    .sort((a, b) => {
+      // Sort by status first, then by full_name
+      if (a.status !== b.status) {
+        const statusOrder = ["prospect", "visitor", "member", "alumni", "declined"];
+        return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+      }
+      return (a.full_name || "").localeCompare(b.full_name || "");
+    })
+    .slice(0, 10);
+
+  if (participants.length === 0) {
     await replyMessage(event.replyToken, {
       type: "text",
-      text: `❌ ไม่พบข้อมูลที่ตรงกับ "${searchTerm}"\n\nลองค้นหาด้วยชื่ออื่น หรือพิมพ์ "เมนู" เพื่อดูคำสั่งทั้งหมด`
+      text: `❌ ไม่พบข้อมูลที่ตรงกับ "${searchTerm}"\n\nลองค้นหาด้วยชื่ือื่น หรือพิมพ์ "เมนู" เพื่อดูคำสั่งทั้งหมด`
     }, credentials, logPrefix);
     return;
   }
