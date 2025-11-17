@@ -1111,7 +1111,7 @@ router.get("/:participantId/vcard", async (req: Request, res: Response) => {
 router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { participantId } = req.params;
-    const { full_name, email, phone, company, business_type, status } = req.body;
+    const { full_name, email, phone, company, business_type, status, referred_by_participant_id } = req.body;
     const userId = req.user?.id;
 
     if (!participantId) {
@@ -1157,6 +1157,7 @@ router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedReq
     if (company !== undefined) updateData.company = company || null;
     if (business_type !== undefined) updateData.business_type = business_type || null;
     if (status !== undefined) updateData.status = status;
+    if (referred_by_participant_id !== undefined) updateData.referred_by_participant_id = referred_by_participant_id || null;
     
     // Phone number cannot be changed (it's the unique identifier)
     // Silently ignore phone updates
