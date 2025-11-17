@@ -87,19 +87,20 @@ async function getTenantCredentials(
   
   const { data, error } = await supabase
     .from("tenant_secrets")
-    .select("tenant_id, line_access_token, line_channel_secret, line_channel_id")
+    .select("tenant_id, line_access_token_encrypted, line_channel_secret_encrypted, line_channel_id")
     .eq("line_channel_id", destination)
     .single();
 
-  if (error || !data || !data.line_access_token || !data.line_channel_secret) {
+  if (error || !data || !data.line_access_token_encrypted || !data.line_channel_secret_encrypted) {
     console.error(`${logPrefix} Tenant not found or credentials missing for destination: ${destination}`);
+    console.error(`${logPrefix} Error details:`, error);
     return null;
   }
 
   const credentials: TenantCredentials = {
     tenantId: data.tenant_id,
-    accessToken: data.line_access_token,
-    channelSecret: data.line_channel_secret,
+    accessToken: data.line_access_token_encrypted,
+    channelSecret: data.line_channel_secret_encrypted,
   };
 
   credentialsCache.set(destination, {
