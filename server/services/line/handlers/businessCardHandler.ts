@@ -205,7 +205,7 @@ export async function handleCardSearch(
 
   try {
     // Search by full_name
-    const { data: byFullName } = await supabaseAdmin
+    const { data: byFullName, error: error1 } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
@@ -228,8 +228,13 @@ export async function handleCardSearch(
       .ilike("full_name", `%${searchTerm}%`)
       .limit(10);
 
+    console.log(`${logPrefix} Search by full_name:`, { 
+      count: byFullName?.length || 0, 
+      error: error1 ? JSON.stringify(error1) : null 
+    });
+
     // Search by nickname
-    const { data: byNickname } = await supabaseAdmin
+    const { data: byNickname, error: error2 } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
@@ -251,6 +256,11 @@ export async function handleCardSearch(
       .eq("tenant_id", tenantId)
       .ilike("nickname", `%${searchTerm}%`)
       .limit(10);
+
+    console.log(`${logPrefix} Search by nickname:`, { 
+      count: byNickname?.length || 0, 
+      error: error2 ? JSON.stringify(error2) : null 
+    });
 
     // Combine and deduplicate results
     const allResults = [...(byFullName || []), ...(byNickname || [])];
