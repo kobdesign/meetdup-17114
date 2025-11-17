@@ -69,6 +69,69 @@ interface ConversationState {
 const conversationStates = new Map<string, ConversationState>();
 const CONVERSATION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
+// Encryption/Decryption using Web Crypto API (compatible with server-side AES-256-GCM)
+interface EncryptedData {
+  iv: string;
+  authTag: string;
+  encrypted: string;
+}
+
+async function decryptValue(encryptedValue: string): Promise<string> {
+  try {
+    const data: EncryptedData = JSON.parse(encryptedValue);
+    
+    // @ts-ignore Deno runtime
+    const encryptionKey = Deno.env.get("LINE_ENCRYPTION_KEY");
+    if (!encryptionKey) {
+      throw new Error("LINE_ENCRYPTION_KEY not configured");
+    }
+    
+    // Convert hex key to bytes (first 32 bytes for AES-256)
+    const keyBytes = new Uint8Array(
+      encryptionKey.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+    ).slice(0, 32);
+    
+    // Import key for AES-GCM
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["decrypt"]
+    );
+    
+    // Prepare encrypted data + auth tag (GCM format)
+    const ivBytes = new Uint8Array(
+      data.iv.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+    );
+    const encryptedBytes = new Uint8Array(
+      data.encrypted.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+    );
+    const authTagBytes = new Uint8Array(
+      data.authTag.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+    );
+    
+    // Combine encrypted data with auth tag (Web Crypto API expects them together)
+    const combined = new Uint8Array(encryptedBytes.length + authTagBytes.length);
+    combined.set(encryptedBytes);
+    combined.set(authTagBytes, encryptedBytes.length);
+    
+    // Decrypt
+    const decryptedBytes = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: ivBytes },
+      cryptoKey,
+      combined
+    );
+    
+    // Convert bytes to string
+    const decoder = new TextDecoder();
+    return decoder.decode(decryptedBytes);
+  } catch (error) {
+    console.error("Decryption error:", error);
+    throw new Error(`Failed to decrypt value: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+}
+
 function validateSignature(body: string, channelSecret: string, signature: string): boolean {
   try {
     const hash = createHmac("sha256", channelSecret)
@@ -140,15 +203,17 @@ async function getTenantCredentials(
     return null;
   }
 
-  // Parse encrypted values
+  // Decrypt credentials
   try {
-    const accessTokenData = JSON.parse(accessTokenRecord.secret_value);
-    const channelSecretData = JSON.parse(channelSecretRecord.secret_value);
+    console.log(`${logPrefix} Decrypting credentials for tenant: ${matchedTenantId}`);
+    
+    const accessToken = await decryptValue(accessTokenRecord.secret_value);
+    const channelSecret = await decryptValue(channelSecretRecord.secret_value);
 
     const credentials: TenantCredentials = {
       tenantId: matchedTenantId,
-      accessToken: accessTokenData.encrypted, // TODO: Decrypt if needed
-      channelSecret: channelSecretData.encrypted, // TODO: Decrypt if needed
+      accessToken,
+      channelSecret,
     };
 
     credentialsCache.set(destination, {
@@ -156,9 +221,10 @@ async function getTenantCredentials(
       expiresAt: Date.now() + CACHE_TTL,
     });
 
+    console.log(`${logPrefix} Successfully decrypted and cached credentials`);
     return credentials;
   } catch (e) {
-    console.error(`${logPrefix} Error parsing credentials:`, e);
+    console.error(`${logPrefix} Error decrypting credentials:`, e);
     return null;
   }
 }
