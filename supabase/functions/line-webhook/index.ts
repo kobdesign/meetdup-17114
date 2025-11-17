@@ -703,11 +703,12 @@ async function handlePhoneLinking(
     return;
   }
 
-  // Link LINE User ID
+  // Link LINE User ID (with defensive tenant check)
   const { error: updateError } = await supabase
     .from("participants")
     .update({ line_user_id: userId })
-    .eq("participant_id", participant.participant_id);
+    .eq("participant_id", participant.participant_id)
+    .eq("tenant_id", credentials.tenantId);
 
   if (updateError) {
     console.error(`${logPrefix} Error linking LINE:`, updateError);
