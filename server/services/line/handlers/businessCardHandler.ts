@@ -190,6 +190,125 @@ export async function handleMemberSearch(
 }
 
 /**
+ * Handle card search command
+ * Example: "card กบ", "card abhisak", "นามบัตร john"
+ */
+export async function handleCardSearch(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  searchTerm: string
+): Promise<void> {
+  const logPrefix = `[CardSearch]`;
+  
+  console.log(`${logPrefix} Searching for: "${searchTerm}" in tenant: ${tenantId}`);
+
+  try {
+    // Search by full_name
+    const { data: byFullName } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        nickname,
+        position,
+        company,
+        tagline,
+        photo_url,
+        email,
+        phone,
+        website_url,
+        facebook_url,
+        instagram_url,
+        business_address,
+        status,
+        tenants!inner (tenant_name, logo_url)
+      `)
+      .eq("tenant_id", tenantId)
+      .ilike("full_name", `%${searchTerm}%`)
+      .limit(10);
+
+    // Search by nickname
+    const { data: byNickname } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        nickname,
+        position,
+        company,
+        tagline,
+        photo_url,
+        email,
+        phone,
+        website_url,
+        facebook_url,
+        instagram_url,
+        business_address,
+        status,
+        tenants!inner (tenant_name, logo_url)
+      `)
+      .eq("tenant_id", tenantId)
+      .ilike("nickname", `%${searchTerm}%`)
+      .limit(10);
+
+    // Combine and deduplicate results
+    const allResults = [...(byFullName || []), ...(byNickname || [])];
+    const uniqueMap = new Map();
+    for (const p of allResults) {
+      if (!uniqueMap.has(p.participant_id)) {
+        uniqueMap.set(p.participant_id, p);
+      }
+    }
+    const participants = Array.from(uniqueMap.values()).slice(0, 10);
+
+    if (participants.length === 0) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `❌ ไม่พบข้อมูลที่ตรงกับ "${searchTerm}"\n\nลองค้นหาด้วยชื่อหรือชื่อเล่นอื่น`
+      }, accessToken);
+      return;
+    }
+
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : "http://localhost:5000";
+
+    // If only one result, send single Business Card
+    if (participants.length === 1) {
+      const flexMessage = createBusinessCardFlexMessage(participants[0] as BusinessCardData, baseUrl);
+      await replyMessage(event.replyToken, flexMessage, accessToken);
+      console.log(`${logPrefix} Sent single card for ${participants[0].full_name}`);
+      return;
+    }
+
+    // Multiple results - send Carousel
+    const carouselContents = participants.map(p => {
+      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl);
+      return flexMessage.contents;
+    });
+
+    await replyMessage(event.replyToken, {
+      type: "flex",
+      altText: `พบ ${participants.length} รายการที่ตรงกับ "${searchTerm}"`,
+      contents: {
+        type: "carousel",
+        contents: carouselContents
+      }
+    }, accessToken);
+
+    console.log(`${logPrefix} Sent carousel with ${participants.length} cards`);
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error searching cards:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
+    }, accessToken);
+  }
+}
+
+/**
  * Send LINE reply message
  */
 async function replyMessage(

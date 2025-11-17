@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
-import { handleViewCard, handleMemberSearch } from "../../services/line/handlers/businessCardHandler";
+import { handleViewCard, handleMemberSearch, handleCardSearch } from "../../services/line/handlers/businessCardHandler";
 
 const router = Router();
 
@@ -117,21 +117,38 @@ async function processEvent(
 
   // Handle text messages
   if (event.type === "message" && event.message?.type === "text") {
-    const text = event.message.text.trim();
+    const text = event.message.text
+      .replace(/　/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const textLower = text.toLowerCase();
     
-    // Check for member search commands
+    console.log(`${logPrefix} Text message: "${text}"`);
+    
+    // Priority 1: Card search commands (must check BEFORE member search)
+    if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
+      const searchTerm = textLower.startsWith("card ") 
+        ? text.substring(5).trim() 
+        : text.substring(8).trim();
+      
+      console.log(`${logPrefix} Command: CARD_SEARCH, term: "${searchTerm}"`);
+      await handleCardSearch(event, tenantId, accessToken, searchTerm);
+      return;
+    }
+    
+    // Priority 2: Member search commands
     const searchPattern = /^(หา|ค้นหา|search)\s*สมาชิก\s+(.+)$/i;
     const match = text.match(searchPattern);
     
     if (match) {
       const searchTerm = match[2].trim();
+      console.log(`${logPrefix} Command: MEMBER_SEARCH, term: "${searchTerm}"`);
       await handleMemberSearch(event, tenantId, accessToken, searchTerm);
       return;
     }
 
     // Handle other text messages
-    console.log(`${logPrefix} Text message: ${text}`);
-    // Add more text message handlers here as needed
+    console.log(`${logPrefix} No matching command handler for: "${text}"`);
   }
 
   // Handle postback events
