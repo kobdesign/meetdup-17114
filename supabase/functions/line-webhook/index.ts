@@ -335,6 +335,8 @@ async function handleTextMessage(
     await sendGreeting(event, credentials, logPrefix);
   } else if (text.includes("help") || text.includes("ช่วยเหลือ") || text.includes("เมนู")) {
     await sendHelp(event, credentials, logPrefix);
+  } else if (text.includes("ลงทะเบียน") || text.includes("register") || text.includes("สมัครสมาชิก")) {
+    await sendLiffRegistration(event, credentials, logPrefix);
   } else if (text.includes("นามบัตร") || text.includes("business card") || text.includes("card")) {
     // Show Business Card - reuse handlePostbackProfile logic
     await handlePostbackProfile(event, supabase, credentials, logPrefix, new URLSearchParams());
@@ -862,12 +864,185 @@ async function sendHelp(event: LineEvent, credentials: TenantCredentials, logPre
     text: "📋 คำสั่งที่ใช้ได้:\n\n" +
           "กดปุ่มด้านล่างเพื่อเลือกคำสั่ง หรือพิมพ์:\n" +
           "• สวัสดี - ทักทาย\n" +
+          "• ลงทะเบียน - ลงทะเบียนและเชื่อมโยง LINE\n" +
           "• เมนู - แสดงคำสั่งนี้\n\n" +
           "💡 ติดต่อสอบถาม: support@meetdup.com"
   };
   
   const quickReply = getDefaultHelpQuickReply();
   await replyMessage(event.replyToken, message, credentials, logPrefix, quickReply);
+}
+
+async function sendLiffRegistration(event: LineEvent, credentials: TenantCredentials, logPrefix: string) {
+  console.log(`${logPrefix} Sending LIFF registration link`);
+
+  // @ts-ignore Deno runtime
+  const appUrl = Deno.env.get("APP_URL") || "https://meetdup.replit.app";
+  const liffId = Deno.env.get("LIFF_ID") || "";
+
+  if (!liffId) {
+    console.error(`${logPrefix} LIFF ID not configured`);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ ระบบลงทะเบียนยังไม่พร้อมใช้งาน\nกรุณาติดต่อผู้ดูแลระบบ"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  // Construct LIFF URL
+  const liffUrl = `https://liff.line.me/${liffId}`;
+
+  // Send Flex Message with registration link
+  const flexMessage = {
+    type: "flex",
+    altText: "ลงทะเบียนผ่าน LINE",
+    contents: {
+      type: "bubble",
+      hero: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: "📝 ลงทะเบียน",
+            size: "xxl",
+            weight: "bold",
+            color: "#ffffff",
+            align: "center"
+          },
+          {
+            type: "text",
+            text: "เชื่อมโยง LINE account ของคุณ",
+            size: "sm",
+            color: "#ffffff",
+            align: "center",
+            margin: "md"
+          }
+        ],
+        paddingAll: "20px",
+        backgroundColor: "#06C755",
+        spacing: "md"
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: "กดปุ่มด้านล่างเพื่อ:",
+            size: "sm",
+            color: "#666666",
+            margin: "md"
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            margin: "lg",
+            spacing: "sm",
+            contents: [
+              {
+                type: "box",
+                layout: "baseline",
+                spacing: "sm",
+                contents: [
+                  {
+                    type: "icon",
+                    url: "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gold_star_28.png",
+                    size: "sm"
+                  },
+                  {
+                    type: "text",
+                    text: "ลงทะเบียนสมาชิกใหม่",
+                    size: "sm",
+                    color: "#666666",
+                    flex: 0
+                  }
+                ]
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                spacing: "sm",
+                contents: [
+                  {
+                    type: "icon",
+                    url: "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gold_star_28.png",
+                    size: "sm"
+                  },
+                  {
+                    type: "text",
+                    text: "เชื่อมโยง LINE กับข้อมูลเดิม",
+                    size: "sm",
+                    color: "#666666",
+                    flex: 0
+                  }
+                ]
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                spacing: "sm",
+                contents: [
+                  {
+                    type: "icon",
+                    url: "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gold_star_28.png",
+                    size: "sm"
+                  },
+                  {
+                    type: "text",
+                    text: "รับการแจ้งเตือนผ่าน LINE",
+                    size: "sm",
+                    color: "#666666",
+                    flex: 0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            height: "sm",
+            action: {
+              type: "uri",
+              label: "เปิดแบบฟอร์มลงทะเบียน",
+              uri: liffUrl
+            },
+            color: "#06C755"
+          },
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              {
+                type: "icon",
+                url: "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gold_star_28.png",
+                size: "xxs"
+              },
+              {
+                type: "text",
+                text: "ใช้เบอร์โทรศัพท์ในการลงทะเบียน",
+                color: "#999999",
+                size: "xxs",
+                flex: 0
+              }
+            ],
+            margin: "md"
+          }
+        ],
+        flex: 0
+      }
+    }
+  };
+
+  await replyMessage(event.replyToken, flexMessage, credentials, logPrefix);
 }
 
 // Quick Reply factory functions

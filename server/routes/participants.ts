@@ -1714,4 +1714,274 @@ router.get("/profile/vcard", async (req: Request, res: Response) => {
   }
 });
 
+// LINE Registration: Lookup participant by phone (with LINE user awareness)
+router.post("/lookup-by-line-phone", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[lookup-by-line-phone:${requestId}]`;
+
+  try {
+    const { phone, line_user_id } = req.body;
+
+    console.log(`${logPrefix} Looking up participant for LINE registration`, {
+      phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
+      line_user_id_masked: line_user_id ? `${line_user_id.slice(0, 5)}...` : undefined,
+    });
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing phone number",
+        message: "Phone number is required",
+      });
+    }
+
+    // Normalize phone
+    const normalizedPhone = String(phone).replace(/\D/g, "");
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid phone number",
+        message: "Phone number must contain digits",
+      });
+    }
+
+    // Lookup participant by phone across ALL tenants
+    // (Since LINE registration doesn't have tenant context yet)
+    const { data: participants, error: lookupError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, tenant_id, full_name, email, phone, company, business_type, goal, notes, status, line_user_id")
+      .eq("phone", normalizedPhone);
+
+    if (lookupError) {
+      console.error(`${logPrefix} Error looking up participant:`, lookupError);
+      return res.status(500).json({
+        success: false,
+        error: "Database error",
+        message: lookupError.message,
+      });
+    }
+
+    if (!participants || participants.length === 0) {
+      console.log(`${logPrefix} No participant found`);
+      return res.json({
+        success: true,
+        found: false,
+        participant: null,
+      });
+    }
+
+    // If multiple participants found (different tenants), take the first one
+    // TODO: In future, allow user to select which tenant
+    const participant = participants[0];
+    console.log(`${logPrefix} Participant found (tenant: ${participant.tenant_id})`);
+
+    return res.json({
+      success: true,
+      found: true,
+      participant,
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Unexpected error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message,
+    });
+  }
+});
+
+// LINE Registration: Register new participant or link LINE User ID to existing
+router.post("/line-register", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[line-register:${requestId}]`;
+
+  try {
+    const {
+      line_user_id,
+      line_display_name,
+      line_picture_url,
+      phone,
+      full_name,
+      email,
+      company,
+      business_type,
+      goal,
+      notes,
+      is_update,
+      participant_id,
+    } = req.body;
+
+    console.log(`${logPrefix} LINE registration request (${is_update ? 'UPDATE' : 'INSERT'})`, {
+      line_user_id_masked: line_user_id ? `${line_user_id.slice(0, 5)}...` : undefined,
+      phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined,
+      is_update,
+    });
+
+    // Validate required fields
+    if (!line_user_id || !phone || !full_name || !email) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields",
+        message: "line_user_id, phone, full_name, and email are required",
+      });
+    }
+
+    // Normalize phone
+    const normalizedPhone = String(phone).replace(/\D/g, "");
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid phone number",
+        message: "Phone number must contain digits",
+      });
+    }
+
+    let result;
+
+    if (is_update && participant_id) {
+      // UPDATE MODE: Link LINE User ID to existing participant
+      console.log(`${logPrefix} Updating existing participant: ${participant_id}`);
+
+      // Verify participant exists
+      const { data: existing, error: checkError } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id, tenant_id, line_user_id")
+        .eq("participant_id", participant_id)
+        .single();
+
+      if (checkError || !existing) {
+        console.error(`${logPrefix} Participant not found:`, checkError);
+        return res.status(404).json({
+          success: false,
+          error: "Participant not found",
+          message: "The participant does not exist",
+        });
+      }
+
+      // Check if LINE User ID is already linked to different participant
+      if (existing.line_user_id && existing.line_user_id !== line_user_id) {
+        return res.status(409).json({
+          success: false,
+          error: "Already linked",
+          message: "This participant is already linked to a different LINE account",
+        });
+      }
+
+      // Update participant with LINE info
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from("participants")
+        .update({
+          line_user_id,
+          full_name,
+          email,
+          company: company || null,
+          business_type: business_type || null,
+          goal: goal || null,
+          notes: notes || null,
+          photo_url: line_picture_url || existing.photo_url,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("participant_id", participant_id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error(`${logPrefix} Update failed:`, updateError);
+        return res.status(500).json({
+          success: false,
+          error: "Update failed",
+          message: updateError.message,
+        });
+      }
+
+      console.log(`${logPrefix} Successfully linked LINE account to participant`);
+      result = updated;
+
+    } else {
+      // INSERT MODE: Create new participant with LINE User ID
+      console.log(`${logPrefix} Creating new participant with LINE link`);
+
+      // Check if LINE User ID is already used
+      const { data: existingLineUser } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id")
+        .eq("line_user_id", line_user_id)
+        .maybeSingle();
+
+      if (existingLineUser) {
+        return res.status(409).json({
+          success: false,
+          error: "LINE account already registered",
+          message: "This LINE account is already linked to another participant",
+        });
+      }
+
+      // Determine tenant_id
+      // For now, we'll need to pass tenant_id or derive it
+      // TODO: Get tenant from LIFF URL params
+      // For MVP, we'll fail if no tenant context
+      const { data: tenants } = await supabaseAdmin
+        .from("tenants")
+        .select("tenant_id")
+        .limit(1);
+
+      if (!tenants || tenants.length === 0) {
+        return res.status(500).json({
+          success: false,
+          error: "No tenant found",
+          message: "Unable to determine chapter. Please contact support.",
+        });
+      }
+
+      const tenant_id = tenants[0].tenant_id;
+
+      // Create new participant
+      const { data: newParticipant, error: insertError } = await supabaseAdmin
+        .from("participants")
+        .insert({
+          tenant_id,
+          line_user_id,
+          phone: normalizedPhone,
+          full_name,
+          email,
+          company: company || null,
+          business_type: business_type || null,
+          goal: goal || null,
+          notes: notes || null,
+          photo_url: line_picture_url || null,
+          status: "prospect",
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error(`${logPrefix} Insert failed:`, insertError);
+        return res.status(500).json({
+          success: false,
+          error: "Registration failed",
+          message: insertError.message,
+        });
+      }
+
+      console.log(`${logPrefix} Successfully created new participant with LINE link`);
+      result = newParticipant;
+    }
+
+    return res.json({
+      success: true,
+      message: is_update ? "LINE account linked successfully" : "Registration successful",
+      participant: result,
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Unexpected error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message,
+    });
+  }
+});
+
 export default router;
