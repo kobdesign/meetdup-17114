@@ -697,7 +697,7 @@ router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRe
       .from("participants")
       .select(`
         participant_id,
-        checkins!fk_checkins_participant (
+        checkins!checkins_participant_id_fkey (
           checkin_id
         )
       `)
@@ -721,7 +721,7 @@ router.get("/visitor-analytics", verifySupabaseAuth, async (req: AuthenticatedRe
       .from("checkins")
       .select(`
         checkin_id,
-        participant:participants!fk_checkins_participant!inner (
+        participant:participants!checkins_participant_id_fkey!inner (
           participant_id,
           status,
           tenant_id
@@ -875,10 +875,10 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
         .from("meeting_registrations")
         .select(`
           participant_id,
-          meeting:meetings!fk_meeting_registrations_meeting (
+          meeting:meetings!meeting_registrations_meeting_id_fkey (
             meeting_id,
             meeting_date,
-            start_time
+            meeting_time
           )
         `)
         .in("participant_id", participantIds)
@@ -916,7 +916,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
       return {
         ...p,
         upcoming_meeting_date: upcomingReg?.meeting?.meeting_date || null,
-        upcoming_meeting_time: upcomingReg?.meeting?.start_time || null,
+        upcoming_meeting_time: upcomingReg?.meeting?.meeting_time || null,
         referred_by_name: referredBy?.nickname || referredBy?.full_name || null,
         checkins_count: checkinCounts.get(p.participant_id) || 0
       };
