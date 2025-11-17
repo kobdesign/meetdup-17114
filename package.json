@@ -13,7 +13,11 @@
     "migrate:run": "tsx server/scripts/run-migration.ts",
     "migrate:recreate": "tsx server/scripts/run-migration.ts supabase/migrations/20251114_recreate_wide_tables.sql",
     "migrate:production": "tsx server/scripts/run-supabase-migration.ts",
-    "set-super-admin": "tsx server/scripts/set-super-admin.ts"
+    "set-super-admin": "tsx server/scripts/set-super-admin.ts",
+    "db:status": "tsx scripts/dbTools.ts status",
+    "db:check-sync": "tsx scripts/dbTools.ts check-sync",
+    "db:migrate-manual": "tsx scripts/dbTools.ts migrate-prod",
+    "db:list-migrations": "tsx scripts/dbTools.ts list-migrations"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",

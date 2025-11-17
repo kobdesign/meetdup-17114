@@ -4,10 +4,21 @@ import lineRouter from "./routes/line/index";
 import chaptersRouter from "./routes/chapters";
 import participantsRouter from "./routes/participants";
 import usersRouter from "./routes/users";
+import { performHealthCheck, printHealthCheckReport } from "./utils/dbHealthCheck";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Perform database health check on startup
+(async () => {
+  try {
+    const healthCheck = await performHealthCheck();
+    printHealthCheckReport(healthCheck);
+  } catch (error) {
+    console.error('❌ Health check failed:', error);
+  }
+})();
 
 // Health check endpoint
 app.get("/api/health", async (req, res) => {

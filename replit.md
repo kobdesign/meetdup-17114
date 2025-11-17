@@ -6,6 +6,163 @@ Meetdup is a comprehensive multi-tenant SaaS application designed to streamline 
 ## User Preferences
 None specified yet.
 
+## Database Management & Health Monitoring
+
+### Quick Reference
+**Always check database status when debugging!**
+```bash
+npm run db:status        # Check what database you're using
+npm run db:check-sync    # Verify schemas match
+```
+
+### The Problem We Solve
+- **Multiple Databases**: Local PostgreSQL (Replit) + Production Supabase
+- **Schema Drift**: Migrations run on local but not production
+- **Hard to Debug**: Not knowing which database is being used
+
+### Health Check System
+Every server startup now shows:
+```
+================================================================================
+🏥 DATABASE HEALTH CHECK
+================================================================================
+📋 ENVIRONMENT:
+   SUPABASE_URL: https://sbknunooplaezvwtyooi.supabase.co
+   DATABASE_URL: ✅ SET (ep-silent-bush-ah6um9gf.c-3.us-east-1.aws.neon.tech)
+
+🔌 CONNECTIONS:
+   Supabase (sbknunooplaezvwtyooi): ✅ Connected
+   PostgreSQL (neondb): ✅ Connected
+
+📊 SCHEMA STATUS:
+   Business Card Columns: ✅ All Present OR ❌ Missing Columns
+================================================================================
+```
+
+### Available Commands
+
+#### 1. Check Database Status
+```bash
+npm run db:status
+```
+Shows environment, connections, and schema sync status.
+
+#### 2. Verify Schema Sync
+```bash
+npm run db:check-sync
+```
+Checks if local and production schemas match. **Run this before deploying!**
+
+#### 3. Get Manual Migration Instructions
+```bash
+npm run db:migrate-manual
+```
+Shows step-by-step instructions for manually running migrations on Production Supabase.
+For safety, automated migrations are not supported - you must review and run SQL manually.
+
+#### 4. List All Migrations
+```bash
+npm run db:list-migrations
+```
+Shows all migration files (🎯 marks business card related).
+
+### Troubleshooting Guide
+
+#### ❌ "column does not exist" Error
+
+**Symptom**: Queries fail with `column participants.position does not exist`
+
+**Cause**: Migration not run on Production Supabase
+
+**Solution**:
+```bash
+# Check which database is missing columns
+npm run db:check-sync
+
+# If Supabase is out of sync, get migration instructions
+npm run db:migrate-manual
+
+# Follow the manual steps, then verify
+npm run db:check-sync
+```
+
+#### ❌ Wrong Database Being Used
+
+**Symptom**: Code works locally but not in production (or vice versa)
+
+**Solution**:
+```bash
+# Check environment variables
+npm run db:status
+
+# Look for:
+# ✅ SUPABASE_URL should be: https://sbknunooplaezvwtyooi.supabase.co
+# ✅ Both connections should show "Connected"
+```
+
+#### ❌ Schema Drift After Migration
+
+**Prevention**:
+1. Write migration file in `supabase/migrations/`
+2. Run on local: Automatic with Replit PostgreSQL
+3. Run on production: Follow `npm run db:migrate-manual` instructions
+4. Verify: `npm run db:check-sync`
+
+### Best Practices
+
+1. **Before Starting Work**
+   ```bash
+   npm run db:status  # Know your environment
+   ```
+
+2. **After Creating Migration**
+   ```bash
+   npm run db:migrate-manual  # Get instructions for production
+   # Follow manual steps in Supabase SQL Editor
+   npm run db:check-sync      # Verify
+   ```
+
+3. **When Debugging**
+   - Check server startup logs for health check results
+   - Run `npm run db:status` to verify environment
+   - Check which database query is failing against
+
+4. **Before Deployment**
+   ```bash
+   npm run db:check-sync  # Ensure schemas match
+   ```
+
+### Production Migration Process
+
+**All production migrations must be run manually** for safety and transparency.
+
+1. Run the migration helper:
+   ```bash
+   npm run db:migrate-manual
+   ```
+
+2. This will show you:
+   - Direct link to Supabase SQL Editor
+   - Migration file path
+   - SQL preview
+   - Step-by-step instructions
+
+3. Follow the displayed steps to:
+   - Open Supabase SQL Editor
+   - Copy SQL from the migration file
+   - Review the SQL changes
+   - Paste and click "Run"
+
+4. Verify the migration worked:
+   ```bash
+   npm run db:check-sync
+   ```
+
+**Why manual migrations?**
+- **Safety**: Review SQL before execution
+- **Transparency**: See exactly what changes
+- **Rollback-friendly**: Can undo via Supabase dashboard
+
 ## System Architecture
 
 ### Technology Stack
