@@ -881,12 +881,29 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
             meeting_time
           )
         `)
-        .in("participant_id", participantIds)
-        .gte("meeting.meeting_date", new Date().toISOString().split('T')[0])
-        .order("meeting.meeting_date", { ascending: true });
+        .in("participant_id", participantIds);
 
-      if (!regError && registrations) {
-        upcomingMeetings = registrations;
+      if (regError) {
+        console.error("[visitor-pipeline] Error fetching meeting registrations:", regError);
+      }
+
+      if (registrations) {
+        const today = new Date().toISOString().split('T')[0];
+        
+        upcomingMeetings = registrations
+          .filter(r => {
+            const meeting = r.meeting as any;
+            return meeting && meeting.meeting_date && meeting.meeting_date >= today;
+          })
+          .sort((a, b) => {
+            const meetingA = a.meeting as any;
+            const meetingB = b.meeting as any;
+            const dateA = new Date(meetingA.meeting_date).getTime();
+            const dateB = new Date(meetingB.meeting_date).getTime();
+            return dateA - dateB;
+          });
+        
+        console.log(`[visitor-pipeline] Found ${upcomingMeetings.length} upcoming meeting registrations from ${registrations.length} total`);
       }
     }
 
@@ -908,15 +925,27 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
 
     // Combine data: add upcoming meeting, referred_by info, and checkins count to each participant
     const enrichedParticipants = participants?.map((p: any) => {
-      const upcomingReg = upcomingMeetings.find(r => r.participant_id === p.participant_id);
+      const participantUpcomingMeetings = upcomingMeetings
+        .filter(r => r.participant_id === p.participant_id)
+        .sort((a, b) => {
+          const meetingA = a.meeting as any;
+          const meetingB = b.meeting as any;
+          const dateA = new Date(meetingA.meeting_date).getTime();
+          const dateB = new Date(meetingB.meeting_date).getTime();
+          return dateA - dateB;
+        });
+      
+      const upcomingReg = participantUpcomingMeetings[0];
+      const upcomingMeeting = upcomingReg?.meeting as any;
+      
       const referredBy = p.referred_by_participant_id 
         ? referredByMap.get(p.referred_by_participant_id)
         : null;
       
       return {
         ...p,
-        upcoming_meeting_date: upcomingReg?.meeting?.meeting_date || null,
-        upcoming_meeting_time: upcomingReg?.meeting?.meeting_time || null,
+        upcoming_meeting_date: upcomingMeeting?.meeting_date || null,
+        upcoming_meeting_time: upcomingMeeting?.meeting_time || null,
         referred_by_name: referredBy?.nickname || referredBy?.full_name || null,
         checkins_count: checkinCounts.get(p.participant_id) || 0
       };
