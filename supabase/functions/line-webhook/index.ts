@@ -474,7 +474,7 @@ async function handleGroupJoin(event: LineEvent, supabase: any, credentials: Ten
   
   await replyMessage(event.replyToken, {
     type: "text",
-    text: "สวัสดีครับ! ผมคือ BNI Assistant Bot 🤖\n\nพิมพ์ 'เมนู' เพื่อดูคำสั่งที่ใช้ได้"
+    text: "สวัสดีครับ! ผมคือ Meetdup Assistant Bot 🤖\n\nพิมพ์ 'เมนู' เพื่อดูคำสั่งที่ใช้ได้"
   }, credentials, logPrefix);
 }
 
@@ -492,7 +492,7 @@ async function handleCheckIn(event: LineEvent, supabase: any, credentials: Tenan
 async function sendGreeting(event: LineEvent, credentials: TenantCredentials, logPrefix: string) {
   const message = {
     type: "text",
-    text: "สวัสดีครับ! ยินดีต้อนรับสู่ BNI Meetdup 🎉\n\nกดปุ่มด้านล่างเพื่อเริ่มต้นใช้งาน"
+    text: "สวัสดีครับ! ยินดีต้อนรับสู่ Meetdup 🎉\n\nกดปุ่มด้านล่างเพื่อเริ่มต้นใช้งาน"
   };
   
   const quickReply = getDefaultHelpQuickReply();
@@ -691,7 +691,7 @@ function createBusinessCardFlexMessage(participant: any): any {
           },
           {
             type: "text",
-            text: participant.chapter_name || "BNI",
+            text: participant.chapter_name || "Meetdup",
             size: "sm",
             color: "#ffffff",
             margin: "xs"
@@ -828,7 +828,7 @@ function createBusinessCardFlexMessage(participant: any): any {
         contents: [
           {
             type: "text",
-            text: "Powered by BNI Meetdup",
+            text: "Powered by Meetdup",
             size: "xxs",
             color: "#999999",
             align: "center"

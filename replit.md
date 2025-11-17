@@ -1,7 +1,7 @@
-# Meetdup - BNI Chapter Management System
+# Meetdup - Chapter Management System
 
 ## Overview
-Meetdup is a comprehensive multi-tenant SaaS application designed to streamline and manage BNI (Business Network International) chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for BNI chapters, offering a tailored experience through multi-tenancy and role-based access control.
+Meetdup is a comprehensive multi-tenant SaaS application designed to streamline and manage business networking chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for business chapters, offering a tailored experience through multi-tenancy and role-based access control.
 
 ## User Preferences
 None specified yet.
