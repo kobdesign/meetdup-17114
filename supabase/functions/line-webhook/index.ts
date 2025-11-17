@@ -170,6 +170,15 @@ serve(async (req) => {
     const destination = payload.destination;
     const events: LineEvent[] = payload.events || [];
 
+    // Handle LINE webhook verification request (empty events or no destination)
+    if ((!events || events.length === 0) && !isInternalTest) {
+      console.log(`${logPrefix} LINE verification request detected (empty events)`);
+      return new Response(
+        JSON.stringify({ success: true, message: "Webhook endpoint verified" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (isInternalTest) {
       console.log(`${logPrefix} Internal test mode - bypassing signature validation`);
       console.log(`${logPrefix} Received ${events.length} test events`);
