@@ -436,17 +436,9 @@ async function handleTextMessage(
     }
   }
 
-  // Regular command parsing
-  if (textLower.includes("สวัสดี") || textLower.includes("hello") || textLower.includes("hi")) {
-    console.log(`${logPrefix} Command: GREETING`);
-    await sendGreeting(event, credentials, logPrefix);
-  } else if (textLower.includes("help") || textLower.includes("ช่วยเหลือ") || textLower.includes("เมนู")) {
-    console.log(`${logPrefix} Command: HELP`);
-    await sendHelp(event, credentials, logPrefix);
-  } else if (textLower.includes("ลงทะเบียน") || textLower.includes("register") || textLower.includes("เชื่อมต่อ")) {
-    console.log(`${logPrefix} Command: REGISTER`);
-    await startPhoneLinkingFlow(event, credentials, logPrefix, userId);
-  } else if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
+  // Regular command parsing - ORDER MATTERS!
+  // Check specific commands (startsWith) BEFORE generic keywords (includes)
+  if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
     console.log(`${logPrefix} Command: CARD_SEARCH`);
     // Search business card: "card กบ" or "นามบัตร สมชาย"
     const searchTerm = textLower.startsWith("card ") 
@@ -471,12 +463,21 @@ async function handleTextMessage(
         text: "💼 วิธีใช้:\n\nพิมพ์ card ตามด้วยชื่อที่ต้องการค้นหา\n\nตัวอย่าง:\n• card กบ\n• card สมชาย\n• นามบัตร จอห์น"
       }, credentials, logPrefix);
     }
+  } else if (textLower.includes("ลงทะเบียน") || textLower.includes("register") || textLower.includes("เชื่อมต่อ")) {
+    console.log(`${logPrefix} Command: REGISTER`);
+    await startPhoneLinkingFlow(event, credentials, logPrefix, userId);
   } else if (textLower.includes("นามบัตร") || textLower.includes("business card")) {
     console.log(`${logPrefix} Command: MY_CARD`);
     await handlePostbackProfile(event, supabase, credentials, logPrefix, new URLSearchParams());
   } else if (textLower.includes("เช็คอิน") || textLower.includes("checkin") || textLower.includes("check-in")) {
     console.log(`${logPrefix} Command: CHECKIN`);
     await handleCheckIn(event, supabase, credentials, logPrefix);
+  } else if (textLower.includes("help") || textLower.includes("ช่วยเหลือ") || textLower.includes("เมนู")) {
+    console.log(`${logPrefix} Command: HELP`);
+    await sendHelp(event, credentials, logPrefix);
+  } else if (textLower.includes("สวัสดี") || textLower.includes("hello") || textLower.includes("hi")) {
+    console.log(`${logPrefix} Command: GREETING`);
+    await sendGreeting(event, credentials, logPrefix);
   } else {
     console.log(`${logPrefix} Command: UNKNOWN -> HELP`);
     await sendHelp(event, credentials, logPrefix);
