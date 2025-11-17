@@ -291,6 +291,9 @@ async function handleTextMessage(
     await sendGreeting(event, credentials, logPrefix);
   } else if (text.includes("help") || text.includes("ช่วยเหลือ") || text.includes("เมนู")) {
     await sendHelp(event, credentials, logPrefix);
+  } else if (text.includes("นามบัตร") || text.includes("business card") || text.includes("card")) {
+    // Show Business Card - reuse handlePostbackProfile logic
+    await handlePostbackProfile(event, supabase, credentials, logPrefix, new URLSearchParams());
   } else if (text.includes("เช็คอิน") || text.includes("checkin") || text.includes("check-in")) {
     await handleCheckIn(event, supabase, credentials, logPrefix);
   } else {
