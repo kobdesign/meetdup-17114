@@ -438,14 +438,17 @@ export default function Visitors() {
         visitor={selectedVisitor}
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        onUpdate={(updatedVisitor) => {
-          // Refresh the full list
-          loadVisitors();
+        onUpdate={async (participantId) => {
+          // Refresh the full list and wait for fresh data
+          const freshVisitors = await loadVisitors();
           loadAnalytics();
           
-          // Update the selected visitor with fresh data if provided
-          if (updatedVisitor) {
-            setSelectedVisitor(updatedVisitor);
+          // Find and update the selected visitor with complete data (including referred_by_name)
+          if (participantId && freshVisitors.length > 0) {
+            const updatedVisitor = freshVisitors.find(v => v.participant_id === participantId);
+            if (updatedVisitor) {
+              setSelectedVisitor(updatedVisitor);
+            }
           }
         }}
       />

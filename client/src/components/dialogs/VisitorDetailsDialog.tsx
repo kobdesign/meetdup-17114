@@ -17,7 +17,7 @@ interface VisitorDetailsDialogProps {
   visitor: any | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpdate: (updatedVisitor?: any) => void;
+  onUpdate: (participantId?: string) => void | Promise<void>;
 }
 
 export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: VisitorDetailsDialogProps) {
@@ -138,8 +138,8 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
       toast.success("อัปเดตข้อมูลสำเร็จ");
       setIsEditMode(false);
       
-      // Pass updated participant back to parent to refresh selected visitor
-      onUpdate(result.participant);
+      // Pass participant ID back to parent to fetch fresh data
+      await onUpdate(visitor.participant_id);
     } catch (error: any) {
       console.error("Error updating participant:", error);
       toast.error(error.message || "เกิดข้อผิดพลาดในการอัปเดตข้อมูล");
