@@ -805,31 +805,29 @@ async function searchAndShowBusinessCard(
 ) {
   console.log(`${logPrefix} Searching participants with term: "${searchTerm}"`);
 
-  // Search by first_name or nickname (case-insensitive)
+  // Search by full_name or nickname (case-insensitive)
   const { data: participants, error } = await supabase
     .from("participants")
     .select(`
       participant_id,
-      first_name,
-      last_name,
-      nickname,
       full_name,
+      nickname,
       email,
       phone,
-      position,
       company,
-      website_url,
-      avatar_url,
+      business_type,
+      goal,
       status,
+      line_user_id,
       tenants!inner (
         tenant_name,
         logo_url
       )
     `)
     .eq("tenant_id", credentials.tenantId)
-    .or(`first_name.ilike.%${searchTerm}%,nickname.ilike.%${searchTerm}%`)
+    .or(`full_name.ilike.%${searchTerm}%,nickname.ilike.%${searchTerm}%`)
     .order("status", { ascending: true })
-    .order("first_name", { ascending: true })
+    .order("full_name", { ascending: true })
     .limit(10);
 
   if (error) {
