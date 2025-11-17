@@ -34,11 +34,10 @@ async function setupDevelopmentServer(app: Express) {
     
     const vite = await createViteServer({
       server: { 
-        middlewareMode: true,
-        hmr: false,
-        watch: {
-          usePolling: true,
-        },
+        middlewareMode: true, 
+        hmr: {
+          port: 24678,
+        }
       },
       appType: "custom",
     });

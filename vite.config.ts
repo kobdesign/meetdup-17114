@@ -3,30 +3,23 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-export default defineConfig(({ mode }) => {
-  return {
-    root: "./client",
-    build: {
-      outDir: "../dist/client",
-      emptyOutDir: true,
+export default defineConfig(({ mode }) => ({
+  root: "./client",
+  build: {
+    outDir: "../dist/client",
+    emptyOutDir: true,
+  },
+  server: {
+    allowedHosts: true,
+  },
+  plugins: [
+    react(),
+    mode === "development" && componentTagger(),
+  ].filter(Boolean),
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./client/src"),
+      "@assets": path.resolve(__dirname, "./attached_assets"),
     },
-    server: {
-      host: "0.0.0.0",
-      allowedHosts: true,
-      hmr: false,
-      watch: {
-        usePolling: true,
-      },
-    },
-    plugins: [
-      react(),
-      mode === "development" && componentTagger(),
-    ].filter(Boolean),
-    resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./client/src"),
-        "@assets": path.resolve(__dirname, "./attached_assets"),
-      },
-    },
-  };
-});
+  },
+}));
