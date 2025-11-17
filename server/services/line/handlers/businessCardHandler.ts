@@ -222,7 +222,7 @@ export async function handleCardSearch(
         instagram_url,
         business_address,
         status,
-        tenants!inner (tenant_name, logo_url)
+        tenants!participants_tenant_id_fkey (tenant_name, logo_url)
       `)
       .eq("tenant_id", tenantId)
       .ilike("full_name", `%${searchTerm}%`)
@@ -246,7 +246,7 @@ export async function handleCardSearch(
         instagram_url,
         business_address,
         status,
-        tenants!inner (tenant_name, logo_url)
+        tenants!participants_tenant_id_fkey (tenant_name, logo_url)
       `)
       .eq("tenant_id", tenantId)
       .ilike("nickname", `%${searchTerm}%`)
