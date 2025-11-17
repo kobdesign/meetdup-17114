@@ -221,8 +221,7 @@ export async function handleCardSearch(
         facebook_url,
         instagram_url,
         business_address,
-        status,
-        tenants!participants_tenant_id_fkey (tenant_name, logo_url)
+        status
       `)
       .eq("tenant_id", tenantId)
       .ilike("full_name", `%${searchTerm}%`)
@@ -250,8 +249,7 @@ export async function handleCardSearch(
         facebook_url,
         instagram_url,
         business_address,
-        status,
-        tenants!participants_tenant_id_fkey (tenant_name, logo_url)
+        status
       `)
       .eq("tenant_id", tenantId)
       .ilike("nickname", `%${searchTerm}%`)
@@ -284,30 +282,43 @@ export async function handleCardSearch(
       ? `https://${process.env.REPLIT_DEV_DOMAIN}`
       : "http://localhost:5000";
 
+    // Get tenant info separately
+    const { data: tenantInfo } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, logo_url")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    // Add tenant info to participants
+    const participantsWithTenant = participants.map(p => ({
+      ...p,
+      tenants: tenantInfo
+    }));
+
     // If only one result, send single Business Card
-    if (participants.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(participants[0] as BusinessCardData, baseUrl);
+    if (participantsWithTenant.length === 1) {
+      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl);
       await replyMessage(event.replyToken, flexMessage, accessToken);
-      console.log(`${logPrefix} Sent single card for ${participants[0].full_name}`);
+      console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name}`);
       return;
     }
 
     // Multiple results - send Carousel
-    const carouselContents = participants.map(p => {
+    const carouselContents = participantsWithTenant.map(p => {
       const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl);
       return flexMessage.contents;
     });
 
     await replyMessage(event.replyToken, {
       type: "flex",
-      altText: `พบ ${participants.length} รายการที่ตรงกับ "${searchTerm}"`,
+      altText: `พบ ${participantsWithTenant.length} รายการที่ตรงกับ "${searchTerm}"`,
       contents: {
         type: "carousel",
         contents: carouselContents
       }
     }, accessToken);
 
-    console.log(`${logPrefix} Sent carousel with ${participants.length} cards`);
+    console.log(`${logPrefix} Sent carousel with ${participantsWithTenant.length} cards`);
 
   } catch (error: any) {
     console.error(`${logPrefix} Error searching cards:`, error);
