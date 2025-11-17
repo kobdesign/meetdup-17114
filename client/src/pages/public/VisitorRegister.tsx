@@ -245,7 +245,7 @@ export default function VisitorRegister() {
           });
         }, 1000);
       } else {
-        toast.success("ลงทะเบียนสำเร็จ! ยินดีต้อนรับสู่ชุมชน BNI");
+        toast.success("ลงทะเบียนสำเร็จ! ยินดีต้อนรับสู่ชุมชน Meetdup");
         setSuccess(true);
       }
     } catch (error: any) {
@@ -290,7 +290,7 @@ export default function VisitorRegister() {
             </div>
             <h1 className="text-2xl font-bold">ลงทะเบียนสำเร็จ!</h1>
             <p className="text-muted-foreground">
-              ยินดีต้อนรับสู่ชุมชน BNI<br />
+              ยินดีต้อนรับสู่ชุมชน Meetdup<br />
               {tenant.tenant_name}
             </p>
             <Button
@@ -520,7 +520,7 @@ export default function VisitorRegister() {
                 id="goal"
                 value={formData.goal}
                 onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                placeholder="คุณหวังอะไรจากการเข้าร่วม BNI?"
+                placeholder="คุณหวังอะไรจากการเข้าร่วม Meetdup?"
                 rows={3}
                 data-testid="input-goal"
               />

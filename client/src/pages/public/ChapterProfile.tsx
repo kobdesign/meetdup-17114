@@ -141,7 +141,7 @@ export default function ChapterProfile() {
             <div>
               <h1 className="text-3xl font-bold">{chapter.name}</h1>
               <p className="text-muted-foreground">
-                BNI Chapter
+                Meetdup Chapter
               </p>
             </div>
           </div>
@@ -159,8 +159,8 @@ export default function ChapterProfile() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                BNI (Business Network International) เป็นองค์กรเครือข่ายธุรกิจที่ใหญ่ที่สุดในโลก
-                ที่ช่วยให้ผู้ประกอบการสร้างโอกาสทางธุรกิจผ่านการแนะนำลูกค้า
+                Meetdup เป็นแพลตฟอร์มจัดการองค์กรเครือข่ายธุรกิจ
+                ที่ช่วยให้ผู้ประกอบการสร้างโอกาสทางธุรกิจผ่านการแนะนำลูกค้าและความร่วมมือ
               </p>
             </CardContent>
           </Card>
@@ -265,7 +265,7 @@ export default function ChapterProfile() {
       <footer className="border-t mt-12 py-6">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>&copy; 2024 {chapter.name}. All rights reserved.</p>
-          <p className="mt-1">Powered by BNI Management System</p>
+          <p className="mt-1">Powered by Meetdup</p>
         </div>
       </footer>
     </div>

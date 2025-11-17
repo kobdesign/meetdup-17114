@@ -34,7 +34,7 @@ export default function Welcome() {
       <div className="w-full max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            ยินดีต้อนรับสู่ BNI Management
+            ยินดีต้อนรับสู่ Meetdup
           </h1>
           <p className="text-muted-foreground">
             เริ่มต้นใช้งานด้วยการสร้าง Chapter ใหม่หรือเข้าร่วม Chapter ที่มีอยู่

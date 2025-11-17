@@ -285,7 +285,7 @@ export default function VisitorRegistrationDialog({
 
       const data = await response.json();
 
-      toast.success("ลงทะเบียนสำเร็จ! ยินดีต้อนรับสู่ชุมชน BNI");
+      toast.success("ลงทะเบียนสำเร็จ! ยินดีต้อนรับสู่ชุมชน Meetdup");
       
       // Close dialog after successful registration
       setTimeout(() => {
@@ -615,12 +615,12 @@ export default function VisitorRegistrationDialog({
           </div>
 
           <div>
-            <Label htmlFor="goal">เป้าหมายในการเข้าร่วม BNI</Label>
+            <Label htmlFor="goal">เป้าหมายในการเข้าร่วม Meetdup</Label>
             <Textarea
               id="goal"
               value={formData.goal}
               onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-              placeholder="บอกเราว่าคุณมีเป้าหมายอย่างไรในการเข้าร่วม BNI"
+              placeholder="บอกเราว่าคุณมีเป้าหมายอย่างไรในการเข้าร่วม Meetdup"
               rows={3}
             />
           </div>

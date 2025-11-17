@@ -221,7 +221,7 @@ export default function Settings() {
                 id="tenant_name"
                 value={tenantName}
                 onChange={(e) => setTenantName(e.target.value)}
-                placeholder="BNI Bangkok Central"
+                placeholder="Meetdup Bangkok Central"
                 className="mt-2"
               />
             </div>

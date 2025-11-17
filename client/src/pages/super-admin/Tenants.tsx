@@ -81,7 +81,7 @@ export default function Tenants() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Tenants</h1>
-            <p className="text-muted-foreground">Manage BNI chapters</p>
+            <p className="text-muted-foreground">Manage Meetdup chapters</p>
           </div>
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />

@@ -111,7 +111,7 @@ export default function CreateChapter() {
                         <FormLabel>ชื่อ Chapter</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="BNI Bangkok Central"
+                            placeholder="Meetdup Bangkok Central"
                             {...field}
                             data-testid="input-chapter-name"
                           />

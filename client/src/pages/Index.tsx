@@ -34,7 +34,7 @@ const Index = () => {
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            BNI Chapter Management
+            Meetdup
           </h1>
           <p className="text-xl text-muted-foreground mb-8">
             Streamline your chapter operations with powerful tools

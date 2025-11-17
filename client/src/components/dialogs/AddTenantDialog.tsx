@@ -119,7 +119,7 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
         <DialogHeader>
           <DialogTitle>เพิ่ม Tenant ใหม่</DialogTitle>
           <DialogDescription>
-            สร้าง BNI Chapter ใหม่พร้อมตั้งค่าเริ่มต้น
+            สร้าง Meetdup Chapter ใหม่พร้อมตั้งค่าเริ่มต้น
           </DialogDescription>
         </DialogHeader>
         
@@ -129,7 +129,7 @@ export default function AddTenantDialog({ open, onOpenChange, onSuccess }: AddTe
               <Label htmlFor="tenant_name">ชื่อ Chapter *</Label>
               <Input
                 id="tenant_name"
-                placeholder="BNI Bangkok Central"
+                placeholder="Meetdup Bangkok Central"
                 value={formData.tenant_name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 required
