@@ -399,13 +399,24 @@ async function handleTextMessage(
   credentials: TenantCredentials,
   logPrefix: string
 ) {
-  const text = event.message?.text?.trim() || "";
-  const textLower = text.toLowerCase();
+  const rawText = event.message?.text || "";
   const userId = event.source.userId;
   const groupId = event.source.groupId;
   const isGroup = event.source.type === "group";
 
-  console.log(`${logPrefix} Text: "${text}" from ${isGroup ? "group" : "user"}`);
+  // Normalize text: replace full-width spaces, normalize spaces, trim
+  const text = rawText
+    .replace(/　/g, ' ')  // Full-width space to normal space
+    .replace(/\s+/g, ' ')  // Multiple spaces to single space
+    .trim();
+  const textLower = text.toLowerCase();
+
+  // DEBUG: Log exact input with character codes
+  console.log(`${logPrefix} Raw text: "${rawText}" (length: ${rawText.length})`);
+  console.log(`${logPrefix} Normalized: "${text}" (length: ${text.length})`);
+  console.log(`${logPrefix} Lowercase: "${textLower}"`);
+  console.log(`${logPrefix} Char codes: ${Array.from(text.slice(0, 20)).map(c => c.charCodeAt(0)).join(',')}`);
+  console.log(`${logPrefix} From: ${isGroup ? "group" : "user"}`);
 
   if (!userId) {
     console.error(`${logPrefix} No userId found`);
@@ -427,20 +438,33 @@ async function handleTextMessage(
 
   // Regular command parsing
   if (textLower.includes("สวัสดี") || textLower.includes("hello") || textLower.includes("hi")) {
+    console.log(`${logPrefix} Command: GREETING`);
     await sendGreeting(event, credentials, logPrefix);
   } else if (textLower.includes("help") || textLower.includes("ช่วยเหลือ") || textLower.includes("เมนู")) {
+    console.log(`${logPrefix} Command: HELP`);
     await sendHelp(event, credentials, logPrefix);
   } else if (textLower.includes("ลงทะเบียน") || textLower.includes("register") || textLower.includes("เชื่อมต่อ")) {
-    // Start phone linking flow
+    console.log(`${logPrefix} Command: REGISTER`);
     await startPhoneLinkingFlow(event, credentials, logPrefix, userId);
   } else if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
+    console.log(`${logPrefix} Command: CARD_SEARCH`);
     // Search business card: "card กบ" or "นามบัตร สมชาย"
     const searchTerm = textLower.startsWith("card ") 
       ? text.substring(5).trim() 
       : text.substring(8).trim();
     
+    console.log(`${logPrefix} Search term: "${searchTerm}" (length: ${searchTerm.length})`);
+    
     if (searchTerm) {
-      await searchAndShowBusinessCard(event, searchTerm, supabase, credentials, logPrefix);
+      try {
+        await searchAndShowBusinessCard(event, searchTerm, supabase, credentials, logPrefix);
+      } catch (error) {
+        console.error(`${logPrefix} Search error (caught):`, error);
+        await replyMessage(event.replyToken, {
+          type: "text",
+          text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง\n\nหากปัญหายังคงอยู่ กรุณาติดต่อผู้ดูแลระบบ"
+        }, credentials, logPrefix);
+      }
     } else {
       await replyMessage(event.replyToken, {
         type: "text",
@@ -448,11 +472,13 @@ async function handleTextMessage(
       }, credentials, logPrefix);
     }
   } else if (textLower.includes("นามบัตร") || textLower.includes("business card")) {
-    // Show own business card
+    console.log(`${logPrefix} Command: MY_CARD`);
     await handlePostbackProfile(event, supabase, credentials, logPrefix, new URLSearchParams());
   } else if (textLower.includes("เช็คอิน") || textLower.includes("checkin") || textLower.includes("check-in")) {
+    console.log(`${logPrefix} Command: CHECKIN`);
     await handleCheckIn(event, supabase, credentials, logPrefix);
   } else {
+    console.log(`${logPrefix} Command: UNKNOWN -> HELP`);
     await sendHelp(event, credentials, logPrefix);
   }
 }
@@ -803,9 +829,13 @@ async function searchAndShowBusinessCard(
   credentials: TenantCredentials,
   logPrefix: string
 ) {
-  console.log(`${logPrefix} Searching participants with term: "${searchTerm}"`);
+  console.log(`${logPrefix} === SEARCH START ===`);
+  console.log(`${logPrefix} Search term: "${searchTerm}"`);
+  console.log(`${logPrefix} Tenant ID: ${credentials.tenantId}`);
+  console.log(`${logPrefix} Search term char codes: ${Array.from(searchTerm).map(c => c.charCodeAt(0)).join(',')}`);
 
   // Search by full_name (first query)
+  console.log(`${logPrefix} Querying full_name with ILIKE: %${searchTerm}%`);
   const { data: byFullName, error: error1 } = await supabase
     .from("participants")
     .select(`
@@ -828,7 +858,10 @@ async function searchAndShowBusinessCard(
     .ilike("full_name", `%${searchTerm}%`)
     .limit(10);
 
+  console.log(`${logPrefix} Full name query: found ${byFullName?.length || 0} results, error: ${error1 ? JSON.stringify(error1) : 'none'}`);
+
   // Search by nickname (second query)
+  console.log(`${logPrefix} Querying nickname with ILIKE: %${searchTerm}%`);
   const { data: byNickname, error: error2 } = await supabase
     .from("participants")
     .select(`
@@ -851,8 +884,10 @@ async function searchAndShowBusinessCard(
     .ilike("nickname", `%${searchTerm}%`)
     .limit(10);
 
+  console.log(`${logPrefix} Nickname query: found ${byNickname?.length || 0} results, error: ${error2 ? JSON.stringify(error2) : 'none'}`);
+
   if (error1 || error2) {
-    console.error(`${logPrefix} Search error:`, error1 || error2);
+    console.error(`${logPrefix} Search error:`, JSON.stringify(error1 || error2));
     await replyMessage(event.replyToken, {
       type: "text",
       text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
