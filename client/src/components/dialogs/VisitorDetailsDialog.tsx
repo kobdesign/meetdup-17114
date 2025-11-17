@@ -1,0 +1,348 @@
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Mail, Phone, Building2, Briefcase, UserCircle, Calendar, Edit2, Save, X } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+interface VisitorDetailsDialogProps {
+  visitor: any | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdate: (updatedVisitor?: any) => void;
+}
+
+export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: VisitorDetailsDialogProps) {
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    company: "",
+    business_type: "",
+    status: "prospect",
+  });
+
+  // Reset edit mode when dialog closes or visitor changes
+  useEffect(() => {
+    if (!open) {
+      setIsEditMode(false);
+    }
+  }, [open]);
+
+  // Initialize form when visitor changes
+  useEffect(() => {
+    if (visitor) {
+      setFormData({
+        full_name: visitor.full_name || "",
+        email: visitor.email || "",
+        phone: visitor.phone || "",
+        company: visitor.company || "",
+        business_type: visitor.business_type || "",
+        status: visitor.status || "prospect",
+      });
+      // Reset to view mode when visitor changes
+      setIsEditMode(false);
+    }
+  }, [visitor]);
+
+  const handleEdit = () => {
+    setFormData({
+      full_name: visitor.full_name || "",
+      email: visitor.email || "",
+      phone: visitor.phone || "",
+      company: visitor.company || "",
+      business_type: visitor.business_type || "",
+      status: visitor.status || "prospect",
+    });
+    setIsEditMode(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditMode(false);
+    setFormData({
+      full_name: visitor.full_name || "",
+      email: visitor.email || "",
+      phone: visitor.phone || "",
+      company: visitor.company || "",
+      business_type: visitor.business_type || "",
+      status: visitor.status || "prospect",
+    });
+  };
+
+  const handleSave = async () => {
+    if (!visitor) return;
+
+    setIsSaving(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) {
+        toast.error("กรุณาเข้าสู่ระบบ");
+        return;
+      }
+
+      const response = await fetch(`/api/participants/${visitor.participant_id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update participant");
+      }
+
+      const result = await response.json();
+      toast.success("อัปเดตข้อมูลสำเร็จ");
+      setIsEditMode(false);
+      
+      // Pass updated participant back to parent to refresh selected visitor
+      onUpdate(result.participant);
+    } catch (error: any) {
+      console.error("Error updating participant:", error);
+      toast.error(error.message || "เกิดข้อผิดพลาดในการอัปเดตข้อมูล");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!visitor) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center justify-between gap-4">
+            <DialogTitle className="text-xl">
+              {isEditMode ? "แก้ไขข้อมูล" : "รายละเอียด"} Visitor
+            </DialogTitle>
+            {!isEditMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEdit}
+                data-testid="button-edit-visitor"
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                แก้ไข
+              </Button>
+            )}
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Status Badge */}
+          <div className="flex items-center gap-2">
+            <Label>สถานะ:</Label>
+            {isEditMode ? (
+              <Select
+                value={formData.status}
+                onValueChange={(value) => setFormData({ ...formData, status: value })}
+              >
+                <SelectTrigger className="w-40" data-testid="select-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="visitor">Visitor</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="declined">Declined</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <StatusBadge status={visitor.status} />
+            )}
+          </div>
+
+          {/* Personal Info */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <UserCircle className="w-4 h-4" />
+              ข้อมูลส่วนตัว
+            </div>
+            
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="full_name">ชื่อ-นามสกุล *</Label>
+                {isEditMode ? (
+                  <Input
+                    id="full_name"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    data-testid="input-full-name"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <UserCircle className="w-4 h-4 text-muted-foreground" />
+                    <span>{visitor.full_name || "-"}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">เบอร์โทรศัพท์ *</Label>
+                {isEditMode ? (
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    data-testid="input-phone"
+                    disabled
+                    className="bg-muted"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-muted-foreground" />
+                    <span>{visitor.phone || "-"}</span>
+                  </div>
+                )}
+                {isEditMode && (
+                  <p className="text-xs text-muted-foreground">
+                    เบอร์โทรศัพท์ไม่สามารถแก้ไขได้
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">อีเมล</Label>
+                {isEditMode ? (
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    data-testid="input-email"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    <span>{visitor.email || "-"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Business Info */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Building2 className="w-4 h-4" />
+              ข้อมูลธุรกิจ
+            </div>
+
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="company">บริษัท/ธุรกิจ</Label>
+                {isEditMode ? (
+                  <Input
+                    id="company"
+                    value={formData.company}
+                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                    data-testid="input-company"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                    <span>{visitor.company || "-"}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="business_type">ประเภทธุรกิจ</Label>
+                {isEditMode ? (
+                  <Input
+                    id="business_type"
+                    value={formData.business_type}
+                    onChange={(e) => setFormData({ ...formData, business_type: e.target.value })}
+                    data-testid="input-business-type"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-muted-foreground" />
+                    <span>{visitor.business_type || "-"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Info (View Mode Only) */}
+          {!isEditMode && (
+            <div className="space-y-4 pt-4 border-t">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">Check-ins</Label>
+                  <div className="font-medium">{visitor.checkins_count || 0} ครั้ง</div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">วันประชุมถัดไป</Label>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium">
+                      {visitor.upcoming_meeting_date
+                        ? new Date(visitor.upcoming_meeting_date).toLocaleDateString("th-TH")
+                        : "-"}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">แนะนำโดย</Label>
+                  <div className="font-medium">{visitor.referred_by_name || "-"}</div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">วันที่สร้าง</Label>
+                  <div className="font-medium">
+                    {visitor.created_at
+                      ? new Date(visitor.created_at).toLocaleDateString("th-TH")
+                      : "-"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          {isEditMode ? (
+            <div className="flex gap-2 w-full justify-end">
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={isSaving}
+                data-testid="button-cancel"
+              >
+                <X className="w-4 h-4 mr-2" />
+                ยกเลิก
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={isSaving || !formData.full_name || !formData.phone}
+                data-testid="button-save"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {isSaving ? "กำลังบันทึก..." : "บันทึก"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              data-testid="button-close"
+            >
+              ปิด
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

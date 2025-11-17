@@ -1107,6 +1107,90 @@ router.get("/:participantId/vcard", async (req: Request, res: Response) => {
   }
 });
 
+// Update participant details (authenticated endpoint - for admin editing)
+router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { participantId } = req.params;
+    const { full_name, email, phone, company, business_type, status } = req.body;
+    const userId = req.user?.id;
+
+    if (!participantId) {
+      return res.status(400).json({
+        error: "Missing participant ID",
+        message: "participantId is required"
+      });
+    }
+
+    // Get existing participant to verify tenant ownership
+    const { data: existingParticipant, error: fetchError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, tenant_id, phone")
+      .eq("participant_id", participantId)
+      .single();
+
+    if (fetchError || !existingParticipant) {
+      return res.status(404).json({
+        error: "Participant not found",
+        message: "No participant found with this ID"
+      });
+    }
+
+    // Verify user has access to this tenant
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("tenant_id", existingParticipant.tenant_id)
+      .single();
+
+    if (!userRole) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "You don't have permission to edit participants in this chapter"
+      });
+    }
+
+    // Prepare update data (only update provided fields)
+    const updateData: any = {};
+    if (full_name !== undefined) updateData.full_name = full_name;
+    if (email !== undefined) updateData.email = email || null;
+    if (company !== undefined) updateData.company = company || null;
+    if (business_type !== undefined) updateData.business_type = business_type || null;
+    if (status !== undefined) updateData.status = status;
+    
+    // Phone number cannot be changed (it's the unique identifier)
+    // Silently ignore phone updates
+
+    // Update participant
+    const { data: updatedParticipant, error: updateError } = await supabaseAdmin
+      .from("participants")
+      .update(updateData)
+      .eq("participant_id", participantId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error updating participant:", updateError);
+      return res.status(500).json({
+        error: "Failed to update participant",
+        message: updateError.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      participant: updatedParticipant
+    });
+
+  } catch (error: any) {
+    console.error("Participant update error:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 // Get members for referral dropdown (public endpoint - used in registration forms)
 // Returns members with nickname and full_name for selection
 // Uses meeting_id for implicit tenant authorization (prevent data leaks)

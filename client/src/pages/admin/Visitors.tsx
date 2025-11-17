@@ -10,6 +10,7 @@ import { Search, CheckCircle, XCircle, Clock, Mail, Phone, UserPlus, UserCheck, 
 import { StatusBadge } from "@/components/StatusBadge";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
+import { VisitorDetailsDialog } from "@/components/dialogs/VisitorDetailsDialog";
 
 interface VisitorAnalytics {
   prospects: number;
@@ -29,6 +30,8 @@ export default function Visitors() {
   const [filteredVisitors, setFilteredVisitors] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedVisitor, setSelectedVisitor] = useState<any | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [analytics, setAnalytics] = useState<VisitorAnalytics>({
     prospects: 0,
     visitors: 0,
@@ -353,7 +356,15 @@ export default function Visitors() {
                 </TableHeader>
                 <TableBody>
                   {filteredVisitors.map((visitor) => (
-                    <TableRow key={visitor.participant_id}>
+                    <TableRow 
+                      key={visitor.participant_id}
+                      className="cursor-pointer hover-elevate"
+                      onClick={() => {
+                        setSelectedVisitor(visitor);
+                        setIsDialogOpen(true);
+                      }}
+                      data-testid={`row-visitor-${visitor.participant_id}`}
+                    >
                       <TableCell>
                         <div>
                           <div className="font-medium">{visitor.full_name}</div>
@@ -396,12 +407,12 @@ export default function Visitors() {
                       <TableCell>
                         {visitor.referred_by_name || <span className="text-muted-foreground">-</span>}
                       </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <Select
                             value={visitor.status}
                             onValueChange={(value) => updateVisitorStatus(visitor.participant_id, value)}
                           >
-                            <SelectTrigger className="w-[160px]">
+                            <SelectTrigger className="w-[160px]" data-testid={`select-status-${visitor.participant_id}`}>
                               <SelectValue />
                             </SelectTrigger>
                               <SelectContent>
@@ -419,6 +430,22 @@ export default function Visitors() {
           </CardContent>
         </Card>
       </div>
+
+      <VisitorDetailsDialog
+        visitor={selectedVisitor}
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onUpdate={(updatedVisitor) => {
+          // Refresh the full list
+          loadVisitors();
+          loadAnalytics();
+          
+          // Update the selected visitor with fresh data if provided
+          if (updatedVisitor) {
+            setSelectedVisitor(updatedVisitor);
+          }
+        }}
+      />
     </AdminLayout>
   );
 }
