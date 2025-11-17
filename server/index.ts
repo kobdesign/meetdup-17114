@@ -117,6 +117,104 @@ app.get("/api/test/card-search", async (req, res) => {
   }
 });
 
+// Test webhook simulation - shows what the Edge Function would do
+app.post("/api/test/line-webhook-simulate", async (req, res) => {
+  try {
+    console.log("[webhook-simulate] Received request");
+    console.log("[webhook-simulate] Body:", JSON.stringify(req.body, null, 2));
+    
+    const { message, tenant_id = "e2f4c38c-4dd1-4f05-9866-f18ba7028dfa" } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: "Missing 'message' in request body" });
+    }
+    
+    // Simulate text normalization from webhook
+    const text = message
+      .replace(/　/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const textLower = text.toLowerCase();
+    
+    console.log(`[webhook-simulate] Normalized text: "${text}"`);
+    console.log(`[webhook-simulate] Lowercase: "${textLower}"`);
+    
+    // Check if it's a card search command
+    if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
+      const searchTerm = textLower.startsWith("card ") 
+        ? text.substring(5).trim() 
+        : text.substring(8).trim();
+      
+      console.log(`[webhook-simulate] Command: CARD_SEARCH`);
+      console.log(`[webhook-simulate] Search term: "${searchTerm}"`);
+      
+      const { supabaseAdmin } = await import("./utils/supabaseClient");
+      
+      // Search logic (same as webhook)
+      const { data: byFullName } = await supabaseAdmin
+        .from("participants")
+        .select(`
+          participant_id, full_name, nickname, email, phone, company, status,
+          tenants!inner (tenant_name, logo_url)
+        `)
+        .eq("tenant_id", tenant_id)
+        .ilike("full_name", `%${searchTerm}%`)
+        .limit(10);
+      
+      const { data: byNickname } = await supabaseAdmin
+        .from("participants")
+        .select(`
+          participant_id, full_name, nickname, email, phone, company, status,
+          tenants!inner (tenant_name, logo_url)
+        `)
+        .eq("tenant_id", tenant_id)
+        .ilike("nickname", `%${searchTerm}%`)
+        .limit(10);
+      
+      const allResults = [...(byFullName || []), ...(byNickname || [])];
+      const uniqueMap = new Map();
+      for (const p of allResults) {
+        if (!uniqueMap.has(p.participant_id)) {
+          uniqueMap.set(p.participant_id, p);
+        }
+      }
+      const participants = Array.from(uniqueMap.values()).slice(0, 10);
+      
+      if (participants.length === 0) {
+        return res.json({
+          command: "CARD_SEARCH",
+          searchTerm,
+          found: 0,
+          response: `❌ ไม่พบข้อมูลที่ตรงกับ "${searchTerm}"`
+        });
+      }
+      
+      return res.json({
+        command: "CARD_SEARCH",
+        searchTerm,
+        found: participants.length,
+        response: participants.length === 1 ? "Single Business Card" : `Carousel with ${participants.length} cards`,
+        results: participants
+      });
+    }
+    
+    // Not a card search
+    return res.json({
+      command: "OTHER",
+      text,
+      textLower,
+      response: "Would trigger different handler (greeting/help/etc)"
+    });
+    
+  } catch (error: any) {
+    console.error("[webhook-simulate] Error:", error);
+    res.status(500).json({
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // LINE Integration routes
 app.use("/api/line", lineRouter);
 
