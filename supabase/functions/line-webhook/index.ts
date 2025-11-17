@@ -442,15 +442,30 @@ async function handlePostbackProfile(
     return;
   }
 
-  // Fetch participant profile
+  // Fetch participant profile with tenant info
   const { data: participant, error } = await supabase
     .from("participants")
-    .select("*")
+    .select(`
+      participant_id,
+      full_name,
+      email,
+      phone,
+      position,
+      company,
+      website_url,
+      avatar_url,
+      status,
+      tenants!inner (
+        tenant_name,
+        logo_url
+      )
+    `)
     .eq("tenant_id", credentials.tenantId)
     .eq("line_user_id", userId)
     .single();
 
   if (error || !participant) {
+    console.error(`${logPrefix} Participant not found:`, error);
     await replyMessage(event.replyToken, {
       type: "text",
       text: "ไม่พบข้อมูลของคุณในระบบ\n\nกรุณาติดต่อผู้ดูแลระบบครับ"
@@ -458,21 +473,301 @@ async function handlePostbackProfile(
     return;
   }
 
-  const statusText = {
-    'prospect': 'ผู้สนใจ',
-    'visitor': 'ผู้เยี่ยมชม',
-    'member': 'สมาชิก',
-    'alumni': 'ศิษย์เก่า'
-  }[participant.participant_status] || participant.participant_status;
+  console.log(`${logPrefix} Building business card for participant: ${participant.participant_id}`);
 
-  await replyMessage(event.replyToken, {
-    type: "text",
-    text: `👤 ข้อมูลส่วนตัว\n\n` +
-          `ชื่อ: ${participant.first_name} ${participant.last_name}\n` +
-          `สถานะ: ${statusText}\n` +
-          `อีเมล: ${participant.email || '-'}\n` +
-          `โทรศัพท์: ${participant.phone || '-'}`
-  }, credentials, logPrefix);
+  // Generate profile edit token (via backend API)
+  const baseUrl = `https://${Deno.env.get("REPLIT_DEV_DOMAIN") || "your-app.replit.dev"}`;
+  let editProfileUrl = "#";
+  
+  try {
+    const tokenResponse = await fetch(`${baseUrl}/api/participants/generate-profile-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        participant_id: participant.participant_id,
+        tenant_id: credentials.tenantId
+      })
+    });
+    
+    if (tokenResponse.ok) {
+      const tokenData = await tokenResponse.json();
+      editProfileUrl = tokenData.profile_url;
+      console.log(`${logPrefix} Profile edit URL generated`);
+    } else {
+      console.warn(`${logPrefix} Failed to generate profile token`);
+    }
+  } catch (err) {
+    console.error(`${logPrefix} Error generating token:`, err);
+  }
+
+  // Build Corporate Style Business Card (Flex Message)
+  const businessCard = createBusinessCardFlexMessage(participant, editProfileUrl);
+
+  await replyMessage(event.replyToken, businessCard, credentials, logPrefix);
+}
+
+function createBusinessCardFlexMessage(participant: any, editProfileUrl: string) {
+  const tenantName = participant.tenants?.tenant_name || "Meetdup";
+  const tenantLogo = participant.tenants?.logo_url;
+  
+  return {
+    type: "flex",
+    altText: `${participant.full_name || "Your"} - Business Card`,
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              ...(tenantLogo ? [{
+                type: "image",
+                url: tenantLogo,
+                size: "xxs",
+                aspectMode: "cover",
+                aspectRatio: "1:1",
+                gravity: "center",
+                flex: 0
+              }] : []),
+              {
+                type: "text",
+                text: tenantName,
+                weight: "bold",
+                size: "sm",
+                color: "#ffffff",
+                margin: tenantLogo ? "md" : "none",
+                flex: 1
+              }
+            ],
+            spacing: "sm"
+          }
+        ],
+        backgroundColor: "#2563eb",
+        paddingAll: "13px"
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          // Avatar
+          ...(participant.avatar_url ? [{
+            type: "image",
+            url: participant.avatar_url,
+            size: "xl",
+            aspectMode: "cover",
+            aspectRatio: "1:1",
+            gravity: "center",
+            margin: "md"
+          }] : []),
+          
+          // Name
+          {
+            type: "text",
+            text: participant.full_name || "No Name",
+            weight: "bold",
+            size: "xl",
+            align: "center",
+            margin: "lg"
+          },
+          
+          // Position & Company
+          ...(participant.position || participant.company ? [{
+            type: "box",
+            layout: "vertical",
+            contents: [
+              ...(participant.position ? [{
+                type: "text",
+                text: participant.position,
+                size: "sm",
+                color: "#555555",
+                align: "center"
+              }] : []),
+              ...(participant.company ? [{
+                type: "text",
+                text: participant.company,
+                size: "xs",
+                color: "#888888",
+                align: "center",
+                margin: "xs"
+              }] : [])
+            ],
+            margin: "md"
+          }] : []),
+          
+          // Separator
+          {
+            type: "separator",
+            margin: "lg"
+          },
+          
+          // Contact Info
+          {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              // Phone
+              ...(participant.phone ? [{
+                type: "box",
+                layout: "horizontal",
+                contents: [
+                  {
+                    type: "text",
+                    text: "📞",
+                    size: "sm",
+                    flex: 0
+                  },
+                  {
+                    type: "text",
+                    text: participant.phone,
+                    size: "sm",
+                    color: "#555555",
+                    margin: "md",
+                    flex: 1
+                  }
+                ],
+                margin: "md"
+              }] : []),
+              
+              // Email
+              ...(participant.email ? [{
+                type: "box",
+                layout: "horizontal",
+                contents: [
+                  {
+                    type: "text",
+                    text: "✉️",
+                    size: "sm",
+                    flex: 0
+                  },
+                  {
+                    type: "text",
+                    text: participant.email,
+                    size: "sm",
+                    color: "#555555",
+                    margin: "md",
+                    flex: 1,
+                    wrap: true
+                  }
+                ],
+                margin: "md"
+              }] : []),
+              
+              // Website
+              ...(participant.website_url ? [{
+                type: "box",
+                layout: "horizontal",
+                contents: [
+                  {
+                    type: "text",
+                    text: "🌐",
+                    size: "sm",
+                    flex: 0
+                  },
+                  {
+                    type: "text",
+                    text: participant.website_url.replace(/^https?:\/\//, ''),
+                    size: "sm",
+                    color: "#555555",
+                    margin: "md",
+                    flex: 1,
+                    wrap: true
+                  }
+                ],
+                margin: "md"
+              }] : [])
+            ]
+          }
+        ],
+        spacing: "none",
+        paddingAll: "20px"
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          // Primary Actions Row
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "button",
+                action: {
+                  type: "uri",
+                  label: "บันทึกผู้ติดต่อ",
+                  uri: `${editProfileUrl.split('?')[0].replace('/participant-profile/edit', '/api/participants/profile/vcard')}?token=${editProfileUrl.split('token=')[1] || ''}`
+                },
+                style: "primary",
+                height: "sm",
+                flex: 1
+              },
+              {
+                type: "button",
+                action: {
+                  type: "uri",
+                  label: "แก้ไขข้อมูล",
+                  uri: editProfileUrl
+                },
+                style: "secondary",
+                height: "sm",
+                flex: 1
+              }
+            ],
+            spacing: "sm"
+          },
+          
+          // Secondary Actions Row
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              ...(participant.phone ? [{
+                type: "button",
+                action: {
+                  type: "uri",
+                  label: "โทร",
+                  uri: `tel:${participant.phone}`
+                },
+                style: "link",
+                height: "sm",
+                flex: 1
+              }] : []),
+              ...(participant.email ? [{
+                type: "button",
+                action: {
+                  type: "uri",
+                  label: "Email",
+                  uri: `mailto:${participant.email}`
+                },
+                style: "link",
+                height: "sm",
+                flex: 1
+              }] : []),
+              ...(participant.website_url ? [{
+                type: "button",
+                action: {
+                  type: "uri",
+                  label: "เว็บไซต์",
+                  uri: participant.website_url
+                },
+                style: "link",
+                height: "sm",
+                flex: 1
+              }] : [])
+            ],
+            spacing: "sm",
+            margin: "sm"
+          }
+        ],
+        spacing: "sm",
+        paddingAll: "13px"
+      }
+    }
+  };
 }
 
 async function handleFollow(event: LineEvent, supabase: any, credentials: TenantCredentials, logPrefix: string) {
@@ -684,173 +979,4 @@ async function pushMessage(
   } catch (error) {
     console.error(`${logPrefix} Failed to push message:`, error);
   }
-}
-
-function createBusinessCardFlexMessage(participant: any): any {
-  return {
-    type: "flex",
-    altText: `นามบัตร: ${participant.display_name}`,
-    contents: {
-      type: "bubble",
-      size: "giga",
-      header: {
-        type: "box",
-        layout: "vertical",
-        contents: [
-          {
-            type: "text",
-            text: "BUSINESS CARD",
-            size: "xs",
-            color: "#ffffff",
-            weight: "bold"
-          },
-          {
-            type: "text",
-            text: participant.chapter_name || "Meetdup",
-            size: "sm",
-            color: "#ffffff",
-            margin: "xs"
-          }
-        ],
-        backgroundColor: "#1a73e8",
-        paddingAll: "15px"
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              {
-                type: "box",
-                layout: "vertical",
-                contents: [
-                  {
-                    type: "text",
-                    text: participant.display_name || "ไม่ระบุชื่อ",
-                    size: "xl",
-                    weight: "bold",
-                    wrap: true
-                  },
-                  {
-                    type: "text",
-                    text: participant.company || "",
-                    size: "sm",
-                    color: "#666666",
-                    wrap: true,
-                    margin: "xs"
-                  },
-                  {
-                    type: "text",
-                    text: participant.position || "",
-                    size: "xs",
-                    color: "#999999",
-                    wrap: true,
-                    margin: "xs"
-                  }
-                ],
-                flex: 1
-              }
-            ],
-            margin: "lg"
-          },
-          {
-            type: "separator",
-            margin: "lg"
-          },
-          {
-            type: "box",
-            layout: "vertical",
-            contents: [
-              ...(participant.phone ? [{
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "📞",
-                    size: "sm",
-                    flex: 0
-                  },
-                  {
-                    type: "text",
-                    text: participant.phone,
-                    size: "sm",
-                    color: "#666666",
-                    margin: "sm",
-                    flex: 1,
-                    wrap: true
-                  }
-                ],
-                margin: "md"
-              }] : []),
-              ...(participant.email ? [{
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "✉️",
-                    size: "sm",
-                    flex: 0
-                  },
-                  {
-                    type: "text",
-                    text: participant.email,
-                    size: "sm",
-                    color: "#666666",
-                    margin: "sm",
-                    flex: 1,
-                    wrap: true
-                  }
-                ],
-                margin: "md"
-              }] : []),
-              ...(participant.line_id ? [{
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "LINE",
-                    size: "sm",
-                    flex: 0,
-                    color: "#06c755",
-                    weight: "bold"
-                  },
-                  {
-                    type: "text",
-                    text: participant.line_id,
-                    size: "sm",
-                    color: "#666666",
-                    margin: "sm",
-                    flex: 1,
-                    wrap: true
-                  }
-                ],
-                margin: "md"
-              }] : [])
-            ],
-            margin: "lg"
-          }
-        ]
-      },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        contents: [
-          {
-            type: "text",
-            text: "Powered by Meetdup",
-            size: "xxs",
-            color: "#999999",
-            align: "center"
-          }
-        ],
-        paddingAll: "10px"
-      }
-    }
-  };
 }

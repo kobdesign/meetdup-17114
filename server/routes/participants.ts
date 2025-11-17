@@ -2,8 +2,27 @@ import { Router, Request, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { generateVCard, getVCardFilename, VCardData } from "../services/line/vcard";
+import { generateProfileToken, verifyProfileToken } from "../utils/profileToken";
+import multer from "multer";
+import path from "path";
 
 const router = Router();
+
+// Configure multer for avatar uploads (memory storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, WEBP, and GIF are allowed.'));
+    }
+  },
+});
 
 // Lookup participant by phone number (public endpoint - no auth required)
 // Used in check-in flow to find existing participants
@@ -1264,6 +1283,431 @@ router.get("/members-for-referral", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Members query error:", error);
     return res.status(500).json({
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// ==========================================
+// PARTICIPANT PROFILE MANAGEMENT (Token-based auth for LINE users)
+// ==========================================
+
+// Generate profile edit token (used by LINE webhook or admin)
+// Returns a temporary token that allows participant to edit their profile
+router.post("/generate-profile-token", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[generate-profile-token:${requestId}]`;
+
+  try {
+    const { participant_id, tenant_id } = req.body;
+
+    if (!participant_id || !tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields",
+        message: "participant_id and tenant_id are required"
+      });
+    }
+
+    // Verify participant exists and belongs to tenant
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id")
+      .eq("participant_id", participant_id)
+      .eq("tenant_id", tenant_id)
+      .single();
+
+    if (participantError || !participant) {
+      console.error(`${logPrefix} Participant not found`, participantError);
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found",
+        message: "The participant does not exist or does not belong to this chapter"
+      });
+    }
+
+    // Generate token (valid for 24 hours)
+    const token = generateProfileToken(participant_id, tenant_id);
+
+    console.log(`${logPrefix} Token generated for participant ${participant_id}`);
+
+    return res.json({
+      success: true,
+      token,
+      profile_url: `${process.env.REPLIT_DEPLOYMENT_URL || req.get('origin')}/participant-profile/edit?token=${token}`
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Get participant profile (token-based auth - no login required)
+router.get("/profile", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[get-profile:${requestId}]`;
+
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "Valid token is required"
+      });
+    }
+
+    // Verify token
+    const decoded = verifyProfileToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: "Token is invalid or expired"
+      });
+    }
+
+    console.log(`${logPrefix} Loading profile for participant ${decoded.participant_id}`);
+
+    // Get participant with tenant info
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        email,
+        phone,
+        position,
+        company,
+        website_url,
+        avatar_url,
+        tenant_id,
+        tenants!inner (
+          tenant_name,
+          logo_url
+        )
+      `)
+      .eq("participant_id", decoded.participant_id)
+      .eq("tenant_id", decoded.tenant_id)
+      .single();
+
+    if (error || !participant) {
+      console.error(`${logPrefix} Participant not found:`, error);
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found",
+        message: "Could not load profile data"
+      });
+    }
+
+    // Extract tenant info (Supabase returns it as an object, not array with .single())
+    const tenantInfo = Array.isArray(participant.tenants) ? participant.tenants[0] : participant.tenants;
+    
+    return res.json({
+      success: true,
+      participant: {
+        ...participant,
+        tenant_name: tenantInfo?.tenant_name,
+        logo_url: tenantInfo?.logo_url,
+      }
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Update participant profile (token-based auth)
+router.patch("/profile", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[update-profile:${requestId}]`;
+
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "Valid token is required"
+      });
+    }
+
+    // Verify token
+    const decoded = verifyProfileToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: "Token is invalid or expired"
+      });
+    }
+
+    const { full_name, position, company, phone, email, website_url } = req.body;
+
+    // Validate required fields
+    if (!full_name || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Validation error",
+        message: "full_name and phone are required"
+      });
+    }
+
+    console.log(`${logPrefix} Updating profile for participant ${decoded.participant_id}`);
+
+    // Normalize phone
+    const normalizedPhone = phone.replace(/\D/g, "");
+
+    // Update participant
+    const { data: updatedParticipant, error: updateError } = await supabaseAdmin
+      .from("participants")
+      .update({
+        full_name,
+        position: position || null,
+        company: company || null,
+        phone: normalizedPhone,
+        email: email || null,
+        website_url: website_url || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("participant_id", decoded.participant_id)
+      .eq("tenant_id", decoded.tenant_id)
+      .select(`
+        participant_id,
+        full_name,
+        email,
+        phone,
+        position,
+        company,
+        website_url,
+        avatar_url,
+        tenant_id
+      `)
+      .single();
+
+    if (updateError) {
+      console.error(`${logPrefix} Update error:`, updateError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update profile",
+        message: updateError.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      participant: updatedParticipant
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Upload participant avatar (token-based auth)
+router.post("/profile/avatar", upload.single('avatar'), async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[upload-avatar:${requestId}]`;
+
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "Valid token is required"
+      });
+    }
+
+    // Verify token
+    const decoded = verifyProfileToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: "Token is invalid or expired"
+      });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded",
+        message: "Please upload an image file"
+      });
+    }
+
+    console.log(`${logPrefix} Uploading avatar for participant ${decoded.participant_id}`);
+
+    // Get current participant to check for existing avatar
+    const { data: participant } = await supabaseAdmin
+      .from("participants")
+      .select("avatar_url")
+      .eq("participant_id", decoded.participant_id)
+      .single();
+
+    // Delete old avatar if exists
+    if (participant?.avatar_url) {
+      try {
+        const oldPath = participant.avatar_url.split('/').pop();
+        if (oldPath) {
+          await supabaseAdmin.storage
+            .from('avatars')
+            .remove([`participants/${decoded.participant_id}/${oldPath}`]);
+        }
+      } catch (err) {
+        console.warn(`${logPrefix} Could not delete old avatar:`, err);
+      }
+    }
+
+    // Upload new avatar to Supabase Storage
+    const fileExt = path.extname(file.originalname);
+    const fileName = `${Date.now()}${fileExt}`;
+    const filePath = `participants/${decoded.participant_id}/${fileName}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('avatars')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error(`${logPrefix} Upload error:`, uploadError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to upload image",
+        message: uploadError.message
+      });
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabaseAdmin.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    // Update participant avatar_url
+    const { error: updateError } = await supabaseAdmin
+      .from('participants')
+      .update({ avatar_url: publicUrl })
+      .eq('participant_id', decoded.participant_id);
+
+    if (updateError) {
+      console.error(`${logPrefix} Database update error:`, updateError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update avatar URL",
+        message: updateError.message
+      });
+    }
+
+    console.log(`${logPrefix} Avatar uploaded successfully`);
+
+    return res.json({
+      success: true,
+      avatar_url: publicUrl
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Download participant vCard (token-based auth)
+router.get("/profile/vcard", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[download-vcard:${requestId}]`;
+
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "Valid token is required"
+      });
+    }
+
+    // Verify token
+    const decoded = verifyProfileToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: "Token is invalid or expired"
+      });
+    }
+
+    console.log(`${logPrefix} Generating vCard for participant ${decoded.participant_id}`);
+
+    // Get participant data
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select("full_name, position, company, email, phone, website_url, avatar_url")
+      .eq("participant_id", decoded.participant_id)
+      .eq("tenant_id", decoded.tenant_id)
+      .single();
+
+    if (error || !participant) {
+      console.error(`${logPrefix} Participant not found:`, error);
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found",
+        message: "Could not load profile data"
+      });
+    }
+
+    // Generate vCard
+    const vCardData: VCardData = {
+      full_name: participant.full_name,
+      position: participant.position,
+      company: participant.company,
+      email: participant.email,
+      phone: participant.phone,
+      website_url: participant.website_url,
+      photo_url: participant.avatar_url,
+    };
+
+    const vCardContent = generateVCard(vCardData);
+    const filename = getVCardFilename(participant.full_name);
+
+    console.log(`${logPrefix} vCard generated successfully: ${filename}`);
+
+    // Send as downloadable file
+    res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(vCardContent);
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
       error: "Internal server error",
       message: error.message
     });

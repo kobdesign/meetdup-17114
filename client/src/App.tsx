@@ -29,6 +29,7 @@ import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import VisitorRegister from "./pages/public/VisitorRegister";
+import ParticipantProfile from "./pages/ParticipantProfile";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -53,6 +54,7 @@ const App = () => (
           {/* Public Check-In & Registration */}
           <Route path="/checkin/:meetingId" element={<CheckInScanner />} />
           <Route path="/register" element={<VisitorRegister />} />
+          <Route path="/participant-profile/edit" element={<ParticipantProfile />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
