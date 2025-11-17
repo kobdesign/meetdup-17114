@@ -60,6 +60,15 @@ interface QuickReplyPayload {
 const credentialsCache = new Map<string, { credentials: TenantCredentials; expiresAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
 
+// Conversation state management (for phone linking flow)
+interface ConversationState {
+  step: "awaiting_phone" | "idle";
+  action: "link_line" | null;
+  expiresAt: number;
+}
+const conversationStates = new Map<string, ConversationState>();
+const CONVERSATION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
 function validateSignature(body: string, channelSecret: string, signature: string): boolean {
   try {
     const hash = createHmac("sha256", channelSecret)
@@ -324,23 +333,58 @@ async function handleTextMessage(
   credentials: TenantCredentials,
   logPrefix: string
 ) {
-  const text = event.message?.text?.toLowerCase().trim() || "";
+  const text = event.message?.text?.trim() || "";
+  const textLower = text.toLowerCase();
   const userId = event.source.userId;
   const groupId = event.source.groupId;
   const isGroup = event.source.type === "group";
 
   console.log(`${logPrefix} Text: "${text}" from ${isGroup ? "group" : "user"}`);
 
-  if (text.includes("สวัสดี") || text.includes("hello") || text.includes("hi")) {
+  if (!userId) {
+    console.error(`${logPrefix} No userId found`);
+    return;
+  }
+
+  // Check conversation state (for multi-step flows)
+  const stateKey = `${credentials.tenantId}:${userId}`;
+  const state = conversationStates.get(stateKey);
+
+  if (state && state.expiresAt > Date.now()) {
+    // Handle conversation flow
+    if (state.step === "awaiting_phone" && state.action === "link_line") {
+      await handlePhoneLinking(event, text, supabase, credentials, logPrefix);
+      conversationStates.delete(stateKey); // Clear state
+      return;
+    }
+  }
+
+  // Regular command parsing
+  if (textLower.includes("สวัสดี") || textLower.includes("hello") || textLower.includes("hi")) {
     await sendGreeting(event, credentials, logPrefix);
-  } else if (text.includes("help") || text.includes("ช่วยเหลือ") || text.includes("เมนู")) {
+  } else if (textLower.includes("help") || textLower.includes("ช่วยเหลือ") || textLower.includes("เมนู")) {
     await sendHelp(event, credentials, logPrefix);
-  } else if (text.includes("ลงทะเบียน") || text.includes("register") || text.includes("สมัครสมาชิก")) {
-    await sendLiffRegistration(event, credentials, logPrefix);
-  } else if (text.includes("นามบัตร") || text.includes("business card") || text.includes("card")) {
-    // Show Business Card - reuse handlePostbackProfile logic
+  } else if (textLower.includes("ลงทะเบียน") || textLower.includes("register") || textLower.includes("เชื่อมต่อ")) {
+    // Start phone linking flow
+    await startPhoneLinkingFlow(event, credentials, logPrefix, userId);
+  } else if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
+    // Search business card: "card กบ" or "นามบัตร สมชาย"
+    const searchTerm = textLower.startsWith("card ") 
+      ? text.substring(5).trim() 
+      : text.substring(8).trim();
+    
+    if (searchTerm) {
+      await searchAndShowBusinessCard(event, searchTerm, supabase, credentials, logPrefix);
+    } else {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "💼 วิธีใช้:\n\nพิมพ์ card ตามด้วยชื่อที่ต้องการค้นหา\n\nตัวอย่าง:\n• card กบ\n• card สมชาย\n• นามบัตร จอห์น"
+      }, credentials, logPrefix);
+    }
+  } else if (textLower.includes("นามบัตร") || textLower.includes("business card")) {
+    // Show own business card
     await handlePostbackProfile(event, supabase, credentials, logPrefix, new URLSearchParams());
-  } else if (text.includes("เช็คอิน") || text.includes("checkin") || text.includes("check-in")) {
+  } else if (textLower.includes("เช็คอิน") || textLower.includes("checkin") || textLower.includes("check-in")) {
     await handleCheckIn(event, supabase, credentials, logPrefix);
   } else {
     await sendHelp(event, credentials, logPrefix);
@@ -555,9 +599,254 @@ async function handlePostbackProfile(
   await replyMessage(event.replyToken, businessCard, credentials, logPrefix);
 }
 
+async function startPhoneLinkingFlow(
+  event: LineEvent,
+  credentials: TenantCredentials,
+  logPrefix: string,
+  userId: string
+) {
+  console.log(`${logPrefix} Starting phone linking flow for user: ${userId}`);
+
+  // Set conversation state
+  const stateKey = `${credentials.tenantId}:${userId}`;
+  conversationStates.set(stateKey, {
+    step: "awaiting_phone",
+    action: "link_line",
+    expiresAt: Date.now() + CONVERSATION_TIMEOUT
+  });
+
+  await replyMessage(event.replyToken, {
+    type: "text",
+    text: "🔗 เชื่อมโยง LINE Account\n\n" +
+          "กรุณาส่งเบอร์โทรศัพท์ที่คุณลงทะเบียนไว้\n\n" +
+          "ตัวอย่าง: 0812345678\n\n" +
+          "⏱️ คำสั่งนี้จะหมดอายุใน 5 นาที"
+  }, credentials, logPrefix);
+}
+
+async function handlePhoneLinking(
+  event: LineEvent,
+  phoneText: string,
+  supabase: any,
+  credentials: TenantCredentials,
+  logPrefix: string
+) {
+  const userId = event.source.userId;
+  if (!userId) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ ไม่สามารถระบุตัวตนได้"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  // Normalize phone (remove non-digits)
+  const normalizedPhone = phoneText.replace(/\D/g, '');
+  
+  if (normalizedPhone.length < 9 || normalizedPhone.length > 15) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ เบอร์โทรศัพท์ไม่ถูกต้อง\n\nกรุณาส่งเบอร์โทรศัพท์ใหม่อีกครั้ง"
+    }, credentials, logPrefix);
+    
+    // Keep conversation state
+    const stateKey = `${credentials.tenantId}:${userId}`;
+    conversationStates.set(stateKey, {
+      step: "awaiting_phone",
+      action: "link_line",
+      expiresAt: Date.now() + CONVERSATION_TIMEOUT
+    });
+    return;
+  }
+
+  console.log(`${logPrefix} Looking up participant with phone: ${normalizedPhone}`);
+
+  // Find participant by phone
+  const { data: participant, error } = await supabase
+    .from("participants")
+    .select("participant_id, full_name, line_user_id, status")
+    .eq("tenant_id", credentials.tenantId)
+    .eq("phone", normalizedPhone)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`${logPrefix} Database error:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  if (!participant) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "❌ ไม่พบข้อมูลเบอร์โทรนี้ในระบบ\n\n" +
+            "กรุณาตรวจสอบว่าลงทะเบียนแล้ว หรือติดต่อผู้ดูแลระบบ"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  // Check if already linked
+  if (participant.line_user_id) {
+    if (participant.line_user_id === userId) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `✅ บัญชี LINE ของคุณเชื่อมโยงแล้ว\n\nชื่อ: ${participant.full_name}\nสถานะ: ${getStatusLabel(participant.status)}`
+      }, credentials, logPrefix);
+    } else {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ เบอร์โทรนี้เชื่อมโยงกับ LINE account อื่นอยู่แล้ว\n\nกรุณาติดต่อผู้ดูแลระบบ"
+      }, credentials, logPrefix);
+    }
+    return;
+  }
+
+  // Link LINE User ID
+  const { error: updateError } = await supabase
+    .from("participants")
+    .update({ line_user_id: userId })
+    .eq("participant_id", participant.participant_id);
+
+  if (updateError) {
+    console.error(`${logPrefix} Error linking LINE:`, updateError);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ ไม่สามารถเชื่อมโยงได้ กรุณาลองใหม่อีกครั้ง"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  console.log(`${logPrefix} Successfully linked LINE User ID for participant: ${participant.participant_id}`);
+
+  await replyMessage(event.replyToken, {
+    type: "text",
+    text: `✅ เชื่อมโยงสำเร็จ!\n\n` +
+          `ชื่อ: ${participant.full_name}\n` +
+          `สถานะ: ${getStatusLabel(participant.status)}\n\n` +
+          `ตอนนี้คุณสามารถใช้งานผ่าน LINE ได้แล้ว 🎉`
+  }, credentials, logPrefix);
+}
+
+async function searchAndShowBusinessCard(
+  event: LineEvent,
+  searchTerm: string,
+  supabase: any,
+  credentials: TenantCredentials,
+  logPrefix: string
+) {
+  console.log(`${logPrefix} Searching participants with term: "${searchTerm}"`);
+
+  // Search by first_name or nickname (case-insensitive)
+  const { data: participants, error } = await supabase
+    .from("participants")
+    .select(`
+      participant_id,
+      first_name,
+      last_name,
+      nickname,
+      full_name,
+      email,
+      phone,
+      position,
+      company,
+      website_url,
+      avatar_url,
+      status,
+      tenants!inner (
+        tenant_name,
+        logo_url
+      )
+    `)
+    .eq("tenant_id", credentials.tenantId)
+    .or(`first_name.ilike.%${searchTerm}%,nickname.ilike.%${searchTerm}%`)
+    .order("status", { ascending: true })
+    .order("first_name", { ascending: true })
+    .limit(10);
+
+  if (error) {
+    console.error(`${logPrefix} Search error:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
+    }, credentials, logPrefix);
+    return;
+  }
+
+  if (!participants || participants.length === 0) {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: `❌ ไม่พบข้อมูลที่ตรงกับ "${searchTerm}"\n\nลองค้นหาด้วยชื่ออื่น หรือพิมพ์ "เมนู" เพื่อดูคำสั่งทั้งหมด`
+    }, credentials, logPrefix);
+    return;
+  }
+
+  console.log(`${logPrefix} Found ${participants.length} participant(s)`);
+
+  // Generate profile edit URLs for all (in parallel)
+  const baseUrl = `https://${Deno.env.get("REPLIT_DEV_DOMAIN") || "your-app.replit.dev"}`;
+  const urlPromises = participants.map(async (p) => {
+    try {
+      const tokenResponse = await fetch(`${baseUrl}/api/participants/generate-profile-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          participant_id: p.participant_id,
+          tenant_id: credentials.tenantId
+        })
+      });
+      
+      if (tokenResponse.ok) {
+        const tokenData = await tokenResponse.json();
+        return tokenData.profile_url;
+      }
+    } catch (err) {
+      console.error(`${logPrefix} Error generating token for ${p.participant_id}:`, err);
+    }
+    return "#";
+  });
+
+  const editUrls = await Promise.all(urlPromises);
+
+  if (participants.length === 1) {
+    // Single result - show immediately
+    const businessCard = createBusinessCardFlexMessage(participants[0], editUrls[0]);
+    await replyMessage(event.replyToken, businessCard, credentials, logPrefix);
+  } else {
+    // Multiple results - show as carousel
+    const carouselMessage = createBusinessCardCarousel(participants, editUrls, searchTerm);
+    await replyMessage(event.replyToken, carouselMessage, credentials, logPrefix);
+  }
+}
+
+function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    "prospect": "ผู้สนใจ",
+    "visitor": "ผู้เยี่ยมชม",
+    "member": "สมาชิก",
+    "alumni": "ศิษย์เก่า",
+    "declined": "ถูกปฏิเสธ"
+  };
+  return labels[status] || status;
+}
+
+function getStatusBadge(status: string): { emoji: string; color: string } {
+  const badges: Record<string, { emoji: string; color: string }> = {
+    "prospect": { emoji: "🔵", color: "#3b82f6" },
+    "visitor": { emoji: "🟡", color: "#eab308" },
+    "member": { emoji: "🟢", color: "#22c55e" },
+    "alumni": { emoji: "⚫", color: "#6b7280" },
+    "declined": { emoji: "🔴", color: "#ef4444" }
+  };
+  return badges[status] || { emoji: "⚪", color: "#9ca3af" };
+}
+
 function createBusinessCardFlexMessage(participant: any, editProfileUrl: string) {
   const tenantName = participant.tenants?.tenant_name || "Meetdup";
   const tenantLogo = participant.tenants?.logo_url;
+  const statusBadge = getStatusBadge(participant.status);
+  const statusLabel = getStatusLabel(participant.status);
   
   return {
     type: "flex",
@@ -590,6 +879,27 @@ function createBusinessCardFlexMessage(participant: any, editProfileUrl: string)
                 color: "#ffffff",
                 margin: tenantLogo ? "md" : "none",
                 flex: 1
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  {
+                    type: "text",
+                    text: statusBadge.emoji,
+                    size: "sm",
+                    flex: 0
+                  },
+                  {
+                    type: "text",
+                    text: statusLabel,
+                    size: "xxs",
+                    color: "#ffffff",
+                    margin: "xs",
+                    flex: 0
+                  }
+                ],
+                flex: 0
               }
             ],
             spacing: "sm"
@@ -819,6 +1129,23 @@ function createBusinessCardFlexMessage(participant: any, editProfileUrl: string)
   };
 }
 
+function createBusinessCardCarousel(participants: any[], editUrls: string[], searchTerm: string) {
+  // Create carousel bubbles (max 10 as per LINE limit)
+  const bubbles = participants.slice(0, 10).map((participant, index) => {
+    const card = createBusinessCardFlexMessage(participant, editUrls[index]);
+    return card.contents;
+  });
+
+  return {
+    type: "flex",
+    altText: `พบ ${participants.length} ท่านที่ตรงกับ "${searchTerm}"`,
+    contents: {
+      type: "carousel",
+      contents: bubbles
+    }
+  };
+}
+
 async function handleFollow(event: LineEvent, supabase: any, credentials: TenantCredentials, logPrefix: string) {
   console.log(`${logPrefix} User followed bot: ${event.source.userId}`);
   await sendGreeting(event, credentials, logPrefix);
@@ -862,10 +1189,14 @@ async function sendHelp(event: LineEvent, credentials: TenantCredentials, logPre
   const message = {
     type: "text",
     text: "📋 คำสั่งที่ใช้ได้:\n\n" +
-          "กดปุ่มด้านล่างเพื่อเลือกคำสั่ง หรือพิมพ์:\n" +
-          "• สวัสดี - ทักทาย\n" +
-          "• ลงทะเบียน - ลงทะเบียนและเชื่อมโยง LINE\n" +
-          "• เมนู - แสดงคำสั่งนี้\n\n" +
+          "💼 นามบัตร\n" +
+          "• พิมพ์: นามบัตร - แสดงนามบัตรของคุณ\n" +
+          "• พิมพ์: card กบ - ค้นหานามบัตรของ 'กบ'\n\n" +
+          "🔗 เชื่อมต่อ LINE\n" +
+          "• พิมพ์: ลงทะเบียน - เชื่อมโยงเบอร์โทรกับ LINE\n\n" +
+          "ℹ️ อื่นๆ\n" +
+          "• พิมพ์: สวัสดี - ทักทาย\n" +
+          "• พิมพ์: เมนู - แสดงคำสั่งนี้\n\n" +
           "💡 ติดต่อสอบถาม: support@meetdup.com"
   };
   
@@ -873,6 +1204,9 @@ async function sendHelp(event: LineEvent, credentials: TenantCredentials, logPre
   await replyMessage(event.replyToken, message, credentials, logPrefix, quickReply);
 }
 
+// DEPRECATED: LIFF-based registration (commented out - using message-based flow instead)
+// Kept for reference in case LIFF is needed in future
+/*
 async function sendLiffRegistration(event: LineEvent, credentials: TenantCredentials, logPrefix: string) {
   console.log(`${logPrefix} Sending LIFF registration link`);
 
@@ -1056,6 +1390,7 @@ async function sendLiffRegistration(event: LineEvent, credentials: TenantCredent
 
   await replyMessage(event.replyToken, flexMessage, credentials, logPrefix);
 }
+*/
 
 // Quick Reply factory functions
 function quickReplyMessageAction(label: string, text: string): QuickReplyItem {

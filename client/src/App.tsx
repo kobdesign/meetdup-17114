@@ -29,7 +29,8 @@ import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import VisitorRegister from "./pages/public/VisitorRegister";
-import LineRegister from "./pages/public/LineRegister";
+// DEPRECATED: LIFF-based LINE registration (using message-based flow instead)
+// import LineRegister from "./pages/public/LineRegister";
 import ParticipantProfile from "./pages/ParticipantProfile";
 import NotFound from "./pages/NotFound";
 
@@ -55,7 +56,8 @@ const App = () => (
           {/* Public Check-In & Registration */}
           <Route path="/checkin/:meetingId" element={<CheckInScanner />} />
           <Route path="/register" element={<VisitorRegister />} />
-          <Route path="/line-register" element={<LineRegister />} />
+          {/* DEPRECATED: LIFF-based LINE registration */}
+          {/* <Route path="/line-register" element={<LineRegister />} /> */}
           <Route path="/participant-profile/edit" element={<ParticipantProfile />} />
           
           {/* Protected Routes */}
