@@ -888,6 +888,8 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
       }
 
       if (registrations) {
+        console.log(`[visitor-pipeline] Raw registrations from Supabase:`, JSON.stringify(registrations.slice(0, 2), null, 2));
+        
         const today = new Date().toISOString().split('T')[0];
         
         upcomingMeetings = registrations
@@ -904,6 +906,9 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
           });
         
         console.log(`[visitor-pipeline] Found ${upcomingMeetings.length} upcoming meeting registrations from ${registrations.length} total`);
+        if (upcomingMeetings.length > 0) {
+          console.log(`[visitor-pipeline] Sample upcoming meeting:`, JSON.stringify(upcomingMeetings[0], null, 2));
+        }
       }
     }
 
