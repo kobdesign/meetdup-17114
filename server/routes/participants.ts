@@ -1136,23 +1136,14 @@ router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedReq
     }
 
     // Verify user has access to this tenant
-    const { data: userRoles } = await supabaseAdmin
+    const { data: userRole } = await supabaseAdmin
       .from("user_roles")
-      .select("role, tenant_id")
-      .eq("user_id", userId);
+      .select("role")
+      .eq("user_id", userId)
+      .eq("tenant_id", existingParticipant.tenant_id)
+      .single();
 
-    if (!userRoles || userRoles.length === 0) {
-      return res.status(403).json({
-        error: "Forbidden",
-        message: "You don't have permission to edit participants in this chapter"
-      });
-    }
-
-    // Check if user is super admin (tenant_id is null) or has access to this specific tenant
-    const isSuperAdmin = userRoles.some(r => r.role === "super_admin" && !r.tenant_id);
-    const hasAccessToTenant = userRoles.some(r => r.tenant_id === existingParticipant.tenant_id);
-
-    if (!isSuperAdmin && !hasAccessToTenant) {
+    if (!userRole) {
       return res.status(403).json({
         error: "Forbidden",
         message: "You don't have permission to edit participants in this chapter"
