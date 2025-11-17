@@ -34,7 +34,7 @@ import NavLink from "@/components/NavLink";
 import { toast } from "sonner";
 import TenantSelectorCard from "@/components/TenantSelectorCard";
 import { useTenantContext } from "@/contexts/TenantContext";
-import { ChapterSwitcher } from "@/components/layout/ChapterSwitcher";
+import { ChapterSelector } from "@/components/layout/ChapterSelector";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -134,14 +134,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </Sheet>
             
             <Link to="/admin" className="flex items-center gap-2">
-              <span className="text-xl font-bold">BNI Chapter</span>
+              <span className="text-xl font-bold">Meetdup</span>
             </Link>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Show ChapterSwitcher if user has multiple chapters */}
-            {isContentReady && userChapters.length > 0 && (
-              <ChapterSwitcher />
+            {/* Show ChapterSelector for all users */}
+            {isContentReady && (
+              <ChapterSelector />
             )}
 
             <DropdownMenu>
