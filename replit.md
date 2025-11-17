@@ -23,8 +23,14 @@ None specified yet.
 - **Role-Based Access Control (RBAC)**: Supports Super Admin, Chapter Admin, and Member roles.
 - **Data Fetching & State Management**: Leverages TanStack React Query and React Context API.
 - **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface. Meeting location fields are enhanced with collapsible sections and visual feedback.
-- **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, quick reply system, and a Business Card feature via LINE Flex Messages with vCard download support.
-- **LIFF Self-Registration (Option 1)**: Implemented LIFF-based LINE registration system using LINE Login channel (separate from Messaging API channel). Users can type "ลงทะเบียน" in LINE bot → opens LIFF app → register or link existing account. System uses phone number as unique identifier with automatic LINE User ID linking. **Important:** LIFF apps must be created in LINE Login channel (not Messaging API channel per LINE policy since 2020). Channels must be linked for unified User IDs.
+- **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, quick reply system, and message-based interaction flows:
+  - **Phone Linking Flow**: Users type "ลงทะเบียน" → Bot asks for phone number → System links LINE User ID to existing participant record (tenant-scoped)
+  - **Business Card Search**: Users type "card {term}" → Search first_name/nickname fields → Display Business Card Flex Message or Carousel
+  - **Status Badges**: Every Business Card shows status with emoji (🔵 Prospect, 🟡 Visitor, 🟢 Member, ⚫ Alumni, 🔴 Declined)
+  - **Conversation State Management**: 5-minute TTL for multi-step flows with auto-cleanup
+  - **Tenant Isolation**: All participant queries include defensive `.eq('tenant_id')` checks to prevent cross-tenant data access
+  - **Architecture**: Single Messaging API channel per tenant (no LINE Login channel required), reducing setup time from 1-2 hours to ~5 minutes per chapter
+- **LIFF Integration (DEPRECATED)**: LIFF-based LINE registration code preserved but commented out in favor of message-based flows. LIFF routes disabled in frontend (`/line-register`). Code retained for potential future use if browser-based registration becomes necessary.
 - **Robust Error Handling**: Implemented across the system for stability and a smooth user experience.
 - **Modular Design**: Project structured into `client/`, `server/`, `supabase/`, and `shared/` directories.
 - **Check-In System**: Utilizes QR code-based check-ins and integrates with LINE webhooks for status progression and communication. Redesigned with phone number as the primary unique identifier, including normalization, lookup, and auto-registration flows.
