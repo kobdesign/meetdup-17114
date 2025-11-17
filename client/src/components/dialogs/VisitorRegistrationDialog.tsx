@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Calendar, Clock, MapPin, Target, DollarSign, UserPlus, ClipboardList, Info, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -339,7 +339,7 @@ export default function VisitorRegistrationDialog({
                   <SelectContent>
                     {meetings.map((meeting) => (
                       <SelectItem key={meeting.meeting_id} value={meeting.meeting_id}>
-                        📅 {new Date(meeting.meeting_date).toLocaleDateString('th-TH')}
+                        {new Date(meeting.meeting_date).toLocaleDateString('th-TH')}
                         {meeting.meeting_time && ` เวลา ${meeting.meeting_time}`}
                         {meeting.theme && ` - ${meeting.theme}`}
                       </SelectItem>
@@ -347,8 +347,9 @@ export default function VisitorRegistrationDialog({
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="text-sm text-muted-foreground bg-accent/50 p-3 rounded border">
-                  ℹ️ ขณะนี้ยังไม่มีการประชุมที่เปิดรับสมัคร คุณสามารถลงทะเบียนเป็น prospect ได้
+                <div className="text-sm text-muted-foreground bg-accent/50 p-3 rounded border flex items-start gap-2">
+                  <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>ขณะนี้ยังไม่มีการประชุมที่เปิดรับสมัคร คุณสามารถลงทะเบียนเป็น prospect ได้</span>
                 </div>
               )}
             </div>
@@ -358,7 +359,10 @@ export default function VisitorRegistrationDialog({
           {selectedMeeting && (
             <div className="bg-accent/50 rounded-lg p-4 space-y-2 border">
               <div className="flex justify-between items-start">
-                <p className="font-semibold">📋 ข้อมูลการประชุมที่เลือก</p>
+                <div className="flex items-center gap-2 font-semibold">
+                  <ClipboardList className="w-4 h-4" />
+                  <span>ข้อมูลการประชุมที่เลือก</span>
+                </div>
                 {meetingId && (
                   <Button
                     type="button"
@@ -374,18 +378,35 @@ export default function VisitorRegistrationDialog({
                     }}
                     className="text-xs h-7"
                   >
-                    🔄 เปลี่ยนการประชุม
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    เปลี่ยนการประชุม
                   </Button>
                 )}
               </div>
-              <div className="text-sm space-y-1">
-                <p>📅 วันที่: {new Date(selectedMeeting.meeting_date).toLocaleDateString('th-TH')}</p>
-                {selectedMeeting.meeting_time && <p>⏰ เวลา: {selectedMeeting.meeting_time}</p>}
-                {selectedMeeting.venue && <p>📍 สถานที่: {selectedMeeting.venue}</p>}
+              <div className="text-sm space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  <span>วันที่: {new Date(selectedMeeting.meeting_date).toLocaleDateString('th-TH')}</span>
+                </div>
+                {selectedMeeting.meeting_time && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    <span>เวลา: {selectedMeeting.meeting_time}</span>
+                  </div>
+                )}
+                {selectedMeeting.venue && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>สถานที่: {selectedMeeting.venue}</span>
+                  </div>
+                )}
                 {selectedMeeting.theme && (
-                  <p className="truncate max-w-full" title={selectedMeeting.theme}>
-                    🎯 หัวข้อ: {selectedMeeting.theme}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4" />
+                    <span className="truncate max-w-full" title={selectedMeeting.theme}>
+                      หัวข้อ: {selectedMeeting.theme}
+                    </span>
+                  </div>
                 )}
                 
                 {selectedMeeting.description && (
@@ -398,7 +419,10 @@ export default function VisitorRegistrationDialog({
                   </div>
                 )}
                 
-                <p className="font-medium text-primary">💰 ค่าเข้าร่วม: {selectedMeeting.visitor_fee} บาท</p>
+                <div className="flex items-center gap-2 font-medium text-primary">
+                  <DollarSign className="w-4 h-4" />
+                  <span>ค่าเข้าร่วม: {selectedMeeting.visitor_fee} บาท</span>
+                </div>
               </div>
             </div>
           )}
@@ -435,6 +459,56 @@ export default function VisitorRegistrationDialog({
         {/* Step 2: Full Registration Form */}
         {step === "form" && (
           <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Meeting Preview - Show which meeting user is registering for */}
+          {selectedMeeting ? (
+            <div className="bg-primary/10 rounded-lg p-4 space-y-2 border border-primary/20" data-testid="meeting-preview-card">
+              <div className="flex items-center gap-2 font-semibold text-primary">
+                <ClipboardList className="w-4 h-4" />
+                <span>กำลังลงทะเบียนสำหรับการประชุม:</span>
+              </div>
+              <div className="text-sm space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-primary" />
+                  <span>วันที่: {new Date(selectedMeeting.meeting_date).toLocaleDateString('th-TH')}</span>
+                </div>
+                {selectedMeeting.meeting_time && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span>เวลา: {selectedMeeting.meeting_time}</span>
+                  </div>
+                )}
+                {selectedMeeting.venue && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <span>สถานที่: {selectedMeeting.venue}</span>
+                  </div>
+                )}
+                {selectedMeeting.theme && (
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-primary" />
+                    <span className="truncate max-w-full" title={selectedMeeting.theme}>
+                      หัวข้อ: {selectedMeeting.theme}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 font-medium text-primary">
+                  <DollarSign className="w-4 h-4" />
+                  <span>ค่าเข้าร่วม: {selectedMeeting.visitor_fee} บาท</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-accent/50 rounded-lg p-4 border" data-testid="prospect-preview-card">
+              <div className="flex items-center gap-2 font-semibold">
+                <UserPlus className="w-4 h-4" />
+                <span>ลงทะเบียนเป็น Prospect</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                คุณยังไม่ได้เลือกการประชุมที่ต้องการเข้าร่วม เราจะบันทึกข้อมูลของคุณไว้และติดต่อกลับในภายหลัง
+              </p>
+            </div>
+          )}
+
           <div>
             <Label htmlFor="full_name">ชื่อ-นามสกุล *</Label>
             <Input
