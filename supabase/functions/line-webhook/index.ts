@@ -131,28 +131,7 @@ Deno.serve(async (req) => {
     const signature = req.headers.get("x-line-signature");
     const authHeader = req.headers.get("authorization");
 
-    let isInternalTest = false;
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.replace("Bearer ", "");
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-      
-      if (!authError && user) {
-        isInternalTest = true;
-        console.log(`${logPrefix} Authenticated internal test from user: ${user.id}`);
-      } else {
-        console.error(`${logPrefix} Invalid auth token in test mode`);
-      }
-    }
-
-    if (!signature && !isInternalTest) {
-      console.error(`${logPrefix} Missing LINE signature - not an internal test`);
-      console.error(`${logPrefix} Headers: ${JSON.stringify(Object.fromEntries(req.headers.entries()))}`);
-      return new Response(
-        JSON.stringify({ error: "Missing signature" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
+    // Parse JSON body first to check for verification requests
     let payload;
     try {
       payload = JSON.parse(body);
@@ -168,12 +147,37 @@ Deno.serve(async (req) => {
     const destination = payload.destination;
     const events: LineEvent[] = payload.events || [];
 
-    // Handle LINE webhook verification request (empty events or no destination)
-    if ((!events || events.length === 0) && !isInternalTest) {
+    // Handle LINE webhook verification request FIRST (before signature check)
+    // Verification requests have empty events and should return 200 OK immediately
+    if (!events || events.length === 0) {
       console.log(`${logPrefix} LINE verification request detected (empty events)`);
       return new Response(
         JSON.stringify({ success: true, message: "Webhook endpoint verified" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check for internal test mode
+    let isInternalTest = false;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      
+      if (!authError && user) {
+        isInternalTest = true;
+        console.log(`${logPrefix} Authenticated internal test from user: ${user.id}`);
+      } else {
+        console.error(`${logPrefix} Invalid auth token in test mode`);
+      }
+    }
+
+    // For real webhook events, signature is required
+    if (!signature && !isInternalTest) {
+      console.error(`${logPrefix} Missing LINE signature - not an internal test`);
+      console.error(`${logPrefix} Headers: ${JSON.stringify(Object.fromEntries(req.headers.entries()))}`);
+      return new Response(
+        JSON.stringify({ error: "Missing signature" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
