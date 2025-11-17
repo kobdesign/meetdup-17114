@@ -54,10 +54,10 @@ export default function Visitors() {
     filterVisitors();
   }, [visitors, searchTerm, statusFilter]);
 
-  const loadVisitors = async () => {
+  const loadVisitors = async (): Promise<any[]> => {
     if (!effectiveTenantId) {
       setLoading(false);
-      return;
+      return [];
     }
 
     try {
@@ -65,7 +65,7 @@ export default function Visitors() {
       if (!session.session) {
         toast.error("กรุณาเข้าสู่ระบบ");
         setLoading(false);
-        return;
+        return [];
       }
 
       const response = await fetch(
@@ -89,14 +89,17 @@ export default function Visitors() {
         console.log("[Visitors] Loaded visitors from API:", result.participants.length);
         console.log("[Visitors] Sample data:", result.participants[0]);
         setVisitors(result.participants);
+        return result.participants;
       } else {
         console.warn("[Visitors] No participants in response:", result);
         setVisitors([]);
+        return [];
       }
     } catch (error: any) {
       console.error("[Visitors] Error:", error);
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
       setVisitors([]);
+      return [];
     } finally {
       setLoading(false);
     }
