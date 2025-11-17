@@ -26,7 +26,9 @@ export default function LineConfigPage() {
   const { toast } = useToast();
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
-  const [webhookUrl, setWebhookUrl] = useState("");
+  
+  // Generate correct webhook URL immediately
+  const webhookUrl = `${window.location.origin}/api/line/webhook`;
 
   const form = useForm<LineConfigForm>({
     resolver: zodResolver(lineConfigSchema),
@@ -170,39 +172,46 @@ export default function LineConfigPage() {
       
       const { data: { session } } = await supabase.auth.getSession();
       
-      const response = await fetch("/api/line/webhook", {
+      const testPayload = {
+        destination: config?.channelId || "test-bot-id",
+        events: [{
+          type: "message",
+          replyToken: "test-token",
+          source: { type: "user", userId: "test-user-id" },
+          message: { type: "text", text: "test message" },
+          timestamp: Date.now(),
+        }],
+      };
+      
+      const response = await fetch(webhookUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({
-          destination: config?.channelId || "test-bot-id",
-          events: [{
-            type: "message",
-            replyToken: "test-token",
-            source: { type: "user", userId: "test-user" },
-            message: { type: "text", text: "test" },
-            timestamp: Date.now(),
-          }],
-        }),
+        body: JSON.stringify(testPayload),
       });
 
-      if (!response.ok) throw new Error("Webhook test failed");
-      return response.json();
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "Unknown error");
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      return { result, endpoint: webhookUrl };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setTestStatus("success");
       toast({
-        title: "ทดสอบสำเร็จ",
-        description: "Webhook ทำงานปกติ",
+        title: "✅ ทดสอบ Webhook สำเร็จ",
+        description: `Endpoint: ${data.endpoint}\n\nWebhook ทำงานปกติและตอบกลับถูกต้อง`,
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
       setTestStatus("error");
       toast({
-        title: "ทดสอบล้มเหลว",
-        description: "ไม่สามารถเชื่อมต่อ Webhook ได้",
+        title: "❌ ทดสอบ Webhook ล้มเหลว",
+        description: error.message || "ไม่สามารถเชื่อมต่อ Webhook ได้",
         variant: "destructive",
       });
     },
@@ -213,10 +222,7 @@ export default function LineConfigPage() {
   };
 
   const copyWebhookUrl = () => {
-    const baseUrl = window.location.origin;
-    const url = `${baseUrl}/api/line/webhook`;
-    navigator.clipboard.writeText(url);
-    setWebhookUrl(url);
+    navigator.clipboard.writeText(webhookUrl);
     toast({
       title: "คัดลอกแล้ว",
       description: "คัดลอก Webhook URL ไปยังคลิปบอร์ดแล้ว",
@@ -246,14 +252,15 @@ export default function LineConfigPage() {
           <CardHeader>
             <CardTitle>Webhook URL</CardTitle>
             <CardDescription>
-              นำ URL นี้ไปตั้งค่าใน LINE Developers Console
+              นำ URL นี้ไปตั้งค่าใน LINE Developers Console → Messaging API → Webhook settings
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <div className="flex gap-2">
               <Input
                 readOnly
-                value={webhookUrl || `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`}
+                value={webhookUrl}
+                className="font-mono text-sm"
                 data-testid="input-webhook-url"
               />
               <Button
@@ -265,6 +272,11 @@ export default function LineConfigPage() {
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
+            <Alert data-testid="alert-webhook-info">
+              <AlertDescription className="text-sm">
+                <strong>หมายเหตุ:</strong> Webhook URL นี้เป็น Express API endpoint ที่ทำงานบน Replit
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
 
