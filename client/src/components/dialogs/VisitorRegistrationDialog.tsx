@@ -210,9 +210,19 @@ export default function VisitorRegistrationDialog({
         setSelectedReferrer(data.participant.referred_by_participant_id || "");
         toast.success("พบข้อมูลผู้เข้าร่วมแล้ว! กรุณาตรวจสอบและแก้ไข");
       } else {
-        // New participant
+        // New participant - clear all form data except phone
         console.log("New participant - no existing data");
         setExistingParticipant(null);
+        setFormData({
+          full_name: "",
+          email: "",
+          phone: formData.phone, // Keep the phone number they just entered
+          company: "",
+          business_type: "",
+          goal: "",
+          notes: "",
+        });
+        setSelectedReferrer(""); // Clear referrer selection
         toast.info("ผู้เข้าร่วมใหม่ กรุณากรอกข้อมูลเพื่อลงทะเบียน");
       }
 
