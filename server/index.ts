@@ -42,6 +42,81 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+// Test endpoint for LINE card search (for debugging)
+app.get("/api/test/card-search", async (req, res) => {
+  try {
+    const { supabaseAdmin } = await import("./utils/supabaseClient");
+    const searchTerm = req.query.term as string || "กบ";
+    const tenantId = req.query.tenant_id as string || "e2f4c38c-4dd1-4f05-9866-f18ba7028dfa";
+    
+    console.log(`[test-card-search] Searching for: "${searchTerm}" in tenant: ${tenantId}`);
+    
+    // Search by full_name
+    const { data: byFullName, error: error1 } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        nickname,
+        email,
+        phone,
+        company,
+        status,
+        tenants!inner (tenant_name, logo_url)
+      `)
+      .eq("tenant_id", tenantId)
+      .ilike("full_name", `%${searchTerm}%`)
+      .limit(10);
+
+    // Search by nickname
+    const { data: byNickname, error: error2 } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        nickname,
+        email,
+        phone,
+        company,
+        status,
+        tenants!inner (tenant_name, logo_url)
+      `)
+      .eq("tenant_id", tenantId)
+      .ilike("nickname", `%${searchTerm}%`)
+      .limit(10);
+
+    const allResults = [...(byFullName || []), ...(byNickname || [])];
+    const uniqueMap = new Map();
+    for (const p of allResults) {
+      if (!uniqueMap.has(p.participant_id)) {
+        uniqueMap.set(p.participant_id, p);
+      }
+    }
+    const participants = Array.from(uniqueMap.values()).slice(0, 10);
+
+    res.json({
+      searchTerm,
+      tenantId,
+      byFullName: {
+        count: byFullName?.length || 0,
+        error: error1 ? JSON.stringify(error1) : null
+      },
+      byNickname: {
+        count: byNickname?.length || 0,
+        error: error2 ? JSON.stringify(error2) : null
+      },
+      totalUnique: participants.length,
+      results: participants
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // LINE Integration routes
 app.use("/api/line", lineRouter);
 
