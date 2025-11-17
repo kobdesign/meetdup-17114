@@ -44,10 +44,9 @@ export default function Settings() {
         .from("tenants")
         .select("subdomain, tenant_name")
         .eq("tenant_id", effectiveTenantId)
-        .single();
+        .maybeSingle();
 
-      // Handle case where tenant doesn't exist yet (shouldn't happen normally)
-      if (tenantError && tenantError.code !== "PGRST116") throw tenantError;
+      if (tenantError) throw tenantError;
 
       if (tenantData) {
         setTenantSlug(tenantData.subdomain);
@@ -58,9 +57,9 @@ export default function Settings() {
         .from("tenant_settings")
         .select("*")
         .eq("tenant_id", effectiveTenantId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== "PGRST116") throw error;
+      if (error) throw error;
 
       if (data) {
         const settingsData = data as any;
