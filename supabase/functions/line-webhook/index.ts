@@ -148,9 +148,13 @@ Deno.serve(async (req) => {
     const events: LineEvent[] = payload.events || [];
 
     // Handle LINE webhook verification request FIRST (before signature check)
-    // Verification requests have empty events and should return 200 OK immediately
-    if (!events || events.length === 0) {
-      console.log(`${logPrefix} LINE verification request detected (empty events)`);
+    // Verification requests have either:
+    // 1. Empty events array, OR
+    // 2. No destination field (or empty destination)
+    // Return 200 OK immediately for verification
+    if (!events || events.length === 0 || !destination) {
+      console.log(`${logPrefix} LINE verification request detected`);
+      console.log(`${logPrefix} - Events: ${events?.length || 0}, Destination: ${destination || 'none'}`);
       return new Response(
         JSON.stringify({ success: true, message: "Webhook endpoint verified" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
