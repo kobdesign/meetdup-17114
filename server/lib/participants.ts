@@ -157,8 +157,7 @@ export async function validateActivationToken(
         used_at,
         participants (
           participant_id,
-          first_name,
-          last_name,
+          full_name,
           phone,
           email,
           user_id
@@ -167,7 +166,15 @@ export async function validateActivationToken(
       .eq('token', token)
       .single();
 
+    console.log('[validateActivationToken] Query result:', {
+      hasData: !!tokenData,
+      hasError: !!tokenError,
+      error: tokenError,
+      tokenDataKeys: tokenData ? Object.keys(tokenData) : []
+    });
+
     if (tokenError || !tokenData) {
+      console.error('[validateActivationToken] Token lookup failed:', tokenError);
       return { success: false, error: 'Invalid activation link' };
     }
 
