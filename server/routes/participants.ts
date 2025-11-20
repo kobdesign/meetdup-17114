@@ -2528,26 +2528,44 @@ router.post("/join-existing", verifySupabaseAuth, async (req: AuthenticatedReque
 
     const tenantId = tokenData.tenant_id;
 
-    // Verify that this user owns the phone number
-    const normalizedPhone = normalizePhone(participant.phone);
-    const { data: existingParticipants } = await supabaseAdmin
-      .from("participants")
-      .select("user_id")
-      .eq("phone", normalizedPhone)
-      .not("user_id", "is", null)
-      .limit(1);
-
-    if (!existingParticipants || existingParticipants.length === 0) {
-      return res.status(403).json({
+    // Security: Verify that this authenticated user owns the phone number from the token
+    // Get all participants for this user across all tenants to verify phone ownership
+    const normalizedTokenPhone = normalizePhone(participant.phone);
+    
+    if (!normalizedTokenPhone) {
+      return res.status(400).json({
         success: false,
-        error: "Phone number verification failed"
+        error: "Invalid phone number in token"
       });
     }
 
-    if (existingParticipants[0].user_id !== userId) {
+    const { data: userParticipants } = await supabaseAdmin
+      .from("participants")
+      .select("phone, user_id")
+      .eq("user_id", userId)
+      .not("user_id", "is", null);
+
+    if (!userParticipants || userParticipants.length === 0) {
       return res.status(403).json({
         success: false,
-        error: "This phone number belongs to a different account"
+        error: "No existing account found. Please use the regular activation flow."
+      });
+    }
+
+    // Verify that at least one of the user's participant records has matching phone
+    const phoneMatches = userParticipants.some(p => {
+      const normalizedUserPhone = normalizePhone(p.phone);
+      return normalizedUserPhone === normalizedTokenPhone;
+    });
+
+    if (!phoneMatches) {
+      console.error(`${logPrefix} Phone mismatch:`, {
+        tokenPhone: normalizedTokenPhone,
+        userPhones: userParticipants.map(p => normalizePhone(p.phone))
+      });
+      return res.status(403).json({
+        success: false,
+        error: "Phone number verification failed. This activation link is for a different phone number."
       });
     }
 

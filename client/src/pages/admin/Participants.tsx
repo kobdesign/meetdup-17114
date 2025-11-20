@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -519,17 +520,18 @@ export default function Participants() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Phone</TableHead>
                     <TableHead>Company</TableHead>
-                    <TableHead>Business Type</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Account</TableHead>
                     <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredParticipants.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
                         No participants found
                       </TableCell>
                     </TableRow>
@@ -546,11 +548,26 @@ export default function Participants() {
                             )}
                           </div>
                         </TableCell>
+                        <TableCell>
+                          <div className="text-sm">{participant.phone || "-"}</div>
+                        </TableCell>
                         <TableCell>{participant.company || "-"}</TableCell>
-                        <TableCell>{participant.business_type || "-"}</TableCell>
                         <TableCell>{participant.email || "-"}</TableCell>
                         <TableCell>
                           <StatusBadge status={participant.status} />
+                        </TableCell>
+                        <TableCell>
+                          {participant.user_id ? (
+                            <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Activated
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Not Activated
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">

@@ -106,6 +106,9 @@ export default function Activate() {
     try {
       setValidating(true);
 
+      // Clear any stale session first
+      await supabase.auth.signOut();
+
       // Sign in with Supabase
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
