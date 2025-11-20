@@ -2676,23 +2676,35 @@ router.post("/activate", async (req: Request, res: Response) => {
 
     const userId = authData.user.id;
 
-    // Link user to participant
-    const linkResult = await linkUserToParticipant(
-      supabaseAdmin,
-      userId,
-      participant.phone,
-      tenantId
-    );
+    // Link user to participant directly using participant_id
+    const { error: linkError } = await supabaseAdmin
+      .from('participants')
+      .update({ user_id: userId })
+      .eq('participant_id', participant.participant_id);
 
-    if (!linkResult.success) {
-      console.error(`${logPrefix} Link failed:`, linkResult.error);
+    if (linkError) {
+      console.error(`${logPrefix} Failed to link participant:`, linkError);
       // Rollback: delete the user account
       await supabaseAdmin.auth.admin.deleteUser(userId);
       return res.status(500).json({
         success: false,
         error: "Failed to link account",
-        message: linkResult.error
+        message: linkError.message
       });
+    }
+
+    // Create user_role for this tenant
+    const { error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .insert({
+        user_id: userId,
+        tenant_id: tenantId,
+        role: "member",
+      });
+
+    if (roleError) {
+      console.error(`${logPrefix} Failed to create role:`, roleError);
+      // Don't rollback if role creation fails, just log it
     }
 
     // Mark token as used
@@ -2715,7 +2727,7 @@ router.post("/activate", async (req: Request, res: Response) => {
       success: true,
       message: "Account activated successfully",
       user_id: userId,
-      participant_id: linkResult.participantId
+      participant_id: participant.participant_id
     });
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);
