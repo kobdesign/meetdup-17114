@@ -22,7 +22,7 @@ export async function checkPhoneHasAccount(
     // Find any participant with this phone that has a user_id
     const { data: participants, error } = await supabase
       .from('participants')
-      .select('user_id, full_name, tenant_id, tenants(name)')
+      .select('user_id, full_name, tenant_id, tenants(tenant_name)')
       .eq('phone', normalizedPhone)
       .not('user_id', 'is', null)
       .limit(10); // Get up to 10 to show which chapters they're in
@@ -34,7 +34,7 @@ export async function checkPhoneHasAccount(
     // Get first user (should be same across all participants)
     const firstParticipant = participants[0];
     const tenantNames = participants
-      .map(p => (p.tenants as any)?.name)
+      .map(p => (p.tenants as any)?.tenant_name)
       .filter(Boolean);
 
     return {
@@ -209,7 +209,7 @@ export async function validateActivationToken(
           user_id
         ),
         tenants (
-          name
+          tenant_name
         )
       `)
       .eq('token', token)
