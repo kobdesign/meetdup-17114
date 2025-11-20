@@ -2002,4 +2002,245 @@ router.post("/line-register", async (req: Request, res: Response) => {
   }
 });
 
+// Configure multer for Excel file uploads
+const uploadExcel = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv', // .csv
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only Excel (.xlsx, .xls) and CSV files are allowed.'));
+    }
+  },
+});
+
+// Import members from Excel file (authenticated endpoint)
+// Expected columns: ชื่อ - สกุล, ชื่อเล่น, บริษัทฯ, ธุรกิจ, เบอร์โทร, ผู้เชิญ
+router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), async (req: AuthenticatedRequest, res) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[import-members:${requestId}]`;
+
+  try {
+    const userId = req.user?.id;
+    const { tenant_id } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!tenant_id) {
+      return res.status(400).json({ 
+        error: "Missing tenant_id",
+        message: "tenant_id is required"
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: "Missing file",
+        message: "Please upload an Excel file"
+      });
+    }
+
+    // Verify user has access to this tenant (must be admin or super_admin)
+    const { data: userRoles, error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .select("role, tenant_id")
+      .eq("user_id", userId);
+
+    if (roleError || !userRoles || userRoles.length === 0) {
+      return res.status(403).json({ 
+        error: "Forbidden",
+        message: "You don't have access to any chapter"
+      });
+    }
+
+    const isSuperAdmin = userRoles.some(r => r.role === "super_admin" && !r.tenant_id);
+    const isChapterAdmin = userRoles.some(r => 
+      r.tenant_id === tenant_id && (r.role === "chapter_admin" || r.role === "super_admin")
+    );
+
+    if (!isSuperAdmin && !isChapterAdmin) {
+      return res.status(403).json({ 
+        error: "Forbidden",
+        message: "You must be a chapter admin to import members"
+      });
+    }
+
+    console.log(`${logPrefix} Parsing Excel file:`, req.file.originalname);
+
+    // Parse Excel file
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+    console.log(`${logPrefix} Found ${rawData.length} rows in Excel`);
+
+    if (rawData.length === 0) {
+      return res.status(400).json({
+        error: "Empty file",
+        message: "The Excel file is empty"
+      });
+    }
+
+    // Map Excel columns to our schema
+    const participants = rawData.map((row: any, index: number) => {
+      const fullName = row['ชื่อ - สกุล'] || row['full_name'] || '';
+      const nickname = row['ชื่อเล่น'] || row['nickname'] || '';
+      const company = row['บริษัทฯ'] || row['company'] || '';
+      const businessType = row['ธุรกิจ'] || row['business_type'] || '';
+      const phone = row['เบอร์โทร'] || row['phone'] || '';
+
+      // Normalize phone (strip non-digits)
+      const normalizedPhone = String(phone).replace(/\D/g, '');
+
+      return {
+        row_number: index + 2, // +2 because Excel is 1-indexed and has header row
+        tenant_id,
+        full_name: fullName.trim(),
+        nickname: nickname.trim(),
+        company: company.trim() || null,
+        business_type: businessType.trim() || null,
+        phone: normalizedPhone || null,
+        status: 'member' as const, // Import as existing members
+        invited_by_name: row['ผู้เชิญ'] || '', // We'll resolve this later if needed
+      };
+    });
+
+    // Validate required fields
+    const validationErrors: string[] = [];
+    participants.forEach((p) => {
+      if (!p.full_name) {
+        validationErrors.push(`Row ${p.row_number}: Missing name (ชื่อ - สกุล)`);
+      }
+      if (!p.phone) {
+        validationErrors.push(`Row ${p.row_number}: Missing phone number (เบอร์โทร)`);
+      } else if (p.phone.length < 9) {
+        validationErrors.push(`Row ${p.row_number}: Invalid phone number "${p.phone}" (too short)`);
+      }
+    });
+
+    if (validationErrors.length > 0) {
+      console.error(`${logPrefix} Validation errors:`, validationErrors);
+      return res.status(400).json({
+        error: "Validation failed",
+        message: "Some rows have invalid data",
+        validation_errors: validationErrors.slice(0, 10), // Return first 10 errors
+        total_errors: validationErrors.length
+      });
+    }
+
+    // Check for duplicate phone numbers within the import
+    const phoneMap = new Map<string, number[]>();
+    participants.forEach((p) => {
+      if (p.phone) {
+        if (!phoneMap.has(p.phone)) {
+          phoneMap.set(p.phone, []);
+        }
+        phoneMap.get(p.phone)!.push(p.row_number);
+      }
+    });
+
+    const duplicatesInFile: string[] = [];
+    phoneMap.forEach((rows, phone) => {
+      if (rows.length > 1) {
+        duplicatesInFile.push(`Phone ${phone} appears in rows: ${rows.join(', ')}`);
+      }
+    });
+
+    if (duplicatesInFile.length > 0) {
+      console.error(`${logPrefix} Duplicate phones in file:`, duplicatesInFile);
+      return res.status(400).json({
+        error: "Duplicate phone numbers",
+        message: "Some phone numbers appear multiple times in the file",
+        duplicates: duplicatesInFile
+      });
+    }
+
+    // Check for existing phone numbers in database
+    const phonesToCheck = participants.map(p => p.phone).filter(Boolean);
+    const { data: existingParticipants, error: checkError } = await supabaseAdmin
+      .from("participants")
+      .select("phone, full_name, participant_id")
+      .eq("tenant_id", tenant_id)
+      .in("phone", phonesToCheck);
+
+    if (checkError) {
+      console.error(`${logPrefix} Error checking existing phones:`, checkError);
+      return res.status(500).json({
+        error: "Database error",
+        message: checkError.message
+      });
+    }
+
+    const existingPhoneMap = new Map(
+      (existingParticipants || []).map(p => [p.phone, p])
+    );
+
+    const conflicts: string[] = [];
+    participants.forEach((p) => {
+      if (p.phone && existingPhoneMap.has(p.phone)) {
+        const existing = existingPhoneMap.get(p.phone)!;
+        conflicts.push(
+          `Row ${p.row_number}: Phone ${p.phone} already exists (${existing.full_name})`
+        );
+      }
+    });
+
+    if (conflicts.length > 0) {
+      console.error(`${logPrefix} Phone conflicts with existing data:`, conflicts);
+      return res.status(409).json({
+        error: "Duplicate phone numbers",
+        message: "Some phone numbers already exist in the database",
+        conflicts: conflicts.slice(0, 10),
+        total_conflicts: conflicts.length
+      });
+    }
+
+    // Prepare data for insert (remove row_number and invited_by_name)
+    const dataToInsert = participants.map(({ row_number, invited_by_name, ...p }) => p);
+
+    // Insert all participants
+    console.log(`${logPrefix} Inserting ${dataToInsert.length} participants...`);
+    const { data: insertedData, error: insertError } = await supabaseAdmin
+      .from("participants")
+      .insert(dataToInsert)
+      .select();
+
+    if (insertError) {
+      console.error(`${logPrefix} Insert error:`, insertError);
+      return res.status(500).json({
+        error: "Import failed",
+        message: insertError.message
+      });
+    }
+
+    console.log(`${logPrefix} Successfully imported ${insertedData.length} members`);
+
+    return res.json({
+      success: true,
+      imported_count: insertedData.length,
+      message: `Successfully imported ${insertedData.length} members`,
+      participants: insertedData
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error importing members:`, error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 export default router;

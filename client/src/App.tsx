@@ -25,6 +25,7 @@ import Authorization from "./pages/admin/Authorization";
 import LineConfigPage from "./pages/admin/LineConfigPage";
 import RichMenuPage from "./pages/admin/RichMenuPage";
 import MembersManagement from "./pages/admin/MembersManagement";
+import ImportMembers from "./pages/admin/ImportMembers";
 import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
@@ -119,6 +120,11 @@ const App = () => (
           <Route path="/admin/members-management" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <MembersManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/import-members" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <ImportMembers />
             </ProtectedRoute>
           } />
           
