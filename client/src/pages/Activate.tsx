@@ -177,6 +177,9 @@ export default function Activate() {
     try {
       setValidating(true);
 
+      // Clear any existing session first
+      await supabase.auth.signOut();
+
       const response = await fetch('/api/participants/activate', {
         method: 'POST',
         headers: {
@@ -197,12 +200,27 @@ export default function Activate() {
         return;
       }
 
-      toast.success("สร้างบัญชีสำเร็จ! กรุณาเข้าสู่ระบบ");
+      // Auto-login with the new account
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        console.error('Auto-login error:', signInError);
+        toast.success("สร้างบัญชีสำเร็จ! กรุณาเข้าสู่ระบบ");
+        setTimeout(() => {
+          navigate('/auth');
+        }, 2000);
+        return;
+      }
+
+      toast.success(`สร้างบัญชีสำเร็จ! ยินดีต้อนรับสู่ ${tenantName}`);
       
-      // Redirect to auth page after 2 seconds
+      // Redirect to home
       setTimeout(() => {
-        navigate('/auth');
-      }, 2000);
+        navigate('/');
+      }, 1000);
     } catch (err: any) {
       console.error('Activation error:', err);
       toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
