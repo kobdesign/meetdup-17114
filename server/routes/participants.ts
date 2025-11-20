@@ -2477,17 +2477,56 @@ router.post("/join-existing", verifySupabaseAuth, async (req: AuthenticatedReque
       });
     }
 
-    // Validate token
-    const validation = await validateActivationToken(supabaseAdmin, token);
-    if (!validation.success || !validation.participant || !validation.tenantId) {
+    // Validate token (but skip user_id check since we expect existing account)
+    // We'll manually validate the token without the user_id check
+    const { data: tokenData, error: tokenError } = await supabaseAdmin
+      .from('activation_tokens')
+      .select(`
+        token_id,
+        participant_id,
+        tenant_id,
+        expires_at,
+        used_at,
+        participants (
+          participant_id,
+          full_name,
+          phone,
+          email,
+          user_id
+        )
+      `)
+      .eq('token', token)
+      .single();
+
+    if (tokenError || !tokenData) {
+      console.error(`${logPrefix} Token lookup failed:`, tokenError);
       return res.status(400).json({
         success: false,
-        error: validation.error || "Invalid token"
+        error: "Invalid activation link"
       });
     }
 
-    const participant = validation.participant;
-    const tenantId = validation.tenantId;
+    // Check if already used
+    if (tokenData.used_at) {
+      return res.status(400).json({
+        success: false,
+        error: "This activation link has already been used"
+      });
+    }
+
+    // Check if expired
+    if (new Date(tokenData.expires_at) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: "This activation link has expired"
+      });
+    }
+
+    const participant = Array.isArray(tokenData.participants) 
+      ? tokenData.participants[0] 
+      : tokenData.participants;
+
+    const tenantId = tokenData.tenant_id;
 
     // Verify that this user owns the phone number
     const normalizedPhone = normalizePhone(participant.phone);
@@ -2526,23 +2565,33 @@ router.post("/join-existing", verifySupabaseAuth, async (req: AuthenticatedReque
       });
     }
 
-    // Create user_role for this tenant
-    const { error: roleError } = await supabaseAdmin
+    // Check if user_role already exists
+    const { data: existingRole } = await supabaseAdmin
       .from("user_roles")
-      .upsert({
-        user_id: userId,
-        tenant_id: tenantId,
-        role: "member",
-      }, {
-        onConflict: "user_id,tenant_id",
-      });
+      .select("role_id")
+      .eq("user_id", userId)
+      .eq("tenant_id", tenantId)
+      .single();
 
-    if (roleError) {
-      console.error(`${logPrefix} Failed to create role:`, roleError);
-      return res.status(500).json({
-        success: false,
-        error: "Failed to create role"
-      });
+    // Create user_role only if it doesn't exist
+    if (!existingRole) {
+      const { error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .insert({
+          user_id: userId,
+          tenant_id: tenantId,
+          role: "member",
+        });
+
+      if (roleError) {
+        console.error(`${logPrefix} Failed to create role:`, roleError);
+        return res.status(500).json({
+          success: false,
+          error: "Failed to create role"
+        });
+      }
+    } else {
+      console.log(`${logPrefix} User role already exists for this tenant`);
     }
 
     // Mark token as used
