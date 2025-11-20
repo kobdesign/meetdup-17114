@@ -2332,14 +2332,16 @@ router.post("/generate-activation-link", verifySupabaseAuth, async (req: Authent
     }
 
     // Verify user has admin access to this tenant
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is super_admin (can access all tenants) OR has admin role in this tenant
+    const { data: userRoles } = await supabaseAdmin
       .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("tenant_id", tenant_id)
-      .single();
+      .select("role, tenant_id")
+      .eq("user_id", userId);
 
-    if (!userRole || !['chapter_admin', 'super_admin'].includes(userRole.role)) {
+    const isSuperAdmin = userRoles?.some(r => r.role === 'super_admin');
+    const isChapterAdmin = userRoles?.some(r => r.tenant_id === tenant_id && r.role === 'chapter_admin');
+
+    if (!isSuperAdmin && !isChapterAdmin) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized: Admin access required"
