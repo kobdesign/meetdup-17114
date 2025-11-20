@@ -2453,6 +2453,124 @@ router.get("/validate-token/:token", async (req: Request, res: Response) => {
 });
 
 /**
+ * Join existing account to new chapter
+ * Used when user already has an account but wants to join another chapter
+ * Authenticated endpoint
+ */
+router.post("/join-existing", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[join-existing:${requestId}]`;
+
+  try {
+    const { token } = req.body;
+    const userId = req.user?.id;
+
+    console.log(`${logPrefix} Join existing account`, {
+      token_prefix: token ? token.slice(0, 8) + '...' : undefined,
+      user_id: userId
+    });
+
+    if (!token || !userId) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+
+    // Validate token
+    const validation = await validateActivationToken(supabaseAdmin, token);
+    if (!validation.success || !validation.participant || !validation.tenantId) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error || "Invalid token"
+      });
+    }
+
+    const participant = validation.participant;
+    const tenantId = validation.tenantId;
+
+    // Verify that this user owns the phone number
+    const normalizedPhone = normalizePhone(participant.phone);
+    const { data: existingParticipants } = await supabaseAdmin
+      .from("participants")
+      .select("user_id")
+      .eq("phone", normalizedPhone)
+      .not("user_id", "is", null)
+      .limit(1);
+
+    if (!existingParticipants || existingParticipants.length === 0) {
+      return res.status(403).json({
+        success: false,
+        error: "Phone number verification failed"
+      });
+    }
+
+    if (existingParticipants[0].user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: "This phone number belongs to a different account"
+      });
+    }
+
+    // Link this participant to user
+    const { error: linkError } = await supabaseAdmin
+      .from("participants")
+      .update({ user_id: userId })
+      .eq("participant_id", participant.participant_id);
+
+    if (linkError) {
+      console.error(`${logPrefix} Failed to link participant:`, linkError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to link participant"
+      });
+    }
+
+    // Create user_role for this tenant
+    const { error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({
+        user_id: userId,
+        tenant_id: tenantId,
+        role: "member",
+      }, {
+        onConflict: "user_id,tenant_id",
+      });
+
+    if (roleError) {
+      console.error(`${logPrefix} Failed to create role:`, roleError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to create role"
+      });
+    }
+
+    // Mark token as used
+    await markTokenAsUsed(supabaseAdmin, token);
+
+    console.log(`${logPrefix} Successfully joined chapter`, {
+      user_id: userId,
+      tenant_id: tenantId,
+      participant_id: participant.participant_id
+    });
+
+    return res.json({
+      success: true,
+      message: "Successfully joined chapter",
+      participant_id: participant.participant_id,
+      tenant_id: tenantId
+    });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+/**
  * Complete activation by creating user account and linking
  * Public endpoint (no auth required)
  */

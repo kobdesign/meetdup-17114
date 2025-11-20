@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertCircle, UserCheck } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ParticipantInfo {
   participant_id: string;
@@ -15,6 +16,18 @@ interface ParticipantInfo {
   phone: string;
   email?: string;
   full_name?: string;
+}
+
+interface ValidationResponse {
+  success: boolean;
+  participant?: ParticipantInfo;
+  tenantId?: string;
+  tenantName?: string;
+  existingAccount?: boolean;
+  existingUserId?: string;
+  existingUserName?: string;
+  existingUserTenants?: string[];
+  error?: string;
 }
 
 export default function Activate() {
@@ -26,6 +39,9 @@ export default function Activate() {
   const [participant, setParticipant] = useState<ParticipantInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenantName, setTenantName] = useState<string>("");
+  const [existingAccount, setExistingAccount] = useState(false);
+  const [existingUserTenants, setExistingUserTenants] = useState<string[]>([]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,23 +65,26 @@ export default function Activate() {
       setError(null);
 
       const response = await fetch(`/api/participants/validate-token/${token}`);
-      const data = await response.json();
+      const data: ValidationResponse = await response.json();
 
       if (!response.ok || !data.success) {
         setError(data.error || "ลิงก์ไม่ถูกต้องหรือหมดอายุ");
         return;
       }
 
-      setParticipant(data.participant);
-      setTenantId(data.tenantId);
+      setParticipant(data.participant!);
+      setTenantId(data.tenantId!);
+      setTenantName(data.tenantName || "");
+      setExistingAccount(data.existingAccount || false);
+      setExistingUserTenants(data.existingUserTenants || []);
       
       // Pre-fill form with participant data
-      if (data.participant.email) {
+      if (data.participant?.email) {
         setEmail(data.participant.email);
       }
-      if (data.participant.full_name) {
+      if (data.participant?.full_name) {
         setFullName(data.participant.full_name);
-      } else if (data.participant.first_name && data.participant.last_name) {
+      } else if (data.participant?.first_name && data.participant?.last_name) {
         setFullName(`${data.participant.first_name} ${data.participant.last_name}`);
       }
     } catch (err: any) {
@@ -73,6 +92,66 @@ export default function Activate() {
       setError("ไม่สามารถตรวจสอบลิงก์ได้");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSignInToJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      toast.error("กรุณากรอกอีเมลและรหัสผ่าน");
+      return;
+    }
+
+    try {
+      setValidating(true);
+
+      // Sign in with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        toast.error("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+        return;
+      }
+
+      if (!authData.session) {
+        toast.error("ไม่สามารถเข้าสู่ระบบได้");
+        return;
+      }
+
+      // Call join-existing API to link participant + create role
+      const response = await fetch('/api/participants/join-existing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authData.session.access_token}`,
+        },
+        body: JSON.stringify({
+          token,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        toast.error(data.error || "ไม่สามารถเข้าร่วม Chapter ได้");
+        return;
+      }
+
+      toast.success(`เข้าร่วม ${tenantName} สำเร็จ!`);
+      
+      // Redirect to home
+      setTimeout(() => {
+        navigate('/');
+      }, 1000);
+    } catch (err: any) {
+      console.error('Sign in error:', err);
+      toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setValidating(false);
     }
   };
 
@@ -171,6 +250,95 @@ export default function Activate() {
     );
   }
 
+  // Show "Sign In to Join" page if user has existing account
+  if (existingAccount) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <UserCheck className="h-6 w-6 text-primary" />
+              <CardTitle>คุณมีบัญชีอยู่แล้ว</CardTitle>
+            </div>
+            <CardDescription>
+              เบอร์โทร {participant.phone} มีบัญชีผู้ใช้แล้ว
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert className="mb-6">
+              <AlertDescription>
+                <div className="text-sm space-y-2">
+                  <p><strong>ชื่อ:</strong> {participant.full_name || `${participant.first_name} ${participant.last_name}`}</p>
+                  <p><strong>คุณเคยเป็นสมาชิก:</strong></p>
+                  <ul className="list-disc list-inside ml-2 space-y-1">
+                    {existingUserTenants.map((tenant, idx) => (
+                      <li key={idx}>{tenant}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 font-semibold">
+                    ต้องการเข้าร่วม <span className="text-primary">{tenantName}</span> ด้วยหรือไม่?
+                  </p>
+                </div>
+              </AlertDescription>
+            </Alert>
+
+            <form onSubmit={handleSignInToJoin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">อีเมล</Label>
+                <Input
+                  id="email"
+                  data-testid="input-email-signin"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@example.com"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">รหัสผ่าน</Label>
+                <Input
+                  id="password"
+                  data-testid="input-password-signin"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="รหัสผ่านของคุณ"
+                  required
+                />
+              </div>
+
+              <Button
+                data-testid="button-signin-to-join"
+                type="submit"
+                className="w-full"
+                disabled={validating}
+              >
+                {validating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    กำลังเข้าสู่ระบบ...
+                  </>
+                ) : (
+                  `Sign In เพื่อเข้าร่วม ${tenantName}`
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              ลืมรหัสผ่าน?{" "}
+              <a href="/auth" className="text-primary hover:underline">
+                รีเซ็ตรหัสผ่าน
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show normal activation form for new users
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
@@ -189,6 +357,7 @@ export default function Activate() {
               <div className="text-sm space-y-1">
                 <p><strong>ชื่อ:</strong> {participant.full_name || `${participant.first_name} ${participant.last_name}`}</p>
                 <p><strong>เบอร์โทร:</strong> {participant.phone}</p>
+                <p><strong>Chapter:</strong> {tenantName}</p>
               </div>
             </AlertDescription>
           </Alert>
@@ -208,7 +377,9 @@ export default function Activate() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">อีเมล</Label>
+              <Label htmlFor="email">
+                อีเมล <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="email"
                 data-testid="input-email"
@@ -218,6 +389,9 @@ export default function Activate() {
                 placeholder="email@example.com"
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                ใช้สำหรับเข้าสู่ระบบและรับการแจ้งเตือน
+              </p>
             </div>
 
             <div className="space-y-2">

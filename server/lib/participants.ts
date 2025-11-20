@@ -9,6 +9,47 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
+ * Check if phone number already has a user account (across all tenants)
+ * Used for cross-tenant account detection
+ */
+export async function checkPhoneHasAccount(
+  supabase: SupabaseClient,
+  phone: string
+): Promise<{ hasAccount: boolean; userId?: string; userName?: string; tenants?: string[] }> {
+  try {
+    const normalizedPhone = normalizePhone(phone);
+    
+    // Find any participant with this phone that has a user_id
+    const { data: participants, error } = await supabase
+      .from('participants')
+      .select('user_id, full_name, tenant_id, tenants(name)')
+      .eq('phone', normalizedPhone)
+      .not('user_id', 'is', null)
+      .limit(10); // Get up to 10 to show which chapters they're in
+
+    if (error || !participants || participants.length === 0) {
+      return { hasAccount: false };
+    }
+
+    // Get first user (should be same across all participants)
+    const firstParticipant = participants[0];
+    const tenantNames = participants
+      .map(p => (p.tenants as any)?.name)
+      .filter(Boolean);
+
+    return {
+      hasAccount: true,
+      userId: firstParticipant.user_id!,
+      userName: firstParticipant.full_name || undefined,
+      tenants: tenantNames
+    };
+  } catch (error) {
+    console.error('Error in checkPhoneHasAccount:', error);
+    return { hasAccount: false };
+  }
+}
+
+/**
  * Auto-link user account to participant record based on phone number match
  * Used during registration to automatically connect user_id to existing participant
  */
@@ -143,6 +184,11 @@ export async function validateActivationToken(
   success: boolean;
   participant?: any;
   tenantId?: string;
+  tenantName?: string;
+  existingAccount?: boolean;
+  existingUserId?: string;
+  existingUserName?: string;
+  existingUserTenants?: string[];
   error?: string;
 }> {
   try {
@@ -161,6 +207,9 @@ export async function validateActivationToken(
           phone,
           email,
           user_id
+        ),
+        tenants (
+          name
         )
       `)
       .eq('token', token)
@@ -192,7 +241,9 @@ export async function validateActivationToken(
       ? tokenData.participants[0] 
       : tokenData.participants;
 
-    // Check if participant already has a user account
+    const tenantName = (tokenData.tenants as any)?.name || '';
+
+    // Check if THIS participant already has a user account
     if (participant?.user_id) {
       return { 
         success: false, 
@@ -200,10 +251,37 @@ export async function validateActivationToken(
       };
     }
 
+    // Check if phone number already has an account (cross-tenant)
+    if (participant?.phone) {
+      const existingAccount = await checkPhoneHasAccount(supabase, participant.phone);
+      
+      if (existingAccount.hasAccount) {
+        console.log('[validateActivationToken] Found existing account for phone:', {
+          phone: participant.phone,
+          userId: existingAccount.userId,
+          tenants: existingAccount.tenants
+        });
+
+        return {
+          success: true,
+          participant: participant,
+          tenantId: tokenData.tenant_id,
+          tenantName,
+          existingAccount: true,
+          existingUserId: existingAccount.userId,
+          existingUserName: existingAccount.userName,
+          existingUserTenants: existingAccount.tenants,
+        };
+      }
+    }
+
+    // No existing account - normal activation flow
     return {
       success: true,
       participant: participant,
       tenantId: tokenData.tenant_id,
+      tenantName,
+      existingAccount: false,
     };
   } catch (error) {
     console.error('Error in validateActivationToken:', error);
