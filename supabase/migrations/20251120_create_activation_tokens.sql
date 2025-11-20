@@ -1,13 +1,13 @@
 -- Create activation_tokens table for member self-activation
 CREATE TABLE IF NOT EXISTS activation_tokens (
-  token_id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+  token_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   token VARCHAR UNIQUE NOT NULL,
-  participant_id VARCHAR NOT NULL REFERENCES participants(participant_id) ON DELETE CASCADE,
-  tenant_id VARCHAR NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+  participant_id UUID NOT NULL REFERENCES participants(participant_id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '7 days'),
   used_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by VARCHAR REFERENCES auth.users(id)
+  created_by UUID REFERENCES auth.users(id)
 );
 
 -- Create index for faster lookups
