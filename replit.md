@@ -7,6 +7,10 @@ Meetdup is a comprehensive multi-tenant SaaS application designed to streamline 
 - **Bulk Member Import**: Excel-based member import with phone validation and duplicate detection
 - **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching
 - **Activation Flow**: Secure token-based self-registration for imported members with 7-day expiration
+- **Duplicate Role Fix (Nov 2024)**: Resolved PGRST116 error for admins with multiple chapter roles
+  - Migration adds unique constraint on (user_id, tenant_id, role) to prevent exact duplicate roles
+  - API detects and returns 409 errors for data corruption while preserving legitimate multi-role assignments
+  - Users can still have multiple different roles per tenant (e.g., chapter_admin + member)
 
 ## User Preferences
 None specified yet.

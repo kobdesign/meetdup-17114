@@ -242,14 +242,29 @@ router.post("/invite/accept/:token", verifySupabaseAuth, async (req: Authenticat
     }
 
     // Check if user already has role in this chapter
-    const { data: existingRole } = await supabaseAdmin
+    // Use limit(2) to detect both existing role and potential duplicates
+    const { data: existingRoles } = await supabaseAdmin
       .from("user_roles")
       .select("*")
       .eq("user_id", userId)
       .eq("tenant_id", invite.tenant_id)
-      .single();
+      .limit(2);
 
-    if (existingRole) {
+    if (existingRoles && existingRoles.length > 0) {
+      // If exact duplicates exist (same role), return 409 to signal data corruption
+      if (existingRoles.length > 1) {
+        const roles = existingRoles.map(r => r.role);
+        const hasDuplicateRole = new Set(roles).size < roles.length;
+        
+        if (hasDuplicateRole) {
+          console.error(`❌ DATA CORRUPTION: Duplicate identical roles detected for user ${userId} in tenant ${invite.tenant_id}`, roles);
+          return res.status(409).json({ 
+            error: "Data integrity error",
+            message: "ข้อมูลซ้ำซ้อนในระบบ กรุณาติดต่อผู้ดูแลระบบ"
+          });
+        }
+      }
+      
       return res.status(400).json({ 
         error: "Already a member",
         message: "คุณเป็นสมาชิกของ Chapter นี้อยู่แล้ว"
@@ -384,14 +399,29 @@ router.post("/join-request", verifySupabaseAuth, async (req: AuthenticatedReques
     }
 
     // Check if user already has role in this chapter
-    const { data: existingRole } = await supabaseAdmin
+    // Use limit(2) to detect both existing role and potential duplicates
+    const { data: existingRoles } = await supabaseAdmin
       .from("user_roles")
       .select("*")
       .eq("user_id", userId)
       .eq("tenant_id", tenant_id)
-      .single();
+      .limit(2);
 
-    if (existingRole) {
+    if (existingRoles && existingRoles.length > 0) {
+      // If exact duplicates exist (same role), return 409 to signal data corruption
+      if (existingRoles.length > 1) {
+        const roles = existingRoles.map(r => r.role);
+        const hasDuplicateRole = new Set(roles).size < roles.length;
+        
+        if (hasDuplicateRole) {
+          console.error(`❌ DATA CORRUPTION: Duplicate identical roles detected for user ${userId} in tenant ${tenant_id}`, roles);
+          return res.status(409).json({ 
+            error: "Data integrity error",
+            message: "ข้อมูลซ้ำซ้อนในระบบ กรุณาติดต่อผู้ดูแลระบบ"
+          });
+        }
+      }
+      
       return res.status(400).json({ 
         error: "Already a member",
         message: "คุณเป็นสมาชิกของ Chapter นี้อยู่แล้ว"
@@ -399,15 +429,24 @@ router.post("/join-request", verifySupabaseAuth, async (req: AuthenticatedReques
     }
 
     // Check if pending request already exists
-    const { data: existingRequest } = await supabaseAdmin
+    // Use limit(2) to detect potential duplicates
+    const { data: existingRequests } = await supabaseAdmin
       .from("chapter_join_requests")
       .select("*")
       .eq("user_id", userId)
       .eq("tenant_id", tenant_id)
       .eq("status", "pending")
-      .single();
+      .limit(2);
 
-    if (existingRequest) {
+    if (existingRequests && existingRequests.length > 1) {
+      console.error(`❌ DATA CORRUPTION: Duplicate pending join_requests detected for user ${userId} in tenant ${tenant_id}`);
+      return res.status(409).json({ 
+        error: "Data integrity error",
+        message: "ข้อมูลซ้ำซ้อนในระบบ กรุณาติดต่อผู้ดูแลระบบ"
+      });
+    }
+    
+    if (existingRequests && existingRequests.length > 0) {
       return res.status(400).json({ 
         error: "Request already exists",
         message: "คุณมีคำขอเข้าร่วมที่รอการอนุมัติอยู่แล้ว"
