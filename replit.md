@@ -3,6 +3,11 @@
 ## Overview
 Meetdup is a comprehensive multi-tenant SaaS application designed to streamline and manage business networking chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for business chapters, offering a tailored experience through multi-tenancy and role-based access control.
 
+### Recent Features
+- **Bulk Member Import**: Excel-based member import with phone validation and duplicate detection
+- **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching
+- **Activation Flow**: Secure token-based self-registration for imported members with 7-day expiration
+
 ## User Preferences
 None specified yet.
 
@@ -199,6 +204,13 @@ npm run db:status
 - **Supabase Relationship Ambiguity Fix**: Resolved issues with multiple foreign keys pointing to the same table by using explicit relationship hints with actual FK constraint names.
 - **Visitor Registration Status Flow**: Standardized visitor pipeline progression: Prospect (registered) → Visitor (first check-in) → Member (paid/approved) → Alumni (former member) or Declined (rejected).
 - **2-Step Registration Flow**: Implemented phone-based lookup system for visitor registration. Step 1: Phone number entry and lookup. Step 2: Pre-filled form (if existing) or empty form (if new). Supports both INSERT (new) and UPDATE (existing) modes with tenant ownership validation for security.
+- **Bulk Member Import System**: Excel-based import with validation, phone normalization, duplicate detection, and error reporting. Supports importing existing members without user accounts for later activation.
+- **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching during registration. Prevents account duplication and ensures unified member-participant architecture.
+- **Activation Flow**: Secure token-based self-registration for imported members:
+  - **Token Generation**: Admins generate activation links for members without accounts via Members Management page
+  - **Token Security**: Backend-only access via service role (no public RLS), single-use tokens with 7-day expiration
+  - **Activation Process**: Member receives link → validates token → creates account → auto-links to participant record → marks token as used
+  - **User Experience**: Pre-filled form with participant data (name, phone), password setup, email confirmation
 
 ## External Dependencies
 

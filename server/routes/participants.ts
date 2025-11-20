@@ -2243,4 +2243,319 @@ router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), a
   }
 });
 
+// ==========================================
+// ACTIVATION & AUTO-LINK ENDPOINTS
+// ==========================================
+
+import {
+  linkUserToParticipant,
+  createActivationToken,
+  validateActivationToken,
+  markTokenAsUsed,
+  normalizePhone
+} from "../lib/participants";
+
+/**
+ * Auto-link user account to participant based on phone number
+ * Called during registration to connect user_id to existing participant
+ */
+router.post("/link-account", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[link-account:${requestId}]`;
+
+  try {
+    const { phone, tenant_id } = req.body;
+    const userId = req.user?.id;
+
+    console.log(`${logPrefix} Auto-link request`, {
+      user_id: userId,
+      tenant_id,
+      phone_masked: phone ? `${String(phone).slice(0, 3)}****` : undefined
+    });
+
+    if (!userId || !phone || !tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+
+    const result = await linkUserToParticipant(
+      supabaseAdmin,
+      userId,
+      phone,
+      tenant_id
+    );
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    console.log(`${logPrefix} Successfully linked user to participant`, {
+      participant_id: result.participantId
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Generate activation link for a participant
+ * Admin endpoint to create activation tokens
+ */
+router.post("/generate-activation-link", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[generate-activation:${requestId}]`;
+
+  try {
+    const { participant_id, tenant_id } = req.body;
+    const userId = req.user?.id;
+
+    console.log(`${logPrefix} Generate activation link`, {
+      participant_id,
+      tenant_id,
+      created_by: userId
+    });
+
+    if (!userId || !participant_id || !tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+
+    // Verify user has admin access to this tenant
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("tenant_id", tenant_id)
+      .single();
+
+    if (!userRole || !['chapter_admin', 'super_admin'].includes(userRole.role)) {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized: Admin access required"
+      });
+    }
+
+    // Check if participant already has a user account
+    const { data: participant } = await supabaseAdmin
+      .from("participants")
+      .select("user_id, full_name, phone")
+      .eq("participant_id", participant_id)
+      .eq("tenant_id", tenant_id)
+      .single();
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found"
+      });
+    }
+
+    if (participant.user_id) {
+      return res.status(400).json({
+        success: false,
+        error: "This participant already has an active account"
+      });
+    }
+
+    // Create activation token
+    const result = await createActivationToken(
+      supabaseAdmin,
+      participant_id,
+      tenant_id,
+      userId,
+      7 // expires in 7 days
+    );
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    // Build activation URL
+    const baseUrl = process.env.REPLIT_DOMAINS 
+      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+      : 'http://localhost:5000';
+    
+    const activationUrl = `${baseUrl}/activate/${result.token}`;
+
+    console.log(`${logPrefix} Activation link generated successfully`);
+
+    return res.json({
+      success: true,
+      token: result.token,
+      activation_url: activationUrl,
+      participant: {
+        full_name: participant.full_name,
+        phone: participant.phone
+      }
+    });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Validate activation token and get participant info
+ * Public endpoint (no auth required)
+ */
+router.get("/validate-token/:token", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[validate-token:${requestId}]`;
+
+  try {
+    const { token } = req.params;
+
+    console.log(`${logPrefix} Validating token`, {
+      token_prefix: token ? token.slice(0, 8) + '...' : undefined
+    });
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: "Token required"
+      });
+    }
+
+    const result = await validateActivationToken(supabaseAdmin, token);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    console.log(`${logPrefix} Token valid`);
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Complete activation by creating user account and linking
+ * Public endpoint (no auth required)
+ */
+router.post("/activate", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[activate:${requestId}]`;
+
+  try {
+    const { token, email, password, full_name } = req.body;
+
+    console.log(`${logPrefix} Activation request`, {
+      token_prefix: token ? token.slice(0, 8) + '...' : undefined,
+      email
+    });
+
+    if (!token || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: token, email, password"
+      });
+    }
+
+    // Validate token first
+    const validation = await validateActivationToken(supabaseAdmin, token);
+    if (!validation.success || !validation.participant || !validation.tenantId) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error || "Invalid token"
+      });
+    }
+
+    const participant = validation.participant;
+    const tenantId = validation.tenantId;
+
+    // Create user account
+    const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: full_name || participant.full_name,
+        phone: participant.phone
+      }
+    });
+
+    if (signUpError || !authData.user) {
+      console.error(`${logPrefix} Sign up error:`, signUpError);
+      return res.status(400).json({
+        success: false,
+        error: "Failed to create account",
+        message: signUpError?.message
+      });
+    }
+
+    const userId = authData.user.id;
+
+    // Link user to participant
+    const linkResult = await linkUserToParticipant(
+      supabaseAdmin,
+      userId,
+      participant.phone,
+      tenantId
+    );
+
+    if (!linkResult.success) {
+      console.error(`${logPrefix} Link failed:`, linkResult.error);
+      // Rollback: delete the user account
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to link account",
+        message: linkResult.error
+      });
+    }
+
+    // Mark token as used
+    await markTokenAsUsed(supabaseAdmin, token);
+
+    // Update participant's email if provided
+    if (participant.email !== email) {
+      await supabaseAdmin
+        .from("participants")
+        .update({ email })
+        .eq("participant_id", participant.participant_id);
+    }
+
+    console.log(`${logPrefix} Activation successful`, {
+      user_id: userId,
+      participant_id: participant.participant_id
+    });
+
+    return res.json({
+      success: true,
+      message: "Account activated successfully",
+      user_id: userId,
+      participant_id: linkResult.participantId
+    });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 export default router;

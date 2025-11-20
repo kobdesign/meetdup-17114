@@ -33,6 +33,7 @@ import VisitorRegister from "./pages/public/VisitorRegister";
 // DEPRECATED: LIFF-based LINE registration (using message-based flow instead)
 // import LineRegister from "./pages/public/LineRegister";
 import ParticipantProfile from "./pages/ParticipantProfile";
+import Activate from "./pages/Activate";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -60,6 +61,9 @@ const App = () => (
           {/* DEPRECATED: LIFF-based LINE registration */}
           {/* <Route path="/line-register" element={<LineRegister />} /> */}
           <Route path="/participant-profile/edit" element={<ParticipantProfile />} />
+          
+          {/* Member Activation */}
+          <Route path="/activate/:token" element={<Activate />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={

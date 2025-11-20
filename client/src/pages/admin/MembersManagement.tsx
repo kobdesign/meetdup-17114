@@ -7,14 +7,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Copy, Loader2, Check, X, Link2, UserPlus } from "lucide-react";
+import { Copy, Loader2, Check, X, Link2, UserPlus, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function MembersManagement() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [copiedLink, setCopiedLink] = useState(false);
+  const [activationDialogOpen, setActivationDialogOpen] = useState(false);
+  const [selectedActivationLink, setSelectedActivationLink] = useState<string | null>(null);
 
   const { data: invites = [] } = useQuery({
     queryKey: ["/api/chapters/invites", effectiveTenantId],
@@ -44,6 +53,24 @@ export default function MembersManagement() {
         undefined,
         { headers: { Authorization: `Bearer ${session.access_token}` } }
       );
+    },
+    enabled: !!effectiveTenantId,
+  });
+
+  // Query for inactive members (imported members without user_id)
+  const { data: inactiveMembers = [] } = useQuery({
+    queryKey: ["/api/participants", effectiveTenantId, "inactive"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("participants")
+        .select("participant_id, full_name, phone, email, status")
+        .eq("tenant_id", effectiveTenantId!)
+        .eq("status", "member")
+        .is("user_id", null)
+        .order("full_name");
+
+      if (error) throw error;
+      return data;
     },
     enabled: !!effectiveTenantId,
   });
@@ -91,11 +118,39 @@ export default function MembersManagement() {
     },
   });
 
+  const generateActivationLinkMutation = useMutation({
+    mutationFn: async ({ participantId }: { participantId: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+
+      return apiRequest(
+        "/api/participants/generate-activation-link",
+        "POST",
+        { participant_id: participantId, tenant_id: effectiveTenantId },
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+    },
+    onSuccess: (data) => {
+      setSelectedActivationLink(data.activation_url);
+      setActivationDialogOpen(true);
+      toast.success("สร้างลิงก์ลงทะเบียนสำเร็จ!");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "เกิดข้อผิดพลาด");
+    },
+  });
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedLink(true);
     toast.success("คัดลอก link แล้ว!");
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleCopyActivationLink = () => {
+    if (selectedActivationLink) {
+      copyToClipboard(selectedActivationLink);
+    }
   };
 
   if (!effectiveTenantId && isSuperAdmin) {
@@ -119,6 +174,15 @@ export default function MembersManagement() {
             <TabsTrigger value="invites" data-testid="tab-invites">
               <Link2 className="mr-2 h-4 w-4" />
               Invite Links
+            </TabsTrigger>
+            <TabsTrigger value="activation" data-testid="tab-activation">
+              <Mail className="mr-2 h-4 w-4" />
+              รอ Activate
+              {inactiveMembers.length > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {inactiveMembers.length}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="requests" data-testid="tab-join-requests">
               <UserPlus className="mr-2 h-4 w-4" />
@@ -177,6 +241,61 @@ export default function MembersManagement() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="activation" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>สมาชิกที่รอ Activate บัญชี</CardTitle>
+                <CardDescription>
+                  สมาชิกที่นำเข้าจาก Excel แล้วยังไม่ได้ลงทะเบียนบัญชีผู้ใช้
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <div className="grid gap-4">
+              {inactiveMembers.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-muted-foreground">
+                    สมาชิกทุกคนมีบัญชีผู้ใช้แล้ว
+                  </CardContent>
+                </Card>
+              ) : (
+                inactiveMembers.map((member: any) => (
+                  <Card key={member.participant_id} data-testid={`member-card-${member.participant_id}`}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-semibold">{member.full_name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {member.phone}
+                          </p>
+                          {member.email && (
+                            <p className="text-sm text-muted-foreground">
+                              {member.email}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => generateActivationLinkMutation.mutate({ 
+                            participantId: member.participant_id 
+                          })}
+                          disabled={generateActivationLinkMutation.isPending}
+                          data-testid={`button-generate-activation-${member.participant_id}`}
+                        >
+                          {generateActivationLinkMutation.isPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
+                          <Mail className="mr-2 h-4 w-4" />
+                          ส่งลิงก์ลงทะเบียน
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabsContent>
 
@@ -245,6 +364,42 @@ export default function MembersManagement() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Activation Link Dialog */}
+        <Dialog open={activationDialogOpen} onOpenChange={setActivationDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>ลิงก์ลงทะเบียนบัญชี</DialogTitle>
+              <DialogDescription>
+                ส่งลิงก์นี้ให้สมาชิกเพื่อลงทะเบียนบัญชีผู้ใช้
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-4 bg-muted rounded-md">
+                <p className="text-sm font-mono flex-1 break-all">
+                  {selectedActivationLink}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCopyActivationLink}
+                  className="flex-1"
+                  data-testid="button-copy-activation-link"
+                >
+                  {copiedLink ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                  คัดลอกลิงก์
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setActivationDialogOpen(false)}
+                  data-testid="button-close-dialog"
+                >
+                  ปิด
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );
