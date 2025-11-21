@@ -15,7 +15,7 @@ export function normalizePhone(phone: string): string {
 export async function checkPhoneHasAccount(
   supabase: SupabaseClient,
   phone: string
-): Promise<{ hasAccount: boolean; userId?: string; userName?: string; tenants?: string[] }> {
+): Promise<{ hasAccount: boolean; userId?: string; userName?: string; userEmail?: string; tenants?: string[] }> {
   try {
     const normalizedPhone = normalizePhone(phone);
     
@@ -33,14 +33,26 @@ export async function checkPhoneHasAccount(
 
     // Get first user (should be same across all participants)
     const firstParticipant = participants[0];
+    const userId = firstParticipant.user_id!;
+    
+    // Get user email from Supabase auth.users
+    let userEmail: string | undefined;
+    try {
+      const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+      userEmail = authUser?.user?.email;
+    } catch (e) {
+      console.warn('Failed to get user email:', e);
+    }
+    
     const tenantNames = participants
       .map(p => (p.tenants as any)?.tenant_name)
       .filter(Boolean);
 
     return {
       hasAccount: true,
-      userId: firstParticipant.user_id!,
+      userId,
       userName: firstParticipant.full_name || undefined,
+      userEmail,
       tenants: tenantNames
     };
   } catch (error) {
@@ -188,6 +200,7 @@ export async function validateActivationToken(
   existingAccount?: boolean;
   existingUserId?: string;
   existingUserName?: string;
+  existingUserEmail?: string;
   existingUserTenants?: string[];
   error?: string;
 }> {
@@ -270,6 +283,7 @@ export async function validateActivationToken(
           existingAccount: true,
           existingUserId: existingAccount.userId,
           existingUserName: existingAccount.userName,
+          existingUserEmail: existingAccount.userEmail,
           existingUserTenants: existingAccount.tenants,
         };
       }

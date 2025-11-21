@@ -26,6 +26,7 @@ interface ValidationResponse {
   existingAccount?: boolean;
   existingUserId?: string;
   existingUserName?: string;
+  existingUserEmail?: string;
   existingUserTenants?: string[];
   error?: string;
 }
@@ -41,6 +42,7 @@ export default function Activate() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string>("");
   const [existingAccount, setExistingAccount] = useState(false);
+  const [existingUserEmail, setExistingUserEmail] = useState<string>("");
   const [existingUserTenants, setExistingUserTenants] = useState<string[]>([]);
 
   const [email, setEmail] = useState("");
@@ -76,12 +78,18 @@ export default function Activate() {
       setTenantId(data.tenantId!);
       setTenantName(data.tenantName || "");
       setExistingAccount(data.existingAccount || false);
+      setExistingUserEmail(data.existingUserEmail || "");
       setExistingUserTenants(data.existingUserTenants || []);
       
-      // Pre-fill form with participant data
-      if (data.participant?.email) {
+      // Pre-fill form with participant or existing user data
+      if (data.existingAccount && data.existingUserEmail) {
+        // Existing account - pre-fill with registered email
+        setEmail(data.existingUserEmail);
+      } else if (data.participant?.email) {
+        // New account - pre-fill with participant email if available
         setEmail(data.participant.email);
       }
+      
       if (data.participant?.full_name) {
         setFullName(data.participant.full_name);
       } else if (data.participant?.first_name && data.participant?.last_name) {
@@ -290,14 +298,20 @@ export default function Activate() {
               <AlertDescription>
                 <div className="text-sm space-y-2">
                   <p><strong>ชื่อ:</strong> {participant.full_name || `${participant.first_name} ${participant.last_name}`}</p>
+                  {existingUserEmail && (
+                    <p><strong>อีเมล:</strong> {existingUserEmail}</p>
+                  )}
                   <p><strong>คุณเคยเป็นสมาชิก:</strong></p>
                   <ul className="list-disc list-inside ml-2 space-y-1">
                     {existingUserTenants.map((tenant, idx) => (
                       <li key={idx}>{tenant}</li>
                     ))}
                   </ul>
-                  <p className="mt-3 font-semibold">
-                    ต้องการเข้าร่วม <span className="text-primary">{tenantName}</span> ด้วยหรือไม่?
+                  <p className="mt-3 font-semibold text-primary">
+                    ✅ ต้องการเข้าร่วม "{tenantName}" ด้วยหรือไม่?
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    กรุณา Sign in ด้วยอีเมลและรหัสผ่านที่เคยสมัครไว้
                   </p>
                 </div>
               </AlertDescription>
@@ -312,9 +326,16 @@ export default function Activate() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="email@example.com"
+                  placeholder={existingUserEmail || "email@example.com"}
                   required
+                  readOnly={!!existingUserEmail}
+                  className={existingUserEmail ? "bg-muted" : ""}
                 />
+                {existingUserEmail && (
+                  <p className="text-xs text-muted-foreground">
+                    อีเมลที่คุณเคยลงทะเบียนไว้
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
