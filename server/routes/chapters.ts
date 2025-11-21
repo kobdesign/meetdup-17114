@@ -344,7 +344,51 @@ router.post("/invite/accept/:token", verifySupabaseAuth, async (req: Authenticat
   }
 });
 
-// List all chapters (with optional search)
+// Discover chapters (for new users to find and join)
+router.get("/discover", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { search } = req.query;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    let query = supabaseAdmin
+      .from("tenants")
+      .select("tenant_id, tenant_name, subdomain, created_at")
+      .order("tenant_name");
+
+    // Apply search filter if provided
+    if (search && typeof search === "string") {
+      query = query.or(`tenant_name.ilike.%${search}%,subdomain.ilike.%${search}%`);
+    }
+
+    const { data: tenants, error } = await query;
+
+    if (error) {
+      console.error("Error fetching tenants:", error);
+      return res.status(500).json({ error: "Failed to fetch chapters" });
+    }
+
+    // Filter out chapters user is already member of
+    const { data: userRoles } = await supabaseAdmin
+      .from("user_roles")
+      .select("tenant_id")
+      .eq("user_id", userId);
+
+    const userTenantIds = new Set(userRoles?.map(r => r.tenant_id) || []);
+    const availableChapters = tenants?.filter(t => !userTenantIds.has(t.tenant_id)) || [];
+
+    return res.status(200).json(availableChapters);
+
+  } catch (error: any) {
+    console.error("Discover chapters error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// List all chapters (with optional search) - Alias for /discover
 router.get("/list", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const { search } = req.query;
