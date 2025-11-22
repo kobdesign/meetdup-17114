@@ -165,7 +165,7 @@ export async function handlePhoneLinking(
     });
     return true;
   } else {
-    console.log(`${logPrefix} Participant has no account, auto-sending LIFF activation link`);
+    console.log(`${logPrefix} Participant has no account, auto-sending activation link`);
     
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
@@ -183,7 +183,7 @@ export async function handlePhoneLinking(
         throw new Error("Missing INTERNAL_API_SECRET");
       }
 
-      const response = await fetch(`${baseUrl}/api/participants/send-liff-activation-auto`, {
+      const response = await fetch(`${baseUrl}/api/participants/send-activation-auto`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -207,7 +207,7 @@ export async function handlePhoneLinking(
           text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
         });
       } else {
-        console.log(`${logPrefix} Successfully auto-sent LIFF activation link`);
+        console.log(`${logPrefix} Successfully auto-sent activation link`);
       }
     } catch (err) {
       console.error(`${logPrefix} Error calling activation API:`, err);

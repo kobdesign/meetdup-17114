@@ -66,7 +66,7 @@ export async function handleResendActivation(
     return;
   }
 
-  console.log(`${logPrefix} Participant has no account, sending LIFF activation link`);
+  console.log(`${logPrefix} Participant has no account, sending activation link`);
   
   await lineClient.replyMessage(event.replyToken, {
     type: "text",
@@ -84,7 +84,7 @@ export async function handleResendActivation(
       throw new Error("Missing INTERNAL_API_SECRET");
     }
 
-    const response = await fetch(`${baseUrl}/api/participants/send-liff-activation-auto`, {
+    const response = await fetch(`${baseUrl}/api/participants/send-activation-auto`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
@@ -108,7 +108,7 @@ export async function handleResendActivation(
         text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
       });
     } else {
-      console.log(`${logPrefix} Successfully sent LIFF activation link`);
+      console.log(`${logPrefix} Successfully sent activation link`);
     }
   } catch (err) {
     console.error(`${logPrefix} Error calling activation API:`, err);
