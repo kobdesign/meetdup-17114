@@ -1,8 +1,10 @@
 import { Router } from "express";
+import multer from "multer";
 import { verifySupabaseAuth, checkTenantAccess, AuthenticatedRequest } from "../../utils/auth";
 import { getLineCredentials } from "../../services/line/credentials";
 import { LineClient } from "../../services/line/lineClient";
 
+const upload = multer({ storage: multer.memoryStorage() });
 const router = Router();
 
 router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
@@ -33,11 +35,13 @@ router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+router.post("/", verifySupabaseAuth, upload.single("image"), async (req: AuthenticatedRequest, res) => {
   try {
-    const { tenantId, richMenu } = req.body;
+    const { tenantId, name, chatBarText, imageHeight, areas, selected, setAsDefault } = req.body;
+    const imageFile = req.file;
 
-    if (!tenantId || !richMenu) {
+    // Validate required fields
+    if (!tenantId || !name || !chatBarText || !imageHeight || !areas || !imageFile) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -51,10 +55,45 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
       return res.status(404).json({ error: "LINE not configured" });
     }
 
-    const lineClient = new LineClient(credentials.channelAccessToken);
-    const result = await lineClient.createRichMenu(richMenu);
+    // Parse areas JSON
+    let parsedAreas;
+    try {
+      parsedAreas = JSON.parse(areas);
+    } catch (error) {
+      return res.status(400).json({ error: "Invalid areas JSON format" });
+    }
 
-    return res.json(result);
+    // Build rich menu object
+    const richMenuData = {
+      size: {
+        width: 2500,
+        height: parseInt(imageHeight)
+      },
+      selected: selected === "true",
+      name: name,
+      chatBarText: chatBarText,
+      areas: parsedAreas
+    };
+
+    const lineClient = new LineClient(credentials.channelAccessToken);
+
+    // Create rich menu in LINE
+    const result = await lineClient.createRichMenu(richMenuData);
+
+    // Upload image to the created rich menu
+    const contentType = imageFile.mimetype || "image/png";
+    await lineClient.uploadRichMenuImage(result.richMenuId, imageFile.buffer, contentType);
+
+    // Set as default if requested
+    if (setAsDefault === "true") {
+      await lineClient.setDefaultRichMenu(result.richMenuId);
+    }
+
+    return res.json({ 
+      success: true, 
+      richMenuId: result.richMenuId,
+      message: "Rich menu created successfully"
+    });
   } catch (error: any) {
     console.error("Error creating rich menu:", error);
     return res.status(500).json({ error: error.message });
