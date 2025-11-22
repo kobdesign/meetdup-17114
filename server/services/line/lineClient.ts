@@ -1,4 +1,5 @@
 const LINE_API_BASE = "https://api.line.me/v2";
+const LINE_API_DATA_BASE = "https://api-data.line.me/v2";
 
 export interface LineBotInfo {
   userId: string;
@@ -121,7 +122,7 @@ export class LineClient {
   }
 
   async uploadRichMenuImage(richMenuId: string, imageBuffer: Buffer, contentType: string): Promise<void> {
-    const url = `${LINE_API_BASE}/bot/richmenu/${richMenuId}/content`;
+    const url = `${LINE_API_DATA_BASE}/bot/richmenu/${richMenuId}/content`;
     
     const response = await fetch(url, {
       method: "POST",
