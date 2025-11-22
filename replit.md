@@ -4,6 +4,13 @@
 Meetdup is a comprehensive multi-tenant SaaS application designed to streamline and manage business networking chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for business chapters, offering a tailored experience through multi-tenancy and role-based access control.
 
 ### Recent Features
+- **LIFF Activation Flow (Nov 2024)**: Streamlined member activation via LINE LIFF app
+  - **Admin UI**: "Send via LINE" button in Members Management for members with linked LINE accounts
+  - **LINE Flex Message**: Beautiful activation invitation with one-tap button to open LIFF
+  - **LIFF Page**: Single-page form pre-filled with member data, collects email/password, auto-links LINE User ID
+  - **Backend API**: `/api/participants/send-liff-activation` generates tokens and sends LINE messages; `/api/participants/activate-via-line` creates accounts and confirms via LINE
+  - **Setup**: Requires LIFF app configuration in LINE Developers Console (see `.env.example`)
+  - **Flow**: Admin clicks "Send via LINE" → Member receives Flex Message → Taps button → Opens LIFF form → Creates account → Auto-linked to LINE → Receives confirmation
 - **Bulk Member Import**: Excel-based member import with phone validation and duplicate detection
 - **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching
 - **Activation Flow**: Secure token-based self-registration for imported members with 7-day expiration
