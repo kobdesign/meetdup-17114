@@ -4,7 +4,7 @@ import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { generateVCard, getVCardFilename, VCardData } from "../services/line/vcard";
 import { generateProfileToken, verifyProfileToken } from "../utils/profileToken";
 import { LineClient } from "../services/line/lineClient";
-import { getLineCredentials, getLiffIdActivation } from "../services/line/credentials";
+import { getLineCredentials } from "../services/line/credentials";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -12,17 +12,17 @@ import crypto from "crypto";
 const router = Router();
 
 /**
- * Helper function to generate activation token and send LIFF Flex Message
+ * Helper function to generate activation token and send Activation Link via LINE
  * Reusable for both admin manual send and auto-send after LINE registration
  */
-async function sendLiffActivationLink(params: {
+async function sendActivationLink(params: {
   participantId: string;
   tenantId: string;
   lineUserId: string;
   fullName: string;
   logPrefix?: string;
-}): Promise<{ success: boolean; error?: string; token?: string; liffUrl?: string }> {
-  const { participantId, tenantId, lineUserId, fullName, logPrefix = "[sendLiffActivationLink]" } = params;
+}): Promise<{ success: boolean; error?: string; token?: string; activationUrl?: string }> {
+  const { participantId, tenantId, lineUserId, fullName, logPrefix = "[sendActivationLink]" } = params;
 
   try {
     // Revoke any existing unused tokens for this participant to prevent duplicates
@@ -74,13 +74,12 @@ async function sendLiffActivationLink(params: {
       return { success: false, error: "Tenant not found" };
     }
 
-    // Generate LIFF URL (tenant-specific)
-    const liffId = await getLiffIdActivation(tenantId);
-    if (!liffId) {
-      return { success: false, error: "LIFF ID not configured for this tenant" };
-    }
-
-    const liffUrl = `https://liff.line.me/${liffId}?token=${token}`;
+    // Generate web activation URL (no LIFF needed)
+    const baseUrl = process.env.REPL_SLUG 
+      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+      : process.env.BASE_URL || 'http://localhost:5000';
+    
+    const activationUrl = `${baseUrl}/activate?token=${token}`;
 
     // Send LINE Flex Message
     const lineClient = new LineClient(credentials.channelAccessToken);
@@ -155,7 +154,7 @@ async function sendLiffActivationLink(params: {
               action: {
                 type: "uri",
                 label: "ลงทะเบียนเลย",
-                uri: liffUrl
+                uri: activationUrl
               }
             },
             {
@@ -171,16 +170,16 @@ async function sendLiffActivationLink(params: {
 
     await lineClient.pushMessage(lineUserId, flexMessage);
 
-    console.log(`${logPrefix} Successfully sent LIFF activation link`, {
+    console.log(`${logPrefix} Successfully sent activation link`, {
       participant_id: participantId,
       line_user_id: lineUserId,
-      liff_url: liffUrl
+      activation_url: activationUrl
     });
 
     return {
       success: true,
       token,
-      liffUrl
+      activationUrl
     };
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);
@@ -2941,18 +2940,18 @@ router.post("/activate", async (req: Request, res: Response) => {
 });
 
 /**
- * Send LIFF activation link via LINE
+ * Send activation link via LINE
  * Requires participant to have line_user_id linked
  * Protected endpoint (chapter_admin or super_admin)
  */
-router.post("/send-liff-activation", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post("/send-activation", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   const requestId = crypto.randomUUID();
-  const logPrefix = `[send-liff-activation:${requestId}]`;
+  const logPrefix = `[send-activation:${requestId}]`;
 
   try {
     const { participant_id, tenant_id } = req.body;
 
-    console.log(`${logPrefix} Request to send LIFF link`, {
+    console.log(`${logPrefix} Request to send activation link`, {
       participant_id,
       tenant_id,
       user_id: req.user?.id
@@ -3012,7 +3011,7 @@ router.post("/send-liff-activation", verifySupabaseAuth, async (req: Authenticat
     }
 
     // Use helper function to send activation link
-    const result = await sendLiffActivationLink({
+    const result = await sendActivationLink({
       participantId: participant.participant_id,
       tenantId: tenant_id,
       lineUserId: participant.line_user_id,
@@ -3029,8 +3028,8 @@ router.post("/send-liff-activation", verifySupabaseAuth, async (req: Authenticat
 
     return res.json({
       success: true,
-      message: "LIFF activation link sent via LINE",
-      liff_url: result.liffUrl
+      message: "Activation link sent via LINE",
+      activation_url: result.activationUrl
     });
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);
@@ -3043,13 +3042,13 @@ router.post("/send-liff-activation", verifySupabaseAuth, async (req: Authenticat
 });
 
 /**
- * Auto-send LIFF activation link after LINE phone linking
+ * Auto-send activation link after LINE phone linking
  * Called by Edge Function webhook, no auth required
  * Public endpoint (internal use only)
  */
-router.post("/send-liff-activation-auto", async (req: Request, res: Response) => {
+router.post("/send-activation-auto", async (req: Request, res: Response) => {
   const requestId = crypto.randomUUID();
-  const logPrefix = `[send-liff-activation-auto:${requestId}]`;
+  const logPrefix = `[send-activation-auto:${requestId}]`;
 
   try {
     // Verify internal API secret to prevent unauthorized access
@@ -3066,7 +3065,7 @@ router.post("/send-liff-activation-auto", async (req: Request, res: Response) =>
 
     const { participant_id, tenant_id, line_user_id, full_name } = req.body;
 
-    console.log(`${logPrefix} Auto-send LIFF activation request`, {
+    console.log(`${logPrefix} Auto-send activation request`, {
       participant_id,
       tenant_id,
       line_user_id: line_user_id ? '***' : undefined
@@ -3115,7 +3114,7 @@ router.post("/send-liff-activation-auto", async (req: Request, res: Response) =>
     }
 
     // Use helper function to send activation link
-    const result = await sendLiffActivationLink({
+    const result = await sendActivationLink({
       participantId: participant_id,
       tenantId: tenant_id,
       lineUserId: line_user_id,
@@ -3132,8 +3131,8 @@ router.post("/send-liff-activation-auto", async (req: Request, res: Response) =>
 
     return res.json({
       success: true,
-      message: "LIFF activation link sent automatically",
-      liff_url: result.liffUrl
+      message: "Activation link sent automatically",
+      activation_url: result.activationUrl
     });
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);
