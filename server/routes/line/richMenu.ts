@@ -3,6 +3,7 @@ import multer from "multer";
 import { verifySupabaseAuth, checkTenantAccess, AuthenticatedRequest } from "../../utils/auth";
 import { getLineCredentials } from "../../services/line/credentials";
 import { LineClient } from "../../services/line/lineClient";
+import { supabaseAdmin } from "../../utils/supabaseClient";
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = Router();
@@ -20,15 +21,19 @@ router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const credentials = await getLineCredentials(tenantId);
-    if (!credentials) {
-      return res.status(404).json({ error: "LINE not configured" });
+    // Query rich menus from database
+    const { data: richMenus, error } = await supabaseAdmin
+      .from("rich_menus")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching rich menus from database:", error);
+      return res.status(500).json({ error: "Failed to fetch rich menus" });
     }
 
-    const lineClient = new LineClient(credentials.channelAccessToken);
-    const result = await lineClient.getRichMenuList();
-
-    return res.json(result);
+    return res.json({ richMenus: richMenus || [] });
   } catch (error: any) {
     console.error("Error fetching rich menu list:", error);
     return res.status(500).json({ error: error.message });
@@ -84,14 +89,41 @@ router.post("/", verifySupabaseAuth, upload.single("image"), async (req: Authent
     const contentType = imageFile.mimetype || "image/png";
     await lineClient.uploadRichMenuImage(result.richMenuId, imageFile.buffer, contentType);
 
-    // Set as default if requested
-    if (setAsDefault === "true") {
+    // Set as default in LINE if requested
+    const shouldSetAsDefault = setAsDefault === "true";
+    if (shouldSetAsDefault) {
       await lineClient.setDefaultRichMenu(result.richMenuId);
+    }
+
+    // Save rich menu metadata to database
+    const { data: dbRichMenu, error: dbError} = await supabaseAdmin
+      .from("rich_menus")
+      .insert({
+        tenant_id: tenantId,
+        line_rich_menu_id: result.richMenuId,
+        name,
+        chat_bar_text: chatBarText,
+        selected: selected === "true",
+        is_default: shouldSetAsDefault,
+        is_active: true,
+        image_width: 2500,
+        image_height: parseInt(imageHeight),
+        areas: parsedAreas,
+        created_by: req.user!.id
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error("Error saving rich menu to database:", dbError);
+      // Note: Rich menu already created in LINE, so we warn but don't fail
+      console.warn("Rich menu created in LINE but failed to save to database");
     }
 
     return res.json({ 
       success: true, 
       richMenuId: result.richMenuId,
+      dbRichMenuId: dbRichMenu?.rich_menu_id,
       message: "Rich menu created successfully"
     });
   } catch (error: any) {
@@ -114,13 +146,46 @@ router.delete("/:richMenuId", verifySupabaseAuth, async (req: AuthenticatedReque
       return res.status(403).json({ error: "Access denied" });
     }
 
+    // Find rich menu in database first
+    // Try by rich_menu_id first, then by line_rich_menu_id
+    let richMenu: any = null;
+    const { data: byRichMenuId } = await supabaseAdmin
+      .from("rich_menus")
+      .select("rich_menu_id, line_rich_menu_id")
+      .eq("tenant_id", tenantId)
+      .eq("rich_menu_id", richMenuId)
+      .maybeSingle();
+    
+    if (byRichMenuId) {
+      richMenu = byRichMenuId;
+    } else {
+      const { data: byLineRichMenuId } = await supabaseAdmin
+        .from("rich_menus")
+        .select("rich_menu_id, line_rich_menu_id")
+        .eq("tenant_id", tenantId)
+        .eq("line_rich_menu_id", richMenuId)
+        .maybeSingle();
+      richMenu = byLineRichMenuId;
+    }
+
     const credentials = await getLineCredentials(tenantId);
     if (!credentials) {
       return res.status(404).json({ error: "LINE not configured" });
     }
 
+    // Delete from LINE
     const lineClient = new LineClient(credentials.channelAccessToken);
-    await lineClient.deleteRichMenu(richMenuId);
+    const lineRichMenuId = richMenu?.line_rich_menu_id || richMenuId;
+    await lineClient.deleteRichMenu(lineRichMenuId);
+
+    // Delete from database
+    if (richMenu) {
+      await supabaseAdmin
+        .from("rich_menus")
+        .delete()
+        .eq("rich_menu_id", richMenu.rich_menu_id)
+        .eq("tenant_id", tenantId); // Double-check tenant for safety
+    }
 
     return res.json({ success: true });
   } catch (error: any) {
@@ -142,13 +207,53 @@ router.post("/set-default", verifySupabaseAuth, async (req: AuthenticatedRequest
       return res.status(403).json({ error: "Access denied" });
     }
 
+    // Find rich menu in database
+    // Try by rich_menu_id first, then by line_rich_menu_id
+    let richMenu: any = null;
+    const { data: byRichMenuId } = await supabaseAdmin
+      .from("rich_menus")
+      .select("rich_menu_id, line_rich_menu_id")
+      .eq("tenant_id", tenantId)
+      .eq("rich_menu_id", richMenuId)
+      .maybeSingle();
+    
+    if (byRichMenuId) {
+      richMenu = byRichMenuId;
+    } else {
+      const { data: byLineRichMenuId } = await supabaseAdmin
+        .from("rich_menus")
+        .select("rich_menu_id, line_rich_menu_id")
+        .eq("tenant_id", tenantId)
+        .eq("line_rich_menu_id", richMenuId)
+        .maybeSingle();
+      richMenu = byLineRichMenuId;
+    }
+
+    if (!richMenu) {
+      return res.status(404).json({ error: "Rich menu not found" });
+    }
+
     const credentials = await getLineCredentials(tenantId);
     if (!credentials) {
       return res.status(404).json({ error: "LINE not configured" });
     }
 
+    // Set as default in LINE
     const lineClient = new LineClient(credentials.channelAccessToken);
-    await lineClient.setDefaultRichMenu(richMenuId);
+    await lineClient.setDefaultRichMenu(richMenu.line_rich_menu_id!);
+
+    // Update database: unset current default and set new one
+    await supabaseAdmin
+      .from("rich_menus")
+      .update({ is_default: false })
+      .eq("tenant_id", tenantId)
+      .eq("is_default", true);
+
+    await supabaseAdmin
+      .from("rich_menus")
+      .update({ is_default: true })
+      .eq("rich_menu_id", richMenu.rich_menu_id)
+      .eq("tenant_id", tenantId); // Double-check tenant for safety
 
     return res.json({ success: true });
   } catch (error: any) {

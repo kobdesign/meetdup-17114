@@ -192,6 +192,7 @@ export async function handleMemberSearch(
 /**
  * Handle card search command
  * Example: "card กบ", "card abhisak", "นามบัตร john"
+ * Searches across: full_name, nickname, phone, company, notes, tags
  */
 export async function handleCardSearch(
   event: any,
@@ -201,79 +202,98 @@ export async function handleCardSearch(
 ): Promise<void> {
   const logPrefix = `[CardSearch]`;
   
+  // If no search term, prompt for keyword
+  if (!searchTerm || searchTerm.trim() === "") {
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: `🔍 ค้นหานามบัตร\n\nกรุณาพิมพ์คำค้นหา เช่น:\n• ชื่อ-นามสกุล\n• ชื่อเล่น\n• ชื่อบริษัท\n• เบอร์โทร\n• คำค้นหาอื่นๆ\n\nตัวอย่าง: "กบ" หรือ "Microsoft" หรือ "081"`
+    }, accessToken);
+    return;
+  }
+  
   console.log(`${logPrefix} Searching for: "${searchTerm}" in tenant: ${tenantId}`);
 
   try {
-    // Search by full_name
-    const { data: byFullName, error: error1 } = await supabaseAdmin
+    // Build comprehensive search query
+    // Search across: full_name, nickname, phone, company, notes, and tags array
+    const selectFields = `
+      participant_id,
+      tenant_id,
+      full_name,
+      nickname,
+      position,
+      company,
+      tagline,
+      photo_url,
+      email,
+      phone,
+      website_url,
+      facebook_url,
+      instagram_url,
+      business_address,
+      notes,
+      tags,
+      status
+    `;
+
+    // Sanitize search term: escape % and _ for ILIKE, remove SQL-dangerous chars
+    const sanitizedTerm = searchTerm
+      .replace(/%/g, '\\%')
+      .replace(/_/g, '\\_')
+      .replace(/['";]/g, ''); // Remove quotes and semicolons
+
+    // Search across text fields using ILIKE
+    // For tags, we can't use .cs with user input, so we search each text field separately
+    const { data: participants, error } = await supabaseAdmin
       .from("participants")
-      .select(`
-        participant_id,
-        full_name,
-        nickname,
-        position,
-        company,
-        tagline,
-        photo_url,
-        email,
-        phone,
-        website_url,
-        facebook_url,
-        instagram_url,
-        business_address,
-        status
-      `)
+      .select(selectFields)
       .eq("tenant_id", tenantId)
-      .ilike("full_name", `%${searchTerm}%`)
+      .in("status", ["member", "visitor"])
+      .or(`full_name.ilike.%${sanitizedTerm}%,nickname.ilike.%${sanitizedTerm}%,phone.ilike.%${sanitizedTerm}%,company.ilike.%${sanitizedTerm}%,notes.ilike.%${sanitizedTerm}%`)
       .limit(10);
 
-    console.log(`${logPrefix} Search by full_name:`, { 
-      count: byFullName?.length || 0, 
-      error: error1 ? JSON.stringify(error1) : null 
-    });
+    // Additionally search in tags array (if query succeeds without tags)
+    if (!error && participants && participants.length < 10) {
+      // Search for participants with matching tags
+      const { data: tagMatches } = await supabaseAdmin
+        .from("participants")
+        .select(selectFields)
+        .eq("tenant_id", tenantId)
+        .in("status", ["member", "visitor"])
+        .contains("tags", [sanitizedTerm])
+        .limit(10);
 
-    // Search by nickname
-    const { data: byNickname, error: error2 } = await supabaseAdmin
-      .from("participants")
-      .select(`
-        participant_id,
-        full_name,
-        nickname,
-        position,
-        company,
-        tagline,
-        photo_url,
-        email,
-        phone,
-        website_url,
-        facebook_url,
-        instagram_url,
-        business_address,
-        status
-      `)
-      .eq("tenant_id", tenantId)
-      .ilike("nickname", `%${searchTerm}%`)
-      .limit(10);
-
-    console.log(`${logPrefix} Search by nickname:`, { 
-      count: byNickname?.length || 0, 
-      error: error2 ? JSON.stringify(error2) : null 
-    });
-
-    // Combine and deduplicate results
-    const allResults = [...(byFullName || []), ...(byNickname || [])];
-    const uniqueMap = new Map();
-    for (const p of allResults) {
-      if (!uniqueMap.has(p.participant_id)) {
-        uniqueMap.set(p.participant_id, p);
+      // Merge and deduplicate results
+      if (tagMatches && tagMatches.length > 0) {
+        const participantIds = new Set(participants.map(p => p.participant_id));
+        for (const tagMatch of tagMatches) {
+          if (!participantIds.has(tagMatch.participant_id)) {
+            participants.push(tagMatch);
+            participantIds.add(tagMatch.participant_id);
+          }
+        }
       }
     }
-    const participants = Array.from(uniqueMap.values()).slice(0, 10);
 
-    if (participants.length === 0) {
+    console.log(`${logPrefix} Comprehensive search results:`, { 
+      count: participants?.length || 0,
+      searchTerm,
+      error: error ? JSON.stringify(error) : null 
+    });
+
+    if (error) {
+      console.error(`${logPrefix} Search error:`, error);
       await replyMessage(event.replyToken, {
         type: "text",
-        text: `❌ ไม่พบข้อมูลที่ตรงกับ "${searchTerm}"\n\nลองค้นหาด้วยชื่อหรือชื่อเล่นอื่น`
+        text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
+      }, accessToken);
+      return;
+    }
+
+    if (!participants || participants.length === 0) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `❌ ไม่พบข้อมูลที่ตรงกับ "${searchTerm}"\n\n💡 ลองค้นหาด้วย:\n• ชื่อหรือชื่อเล่นอื่น\n• ชื่อบริษัท\n• เบอร์โทรศัพท์\n• คำสำคัญที่เกี่ยวข้อง`
       }, accessToken);
       return;
     }

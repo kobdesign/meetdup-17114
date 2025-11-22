@@ -162,10 +162,15 @@ async function processEvent(
     }
     
     // Priority 3: Card search commands (must check BEFORE member search)
-    if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
-      const searchTerm = textLower.startsWith("card ") 
-        ? text.substring(5).trim() 
-        : text.substring(8).trim();
+    // Support: "card กบ", "นามบัตร john", "ค้นหานามบัตร" (empty triggers prompt)
+    if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ") || textLower === "ค้นหานามบัตร") {
+      let searchTerm = "";
+      if (textLower.startsWith("card ")) {
+        searchTerm = text.substring(5).trim();
+      } else if (textLower.startsWith("นามบัตร ")) {
+        searchTerm = text.substring(8).trim();
+      }
+      // If "ค้นหานามบัตร" with no term, searchTerm remains empty → triggers prompt
       
       console.log(`${logPrefix} Command: CARD_SEARCH, term: "${searchTerm}"`);
       await handleCardSearch(event, tenantId, accessToken, searchTerm);
