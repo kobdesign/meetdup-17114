@@ -5,6 +5,7 @@ import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
 import { handleViewCard, handleMemberSearch, handleCardSearch } from "../../services/line/handlers/businessCardHandler";
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
+import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 
 const router = Router();
 
@@ -153,7 +154,14 @@ async function processEvent(
       return;
     }
     
-    // Priority 2: Card search commands (must check BEFORE member search)
+    // Priority 2: Resend activation link command
+    if (textLower === "ขอลิงก์ใหม่" || textLower === "ขอลิงค์" || textLower === "activate") {
+      console.log(`${logPrefix} Command: RESEND_ACTIVATION`);
+      await handleResendActivation(event, tenantId, accessToken, logPrefix);
+      return;
+    }
+    
+    // Priority 3: Card search commands (must check BEFORE member search)
     if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
       const searchTerm = textLower.startsWith("card ") 
         ? text.substring(5).trim() 
@@ -164,7 +172,7 @@ async function processEvent(
       return;
     }
     
-    // Priority 3: Member search commands
+    // Priority 4: Member search commands
     const searchPattern = /^(หา|ค้นหา|search)\s*สมาชิก\s+(.+)$/i;
     const match = text.match(searchPattern);
     
