@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { generateVCard, getVCardFilename, VCardData } from "../services/line/vcard";
 import { generateProfileToken, verifyProfileToken } from "../utils/profileToken";
+import { LineClient } from "../services/line/lineClient";
 import multer from "multer";
 import path from "path";
 
@@ -2744,6 +2745,153 @@ router.post("/activate", async (req: Request, res: Response) => {
     return res.json({
       success: true,
       message: "Account activated successfully",
+      user_id: userId,
+      participant_id: participant.participant_id
+    });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Activate account via LINE LIFF
+ * Links LINE User ID automatically
+ * Public endpoint (no auth required)
+ */
+router.post("/activate-via-line", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[activate-via-line:${requestId}]`;
+
+  try {
+    const { token, email, password, line_user_id } = req.body;
+
+    console.log(`${logPrefix} LINE Activation request`, {
+      token_prefix: token ? token.slice(0, 8) + '...' : undefined,
+      email,
+      has_line_user_id: !!line_user_id
+    });
+
+    if (!token || !email || !password || !line_user_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: token, email, password, line_user_id"
+      });
+    }
+
+    // Validate token first
+    const validation = await validateActivationToken(supabaseAdmin, token);
+    if (!validation.success || !validation.participant || !validation.tenantId) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error || "Invalid token"
+      });
+    }
+
+    const participant = validation.participant;
+    const tenantId = validation.tenantId;
+
+    // Create user account
+    const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: participant.full_name,
+        phone: participant.phone
+      }
+    });
+
+    if (signUpError || !authData.user) {
+      console.error(`${logPrefix} Sign up error:`, signUpError);
+      return res.status(400).json({
+        success: false,
+        error: "Failed to create account",
+        message: signUpError?.message
+      });
+    }
+
+    const userId = authData.user.id;
+
+    // Link user to participant AND LINE User ID
+    const { error: linkError } = await supabaseAdmin
+      .from('participants')
+      .update({ 
+        user_id: userId,
+        line_user_id: line_user_id // Link LINE account automatically
+      })
+      .eq('participant_id', participant.participant_id);
+
+    if (linkError) {
+      console.error(`${logPrefix} Failed to link participant:`, linkError);
+      // Rollback: delete the user account
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to link account",
+        message: linkError.message
+      });
+    }
+
+    // Create user_role for this tenant
+    const { error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .insert({
+        user_id: userId,
+        tenant_id: tenantId,
+        role: "member",
+      });
+
+    if (roleError) {
+      console.error(`${logPrefix} Failed to create role:`, roleError);
+      // Don't rollback if role creation fails, just log it
+    }
+
+    // Mark token as used
+    await markTokenAsUsed(supabaseAdmin, token);
+
+    // Update participant's email if provided
+    if (participant.email !== email) {
+      await supabaseAdmin
+        .from("participants")
+        .update({ email })
+        .eq("participant_id", participant.participant_id);
+    }
+
+    // Send confirmation message via LINE
+    try {
+      const { data: tenantData } = await supabaseAdmin
+        .from('tenants')
+        .select('tenant_name, line_channel_access_token')
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (tenantData?.line_channel_access_token) {
+        const lineClient = new LineClient(tenantData.line_channel_access_token);
+        await lineClient.pushMessage(line_user_id, {
+          type: 'text',
+          text: `✅ สร้างบัญชีสำเร็จ!\n\nยินดีต้อนรับสู่ ${tenantData.tenant_name}\n\nคุณสามารถ:\n- เข้าสู่ระบบ: ${process.env.REPLIT_DEV_DOMAIN || 'meetdup.app'}\n- ดูนามบัตรสมาชิก: พิมพ์ "card ชื่อ"\n- ลงทะเบียนประชุม: ติดตามข้อมูลผ่านระบบ`
+        });
+        console.log(`${logPrefix} Sent LINE confirmation message`);
+      }
+    } catch (lineError) {
+      console.error(`${logPrefix} Failed to send LINE confirmation:`, lineError);
+      // Don't fail the request if LINE message fails
+    }
+
+    console.log(`${logPrefix} Successfully created account and linked LINE`, {
+      user_id: userId,
+      line_user_id,
+      participant_id: participant.participant_id
+    });
+
+    return res.json({
+      success: true,
+      message: "Account created successfully",
       user_id: userId,
       participant_id: participant.participant_id
     });

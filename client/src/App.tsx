@@ -34,6 +34,7 @@ import VisitorRegister from "./pages/public/VisitorRegister";
 // import LineRegister from "./pages/public/LineRegister";
 import ParticipantProfile from "./pages/ParticipantProfile";
 import Activate from "./pages/Activate";
+import LineActivate from "./pages/LineActivate";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -64,6 +65,7 @@ const App = () => (
           
           {/* Member Activation */}
           <Route path="/activate/:token" element={<Activate />} />
+          <Route path="/line-activate" element={<LineActivate />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
