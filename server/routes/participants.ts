@@ -4,7 +4,7 @@ import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { generateVCard, getVCardFilename, VCardData } from "../services/line/vcard";
 import { generateProfileToken, verifyProfileToken } from "../utils/profileToken";
 import { LineClient } from "../services/line/lineClient";
-import { getLineCredentials } from "../services/line/credentials";
+import { getLineCredentials, getLiffIdActivation } from "../services/line/credentials";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -74,10 +74,10 @@ async function sendLiffActivationLink(params: {
       return { success: false, error: "Tenant not found" };
     }
 
-    // Generate LIFF URL
-    const liffId = process.env.LIFF_ID;
+    // Generate LIFF URL (tenant-specific)
+    const liffId = await getLiffIdActivation(tenantId);
     if (!liffId) {
-      return { success: false, error: "LIFF ID not configured" };
+      return { success: false, error: "LIFF ID not configured for this tenant" };
     }
 
     const liffUrl = `https://liff.line.me/${liffId}?token=${token}`;

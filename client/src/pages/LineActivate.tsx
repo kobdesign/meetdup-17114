@@ -23,6 +23,7 @@ interface ValidationResponse {
   participant?: ParticipantInfo;
   tenantId?: string;
   tenantName?: string;
+  liffId?: string;
   existingAccount?: boolean;
   error?: string;
 }
@@ -39,28 +40,68 @@ export default function LineActivate() {
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string>("");
+  const [liffId, setLiffId] = useState<string | null>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Initialize LIFF
+  // Step 1: Validate token first to get LIFF ID
   useEffect(() => {
-    const liffId = import.meta.env.VITE_LIFF_ID;
-    
-    console.log("🚀 [LINE Activate] Starting LIFF initialization...", {
-      liffId: liffId || "MISSING",
-      url: window.location.href,
-      userAgent: navigator.userAgent
-    });
-    
-    if (!liffId) {
-      console.error("❌ [LINE Activate] LIFF ID is missing!");
-      setError("LIFF configuration missing");
+    if (!token) {
+      setError("Missing activation token");
       setLoading(false);
       return;
     }
+
+    console.log("🔍 [LINE Activate] Validating token to get LIFF ID...");
+    
+    fetch(`/api/participants/validate-token/${token}`)
+      .then((response) => response.json())
+      .then((data: ValidationResponse) => {
+        if (!data.success || !data.liffId) {
+          setError(data.error || "Invalid activation link or LIFF not configured");
+          setLoading(false);
+          return;
+        }
+
+        console.log("✅ [LINE Activate] Token validated, LIFF ID retrieved:", data.liffId);
+        
+        // Store participant info
+        setParticipant(data.participant!);
+        setTenantId(data.tenantId!);
+        setTenantName(data.tenantName || "");
+        setLiffId(data.liffId);
+
+        // Pre-fill email if available
+        if (data.participant?.email) {
+          setEmail(data.participant.email);
+        }
+
+        // Check for existing account
+        if (data.existingAccount) {
+          setError("คุณมีบัญชีอยู่แล้ว กรุณาเข้าสู่ระบบผ่านเว็บไซต์");
+          setLoading(false);
+          return;
+        }
+      })
+      .catch((err) => {
+        console.error("❌ [LINE Activate] Token validation failed:", err);
+        setError("ไม่สามารถตรวจสอบลิงก์ได้");
+        setLoading(false);
+      });
+  }, [token]);
+
+  // Step 2: Initialize LIFF after we have LIFF ID
+  useEffect(() => {
+    if (!liffId) return; // Wait until we have LIFF ID from validation
+
+    console.log("🚀 [LINE Activate] Starting LIFF initialization...", {
+      liffId,
+      url: window.location.href,
+      userAgent: navigator.userAgent
+    });
 
     liff
       .init({ liffId })
@@ -73,7 +114,7 @@ export default function LineActivate() {
           language: liff.getLanguage(),
           version: liff.getVersion()
         });
-        
+
         setLiffReady(true);
 
         // Get LINE user profile
@@ -114,48 +155,7 @@ export default function LineActivate() {
         setError("ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาเปิดลิงก์ผ่าน LINE แอป");
         setLoading(false);
       });
-  }, []);
-
-  // Validate token after LIFF is ready
-  useEffect(() => {
-    if (!liffReady || !token) return;
-    validateToken();
-  }, [liffReady, token]);
-
-  const validateToken = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(`/api/participants/validate-token/${token}`);
-      const data: ValidationResponse = await response.json();
-
-      if (!response.ok || !data.success) {
-        setError(data.error || "ลิงก์ไม่ถูกต้องหรือหมดอายุ");
-        return;
-      }
-
-      // Check if already has account
-      if (data.existingAccount) {
-        setError("คุณมีบัญชีอยู่แล้ว กรุณาเข้าสู่ระบบผ่านเว็บไซต์");
-        return;
-      }
-
-      setParticipant(data.participant!);
-      setTenantId(data.tenantId!);
-      setTenantName(data.tenantName || "");
-
-      // Pre-fill email if available
-      if (data.participant?.email) {
-        setEmail(data.participant.email);
-      }
-    } catch (err: any) {
-      console.error("Validation error:", err);
-      setError("ไม่สามารถตรวจสอบลิงก์ได้");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [liffId]);
 
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,7 +238,6 @@ export default function LineActivate() {
   }
 
   if (error || !participant) {
-    const liffId = import.meta.env.VITE_LIFF_ID;
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
@@ -258,10 +257,11 @@ export default function LineActivate() {
             <div className="mt-4 p-3 bg-muted/50 rounded-md">
               <p className="text-xs font-mono text-muted-foreground mb-2">Debug Info:</p>
               <div className="space-y-1 text-xs font-mono">
-                <p>LIFF ID: {liffId || "❌ MISSING"}</p>
+                <p>LIFF ID (from API): {liffId || "❌ NULL"}</p>
                 <p>LIFF Ready: {liffReady ? "✅" : "❌"}</p>
                 <p>LINE User ID: {lineUserId || "❌ NULL"}</p>
                 <p>Token: {token ? "✅" : "❌"}</p>
+                <p>Tenant ID: {tenantId || "❌ NULL"}</p>
                 <p>URL: {window.location.href}</p>
               </div>
             </div>

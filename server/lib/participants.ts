@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { getLiffIdActivation } from '../services/line/credentials';
 
 /**
  * Normalizes phone number by removing all non-digit characters
@@ -197,6 +198,7 @@ export async function validateActivationToken(
   participant?: any;
   tenantId?: string;
   tenantName?: string;
+  liffId?: string;
   existingAccount?: boolean;
   existingUserId?: string;
   existingUserName?: string;
@@ -256,6 +258,12 @@ export async function validateActivationToken(
 
     const tenantName = (tokenData.tenants as any)?.tenant_name || '';
 
+    // Get LIFF ID for this tenant (for frontend initialization)
+    const liffId = await getLiffIdActivation(tokenData.tenant_id);
+    if (!liffId) {
+      console.warn('[validateActivationToken] No LIFF ID configured for tenant:', tokenData.tenant_id);
+    }
+
     // Check if THIS participant already has a user account
     if (participant?.user_id) {
       return { 
@@ -280,6 +288,7 @@ export async function validateActivationToken(
           participant: participant,
           tenantId: tokenData.tenant_id,
           tenantName,
+          liffId: liffId || undefined,
           existingAccount: true,
           existingUserId: existingAccount.userId,
           existingUserName: existingAccount.userName,
@@ -295,6 +304,7 @@ export async function validateActivationToken(
       participant: participant,
       tenantId: tokenData.tenant_id,
       tenantName,
+      liffId: liffId || undefined,
       existingAccount: false,
     };
   } catch (error) {
