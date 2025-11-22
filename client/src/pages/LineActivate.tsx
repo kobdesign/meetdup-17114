@@ -238,6 +238,7 @@ export default function LineActivate() {
   }
 
   if (error || !participant) {
+    const liffId = import.meta.env.VITE_LIFF_ID;
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
@@ -252,8 +253,22 @@ export default function LineActivate() {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error || "ไม่พบข้อมูลการลงทะเบียน"}</AlertDescription>
             </Alert>
+            
+            {/* Debug Information */}
+            <div className="mt-4 p-3 bg-muted/50 rounded-md">
+              <p className="text-xs font-mono text-muted-foreground mb-2">Debug Info:</p>
+              <div className="space-y-1 text-xs font-mono">
+                <p>LIFF ID: {liffId || "❌ MISSING"}</p>
+                <p>LIFF Ready: {liffReady ? "✅" : "❌"}</p>
+                <p>LINE User ID: {lineUserId || "❌ NULL"}</p>
+                <p>Token: {token ? "✅" : "❌"}</p>
+                <p>URL: {window.location.href}</p>
+              </div>
+            </div>
+            
             <div className="mt-6 text-sm text-muted-foreground">
               <p>กรุณาติดต่อผู้ดูแลระบบเพื่อขอความช่วยเหลือ</p>
+              <p className="mt-2 text-xs">เปิดผ่าน LINE app เท่านั้น</p>
             </div>
           </CardContent>
         </Card>
