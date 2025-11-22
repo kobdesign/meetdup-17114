@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Copy, Loader2, Check, X, Link2, UserPlus, Mail } from "lucide-react";
+import { Copy, Loader2, Check, X, Link2, UserPlus, Mail, User, Building2, Briefcase, Phone, AtSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -308,22 +309,84 @@ export default function MembersManagement() {
                   </CardContent>
                 </Card>
               ) : (
-                joinRequests.map((request: any) => (
-                  <Card key={request.request_id} data-testid={`request-card-${request.request_id}`}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-semibold">{request.user_email || "User"}</p>
-                          <p className="text-sm text-muted-foreground">
-                            ส่งคำขอเมื่อ: {new Date(request.created_at).toLocaleString('th-TH')}
-                          </p>
-                          {request.message && (
-                            <p className="text-sm mt-2">{request.message}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          {request.status === "pending" ? (
-                            <>
+                joinRequests.map((request: any) => {
+                  const participant = request.participant;
+                  const displayName = participant?.full_name || request.user_email || "ผู้ใช้";
+                  const initials = displayName
+                    .split(' ')
+                    .map((n: string) => n[0])
+                    .join('')
+                    .toUpperCase()
+                    .slice(0, 2);
+
+                  return (
+                    <Card key={request.request_id} data-testid={`request-card-${request.request_id}`}>
+                      <CardContent className="pt-6">
+                        <div className="flex gap-4">
+                          {/* Avatar */}
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={participant?.photo_url || undefined} alt={displayName} />
+                            <AvatarFallback>
+                              <User className="h-5 w-5" />
+                            </AvatarFallback>
+                          </Avatar>
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Name */}
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-semibold text-lg">{displayName}</p>
+                              {request.status !== "pending" && (
+                                <Badge variant={request.status === "approved" ? "default" : "destructive"} className="text-xs">
+                                  {request.status === "approved" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว"}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {/* Company & Position */}
+                            {(participant?.company || participant?.position) && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                                <Building2 className="h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">
+                                  {participant?.position && participant?.company
+                                    ? `${participant.position} ที่ ${participant.company}`
+                                    : participant?.position || participant?.company}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Contact Info */}
+                            <div className="space-y-1">
+                              {participant?.phone && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Phone className="h-4 w-4 flex-shrink-0" />
+                                  <span>{participant.phone}</span>
+                                </div>
+                              )}
+                              {(participant?.email || request.user_email) && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <AtSign className="h-4 w-4 flex-shrink-0" />
+                                  <span className="truncate">{participant?.email || request.user_email}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Message */}
+                            {request.message && (
+                              <div className="mt-3 p-3 bg-muted rounded-md">
+                                <p className="text-sm italic">"{request.message}"</p>
+                              </div>
+                            )}
+
+                            {/* Request Date */}
+                            <p className="text-xs text-muted-foreground mt-2">
+                              ส่งคำขอเมื่อ: {new Date(request.created_at).toLocaleString('th-TH')}
+                            </p>
+                          </div>
+
+                          {/* Action Buttons */}
+                          {request.status === "pending" && (
+                            <div className="flex gap-2 items-start">
                               <Button
                                 size="sm"
                                 onClick={() => handleJoinRequestMutation.mutate({ 
@@ -349,17 +412,13 @@ export default function MembersManagement() {
                                 <X className="mr-2 h-4 w-4" />
                                 ปฏิเสธ
                               </Button>
-                            </>
-                          ) : (
-                            <Badge variant={request.status === "approved" ? "default" : "destructive"}>
-                              {request.status === "approved" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว"}
-                            </Badge>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </TabsContent>

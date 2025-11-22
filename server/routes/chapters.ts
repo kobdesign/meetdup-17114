@@ -600,7 +600,42 @@ router.get("/join-requests", verifySupabaseAuth, async (req: AuthenticatedReques
 
     if (error) throw error;
 
-    return res.status(200).json(requests);
+    // Enrich requests with user email and participant data
+    const enrichedRequests = await Promise.all(
+      (requests || []).map(async (request) => {
+        // Get user email from auth.users
+        let userEmail = null;
+        try {
+          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(request.user_id);
+          userEmail = authUser?.user?.email || null;
+        } catch (emailError) {
+          console.error(`Error fetching email for user ${request.user_id}:`, emailError);
+        }
+
+        // Get participant data if exists
+        let participantData = null;
+        try {
+          const { data: participant } = await supabaseAdmin
+            .from("participants")
+            .select("full_name, company, position, phone, email, photo_url")
+            .eq("user_id", request.user_id)
+            .eq("tenant_id", tenant_id as string)
+            .maybeSingle();
+          
+          participantData = participant;
+        } catch (participantError) {
+          console.error(`Error fetching participant for user ${request.user_id}:`, participantError);
+        }
+
+        return {
+          ...request,
+          user_email: userEmail,
+          participant: participantData,
+        };
+      })
+    );
+
+    return res.status(200).json(enrichedRequests);
 
   } catch (error: any) {
     console.error("List join requests error:", error);
