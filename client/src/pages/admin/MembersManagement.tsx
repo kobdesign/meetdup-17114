@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Copy, Loader2, Check, X, Link2, UserPlus, Mail, User, Building2, Briefcase, Phone, AtSign } from "lucide-react";
+import { Copy, Loader2, Check, X, Link2, UserPlus, Mail, User, Building2, Briefcase, Phone, AtSign, MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -64,7 +64,7 @@ export default function MembersManagement() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("participants")
-        .select("participant_id, full_name, phone, email, status")
+        .select("participant_id, full_name, phone, email, status, line_user_id")
         .eq("tenant_id", effectiveTenantId!)
         .eq("status", "member")
         .is("user_id", null)
@@ -135,6 +135,26 @@ export default function MembersManagement() {
       setSelectedActivationLink(data.activation_url);
       setActivationDialogOpen(true);
       toast.success("สร้างลิงก์ลงทะเบียนสำเร็จ!");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "เกิดข้อผิดพลาด");
+    },
+  });
+
+  const sendLiffActivationMutation = useMutation({
+    mutationFn: async ({ participantId }: { participantId: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+
+      return apiRequest(
+        "/api/participants/send-liff-activation",
+        "POST",
+        { participant_id: participantId, tenant_id: effectiveTenantId },
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+    },
+    onSuccess: (data) => {
+      toast.success("ส่งลิงก์ LIFF ผ่าน LINE สำเร็จ!");
     },
     onError: (error: any) => {
       toast.error(error.message || "เกิดข้อผิดพลาด");
@@ -267,8 +287,16 @@ export default function MembersManagement() {
                   <Card key={member.participant_id} data-testid={`member-card-${member.participant_id}`}>
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-semibold">{member.full_name}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold">{member.full_name}</p>
+                            {member.line_user_id && (
+                              <Badge variant="outline" className="text-xs">
+                                <MessageCircle className="mr-1 h-3 w-3" />
+                                LINE
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             {member.phone}
                           </p>
@@ -278,20 +306,39 @@ export default function MembersManagement() {
                             </p>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => generateActivationLinkMutation.mutate({ 
-                            participantId: member.participant_id 
-                          })}
-                          disabled={generateActivationLinkMutation.isPending}
-                          data-testid={`button-generate-activation-${member.participant_id}`}
-                        >
-                          {generateActivationLinkMutation.isPending && (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <div className="flex gap-2">
+                          {member.line_user_id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => sendLiffActivationMutation.mutate({ 
+                                participantId: member.participant_id 
+                              })}
+                              disabled={sendLiffActivationMutation.isPending}
+                              data-testid={`button-send-liff-${member.participant_id}`}
+                            >
+                              {sendLiffActivationMutation.isPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              <MessageCircle className="mr-2 h-4 w-4" />
+                              Send via LINE
+                            </Button>
                           )}
-                          <Mail className="mr-2 h-4 w-4" />
-                          ส่งลิงก์ลงทะเบียน
-                        </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => generateActivationLinkMutation.mutate({ 
+                              participantId: member.participant_id 
+                            })}
+                            disabled={generateActivationLinkMutation.isPending}
+                            data-testid={`button-generate-activation-${member.participant_id}`}
+                          >
+                            {generateActivationLinkMutation.isPending && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            <Mail className="mr-2 h-4 w-4" />
+                            ส่งลิงก์ลงทะเบียน
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

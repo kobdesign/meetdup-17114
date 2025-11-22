@@ -2759,6 +2759,235 @@ router.post("/activate", async (req: Request, res: Response) => {
 });
 
 /**
+ * Send LIFF activation link via LINE
+ * Requires participant to have line_user_id linked
+ * Protected endpoint (chapter_admin or super_admin)
+ */
+router.post("/send-liff-activation", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[send-liff-activation:${requestId}]`;
+
+  try {
+    const { participant_id, tenant_id } = req.body;
+
+    console.log(`${logPrefix} Request to send LIFF link`, {
+      participant_id,
+      tenant_id,
+      user_id: req.user?.id
+    });
+
+    if (!participant_id || !tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: participant_id, tenant_id"
+      });
+    }
+
+    // Verify user has permission (chapter_admin or super_admin)
+    const { data: userRoles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", req.user!.id)
+      .eq("tenant_id", tenant_id)
+      .single();
+
+    if (!userRoles || !["chapter_admin", "super_admin"].includes(userRoles.role)) {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized: Requires chapter_admin or super_admin role"
+      });
+    }
+
+    // Get participant data
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name, phone, line_user_id, user_id")
+      .eq("participant_id", participant_id)
+      .eq("tenant_id", tenant_id)
+      .single();
+
+    if (participantError || !participant) {
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found"
+      });
+    }
+
+    // Check if participant already has account
+    if (participant.user_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Participant already has an account"
+      });
+    }
+
+    // Check if participant has LINE linked
+    if (!participant.line_user_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Participant does not have LINE linked. They must register via LINE first (type 'ลงทะเบียน' in LINE chat)."
+      });
+    }
+
+    // Generate activation token (7 days expiry)
+    const token = crypto.randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const { error: tokenError } = await supabaseAdmin
+      .from("activation_tokens")
+      .insert({
+        token,
+        participant_id: participant.participant_id,
+        tenant_id,
+        expires_at: expiresAt.toISOString(),
+        used: false
+      });
+
+    if (tokenError) {
+      console.error(`${logPrefix} Failed to create token:`, tokenError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to generate activation token"
+      });
+    }
+
+    // Get tenant info for LINE credentials
+    const { data: tenantData } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, line_channel_access_token")
+      .eq("tenant_id", tenant_id)
+      .single();
+
+    if (!tenantData?.line_channel_access_token) {
+      return res.status(400).json({
+        success: false,
+        error: "LINE channel not configured for this tenant"
+      });
+    }
+
+    // Generate LIFF URL
+    const liffId = process.env.LIFF_ID;
+    if (!liffId) {
+      return res.status(500).json({
+        success: false,
+        error: "LIFF ID not configured"
+      });
+    }
+
+    const liffUrl = `https://liff.line.me/${liffId}?token=${token}`;
+
+    // Send LINE Flex Message
+    const lineClient = new LineClient(tenantData.line_channel_access_token);
+    
+    const flexMessage = {
+      type: "flex" as const,
+      altText: `ลงทะเบียนบัญชีสำหรับ ${tenantData.tenant_name}`,
+      contents: {
+        type: "bubble",
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "🎉 เชิญลงทะเบียน",
+              weight: "bold",
+              size: "xl",
+              color: "#1DB446"
+            },
+            {
+              type: "text",
+              text: tenantData.tenant_name,
+              size: "sm",
+              color: "#999999",
+              margin: "md"
+            },
+            {
+              type: "separator",
+              margin: "xxl"
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              margin: "xxl",
+              spacing: "sm",
+              contents: [
+                {
+                  type: "text",
+                  text: `สวัสดี คุณ${participant.full_name}`,
+                  size: "md",
+                  wrap: true
+                },
+                {
+                  type: "text",
+                  text: "กรุณากดปุ่มด้านล่างเพื่อลงทะเบียนบัญชีผู้ใช้ของคุณ",
+                  size: "sm",
+                  color: "#666666",
+                  margin: "md",
+                  wrap: true
+                },
+                {
+                  type: "text",
+                  text: "ลิงก์นี้จะหมดอายุใน 7 วัน",
+                  size: "xs",
+                  color: "#999999",
+                  margin: "md"
+                }
+              ]
+            }
+          ]
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              height: "sm",
+              action: {
+                type: "uri",
+                label: "ลงทะเบียนเลย",
+                uri: liffUrl
+              }
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [],
+              margin: "sm"
+            }
+          ]
+        }
+      }
+    };
+
+    await lineClient.pushMessage(participant.line_user_id, flexMessage);
+
+    console.log(`${logPrefix} Successfully sent LIFF activation link`, {
+      participant_id,
+      line_user_id: participant.line_user_id,
+      liff_url: liffUrl
+    });
+
+    return res.json({
+      success: true,
+      message: "LIFF activation link sent via LINE",
+      liff_url: liffUrl
+    });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+/**
  * Activate account via LINE LIFF
  * Links LINE User ID automatically
  * Public endpoint (no auth required)
