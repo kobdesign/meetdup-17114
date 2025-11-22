@@ -272,10 +272,18 @@ router.patch("/:richMenuId", verifySupabaseAuth, upload.single("image"), async (
         await lineClient.uploadRichMenuImage(result.richMenuId, imageFile.buffer, contentType);
       } else {
         // Download existing image from old menu and upload to new menu
-        const imageBuffer = await lineClient.downloadRichMenuImage(richMenu.line_rich_menu_id);
-        await lineClient.uploadRichMenuImage(result.richMenuId, imageBuffer, "image/png");
+        try {
+          const imageBuffer = await lineClient.downloadRichMenuImage(richMenu.line_rich_menu_id);
+          await lineClient.uploadRichMenuImage(result.richMenuId, imageBuffer, "image/png");
+        } catch (downloadError: any) {
+          // If old menu image not found, provide helpful error message
+          if (downloadError.message?.includes("404") || downloadError.message?.includes("not found")) {
+            throw new Error("Original Rich Menu image not found in LINE. Please upload a new image to update this menu.");
+          }
+          throw downloadError;
+        }
       }
-    } catch (imageError) {
+    } catch (imageError: any) {
       console.error("Failed to upload image to new rich menu:", imageError);
       // Rollback: Delete the newly created menu from LINE
       try {
@@ -284,7 +292,7 @@ router.patch("/:richMenuId", verifySupabaseAuth, upload.single("image"), async (
       } catch (rollbackError) {
         console.error("⚠️ ALERT: Orphaned rich menu in LINE (requires manual cleanup):", result.richMenuId, rollbackError);
       }
-      return res.status(500).json({ error: "Failed to upload image to rich menu" });
+      return res.status(500).json({ error: imageError.message || "Failed to upload image to rich menu" });
     }
 
     // Update database record FIRST (before deleting old menu)
