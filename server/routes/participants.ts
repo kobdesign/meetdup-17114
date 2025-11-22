@@ -75,9 +75,9 @@ async function sendActivationLink(params: {
     }
 
     // Generate web activation URL (no LIFF needed)
-    const baseUrl = process.env.REPL_SLUG 
-      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
-      : process.env.BASE_URL || 'http://localhost:5000';
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : 'http://localhost:5000';
     
     const activationUrl = `${baseUrl}/activate?token=${token}`;
 
