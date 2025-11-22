@@ -58,11 +58,11 @@ export async function handlePhoneLinking(
   tenantId: string,
   accessToken: string,
   logPrefix: string
-): Promise<void> {
+): Promise<boolean> {
   const userId = event.source.userId;
   if (!userId) {
     console.error(`${logPrefix} No userId in event`);
-    return;
+    return false;
   }
 
   const lineClient = new LineClient(accessToken);
@@ -70,6 +70,7 @@ export async function handlePhoneLinking(
   const normalizedPhone = phoneText.replace(/\D/g, '');
   
   if (normalizedPhone.length < 9 || normalizedPhone.length > 15) {
+    console.log(`${logPrefix} Invalid phone format, keeping conversation state for retry`);
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
       text: "⚠️ เบอร์โทรศัพท์ไม่ถูกต้อง\n\nกรุณาส่งเบอร์โทรศัพท์ใหม่อีกครั้ง"
@@ -81,7 +82,7 @@ export async function handlePhoneLinking(
       action: "link_line",
       expiresAt: Date.now() + CONVERSATION_TIMEOUT
     });
-    return;
+    return false;
   }
 
   console.log(`${logPrefix} Looking up participant with phone: ${normalizedPhone}`);
@@ -99,31 +100,41 @@ export async function handlePhoneLinking(
       type: "text",
       text: "⚠️ เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
     });
-    return;
+    return false;
   }
 
   if (!participant) {
+    console.log(`${logPrefix} Participant not found, keeping conversation state for retry`);
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
       text: "❌ ไม่พบข้อมูลเบอร์โทรนี้ในระบบ\n\n" +
-            "กรุณาตรวจสอบว่าลงทะเบียนแล้ว หรือติดต่อผู้ดูแลระบบ"
+            "กรุณาตรวจสอบเบอร์และลองใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบ"
     });
-    return;
+    
+    const stateKey = `${tenantId}:${userId}`;
+    conversationStates.set(stateKey, {
+      step: "awaiting_phone",
+      action: "link_line",
+      expiresAt: Date.now() + CONVERSATION_TIMEOUT
+    });
+    return false;
   }
 
   if (participant.line_user_id) {
+    console.log(`${logPrefix} Participant already linked, clearing conversation state`);
     if (participant.line_user_id === userId) {
       await lineClient.replyMessage(event.replyToken, {
         type: "text",
         text: `✅ บัญชี LINE ของคุณเชื่อมโยงแล้ว\n\nชื่อ: ${participant.full_name}\nสถานะ: ${getStatusLabel(participant.status)}`
       });
+      return true;
     } else {
       await lineClient.replyMessage(event.replyToken, {
         type: "text",
         text: "⚠️ เบอร์โทรนี้เชื่อมโยงกับ LINE account อื่นอยู่แล้ว\n\nกรุณาติดต่อผู้ดูแลระบบ"
       });
+      return true;
     }
-    return;
   }
 
   const { error: updateError } = await supabaseAdmin
@@ -138,7 +149,7 @@ export async function handlePhoneLinking(
       type: "text",
       text: "⚠️ ไม่สามารถเชื่อมโยงได้ กรุณาลองใหม่อีกครั้ง"
     });
-    return;
+    return false;
   }
 
   console.log(`${logPrefix} Successfully linked LINE User ID for participant: ${participant.participant_id}`);
@@ -152,6 +163,7 @@ export async function handlePhoneLinking(
             `สถานะ: ${getStatusLabel(participant.status)}\n\n` +
             `ตอนนี้คุณสามารถใช้งานผ่าน LINE ได้แล้ว 🎉`
     });
+    return true;
   } else {
     console.log(`${logPrefix} Participant has no account, auto-sending LIFF activation link`);
     
@@ -204,6 +216,7 @@ export async function handlePhoneLinking(
         text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
       });
     }
+    return true;
   }
 }
 

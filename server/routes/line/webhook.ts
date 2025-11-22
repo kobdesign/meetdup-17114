@@ -134,8 +134,14 @@ async function processEvent(
       
       if (state && state.step === "awaiting_phone" && state.action === "link_line") {
         console.log(`${logPrefix} Processing phone number in conversation flow`);
-        await handlePhoneLinking(event, text, tenantId, accessToken, logPrefix);
-        clearConversationState(tenantId, userId);
+        const success = await handlePhoneLinking(event, text, tenantId, accessToken, logPrefix);
+        
+        if (success) {
+          console.log(`${logPrefix} Phone linking completed successfully, clearing conversation state`);
+          clearConversationState(tenantId, userId);
+        } else {
+          console.log(`${logPrefix} Phone linking failed or needs retry, keeping conversation state`);
+        }
         return;
       }
     }
