@@ -1,6 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-import { getLiffIdActivation } from '../services/line/credentials';
 
 /**
  * Normalizes phone number by removing all non-digit characters
@@ -198,7 +197,6 @@ export async function validateActivationToken(
   participant?: any;
   tenantId?: string;
   tenantName?: string;
-  liffId?: string;
   existingAccount?: boolean;
   existingUserId?: string;
   existingUserName?: string;

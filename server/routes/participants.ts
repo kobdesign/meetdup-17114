@@ -3145,27 +3145,27 @@ router.post("/send-activation-auto", async (req: Request, res: Response) => {
 });
 
 /**
- * Activate account via LINE LIFF
- * Links LINE User ID automatically
+ * Activate account via web form
+ * Creates user account and links to participant
+ * LINE linking happens separately via phone number registration
  * Public endpoint (no auth required)
  */
-router.post("/activate-via-line", async (req: Request, res: Response) => {
+router.post("/activate", async (req: Request, res: Response) => {
   const requestId = crypto.randomUUID();
-  const logPrefix = `[activate-via-line:${requestId}]`;
+  const logPrefix = `[activate:${requestId}]`;
 
   try {
-    const { token, email, password, line_user_id } = req.body;
+    const { token, email, password } = req.body;
 
-    console.log(`${logPrefix} LINE Activation request`, {
+    console.log(`${logPrefix} Activation request`, {
       token_prefix: token ? token.slice(0, 8) + '...' : undefined,
-      email,
-      has_line_user_id: !!line_user_id
+      email
     });
 
-    if (!token || !email || !password || !line_user_id) {
+    if (!token || !email || !password) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields: token, email, password, line_user_id"
+        error: "Missing required fields: token, email, password"
       });
     }
 
@@ -3181,6 +3181,17 @@ router.post("/activate-via-line", async (req: Request, res: Response) => {
     const participant = validation.participant;
     const tenantId = validation.tenantId;
 
+    // CRITICAL: Mark token as used immediately to prevent reuse
+    // If account creation fails, user must request new token
+    const markResult = await markTokenAsUsed(supabaseAdmin, token);
+    if (!markResult.success) {
+      console.error(`${logPrefix} Failed to mark token as used:`, markResult.error);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to process activation token"
+      });
+    }
+
     // Create user account
     const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -3194,21 +3205,22 @@ router.post("/activate-via-line", async (req: Request, res: Response) => {
 
     if (signUpError || !authData.user) {
       console.error(`${logPrefix} Sign up error:`, signUpError);
+      // Token is already marked as used - user must request new activation link
       return res.status(400).json({
         success: false,
-        error: "Failed to create account",
+        error: "Failed to create account. Please contact administrator for new activation link.",
         message: signUpError?.message
       });
     }
 
     const userId = authData.user.id;
 
-    // Link user to participant AND LINE User ID
+    // Link user to participant
+    // LINE linking will happen separately when user registers via LINE
     const { error: linkError } = await supabaseAdmin
       .from('participants')
       .update({ 
-        user_id: userId,
-        line_user_id: line_user_id // Link LINE account automatically
+        user_id: userId
       })
       .eq('participant_id', participant.participant_id);
 
@@ -3237,9 +3249,6 @@ router.post("/activate-via-line", async (req: Request, res: Response) => {
       // Don't rollback if role creation fails, just log it
     }
 
-    // Mark token as used
-    await markTokenAsUsed(supabaseAdmin, token);
-
     // Update participant's email if provided
     if (participant.email !== email) {
       await supabaseAdmin
@@ -3248,30 +3257,8 @@ router.post("/activate-via-line", async (req: Request, res: Response) => {
         .eq("participant_id", participant.participant_id);
     }
 
-    // Send confirmation message via LINE
-    try {
-      const { data: tenantData } = await supabaseAdmin
-        .from('tenants')
-        .select('tenant_name, line_channel_access_token')
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if (tenantData?.line_channel_access_token) {
-        const lineClient = new LineClient(tenantData.line_channel_access_token);
-        await lineClient.pushMessage(line_user_id, {
-          type: 'text',
-          text: `✅ สร้างบัญชีสำเร็จ!\n\nยินดีต้อนรับสู่ ${tenantData.tenant_name}\n\nคุณสามารถ:\n- เข้าสู่ระบบ: ${process.env.REPLIT_DEV_DOMAIN || 'meetdup.app'}\n- ดูนามบัตรสมาชิก: พิมพ์ "card ชื่อ"\n- ลงทะเบียนประชุม: ติดตามข้อมูลผ่านระบบ`
-        });
-        console.log(`${logPrefix} Sent LINE confirmation message`);
-      }
-    } catch (lineError) {
-      console.error(`${logPrefix} Failed to send LINE confirmation:`, lineError);
-      // Don't fail the request if LINE message fails
-    }
-
-    console.log(`${logPrefix} Successfully created account and linked LINE`, {
+    console.log(`${logPrefix} Successfully created account and linked participant`, {
       user_id: userId,
-      line_user_id,
       participant_id: participant.participant_id
     });
 

@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import liff from "@line/liff";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +22,6 @@ interface ValidationResponse {
   participant?: ParticipantInfo;
   tenantId?: string;
   tenantName?: string;
-  liffId?: string;
   existingAccount?: boolean;
   error?: string;
 }
@@ -34,20 +32,17 @@ export default function LineActivate() {
   const token = searchParams.get("token");
 
   const [loading, setLoading] = useState(true);
-  const [liffReady, setLiffReady] = useState(false);
   const [validating, setValidating] = useState(false);
   const [participant, setParticipant] = useState<ParticipantInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string>("");
-  const [liffId, setLiffId] = useState<string | null>(null);
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Step 1: Validate token first to get LIFF ID
+  // Validate token on mount
   useEffect(() => {
     if (!token) {
       setError("Missing activation token");
@@ -55,24 +50,23 @@ export default function LineActivate() {
       return;
     }
 
-    console.log("🔍 [LINE Activate] Validating token to get LIFF ID...");
+    console.log("🔍 [Activate] Validating token...");
     
     fetch(`/api/participants/validate-token/${token}`)
       .then((response) => response.json())
       .then((data: ValidationResponse) => {
-        if (!data.success || !data.liffId) {
-          setError(data.error || "Invalid activation link or LIFF not configured");
+        if (!data.success) {
+          setError(data.error || "Invalid activation link");
           setLoading(false);
           return;
         }
 
-        console.log("✅ [LINE Activate] Token validated, LIFF ID retrieved:", data.liffId);
+        console.log("✅ [Activate] Token validated");
         
         // Store participant info
         setParticipant(data.participant!);
         setTenantId(data.tenantId!);
         setTenantName(data.tenantName || "");
-        setLiffId(data.liffId);
 
         // Pre-fill email if available
         if (data.participant?.email) {
@@ -85,77 +79,15 @@ export default function LineActivate() {
           setLoading(false);
           return;
         }
+
+        setLoading(false);
       })
       .catch((err) => {
-        console.error("❌ [LINE Activate] Token validation failed:", err);
+        console.error("❌ [Activate] Token validation failed:", err);
         setError("ไม่สามารถตรวจสอบลิงก์ได้");
         setLoading(false);
       });
   }, [token]);
-
-  // Step 2: Initialize LIFF after we have LIFF ID
-  useEffect(() => {
-    if (!liffId) return; // Wait until we have LIFF ID from validation
-
-    console.log("🚀 [LINE Activate] Starting LIFF initialization...", {
-      liffId,
-      url: window.location.href,
-      userAgent: navigator.userAgent
-    });
-
-    liff
-      .init({ liffId })
-      .then(() => {
-        console.log("✅ [LINE Activate] LIFF initialized successfully");
-        console.log("📱 [LINE Activate] LIFF context:", {
-          isInClient: liff.isInClient(),
-          isLoggedIn: liff.isLoggedIn(),
-          os: liff.getOS(),
-          language: liff.getLanguage(),
-          version: liff.getVersion()
-        });
-
-        setLiffReady(true);
-
-        // Get LINE user profile
-        if (liff.isLoggedIn()) {
-          console.log("🔐 [LINE Activate] User is logged in, fetching profile...");
-          liff.getProfile()
-            .then((profile) => {
-              console.log("✅ [LINE Activate] Profile retrieved successfully:", {
-                userId: profile.userId,
-                displayName: profile.displayName,
-                pictureUrl: profile.pictureUrl,
-                statusMessage: profile.statusMessage
-              });
-              setLineUserId(profile.userId);
-              setLoading(false);
-            })
-            .catch((err) => {
-              console.error("❌ [LINE Activate] Failed to get profile:", {
-                error: err,
-                message: err?.message,
-                stack: err?.stack
-              });
-              setError("ไม่สามารถดึงข้อมูล LINE ได้ กรุณาลองใหม่อีกครั้ง");
-              setLoading(false);
-            });
-        } else {
-          console.log("🔓 [LINE Activate] User not logged in, redirecting to LINE login...");
-          liff.login();
-        }
-      })
-      .catch((err) => {
-        console.error("❌ [LINE Activate] LIFF initialization failed:", {
-          error: err,
-          message: err?.message,
-          stack: err?.stack,
-          liffId
-        });
-        setError("ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาเปิดลิงก์ผ่าน LINE แอป");
-        setLoading(false);
-      });
-  }, [liffId]);
 
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,15 +108,10 @@ export default function LineActivate() {
       return;
     }
 
-    if (!lineUserId) {
-      toast.error("ไม่สามารถเชื่อมต่อ LINE ได้");
-      return;
-    }
-
     try {
       setValidating(true);
 
-      const response = await fetch("/api/participants/activate-via-line", {
+      const response = await fetch("/api/participants/activate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -193,7 +120,6 @@ export default function LineActivate() {
           token,
           email,
           password,
-          line_user_id: lineUserId,
         }),
       });
 
@@ -207,14 +133,9 @@ export default function LineActivate() {
       // Success!
       toast.success(`สร้างบัญชีสำเร็จ! ยินดีต้อนรับสู่ ${tenantName}`);
 
-      // Close LIFF window after 2 seconds
+      // Redirect to login page after 2 seconds
       setTimeout(() => {
-        if (liff.isInClient()) {
-          liff.closeWindow();
-        } else {
-          // Redirect to login page if opened in external browser
-          window.location.href = "/auth";
-        }
+        navigate("/auth");
       }, 2000);
     } catch (err: any) {
       console.error("Activation error:", err);
@@ -230,7 +151,7 @@ export default function LineActivate() {
         <Card className="w-full max-w-md mx-4">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <p className="text-muted-foreground">กำลังเชื่อมต่อ LINE...</p>
+            <p className="text-muted-foreground">กำลังตรวจสอบลิงก์...</p>
           </CardContent>
         </Card>
       </div>
@@ -253,22 +174,8 @@ export default function LineActivate() {
               <AlertDescription>{error || "ไม่พบข้อมูลการลงทะเบียน"}</AlertDescription>
             </Alert>
             
-            {/* Debug Information */}
-            <div className="mt-4 p-3 bg-muted/50 rounded-md">
-              <p className="text-xs font-mono text-muted-foreground mb-2">Debug Info:</p>
-              <div className="space-y-1 text-xs font-mono">
-                <p>LIFF ID (from API): {liffId || "❌ NULL"}</p>
-                <p>LIFF Ready: {liffReady ? "✅" : "❌"}</p>
-                <p>LINE User ID: {lineUserId || "❌ NULL"}</p>
-                <p>Token: {token ? "✅" : "❌"}</p>
-                <p>Tenant ID: {tenantId || "❌ NULL"}</p>
-                <p>URL: {window.location.href}</p>
-              </div>
-            </div>
-            
             <div className="mt-6 text-sm text-muted-foreground">
               <p>กรุณาติดต่อผู้ดูแลระบบเพื่อขอความช่วยเหลือ</p>
-              <p className="mt-2 text-xs">เปิดผ่าน LINE app เท่านั้น</p>
             </div>
           </CardContent>
         </Card>
@@ -362,13 +269,14 @@ export default function LineActivate() {
                   กำลังสร้างบัญชี...
                 </>
               ) : (
-                "สร้างบัญชีและเชื่อมต่อ LINE"
+                "สร้างบัญชี"
               )}
             </Button>
           </form>
 
           <div className="mt-4 text-center text-xs text-muted-foreground">
-            <p>บัญชีของคุณจะถูกเชื่อมต่อกับ LINE ID โดยอัตโนมัติ</p>
+            <p>บัญชีของคุณจะถูกเชื่อมต่อกับเบอร์โทรศัพท์โดยอัตโนมัติ</p>
+            <p className="mt-2">หากคุณมี LINE คุณสามารถเชื่อมต่อได้ภายหลังผ่าน LINE แชท</p>
           </div>
         </CardContent>
       </Card>
