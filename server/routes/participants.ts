@@ -4,6 +4,7 @@ import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { generateVCard, getVCardFilename, VCardData } from "../services/line/vcard";
 import { generateProfileToken, verifyProfileToken } from "../utils/profileToken";
 import { LineClient } from "../services/line/lineClient";
+import { getLineCredentials } from "../services/line/credentials";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -56,15 +57,21 @@ async function sendLiffActivationLink(params: {
       return { success: false, error: "Failed to generate activation token" };
     }
 
-    // Get tenant info for LINE credentials
+    // Get LINE credentials for this tenant
+    const credentials = await getLineCredentials(tenantId);
+    if (!credentials) {
+      return { success: false, error: "LINE channel not configured for this tenant" };
+    }
+
+    // Get tenant name for message
     const { data: tenantData } = await supabaseAdmin
       .from("tenants")
-      .select("tenant_name, line_channel_access_token")
+      .select("tenant_name")
       .eq("tenant_id", tenantId)
       .single();
 
-    if (!tenantData?.line_channel_access_token) {
-      return { success: false, error: "LINE channel not configured for this tenant" };
+    if (!tenantData) {
+      return { success: false, error: "Tenant not found" };
     }
 
     // Generate LIFF URL
@@ -76,7 +83,7 @@ async function sendLiffActivationLink(params: {
     const liffUrl = `https://liff.line.me/${liffId}?token=${token}`;
 
     // Send LINE Flex Message
-    const lineClient = new LineClient(tenantData.line_channel_access_token);
+    const lineClient = new LineClient(credentials.channelAccessToken);
     
     const flexMessage = {
       type: "flex" as const,
