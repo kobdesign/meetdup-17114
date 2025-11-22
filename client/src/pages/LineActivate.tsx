@@ -49,7 +49,14 @@ export default function LineActivate() {
   useEffect(() => {
     const liffId = import.meta.env.VITE_LIFF_ID;
     
+    console.log("🚀 [LINE Activate] Starting LIFF initialization...", {
+      liffId: liffId || "MISSING",
+      url: window.location.href,
+      userAgent: navigator.userAgent
+    });
+    
     if (!liffId) {
+      console.error("❌ [LINE Activate] LIFF ID is missing!");
       setError("LIFF configuration missing");
       setLoading(false);
       return;
@@ -58,28 +65,52 @@ export default function LineActivate() {
     liff
       .init({ liffId })
       .then(() => {
-        console.log("LIFF initialized successfully");
+        console.log("✅ [LINE Activate] LIFF initialized successfully");
+        console.log("📱 [LINE Activate] LIFF context:", {
+          isInClient: liff.isInClient(),
+          isLoggedIn: liff.isLoggedIn(),
+          os: liff.getOS(),
+          language: liff.getLanguage(),
+          version: liff.getVersion()
+        });
+        
         setLiffReady(true);
 
         // Get LINE user profile
         if (liff.isLoggedIn()) {
-          console.log("LINE user is logged in, getting profile...");
-          liff.getProfile().then((profile) => {
-            console.log("LINE Profile retrieved:", { userId: profile.userId, displayName: profile.displayName });
-            setLineUserId(profile.userId);
-          }).catch((err) => {
-            console.error("Failed to get LINE profile:", err);
-            setError("ไม่สามารถดึงข้อมูล LINE ได้ กรุณาลองใหม่อีกครั้ง");
-            setLoading(false);
-          });
+          console.log("🔐 [LINE Activate] User is logged in, fetching profile...");
+          liff.getProfile()
+            .then((profile) => {
+              console.log("✅ [LINE Activate] Profile retrieved successfully:", {
+                userId: profile.userId,
+                displayName: profile.displayName,
+                pictureUrl: profile.pictureUrl,
+                statusMessage: profile.statusMessage
+              });
+              setLineUserId(profile.userId);
+              setLoading(false);
+            })
+            .catch((err) => {
+              console.error("❌ [LINE Activate] Failed to get profile:", {
+                error: err,
+                message: err?.message,
+                stack: err?.stack
+              });
+              setError("ไม่สามารถดึงข้อมูล LINE ได้ กรุณาลองใหม่อีกครั้ง");
+              setLoading(false);
+            });
         } else {
-          console.log("LINE user not logged in, redirecting to login...");
-          // Redirect to LINE login
+          console.log("🔓 [LINE Activate] User not logged in, redirecting to LINE login...");
           liff.login();
         }
       })
       .catch((err) => {
-        console.error("LIFF initialization failed:", err);
+        console.error("❌ [LINE Activate] LIFF initialization failed:", {
+          error: err,
+          message: err?.message,
+          stack: err?.stack,
+          liffId
+        });
         setError("ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาเปิดลิงก์ผ่าน LINE แอป");
         setLoading(false);
       });
