@@ -8,7 +8,13 @@ None specified yet.
 
 ## Recent Changes
 
-### November 22, 2024 - Security Hardening & Rich Menu Switching
+### November 22, 2024 - Rich Menu Edit Feature & Production Safety
+- **Rich Menu Edit**: Implemented full Edit Rich Menu functionality with production-safe rollback handling:
+  - Edit form allows updating name, chat_bar_text, and areas JSON without requiring image re-upload
+  - Backend creates new menu before deleting old to prevent data loss
+  - Comprehensive rollback logic: if any step fails (image upload, DB update, default setting), system reverts to original state and cleans up new menu
+  - Added bounds configuration tip in UI to help users align clickable areas with icon positions (y:400, height:443 for bottom-half icons)
+  - Image reuse: automatically copies existing image when no new upload provided
 - **Rich Menu Security**: Replaced inline service-role key usage with supabaseAdmin singleton, preventing credential exposure
 - **Tenant Isolation**: Removed unsafe .or() queries with user input; implemented sequential lookups with double tenant checks
 - **Input Sanitization**: Business Card search now sanitizes all user input (escape %, _, remove quotes/semicolons) before SQL queries
