@@ -250,10 +250,7 @@ router.patch("/:richMenuId", verifySupabaseAuth, upload.single("image"), async (
 
     const lineClient = new LineClient(credentials.channelAccessToken);
     
-    // Delete old rich menu from LINE
-    await lineClient.deleteRichMenu(richMenu.line_rich_menu_id);
-
-    // Create new rich menu in LINE with updated data
+    // Create new rich menu in LINE with updated data (BEFORE deleting old one)
     const richMenuData = {
       size: {
         width: richMenu.image_width,
@@ -267,27 +264,30 @@ router.patch("/:richMenuId", verifySupabaseAuth, upload.single("image"), async (
 
     const result = await lineClient.createRichMenu(richMenuData);
 
-    // Upload image (new or existing)
-    if (imageFile) {
-      // Upload new image
-      const contentType = imageFile.mimetype || "image/png";
-      await lineClient.uploadRichMenuImage(result.richMenuId, imageFile.buffer, contentType);
-    } else {
-      // Download existing image from LINE and re-upload to new rich menu
-      try {
+    // Upload image (new or existing) with rollback on failure
+    try {
+      if (imageFile) {
+        // Upload new image
+        const contentType = imageFile.mimetype || "image/png";
+        await lineClient.uploadRichMenuImage(result.richMenuId, imageFile.buffer, contentType);
+      } else {
+        // Download existing image from old menu and upload to new menu
         const imageBuffer = await lineClient.downloadRichMenuImage(richMenu.line_rich_menu_id);
         await lineClient.uploadRichMenuImage(result.richMenuId, imageBuffer, "image/png");
-      } catch (error) {
-        console.error("Failed to copy existing image, continuing without image:", error);
       }
+    } catch (imageError) {
+      console.error("Failed to upload image to new rich menu:", imageError);
+      // Rollback: Delete the newly created menu from LINE
+      try {
+        await lineClient.deleteRichMenu(result.richMenuId);
+        console.log("Rollback: Deleted newly created rich menu due to image upload failure:", result.richMenuId);
+      } catch (rollbackError) {
+        console.error("⚠️ ALERT: Orphaned rich menu in LINE (requires manual cleanup):", result.richMenuId, rollbackError);
+      }
+      return res.status(500).json({ error: "Failed to upload image to rich menu" });
     }
 
-    // Restore default status if it was default
-    if (richMenu.is_default) {
-      await lineClient.setDefaultRichMenu(result.richMenuId);
-    }
-
-    // Update database record
+    // Update database record FIRST (before deleting old menu)
     const { data: updatedMenu, error: updateError } = await supabaseAdmin
       .from("rich_menus")
       .update({
@@ -303,7 +303,55 @@ router.patch("/:richMenuId", verifySupabaseAuth, upload.single("image"), async (
 
     if (updateError) {
       console.error("Error updating rich menu in database:", updateError);
+      // Rollback: Delete the newly created menu from LINE
+      try {
+        await lineClient.deleteRichMenu(result.richMenuId);
+        console.log("Rollback: Deleted newly created rich menu:", result.richMenuId);
+      } catch (rollbackError) {
+        console.error("Rollback failed - orphaned rich menu in LINE:", result.richMenuId, rollbackError);
+      }
       return res.status(500).json({ error: "Failed to update database record" });
+    }
+
+    // Set as default if it was default (after DB update succeeds)
+    if (richMenu.is_default) {
+      try {
+        await lineClient.setDefaultRichMenu(result.richMenuId);
+      } catch (defaultError) {
+        console.error("Failed to set new menu as default in LINE:", defaultError);
+        // Rollback database: revert ALL fields to original state
+        try {
+          await supabaseAdmin
+            .from("rich_menus")
+            .update({ 
+              line_rich_menu_id: richMenu.line_rich_menu_id,
+              name: richMenu.name,
+              chat_bar_text: richMenu.chat_bar_text,
+              areas: richMenu.areas
+            })
+            .eq("rich_menu_id", richMenu.rich_menu_id)
+            .eq("tenant_id", tenantId);
+          console.log("Rollback: Reverted database to original rich menu state");
+        } catch (dbRollbackError) {
+          console.error("⚠️ ALERT: Database rollback failed - manual intervention required:", dbRollbackError);
+        }
+        // Delete the newly created menu from LINE
+        try {
+          await lineClient.deleteRichMenu(result.richMenuId);
+          console.log("Rollback: Deleted newly created rich menu due to default setting failure:", result.richMenuId);
+        } catch (deleteError) {
+          console.error("⚠️ ALERT: Failed to cleanup new menu after default setting failure:", result.richMenuId, deleteError);
+        }
+        return res.status(500).json({ error: "Failed to set menu as default" });
+      }
+    }
+
+    // NOW delete old rich menu from LINE (after DB points to new one)
+    try {
+      await lineClient.deleteRichMenu(richMenu.line_rich_menu_id);
+    } catch (error) {
+      console.error("Failed to delete old rich menu, continuing:", error);
+      // Non-critical: new menu is already created, DB updated, and default set
     }
 
     return res.json({ 
