@@ -58,25 +58,29 @@ export default function LineActivate() {
     liff
       .init({ liffId })
       .then(() => {
-        console.log("LIFF initialized");
+        console.log("LIFF initialized successfully");
         setLiffReady(true);
 
         // Get LINE user profile
         if (liff.isLoggedIn()) {
+          console.log("LINE user is logged in, getting profile...");
           liff.getProfile().then((profile) => {
-            console.log("LINE Profile:", profile);
+            console.log("LINE Profile retrieved:", { userId: profile.userId, displayName: profile.displayName });
             setLineUserId(profile.userId);
           }).catch((err) => {
             console.error("Failed to get LINE profile:", err);
+            setError("ไม่สามารถดึงข้อมูล LINE ได้ กรุณาลองใหม่อีกครั้ง");
+            setLoading(false);
           });
         } else {
+          console.log("LINE user not logged in, redirecting to login...");
           // Redirect to LINE login
           liff.login();
         }
       })
       .catch((err) => {
         console.error("LIFF initialization failed:", err);
-        setError("ไม่สามารถเชื่อมต่อ LINE ได้");
+        setError("ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาเปิดลิงก์ผ่าน LINE แอป");
         setLoading(false);
       });
   }, []);
