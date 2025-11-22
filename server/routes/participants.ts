@@ -79,7 +79,7 @@ async function sendActivationLink(params: {
       ? `https://${process.env.REPLIT_DEV_DOMAIN}`
       : 'http://localhost:5000';
     
-    const activationUrl = `${baseUrl}/activate?token=${token}`;
+    const activationUrl = `${baseUrl}/activate/${token}`;
 
     // Send LINE Flex Message
     const lineClient = new LineClient(credentials.channelAccessToken);
