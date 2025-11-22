@@ -5,18 +5,22 @@ import chaptersRouter from "./routes/chapters";
 import participantsRouter from "./routes/participants";
 import usersRouter from "./routes/users";
 import { performHealthCheck, printHealthCheckReport } from "./utils/dbHealthCheck";
+import { setupRichMenuStorage } from "./utils/setupStorage";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Perform database health check on startup
+// Perform database health check and storage setup on startup
 (async () => {
   try {
     const healthCheck = await performHealthCheck();
     printHealthCheckReport(healthCheck);
+    
+    // Setup Rich Menu storage bucket
+    await setupRichMenuStorage();
   } catch (error) {
-    console.error('❌ Health check failed:', error);
+    console.error('❌ Startup checks failed:', error);
   }
 })();
 
