@@ -24,6 +24,18 @@ async function sendLiffActivationLink(params: {
   const { participantId, tenantId, lineUserId, fullName, logPrefix = "[sendLiffActivationLink]" } = params;
 
   try {
+    // Revoke any existing unused tokens for this participant to prevent duplicates
+    const { error: revokeError } = await supabaseAdmin
+      .from("activation_tokens")
+      .update({ used: true })
+      .eq("participant_id", participantId)
+      .eq("used", false);
+
+    if (revokeError) {
+      console.warn(`${logPrefix} Failed to revoke old tokens:`, revokeError);
+      // Continue anyway - this is not critical
+    }
+
     // Generate activation token (7 days expiry)
     const token = crypto.randomUUID();
     const expiresAt = new Date();
@@ -3045,6 +3057,41 @@ router.post("/send-liff-activation-auto", async (req: Request, res: Response) =>
       return res.status(400).json({
         success: false,
         error: "Missing required fields: participant_id, tenant_id, line_user_id, full_name"
+      });
+    }
+
+    // Verify participant exists and belongs to tenant (security check)
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, user_id, line_user_id")
+      .eq("participant_id", participant_id)
+      .eq("tenant_id", tenant_id)
+      .single();
+
+    if (participantError || !participant) {
+      console.error(`${logPrefix} Participant not found or tenant mismatch`);
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found"
+      });
+    }
+
+    // Check if participant already has account
+    if (participant.user_id) {
+      console.log(`${logPrefix} Participant already has account, skipping activation send`);
+      return res.json({
+        success: true,
+        message: "Participant already has account",
+        skipped: true
+      });
+    }
+
+    // Verify LINE User ID matches
+    if (participant.line_user_id !== line_user_id) {
+      console.error(`${logPrefix} LINE User ID mismatch`);
+      return res.status(400).json({
+        success: false,
+        error: "LINE User ID mismatch"
       });
     }
 

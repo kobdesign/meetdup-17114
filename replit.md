@@ -4,13 +4,22 @@
 Meetdup is a comprehensive multi-tenant SaaS application designed to streamline and manage business networking chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for business chapters, offering a tailored experience through multi-tenancy and role-based access control.
 
 ### Recent Features
-- **LIFF Activation Flow (Nov 2024)**: Streamlined member activation via LINE LIFF app
-  - **Admin UI**: "Send via LINE" button in Members Management for members with linked LINE accounts
+- **Automated LIFF Activation Flow (Nov 2024)**: Streamlined member activation via LINE LIFF app with automatic sending
+  - **Auto-Send Flow**: When imported members link their LINE via phone number, system automatically sends LIFF activation link
+    - Member types "ลงทะเบียน" → enters phone → system links LINE User ID → auto-sends activation Flex Message
+    - Eliminates manual admin action for activation link distribution
+  - **Manual Send Option**: Admins can still manually send via "Send via LINE" button in Members Management
+  - **Smart Detection**: System checks if member already has account before sending
+    - If has account: sends welcome message only
+    - If no account: auto-sends LIFF activation link with Flex Message
   - **LINE Flex Message**: Beautiful activation invitation with one-tap button to open LIFF
   - **LIFF Page**: Single-page form pre-filled with member data, collects email/password, auto-links LINE User ID
-  - **Backend API**: `/api/participants/send-liff-activation` generates tokens and sends LINE messages; `/api/participants/activate-via-line` creates accounts and confirms via LINE
+  - **Backend APIs**: 
+    - `/api/participants/send-liff-activation`: Manual admin-triggered send (requires auth)
+    - `/api/participants/send-liff-activation-auto`: Auto-send from webhook (no auth required)
+    - `/api/participants/activate-via-line`: Creates accounts and confirms via LINE
+  - **Reusable Helper**: `sendLiffActivationLink()` function centralizes token generation and Flex Message sending
   - **Setup**: Requires LIFF app configuration in LINE Developers Console (see `.env.example`)
-  - **Flow**: Admin clicks "Send via LINE" → Member receives Flex Message → Taps button → Opens LIFF form → Creates account → Auto-linked to LINE → Receives confirmation
 - **Bulk Member Import**: Excel-based member import with phone validation and duplicate detection
 - **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching
 - **Activation Flow**: Secure token-based self-registration for imported members with 7-day expiration

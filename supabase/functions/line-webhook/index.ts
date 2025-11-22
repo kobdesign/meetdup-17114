@@ -849,9 +849,10 @@ async function handlePhoneLinking(
         })
       });
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        console.error(`${logPrefix} Failed to send activation link:`, errorData);
+        console.error(`${logPrefix} Failed to send activation link:`, responseData);
         
         // Send error message via LINE
         await pushMessage(userId, {
