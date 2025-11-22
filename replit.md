@@ -16,10 +16,15 @@ Meetdup is a comprehensive multi-tenant SaaS application designed to streamline 
   - **LIFF Page**: Single-page form pre-filled with member data, collects email/password, auto-links LINE User ID
   - **Backend APIs**: 
     - `/api/participants/send-liff-activation`: Manual admin-triggered send (requires auth)
-    - `/api/participants/send-liff-activation-auto`: Auto-send from webhook (no auth required)
+    - `/api/participants/send-liff-activation-auto`: Auto-send from webhook (protected by shared secret)
     - `/api/participants/activate-via-line`: Creates accounts and confirms via LINE
   - **Reusable Helper**: `sendLiffActivationLink()` function centralizes token generation and Flex Message sending
-  - **Setup**: Requires LIFF app configuration in LINE Developers Console (see `.env.example`)
+  - **Token Deduplication**: System revokes old unused tokens before creating new ones to prevent duplicates
+  - **Security**: 
+    - Auto-send endpoint protected by `INTERNAL_API_SECRET` header validation
+    - Tenant ownership and LINE User ID verification prevent unauthorized access
+    - ⚠️ **Known Limitations (Pre-Production)**: No HMAC signing, replay protection, or rate limiting yet. Suitable for MVP/development, requires hardening before production deployment.
+  - **Setup**: Requires LIFF app configuration in LINE Developers Console and `INTERNAL_API_SECRET` environment variable (see `.env.example`)
 - **Bulk Member Import**: Excel-based member import with phone validation and duplicate detection
 - **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching
 - **Activation Flow**: Secure token-based self-registration for imported members with 7-day expiration

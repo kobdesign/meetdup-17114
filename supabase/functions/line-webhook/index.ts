@@ -838,9 +838,19 @@ async function handlePhoneLinking(
     // Call backend API to send LIFF activation link
     try {
       const baseUrl = `https://${Deno.env.get("REPLIT_DEV_DOMAIN") || "your-app.replit.dev"}`;
+      const internalSecret = Deno.env.get("INTERNAL_API_SECRET");
+      
+      if (!internalSecret) {
+        console.error(`${logPrefix} Missing INTERNAL_API_SECRET env var`);
+        throw new Error("Missing INTERNAL_API_SECRET");
+      }
+
       const response = await fetch(`${baseUrl}/api/participants/send-liff-activation-auto`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-internal-secret": internalSecret
+        },
         body: JSON.stringify({
           participant_id: participant.participant_id,
           tenant_id: credentials.tenantId,

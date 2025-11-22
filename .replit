@@ -45,3 +45,8 @@ externalPort = 3000
 [[ports]]
 localPort = 37935
 externalPort = 3001
+
+[userenv]
+
+[userenv.shared]
+INTERNAL_API_SECRET = "dev-secret-replace-in-production"

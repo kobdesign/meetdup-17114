@@ -3045,6 +3045,18 @@ router.post("/send-liff-activation-auto", async (req: Request, res: Response) =>
   const logPrefix = `[send-liff-activation-auto:${requestId}]`;
 
   try {
+    // Verify internal API secret to prevent unauthorized access
+    const internalSecret = process.env.INTERNAL_API_SECRET;
+    const providedSecret = req.headers['x-internal-secret'];
+    
+    if (!internalSecret || providedSecret !== internalSecret) {
+      console.error(`${logPrefix} Unauthorized access attempt - invalid secret`);
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized"
+      });
+    }
+
     const { participant_id, tenant_id, line_user_id, full_name } = req.body;
 
     console.log(`${logPrefix} Auto-send LIFF activation request`, {
