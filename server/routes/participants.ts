@@ -6,8 +6,171 @@ import { generateProfileToken, verifyProfileToken } from "../utils/profileToken"
 import { LineClient } from "../services/line/lineClient";
 import multer from "multer";
 import path from "path";
+import crypto from "crypto";
 
 const router = Router();
+
+/**
+ * Helper function to generate activation token and send LIFF Flex Message
+ * Reusable for both admin manual send and auto-send after LINE registration
+ */
+async function sendLiffActivationLink(params: {
+  participantId: string;
+  tenantId: string;
+  lineUserId: string;
+  fullName: string;
+  logPrefix?: string;
+}): Promise<{ success: boolean; error?: string; token?: string; liffUrl?: string }> {
+  const { participantId, tenantId, lineUserId, fullName, logPrefix = "[sendLiffActivationLink]" } = params;
+
+  try {
+    // Generate activation token (7 days expiry)
+    const token = crypto.randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const { error: tokenError } = await supabaseAdmin
+      .from("activation_tokens")
+      .insert({
+        token,
+        participant_id: participantId,
+        tenant_id: tenantId,
+        expires_at: expiresAt.toISOString(),
+        used: false
+      });
+
+    if (tokenError) {
+      console.error(`${logPrefix} Failed to create token:`, tokenError);
+      return { success: false, error: "Failed to generate activation token" };
+    }
+
+    // Get tenant info for LINE credentials
+    const { data: tenantData } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, line_channel_access_token")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (!tenantData?.line_channel_access_token) {
+      return { success: false, error: "LINE channel not configured for this tenant" };
+    }
+
+    // Generate LIFF URL
+    const liffId = process.env.LIFF_ID;
+    if (!liffId) {
+      return { success: false, error: "LIFF ID not configured" };
+    }
+
+    const liffUrl = `https://liff.line.me/${liffId}?token=${token}`;
+
+    // Send LINE Flex Message
+    const lineClient = new LineClient(tenantData.line_channel_access_token);
+    
+    const flexMessage = {
+      type: "flex" as const,
+      altText: `ลงทะเบียนบัญชีสำหรับ ${tenantData.tenant_name}`,
+      contents: {
+        type: "bubble",
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "🎉 เชิญลงทะเบียน",
+              weight: "bold",
+              size: "xl",
+              color: "#1DB446"
+            },
+            {
+              type: "text",
+              text: tenantData.tenant_name,
+              size: "sm",
+              color: "#999999",
+              margin: "md"
+            },
+            {
+              type: "separator",
+              margin: "xxl"
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              margin: "xxl",
+              spacing: "sm",
+              contents: [
+                {
+                  type: "text",
+                  text: `สวัสดี คุณ${fullName}`,
+                  size: "md",
+                  wrap: true
+                },
+                {
+                  type: "text",
+                  text: "กรุณากดปุ่มด้านล่างเพื่อลงทะเบียนบัญชีผู้ใช้ของคุณ",
+                  size: "sm",
+                  color: "#666666",
+                  margin: "md",
+                  wrap: true
+                },
+                {
+                  type: "text",
+                  text: "ลิงก์นี้จะหมดอายุใน 7 วัน",
+                  size: "xs",
+                  color: "#999999",
+                  margin: "md"
+                }
+              ]
+            }
+          ]
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              height: "sm",
+              action: {
+                type: "uri",
+                label: "ลงทะเบียนเลย",
+                uri: liffUrl
+              }
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [],
+              margin: "sm"
+            }
+          ]
+        }
+      }
+    };
+
+    await lineClient.pushMessage(lineUserId, flexMessage);
+
+    console.log(`${logPrefix} Successfully sent LIFF activation link`, {
+      participant_id: participantId,
+      line_user_id: lineUserId,
+      liff_url: liffUrl
+    });
+
+    return {
+      success: true,
+      token,
+      liffUrl
+    };
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return {
+      success: false,
+      error: error.message || "Internal server error"
+    };
+  }
+}
 
 // Configure multer for avatar uploads (memory storage)
 const upload = multer({
@@ -2829,153 +2992,82 @@ router.post("/send-liff-activation", verifySupabaseAuth, async (req: Authenticat
       });
     }
 
-    // Generate activation token (7 days expiry)
-    const token = crypto.randomUUID();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    const { error: tokenError } = await supabaseAdmin
-      .from("activation_tokens")
-      .insert({
-        token,
-        participant_id: participant.participant_id,
-        tenant_id,
-        expires_at: expiresAt.toISOString(),
-        used: false
-      });
-
-    if (tokenError) {
-      console.error(`${logPrefix} Failed to create token:`, tokenError);
-      return res.status(500).json({
-        success: false,
-        error: "Failed to generate activation token"
-      });
-    }
-
-    // Get tenant info for LINE credentials
-    const { data: tenantData } = await supabaseAdmin
-      .from("tenants")
-      .select("tenant_name, line_channel_access_token")
-      .eq("tenant_id", tenant_id)
-      .single();
-
-    if (!tenantData?.line_channel_access_token) {
-      return res.status(400).json({
-        success: false,
-        error: "LINE channel not configured for this tenant"
-      });
-    }
-
-    // Generate LIFF URL
-    const liffId = process.env.LIFF_ID;
-    if (!liffId) {
-      return res.status(500).json({
-        success: false,
-        error: "LIFF ID not configured"
-      });
-    }
-
-    const liffUrl = `https://liff.line.me/${liffId}?token=${token}`;
-
-    // Send LINE Flex Message
-    const lineClient = new LineClient(tenantData.line_channel_access_token);
-    
-    const flexMessage = {
-      type: "flex" as const,
-      altText: `ลงทะเบียนบัญชีสำหรับ ${tenantData.tenant_name}`,
-      contents: {
-        type: "bubble",
-        body: {
-          type: "box",
-          layout: "vertical",
-          contents: [
-            {
-              type: "text",
-              text: "🎉 เชิญลงทะเบียน",
-              weight: "bold",
-              size: "xl",
-              color: "#1DB446"
-            },
-            {
-              type: "text",
-              text: tenantData.tenant_name,
-              size: "sm",
-              color: "#999999",
-              margin: "md"
-            },
-            {
-              type: "separator",
-              margin: "xxl"
-            },
-            {
-              type: "box",
-              layout: "vertical",
-              margin: "xxl",
-              spacing: "sm",
-              contents: [
-                {
-                  type: "text",
-                  text: `สวัสดี คุณ${participant.full_name}`,
-                  size: "md",
-                  wrap: true
-                },
-                {
-                  type: "text",
-                  text: "กรุณากดปุ่มด้านล่างเพื่อลงทะเบียนบัญชีผู้ใช้ของคุณ",
-                  size: "sm",
-                  color: "#666666",
-                  margin: "md",
-                  wrap: true
-                },
-                {
-                  type: "text",
-                  text: "ลิงก์นี้จะหมดอายุใน 7 วัน",
-                  size: "xs",
-                  color: "#999999",
-                  margin: "md"
-                }
-              ]
-            }
-          ]
-        },
-        footer: {
-          type: "box",
-          layout: "vertical",
-          spacing: "sm",
-          contents: [
-            {
-              type: "button",
-              style: "primary",
-              height: "sm",
-              action: {
-                type: "uri",
-                label: "ลงทะเบียนเลย",
-                uri: liffUrl
-              }
-            },
-            {
-              type: "box",
-              layout: "vertical",
-              contents: [],
-              margin: "sm"
-            }
-          ]
-        }
-      }
-    };
-
-    await lineClient.pushMessage(participant.line_user_id, flexMessage);
-
-    console.log(`${logPrefix} Successfully sent LIFF activation link`, {
-      participant_id,
-      line_user_id: participant.line_user_id,
-      liff_url: liffUrl
+    // Use helper function to send activation link
+    const result = await sendLiffActivationLink({
+      participantId: participant.participant_id,
+      tenantId: tenant_id,
+      lineUserId: participant.line_user_id,
+      fullName: participant.full_name,
+      logPrefix
     });
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
 
     return res.json({
       success: true,
       message: "LIFF activation link sent via LINE",
-      liff_url: liffUrl
+      liff_url: result.liffUrl
+    });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Auto-send LIFF activation link after LINE phone linking
+ * Called by Edge Function webhook, no auth required
+ * Public endpoint (internal use only)
+ */
+router.post("/send-liff-activation-auto", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[send-liff-activation-auto:${requestId}]`;
+
+  try {
+    const { participant_id, tenant_id, line_user_id, full_name } = req.body;
+
+    console.log(`${logPrefix} Auto-send LIFF activation request`, {
+      participant_id,
+      tenant_id,
+      line_user_id: line_user_id ? '***' : undefined
+    });
+
+    if (!participant_id || !tenant_id || !line_user_id || !full_name) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: participant_id, tenant_id, line_user_id, full_name"
+      });
+    }
+
+    // Use helper function to send activation link
+    const result = await sendLiffActivationLink({
+      participantId: participant_id,
+      tenantId: tenant_id,
+      lineUserId: line_user_id,
+      fullName: full_name,
+      logPrefix
+    });
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "LIFF activation link sent automatically",
+      liff_url: result.liffUrl
     });
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);

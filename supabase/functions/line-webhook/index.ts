@@ -754,10 +754,10 @@ async function handlePhoneLinking(
 
   console.log(`${logPrefix} Looking up participant with phone: ${normalizedPhone}`);
 
-  // Find participant by phone
+  // Find participant by phone (include user_id to check activation status)
   const { data: participant, error } = await supabase
     .from("participants")
-    .select("participant_id, full_name, line_user_id, status")
+    .select("participant_id, full_name, line_user_id, user_id, status")
     .eq("tenant_id", credentials.tenantId)
     .eq("phone", normalizedPhone)
     .maybeSingle();
@@ -814,13 +814,62 @@ async function handlePhoneLinking(
 
   console.log(`${logPrefix} Successfully linked LINE User ID for participant: ${participant.participant_id}`);
 
-  await replyMessage(event.replyToken, {
-    type: "text",
-    text: `✅ เชื่อมโยงสำเร็จ!\n\n` +
-          `ชื่อ: ${participant.full_name}\n` +
-          `สถานะ: ${getStatusLabel(participant.status)}\n\n` +
-          `ตอนนี้คุณสามารถใช้งานผ่าน LINE ได้แล้ว 🎉`
-  }, credentials, logPrefix);
+  // Check if participant already has user account
+  if (participant.user_id) {
+    // Already has account - send welcome message
+    console.log(`${logPrefix} Participant already has account, sending welcome message`);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: `✅ เชื่อมโยงสำเร็จ!\n\n` +
+            `ชื่อ: ${participant.full_name}\n` +
+            `สถานะ: ${getStatusLabel(participant.status)}\n\n` +
+            `ตอนนี้คุณสามารถใช้งานผ่าน LINE ได้แล้ว 🎉`
+    }, credentials, logPrefix);
+  } else {
+    // No user account yet - auto-send LIFF activation link
+    console.log(`${logPrefix} Participant has no account, auto-sending LIFF activation link`);
+    
+    // Send initial success message
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: `✅ เชื่อมโยงสำเร็จ!\n\nชื่อ: ${participant.full_name}\n\nกำลังส่งลิงก์ลงทะเบียนให้คุณ...`
+    }, credentials, logPrefix);
+
+    // Call backend API to send LIFF activation link
+    try {
+      const baseUrl = `https://${Deno.env.get("REPLIT_DEV_DOMAIN") || "your-app.replit.dev"}`;
+      const response = await fetch(`${baseUrl}/api/participants/send-liff-activation-auto`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          participant_id: participant.participant_id,
+          tenant_id: credentials.tenantId,
+          line_user_id: userId,
+          full_name: participant.full_name
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error(`${logPrefix} Failed to send activation link:`, errorData);
+        
+        // Send error message via LINE
+        await pushMessage(userId, {
+          type: "text",
+          text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
+        }, credentials);
+      } else {
+        console.log(`${logPrefix} Successfully auto-sent LIFF activation link`);
+        // Success message already sent via Flex Message from backend
+      }
+    } catch (err) {
+      console.error(`${logPrefix} Error calling activation API:`, err);
+      await pushMessage(userId, {
+        type: "text",
+        text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
+      }, credentials);
+    }
+  }
 }
 
 async function searchAndShowBusinessCard(
