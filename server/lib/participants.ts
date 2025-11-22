@@ -254,7 +254,7 @@ export async function validateActivationToken(
       ? tokenData.participants[0] 
       : tokenData.participants;
 
-    const tenantName = (tokenData.tenants as any)?.name || '';
+    const tenantName = (tokenData.tenants as any)?.tenant_name || '';
 
     // Check if THIS participant already has a user account
     if (participant?.user_id) {
