@@ -4,6 +4,7 @@ import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
 import { handleViewCard, handleMemberSearch, handleCardSearch } from "../../services/line/handlers/businessCardHandler";
+import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 
 const router = Router();
 
@@ -124,8 +125,29 @@ async function processEvent(
     const textLower = text.toLowerCase();
     
     console.log(`${logPrefix} Text message: "${text}"`);
+
+    const userId = event.source.userId;
     
-    // Priority 1: Card search commands (must check BEFORE member search)
+    // Check conversation state first (for multi-step flows)
+    if (userId) {
+      const state = getConversationState(tenantId, userId);
+      
+      if (state && state.step === "awaiting_phone" && state.action === "link_line") {
+        console.log(`${logPrefix} Processing phone number in conversation flow`);
+        await handlePhoneLinking(event, text, tenantId, accessToken, logPrefix);
+        clearConversationState(tenantId, userId);
+        return;
+      }
+    }
+    
+    // Priority 1: Phone linking command
+    if (textLower === "ลงทะเบียน" || textLower === "link" || textLower === "register") {
+      console.log(`${logPrefix} Command: PHONE_LINKING`);
+      await startPhoneLinkingFlow(event, tenantId, accessToken, logPrefix);
+      return;
+    }
+    
+    // Priority 2: Card search commands (must check BEFORE member search)
     if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ")) {
       const searchTerm = textLower.startsWith("card ") 
         ? text.substring(5).trim() 
@@ -136,7 +158,7 @@ async function processEvent(
       return;
     }
     
-    // Priority 2: Member search commands
+    // Priority 3: Member search commands
     const searchPattern = /^(หา|ค้นหา|search)\s*สมาชิก\s+(.+)$/i;
     const match = text.match(searchPattern);
     

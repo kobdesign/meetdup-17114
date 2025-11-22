@@ -137,4 +137,20 @@ export class LineClient {
       throw new Error(`LINE API error (${response.status}): ${errorText}`);
     }
   }
+
+  async replyMessage(replyToken: string, messages: any | any[]): Promise<void> {
+    const messageArray = Array.isArray(messages) ? messages : [messages];
+    await this.request("POST", "/bot/message/reply", {
+      replyToken,
+      messages: messageArray
+    });
+  }
+
+  async pushMessage(userId: string, messages: any | any[]): Promise<void> {
+    const messageArray = Array.isArray(messages) ? messages : [messages];
+    await this.request("POST", "/bot/message/push", {
+      to: userId,
+      messages: messageArray
+    });
+  }
 }

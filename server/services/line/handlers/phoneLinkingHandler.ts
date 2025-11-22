@@ -1,0 +1,228 @@
+import { supabaseAdmin } from "../../../utils/supabaseClient";
+import { LineClient } from "../lineClient";
+
+interface ConversationState {
+  step: "awaiting_phone" | "idle";
+  action: "link_line" | null;
+  expiresAt: number;
+}
+
+const conversationStates = new Map<string, ConversationState>();
+const CONVERSATION_TIMEOUT = 5 * 60 * 1000;
+
+function getStatusLabel(status: string): string {
+  const statusLabels: { [key: string]: string } = {
+    "prospect": "🔵 Prospect",
+    "visitor": "🟡 Visitor",
+    "member": "🟢 Member",
+    "alumni": "⚫ Alumni",
+    "declined": "🔴 Declined"
+  };
+  return statusLabels[status] || status;
+}
+
+export async function startPhoneLinkingFlow(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  const userId = event.source.userId;
+  if (!userId) {
+    console.error(`${logPrefix} No userId in event`);
+    return;
+  }
+
+  console.log(`${logPrefix} Starting phone linking flow for user: ${userId}`);
+
+  const stateKey = `${tenantId}:${userId}`;
+  conversationStates.set(stateKey, {
+    step: "awaiting_phone",
+    action: "link_line",
+    expiresAt: Date.now() + CONVERSATION_TIMEOUT
+  });
+
+  const lineClient = new LineClient(accessToken);
+  await lineClient.replyMessage(event.replyToken, {
+    type: "text",
+    text: "🔗 เชื่อมโยง LINE Account\n\n" +
+          "กรุณาส่งเบอร์โทรศัพท์ที่คุณลงทะเบียนไว้\n\n" +
+          "ตัวอย่าง: 0812345678\n\n" +
+          "⏱️ คำสั่งนี้จะหมดอายุใน 5 นาที"
+  });
+}
+
+export async function handlePhoneLinking(
+  event: any,
+  phoneText: string,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  const userId = event.source.userId;
+  if (!userId) {
+    console.error(`${logPrefix} No userId in event`);
+    return;
+  }
+
+  const lineClient = new LineClient(accessToken);
+
+  const normalizedPhone = phoneText.replace(/\D/g, '');
+  
+  if (normalizedPhone.length < 9 || normalizedPhone.length > 15) {
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ เบอร์โทรศัพท์ไม่ถูกต้อง\n\nกรุณาส่งเบอร์โทรศัพท์ใหม่อีกครั้ง"
+    });
+    
+    const stateKey = `${tenantId}:${userId}`;
+    conversationStates.set(stateKey, {
+      step: "awaiting_phone",
+      action: "link_line",
+      expiresAt: Date.now() + CONVERSATION_TIMEOUT
+    });
+    return;
+  }
+
+  console.log(`${logPrefix} Looking up participant with phone: ${normalizedPhone}`);
+
+  const { data: participant, error } = await supabaseAdmin
+    .from("participants")
+    .select("participant_id, full_name, line_user_id, user_id, status")
+    .eq("tenant_id", tenantId)
+    .eq("phone", normalizedPhone)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`${logPrefix} Database error:`, error);
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    });
+    return;
+  }
+
+  if (!participant) {
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: "❌ ไม่พบข้อมูลเบอร์โทรนี้ในระบบ\n\n" +
+            "กรุณาตรวจสอบว่าลงทะเบียนแล้ว หรือติดต่อผู้ดูแลระบบ"
+    });
+    return;
+  }
+
+  if (participant.line_user_id) {
+    if (participant.line_user_id === userId) {
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: `✅ บัญชี LINE ของคุณเชื่อมโยงแล้ว\n\nชื่อ: ${participant.full_name}\nสถานะ: ${getStatusLabel(participant.status)}`
+      });
+    } else {
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ เบอร์โทรนี้เชื่อมโยงกับ LINE account อื่นอยู่แล้ว\n\nกรุณาติดต่อผู้ดูแลระบบ"
+      });
+    }
+    return;
+  }
+
+  const { error: updateError } = await supabaseAdmin
+    .from("participants")
+    .update({ line_user_id: userId })
+    .eq("participant_id", participant.participant_id)
+    .eq("tenant_id", tenantId);
+
+  if (updateError) {
+    console.error(`${logPrefix} Error linking LINE:`, updateError);
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ ไม่สามารถเชื่อมโยงได้ กรุณาลองใหม่อีกครั้ง"
+    });
+    return;
+  }
+
+  console.log(`${logPrefix} Successfully linked LINE User ID for participant: ${participant.participant_id}`);
+
+  if (participant.user_id) {
+    console.log(`${logPrefix} Participant already has account, sending welcome message`);
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: `✅ เชื่อมโยงสำเร็จ!\n\n` +
+            `ชื่อ: ${participant.full_name}\n` +
+            `สถานะ: ${getStatusLabel(participant.status)}\n\n` +
+            `ตอนนี้คุณสามารถใช้งานผ่าน LINE ได้แล้ว 🎉`
+    });
+  } else {
+    console.log(`${logPrefix} Participant has no account, auto-sending LIFF activation link`);
+    
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: `✅ เชื่อมโยงสำเร็จ!\n\nชื่อ: ${participant.full_name}\n\nกำลังส่งลิงก์ลงทะเบียนให้คุณ...`
+    });
+
+    try {
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : "http://localhost:5000";
+      const internalSecret = process.env.INTERNAL_API_SECRET;
+      
+      if (!internalSecret) {
+        console.error(`${logPrefix} Missing INTERNAL_API_SECRET env var`);
+        throw new Error("Missing INTERNAL_API_SECRET");
+      }
+
+      const response = await fetch(`${baseUrl}/api/participants/send-liff-activation-auto`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-internal-secret": internalSecret
+        },
+        body: JSON.stringify({
+          participant_id: participant.participant_id,
+          tenant_id: tenantId,
+          line_user_id: userId,
+          full_name: participant.full_name
+        })
+      });
+
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        console.error(`${logPrefix} Failed to send activation link:`, responseData);
+        
+        await lineClient.pushMessage(userId, {
+          type: "text",
+          text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
+        });
+      } else {
+        console.log(`${logPrefix} Successfully auto-sent LIFF activation link`);
+      }
+    } catch (err) {
+      console.error(`${logPrefix} Error calling activation API:`, err);
+      await lineClient.pushMessage(userId, {
+        type: "text",
+        text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
+      });
+    }
+  }
+}
+
+export function getConversationState(tenantId: string, userId: string): ConversationState | undefined {
+  const stateKey = `${tenantId}:${userId}`;
+  const state = conversationStates.get(stateKey);
+  
+  if (state && state.expiresAt > Date.now()) {
+    return state;
+  }
+  
+  if (state) {
+    conversationStates.delete(stateKey);
+  }
+  
+  return undefined;
+}
+
+export function clearConversationState(tenantId: string, userId: string): void {
+  const stateKey = `${tenantId}:${userId}`;
+  conversationStates.delete(stateKey);
+}
