@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle2, XCircle, AlertCircle, UserCheck } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertCircle, UserCheck, Copy, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -49,6 +49,8 @@ export default function Activate() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [activationSuccess, setActivationSuccess] = useState(false);
+  const [autoRedirectTimer, setAutoRedirectTimer] = useState(15);
 
   // Validate token on mount
   useEffect(() => {
@@ -60,6 +62,24 @@ export default function Activate() {
 
     validateToken();
   }, [token]);
+
+  // Auto-redirect timer when activation successful
+  useEffect(() => {
+    if (!activationSuccess) return;
+
+    const timer = setInterval(() => {
+      setAutoRedirectTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate('/');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activationSuccess, navigate]);
 
   const validateToken = async () => {
     try {
@@ -152,12 +172,8 @@ export default function Activate() {
         return;
       }
 
-      toast.success(`เข้าร่วม ${tenantName} สำเร็จ!`);
-      
-      // Redirect to home
-      setTimeout(() => {
-        navigate('/');
-      }, 1000);
+      // Show success screen instead of immediate redirect
+      setActivationSuccess(true);
     } catch (err: any) {
       console.error('Sign in error:', err);
       toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
@@ -226,12 +242,8 @@ export default function Activate() {
         return;
       }
 
-      toast.success(`สร้างบัญชีสำเร็จ! ยินดีต้อนรับสู่ ${tenantName}`);
-      
-      // Redirect to home
-      setTimeout(() => {
-        navigate('/');
-      }, 1000);
+      // Show success screen instead of immediate redirect
+      setActivationSuccess(true);
     } catch (err: any) {
       console.error('Activation error:', err);
       toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
@@ -239,6 +251,126 @@ export default function Activate() {
       setValidating(false);
     }
   };
+
+  const handleCopyPhone = () => {
+    if (participant?.phone) {
+      navigator.clipboard.writeText(participant.phone);
+      toast.success("คัดลอกเบอร์โทรแล้ว");
+    }
+  };
+
+  const handleGoToDashboard = () => {
+    navigate('/');
+  };
+
+  // Success Screen
+  if (activationSuccess && participant) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader className="text-center pb-4">
+            <div className="flex justify-center mb-4">
+              <div className="relative">
+                <CheckCircle2 className="h-20 w-20 text-green-500 animate-in zoom-in duration-500" />
+                <div className="absolute inset-0 h-20 w-20 text-green-500 animate-ping opacity-20">
+                  <CheckCircle2 className="h-20 w-20" />
+                </div>
+              </div>
+            </div>
+            <CardTitle className="text-2xl">ลงทะเบียนสำเร็จ!</CardTitle>
+            <CardDescription className="text-base mt-2">
+              ยินดีต้อนรับคุณ <span className="font-semibold text-foreground">{fullName || participant.full_name || `${participant.first_name} ${participant.last_name}`}</span>
+              <br />
+              เข้าร่วม <span className="font-semibold text-primary">{tenantName}</span> แล้ว
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent className="space-y-6">
+            {/* Next Steps */}
+            <div className="space-y-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                📋 ขั้นตอนต่อไป
+              </h3>
+              
+              <div className="space-y-3 pl-4">
+                {/* Step 1: Account Created */}
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">สร้างบัญชีแล้ว</p>
+                    <p className="text-sm text-muted-foreground">
+                      อีเมล: {email}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 2: LINE Connection (Recommended) */}
+                <div className="flex items-start gap-3">
+                  <MessageCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium">
+                      เชื่อมต่อ LINE <span className="text-xs text-primary">(แนะนำ)</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      วิธีการ:
+                    </p>
+                    <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 mt-1">
+                      <li>เปิดแชท LINE Official Account ของ Chapter</li>
+                      <li>พิมพ์ <span className="font-mono bg-muted px-1 rounded">"ลงทะเบียน"</span></li>
+                      <li>ส่งเบอร์โทรของคุณ</li>
+                    </ol>
+                    
+                    {/* Phone Number with Copy Button */}
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="flex-1 bg-muted px-3 py-2 rounded-md">
+                        <p className="text-xs text-muted-foreground">เบอร์โทรของคุณ</p>
+                        <p className="font-mono font-semibold">{participant.phone}</p>
+                      </div>
+                      <Button
+                        data-testid="button-copy-phone"
+                        variant="outline"
+                        size="icon"
+                        onClick={handleCopyPhone}
+                        className="flex-shrink-0"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-3 pt-4 border-t">
+              <Button
+                data-testid="button-go-to-dashboard"
+                onClick={handleGoToDashboard}
+                className="w-full"
+                size="lg"
+              >
+                เริ่มใช้งาน Dashboard
+              </Button>
+              
+              <div className="text-center space-y-2">
+                <button
+                  data-testid="link-skip"
+                  onClick={handleGoToDashboard}
+                  className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  ข้ามไปก่อน
+                </button>
+                
+                <p className="text-xs text-muted-foreground">
+                  จะเปลี่ยนหน้าอัตโนมัติใน {autoRedirectTimer} วินาที
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
