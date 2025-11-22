@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
@@ -51,6 +51,7 @@ export default function RichMenuPage() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingMenu, setEditingMenu] = useState<RichMenu | null>(null);
 
   // Fetch rich menus
   const { data: richMenusData, isLoading } = useQuery<{ richMenus: RichMenu[] }>({
@@ -196,6 +197,23 @@ export default function RichMenuPage() {
           </Dialog>
         </div>
 
+        {/* Edit Dialog */}
+        <Dialog open={!!editingMenu} onOpenChange={(open) => !open && setEditingMenu(null)}>
+          <DialogContent className="max-w-2xl">
+            {editingMenu && (
+              <EditRichMenuForm
+                menu={editingMenu}
+                tenantId={effectiveTenantId || ""}
+                onSuccess={() => {
+                  setEditingMenu(null);
+                  queryClient.invalidateQueries({ queryKey: ["/api/line/rich-menu", effectiveTenantId] });
+                }}
+                onCancel={() => setEditingMenu(null)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
         {isLoading ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
@@ -283,6 +301,16 @@ export default function RichMenuPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingMenu(menu)}
+                    data-testid={`button-edit-${menu.rich_menu_id}`}
+                    className="flex-1"
+                  >
+                    <Edit className="w-3 h-3 mr-1" />
+                    Edit
+                  </Button>
                   {!menu.is_default && (
                     <Button
                       variant="outline"
@@ -628,6 +656,212 @@ function CreateRichMenuForm({ tenantId, onSuccess }: { tenantId: string; onSucce
           data-testid="button-submit"
         >
           {createMutation.isPending ? "Creating..." : "Create Rich Menu"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+// Edit Rich Menu Form Component
+function EditRichMenuForm({ 
+  menu, 
+  tenantId, 
+  onSuccess, 
+  onCancel 
+}: { 
+  menu: RichMenu; 
+  tenantId: string; 
+  onSuccess: () => void; 
+  onCancel: () => void;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState(menu.name);
+  const [chatBarText, setChatBarText] = useState(menu.chat_bar_text);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [areasJson, setAreasJson] = useState(JSON.stringify(menu.areas, null, 2));
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  // Validate areas JSON before updating
+  const validateAreasJson = (json: string): boolean => {
+    try {
+      const areas = JSON.parse(json);
+      if (!Array.isArray(areas)) {
+        setJsonError("Areas must be an array");
+        return false;
+      }
+      
+      for (let i = 0; i < areas.length; i++) {
+        const area = areas[i];
+        if (!area.bounds || typeof area.bounds !== 'object') {
+          setJsonError(`Area ${i + 1}: Missing or invalid bounds object`);
+          return false;
+        }
+        if (typeof area.bounds.x !== 'number' || typeof area.bounds.y !== 'number' ||
+            typeof area.bounds.width !== 'number' || typeof area.bounds.height !== 'number') {
+          setJsonError(`Area ${i + 1}: bounds must have numeric x, y, width, height`);
+          return false;
+        }
+        if (!area.action || typeof area.action !== 'object' || !area.action.type) {
+          setJsonError(`Area ${i + 1}: Missing or invalid action object with type`);
+          return false;
+        }
+      }
+      
+      setJsonError(null);
+      return true;
+    } catch (e) {
+      setJsonError("Invalid JSON syntax");
+      return false;
+    }
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!validateAreasJson(areasJson)) {
+        throw new Error(jsonError || "Invalid areas configuration");
+      }
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const formData = new FormData();
+      formData.append("tenantId", tenantId);
+      formData.append("name", name);
+      formData.append("chatBarText", chatBarText);
+      formData.append("areas", areasJson);
+      if (imageFile) {
+        formData.append("image", imageFile);
+      }
+
+      const response = await fetch(
+        `/api/line/rich-menu/${menu.rich_menu_id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update rich menu");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Rich menu updated successfully",
+      });
+      onSuccess();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Edit Rich Menu</DialogTitle>
+        <DialogDescription>
+          Update your LINE Rich Menu configuration
+        </DialogDescription>
+      </DialogHeader>
+      <ScrollArea className="max-h-[60vh] pr-4">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-name" data-testid="label-edit-name">Menu Name (Internal)</Label>
+            <Input
+              id="edit-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Main Menu"
+              maxLength={300}
+              data-testid="input-edit-name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-chatBarText" data-testid="label-edit-chat-bar-text">Chat Bar Text</Label>
+            <Input
+              id="edit-chatBarText"
+              value={chatBarText}
+              onChange={(e) => setChatBarText(e.target.value)}
+              placeholder="e.g., Tap to open"
+              maxLength={14}
+              data-testid="input-edit-chat-bar-text"
+            />
+            <p className="text-xs text-muted-foreground">{chatBarText.length}/14 characters</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-image" data-testid="label-edit-image">Rich Menu Image (Optional)</Label>
+            <Input
+              id="edit-image"
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+              data-testid="input-edit-image"
+            />
+            <p className="text-xs text-muted-foreground">
+              {imageFile ? "New image will be uploaded" : "Leave empty to keep current image"}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-areas" data-testid="label-edit-areas">Areas Configuration (JSON)</Label>
+            <Textarea
+              id="edit-areas"
+              value={areasJson}
+              onChange={(e) => {
+                setAreasJson(e.target.value);
+                setJsonError(null);
+              }}
+              onBlur={() => validateAreasJson(areasJson)}
+              placeholder="Enter areas JSON"
+              rows={10}
+              className={`font-mono text-sm ${jsonError ? 'border-destructive' : ''}`}
+              data-testid="textarea-edit-areas"
+            />
+            {jsonError ? (
+              <p className="text-xs text-destructive">{jsonError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Define tappable areas with bounds and actions</p>
+            )}
+          </div>
+
+          <div className="bg-muted/50 p-3 rounded-md">
+            <p className="text-xs text-muted-foreground">
+              <strong>💡 Tip:</strong> Adjust bounds to match icon positions. For icons at the bottom half, use:
+              <code className="block mt-1 bg-background p-2 rounded text-[10px]">
+                {`"bounds": { "x": 0, "y": 400, "width": 833, "height": 443 }`}
+              </code>
+            </p>
+          </div>
+        </div>
+      </ScrollArea>
+      <DialogFooter className="gap-2 flex-wrap">
+        <Button
+          variant="outline"
+          onClick={onCancel}
+          data-testid="button-edit-cancel"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={() => updateMutation.mutate()}
+          disabled={updateMutation.isPending || !name || !chatBarText}
+          data-testid="button-edit-submit"
+        >
+          {updateMutation.isPending ? "Updating..." : "Update Rich Menu"}
         </Button>
       </DialogFooter>
     </>

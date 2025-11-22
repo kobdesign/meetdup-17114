@@ -194,6 +194,128 @@ router.delete("/:richMenuId", verifySupabaseAuth, async (req: AuthenticatedReque
   }
 });
 
+router.patch("/:richMenuId", verifySupabaseAuth, upload.single("image"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { richMenuId } = req.params;
+    const { tenantId, name, chatBarText, areas } = req.body;
+    const imageFile = req.file;
+
+    // Validate required fields
+    if (!tenantId || !name || !chatBarText || !areas) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const hasAccess = await checkTenantAccess(req.user!.id, tenantId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Find existing rich menu in database
+    let richMenu: any = null;
+    const { data: byRichMenuId } = await supabaseAdmin
+      .from("rich_menus")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("rich_menu_id", richMenuId)
+      .maybeSingle();
+    
+    if (byRichMenuId) {
+      richMenu = byRichMenuId;
+    } else {
+      const { data: byLineRichMenuId } = await supabaseAdmin
+        .from("rich_menus")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("line_rich_menu_id", richMenuId)
+        .maybeSingle();
+      richMenu = byLineRichMenuId;
+    }
+
+    if (!richMenu) {
+      return res.status(404).json({ error: "Rich menu not found" });
+    }
+
+    const credentials = await getLineCredentials(tenantId);
+    if (!credentials) {
+      return res.status(404).json({ error: "LINE not configured" });
+    }
+
+    // Parse areas JSON
+    let parsedAreas;
+    try {
+      parsedAreas = JSON.parse(areas);
+    } catch (error) {
+      return res.status(400).json({ error: "Invalid areas JSON format" });
+    }
+
+    const lineClient = new LineClient(credentials.channelAccessToken);
+    
+    // Delete old rich menu from LINE
+    await lineClient.deleteRichMenu(richMenu.line_rich_menu_id);
+
+    // Create new rich menu in LINE with updated data
+    const richMenuData = {
+      size: {
+        width: richMenu.image_width,
+        height: richMenu.image_height
+      },
+      selected: richMenu.selected,
+      name: name,
+      chatBarText: chatBarText,
+      areas: parsedAreas
+    };
+
+    const result = await lineClient.createRichMenu(richMenuData);
+
+    // Upload image (new or existing)
+    if (imageFile) {
+      // Upload new image
+      const contentType = imageFile.mimetype || "image/png";
+      await lineClient.uploadRichMenuImage(result.richMenuId, imageFile.buffer, contentType);
+    } else {
+      // Download existing image from LINE and re-upload to new rich menu
+      try {
+        const imageBuffer = await lineClient.downloadRichMenuImage(richMenu.line_rich_menu_id);
+        await lineClient.uploadRichMenuImage(result.richMenuId, imageBuffer, "image/png");
+      } catch (error) {
+        console.error("Failed to copy existing image, continuing without image:", error);
+      }
+    }
+
+    // Restore default status if it was default
+    if (richMenu.is_default) {
+      await lineClient.setDefaultRichMenu(result.richMenuId);
+    }
+
+    // Update database record
+    const { data: updatedMenu, error: updateError } = await supabaseAdmin
+      .from("rich_menus")
+      .update({
+        line_rich_menu_id: result.richMenuId,
+        name,
+        chat_bar_text: chatBarText,
+        areas: parsedAreas,
+      })
+      .eq("rich_menu_id", richMenu.rich_menu_id)
+      .eq("tenant_id", tenantId) // Double-check tenant for safety
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error updating rich menu in database:", updateError);
+      return res.status(500).json({ error: "Failed to update database record" });
+    }
+
+    return res.json({ 
+      success: true, 
+      richMenu: updatedMenu
+    });
+  } catch (error: any) {
+    console.error("Error updating rich menu:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.post("/set-default", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const { tenantId, richMenuId } = req.body;

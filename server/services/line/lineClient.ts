@@ -139,6 +139,25 @@ export class LineClient {
     }
   }
 
+  async downloadRichMenuImage(richMenuId: string): Promise<Buffer> {
+    const url = `${LINE_API_DATA_BASE}/bot/richmenu/${richMenuId}/content`;
+    
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${this.accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`LINE API error (${response.status}): ${errorText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
   async replyMessage(replyToken: string, messages: any | any[]): Promise<void> {
     const messageArray = Array.isArray(messages) ? messages : [messages];
     await this.request("POST", "/bot/message/reply", {
