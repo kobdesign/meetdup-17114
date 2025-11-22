@@ -27,9 +27,9 @@ async function sendLiffActivationLink(params: {
     // Revoke any existing unused tokens for this participant to prevent duplicates
     const { error: revokeError } = await supabaseAdmin
       .from("activation_tokens")
-      .update({ used: true })
+      .update({ used_at: new Date().toISOString() })
       .eq("participant_id", participantId)
-      .eq("used", false);
+      .is("used_at", null);
 
     if (revokeError) {
       console.warn(`${logPrefix} Failed to revoke old tokens:`, revokeError);
@@ -47,8 +47,8 @@ async function sendLiffActivationLink(params: {
         token,
         participant_id: participantId,
         tenant_id: tenantId,
-        expires_at: expiresAt.toISOString(),
-        used: false
+        expires_at: expiresAt.toISOString()
+        // used_at is null by default (unused token)
       });
 
     if (tokenError) {
