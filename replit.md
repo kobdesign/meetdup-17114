@@ -211,10 +211,11 @@ npm run db:status
 - **Data Fetching & State Management**: Leverages TanStack React Query and React Context API.
 - **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface. Meeting location fields are enhanced with collapsible sections and visual feedback.
 - **LINE Integration**: Features a comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, quick reply system, and message-based interaction flows:
-  - **Phone Linking Flow**: Users type "ลงทะเบียน" → Bot asks for phone number → System links LINE User ID to existing participant record (tenant-scoped)
+  - **Webhook Architecture**: **Express-only webhook** at `/api/line/webhook` (Supabase Edge Functions NOT used for LINE messaging)
+  - **Phone Linking Flow**: Users type "ลงทะเบียน" → Bot asks for phone number → System links LINE User ID to existing participant record (tenant-scoped) → Auto-sends LIFF activation if no user account exists
   - **Business Card Search**: Users type "card {term}" → Search first_name/nickname fields → Display Business Card Flex Message or Carousel
   - **Status Badges**: Every Business Card shows status with emoji (🔵 Prospect, 🟡 Visitor, 🟢 Member, ⚫ Alumni, 🔴 Declined)
-  - **Conversation State Management**: 5-minute TTL for multi-step flows with auto-cleanup
+  - **Conversation State Management**: 5-minute TTL for multi-step flows with auto-cleanup (in-memory Map)
   - **Tenant Isolation**: All participant queries include defensive `.eq('tenant_id')` checks to prevent cross-tenant data access
   - **Architecture**: Single Messaging API channel per tenant (no LINE Login channel required), reducing setup time from 1-2 hours to ~5 minutes per chapter
 - **LIFF Integration (DEPRECATED)**: LIFF-based LINE registration code preserved but commented out in favor of message-based flows. LIFF routes disabled in frontend (`/line-register`). Code retained for potential future use if browser-based registration becomes necessary.
