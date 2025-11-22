@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -259,8 +260,17 @@ export default function RichMenuPage() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="aspect-video bg-muted rounded-md flex items-center justify-center">
-                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  <div className="aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                    {menu.image_url ? (
+                      <img
+                        src={menu.image_url}
+                        alt={menu.name}
+                        className="w-full h-full object-cover"
+                        data-testid={`img-preview-${menu.rich_menu_id}`}
+                      />
+                    ) : (
+                      <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                    )}
                   </div>
                   <div className="text-sm space-y-1">
                     <div className="flex items-center justify-between gap-2">
@@ -680,6 +690,8 @@ function EditRichMenuForm({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [areasJson, setAreasJson] = useState(JSON.stringify(menu.areas, null, 2));
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [selected, setSelected] = useState(menu.selected);
+  const [setAsDefault, setSetAsDefault] = useState(menu.is_default);
 
   // Validate areas JSON before updating
   const validateAreasJson = (json: string): boolean => {
@@ -729,6 +741,8 @@ function EditRichMenuForm({
       formData.append("name", name);
       formData.append("chatBarText", chatBarText);
       formData.append("areas", areasJson);
+      formData.append("selected", selected.toString());
+      formData.append("setAsDefault", setAsDefault.toString());
       if (imageFile) {
         formData.append("image", imageFile);
       }
@@ -813,6 +827,46 @@ function EditRichMenuForm({
             />
             <p className="text-xs text-muted-foreground">
               {imageFile ? "New image will be uploaded" : "Leave empty to keep current image"}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="edit-selected"
+                checked={selected}
+                onCheckedChange={(checked) => setSelected(checked as boolean)}
+                data-testid="checkbox-edit-selected"
+              />
+              <Label
+                htmlFor="edit-selected"
+                className="text-sm font-normal cursor-pointer"
+                data-testid="label-edit-selected"
+              >
+                Auto-open when linked to user
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground ml-6">
+              Automatically display this menu when linked to a user
+            </p>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="edit-default"
+                checked={setAsDefault}
+                onCheckedChange={(checked) => setSetAsDefault(checked as boolean)}
+                data-testid="checkbox-edit-default"
+              />
+              <Label
+                htmlFor="edit-default"
+                className="text-sm font-normal cursor-pointer"
+                data-testid="label-edit-default"
+              >
+                Set as default menu
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground ml-6">
+              Automatically display to all users in this channel
             </p>
           </div>
 
