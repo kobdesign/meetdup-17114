@@ -8,12 +8,13 @@ None specified yet.
 
 ## Recent Changes
 
-### November 22, 2024 - Security Hardening
+### November 22, 2024 - Security Hardening & Rich Menu Switching
 - **Rich Menu Security**: Replaced inline service-role key usage with supabaseAdmin singleton, preventing credential exposure
 - **Tenant Isolation**: Removed unsafe .or() queries with user input; implemented sequential lookups with double tenant checks
 - **Input Sanitization**: Business Card search now sanitizes all user input (escape %, _, remove quotes/semicolons) before SQL queries
 - **Tags Search Fix**: Replaced unsafe .cs.{${searchTerm}} with .contains([sanitizedTerm]) for proper array search
 - **Migration Safety**: Updated 20251122 migration to use ALTER TABLE instead of CREATE TABLE for production compatibility
+- **Rich Menu Switching**: Added support for creating multiple Rich Menus with richmenuswitch action type, allowing users to navigate between menus (e.g., Main Menu ↔ More Menu). LINE Rich Menu ID display with copy button enables easy setup without requiring Rich Menu Aliases.
 
 ## System Architecture
 

@@ -258,6 +258,29 @@ export default function RichMenuPage() {
                       <span className="font-medium">{menu.selected ? "Yes" : "No"}</span>
                     </div>
                   </div>
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground mb-1">LINE Rich Menu ID (for switching):</p>
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs bg-muted px-2 py-1 rounded flex-1 truncate" title={menu.line_rich_menu_id}>
+                        {menu.line_rich_menu_id}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7"
+                        onClick={() => {
+                          navigator.clipboard.writeText(menu.line_rich_menu_id);
+                          toast({
+                            title: "Copied!",
+                            description: "Rich Menu ID copied to clipboard",
+                          });
+                        }}
+                        data-testid={`button-copy-id-${menu.rich_menu_id}`}
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
                 <CardFooter className="flex gap-2 flex-wrap">
                   {!menu.is_default && (
@@ -314,8 +337,28 @@ export default function RichMenuPage() {
                 <li><strong>Message:</strong> Send a text message when tapped</li>
                 <li><strong>URI:</strong> Open a URL when tapped</li>
                 <li><strong>Postback:</strong> Send data to webhook for processing</li>
+                <li><strong>Richmenuswitch:</strong> Switch to another Rich Menu (use richMenuAliasId)</li>
                 <li><strong>Datetime Picker:</strong> Open date/time selection dialog</li>
               </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Rich Menu Switching Example</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                To create a menu that switches to another menu, use the richmenuswitch action. The <code className="bg-muted px-1">richMenuAliasId</code> field accepts either a Rich Menu Alias ID or the actual LINE Rich Menu ID directly:
+              </p>
+              <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
+{`{
+  "type": "richmenuswitch",
+  "richMenuAliasId": "richmenu-xxxxxxxxxxxxx",
+  "data": "switch-to-menu-2"
+}`}
+              </pre>
+              <p className="text-xs text-muted-foreground mt-2">
+                💡 <strong>Quick Setup:</strong> Copy the LINE Rich Menu ID from any menu card above and paste it directly into <code className="bg-muted px-1">richMenuAliasId</code>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                📝 <strong>Note:</strong> Despite the parameter name, you can use the actual Rich Menu ID without creating an alias (LINE API supports both)
+              </p>
             </div>
             <div>
               <Button variant="outline" size="sm" asChild data-testid="link-line-docs">

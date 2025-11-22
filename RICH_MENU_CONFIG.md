@@ -78,6 +78,80 @@ If you want the "MORE" button to open a webpage:
 }
 ```
 
+## Rich Menu Switching
+
+You can create multiple Rich Menus and allow users to switch between them by using the `richmenuswitch` action type.
+
+### Example: Main Menu with "More" Button
+
+**Main Menu** (richmenu-main):
+```json
+[
+  {
+    "bounds": { "x": 0, "y": 0, "width": 833, "height": 843 },
+    "action": { 
+      "type": "message", 
+      "text": "ค้นหานามบัตร" 
+    }
+  },
+  {
+    "bounds": { "x": 833, "y": 0, "width": 834, "height": 843 },
+    "action": { 
+      "type": "message", 
+      "text": "ขอลิงก์ใหม่" 
+    }
+  },
+  {
+    "bounds": { "x": 1667, "y": 0, "width": 833, "height": 843 },
+    "action": { 
+      "type": "richmenuswitch",
+      "richMenuAliasId": "richmenu-xxxxx-more",
+      "data": "switch-to-more-menu"
+    }
+  }
+]
+```
+
+**More Menu** (richmenu-more):
+```json
+[
+  {
+    "bounds": { "x": 0, "y": 0, "width": 833, "height": 843 },
+    "action": { 
+      "type": "uri", 
+      "uri": "https://your-domain.com/events" 
+    }
+  },
+  {
+    "bounds": { "x": 833, "y": 0, "width": 834, "height": 843 },
+    "action": { 
+      "type": "message", 
+      "text": "ติดต่อแอดมิน" 
+    }
+  },
+  {
+    "bounds": { "x": 1667, "y": 0, "width": 833, "height": 843 },
+    "action": { 
+      "type": "richmenuswitch",
+      "richMenuAliasId": "richmenu-xxxxx-main",
+      "data": "back-to-main-menu"
+    }
+  }
+]
+```
+
+### How to Set Up Menu Switching:
+1. Create Menu 1 (Main Menu) in the admin panel
+2. Create Menu 2 (More Menu) in the admin panel
+3. Copy the "LINE Rich Menu ID" from Menu 2's card
+4. Edit Menu 1's area configuration and paste the ID into `richMenuAliasId` field
+5. Repeat for Menu 2's "Back" button using Menu 1's ID
+
+**Important Notes:**
+- Despite the parameter name `richMenuAliasId`, LINE API accepts the actual Rich Menu ID directly
+- No need to create Rich Menu Aliases unless you want named references for advanced use cases
+- The `data` field is optional but helpful for tracking which button was pressed in your webhook
+
 ## Integration with Webhook
 
 The webhook handler automatically processes these messages:
