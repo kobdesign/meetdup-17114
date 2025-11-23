@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, AlertCircle, UserCheck, Copy, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { RequireLINELink } from "@/components/RequireLINELink";
 
 interface ParticipantInfo {
   participant_id: string;
@@ -16,6 +17,7 @@ interface ParticipantInfo {
   phone: string;
   email?: string;
   full_name?: string;
+  line_user_id?: string | null;
 }
 
 interface ValidationResponse {
@@ -371,6 +373,10 @@ export default function Activate() {
       </div>
     );
   }
+
+  // Note: We intentionally do NOT block activation if LINE is not linked
+  // The backend will attempt to send LINE notification, but activation proceeds regardless
+  // This prevents blocking users if webhook hasn't updated line_user_id yet
 
   if (loading) {
     return (

@@ -219,7 +219,8 @@ export async function validateActivationToken(
           full_name,
           phone,
           email,
-          user_id
+          user_id,
+          line_user_id
         ),
         tenants (
           tenant_name
