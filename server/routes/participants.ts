@@ -3279,10 +3279,10 @@ router.post("/reset-for-testing", verifySupabaseAuth, async (req: AuthenticatedR
       });
     }
 
-    // Find participant by phone
+    // Find participant by phone - include user_id
     const { data: participant, error: findError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name, phone, line_user_id, tenant_id")
+      .select("participant_id, full_name, phone, line_user_id, user_id, tenant_id")
       .eq("phone", phone)
       .maybeSingle();
 
@@ -3305,41 +3305,72 @@ router.post("/reset-for-testing", verifySupabaseAuth, async (req: AuthenticatedR
     console.log(`${logPrefix} Found participant:`, {
       participant_id: participant.participant_id,
       full_name: participant.full_name,
-      has_line: !!participant.line_user_id
+      has_line: !!participant.line_user_id,
+      has_user: !!participant.user_id
     });
 
-    // Clear line_user_id
+    // If participant has user_id, delete the auth user and user_roles
+    if (participant.user_id) {
+      console.log(`${logPrefix} Deleting auth user:`, participant.user_id);
+
+      // Delete user_roles first
+      const { error: roleDeleteError } = await supabaseAdmin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", participant.user_id);
+
+      if (roleDeleteError) {
+        console.error(`${logPrefix} Error deleting user_roles:`, roleDeleteError);
+        // Continue anyway - not critical
+      }
+
+      // Delete auth user
+      const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(
+        participant.user_id
+      );
+
+      if (authDeleteError) {
+        console.error(`${logPrefix} Error deleting auth user:`, authDeleteError);
+        // Continue anyway - user might have been manually deleted
+      } else {
+        console.log(`${logPrefix} Auth user deleted successfully`);
+      }
+    }
+
+    // Clear line_user_id and user_id
     const { error: updateError } = await supabaseAdmin
       .from("participants")
-      .update({ line_user_id: null })
+      .update({ 
+        line_user_id: null,
+        user_id: null
+      })
       .eq("participant_id", participant.participant_id);
 
     if (updateError) {
-      console.error(`${logPrefix} Error clearing line_user_id:`, updateError);
+      console.error(`${logPrefix} Error clearing participant links:`, updateError);
       return res.status(500).json({
         success: false,
-        error: "Failed to clear LINE link",
+        error: "Failed to clear participant links",
         message: updateError.message
       });
     }
 
-    // Delete used activation tokens for this participant
+    // Delete ALL activation tokens for this participant (used and unused)
     const { error: deleteTokenError } = await supabaseAdmin
       .from("activation_tokens")
       .delete()
-      .eq("participant_id", participant.participant_id)
-      .not("used_at", "is", null);
+      .eq("participant_id", participant.participant_id);
 
     if (deleteTokenError) {
       console.error(`${logPrefix} Error deleting tokens:`, deleteTokenError);
       // Don't fail the whole operation if token deletion fails
     }
 
-    console.log(`${logPrefix} Successfully reset participant data`);
+    console.log(`${logPrefix} Successfully reset participant data - fully cleaned`);
 
     return res.json({
       success: true,
-      message: "Participant reset successfully",
+      message: "Participant reset successfully (auth user, roles, and links cleared)",
       participant: {
         participant_id: participant.participant_id,
         full_name: participant.full_name,
