@@ -2045,7 +2045,7 @@ router.post("/line-register", async (req: Request, res: Response) => {
       // Verify participant exists and belongs to the correct tenant
       const { data: existing, error: checkError } = await supabaseAdmin
         .from("participants")
-        .select("participant_id, tenant_id, line_user_id")
+        .select("participant_id, tenant_id, line_user_id, photo_url")
         .eq("participant_id", participant_id)
         .eq("tenant_id", tenant_id)
         .single();
@@ -2624,6 +2624,77 @@ router.get("/validate-token/:token", async (req: Request, res: Response) => {
     console.log(`${logPrefix} Token valid`);
 
     return res.json(result);
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Check if participant has linked LINE (polling endpoint)
+ * Used by activation flow to wait for LINE webhook to update line_user_id
+ * Public endpoint (no auth required)
+ */
+router.get("/check-line-link/:token", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[check-line-link:${requestId}]`;
+
+  try {
+    const { token } = req.params;
+
+    console.log(`${logPrefix} Checking LINE link status`, {
+      token_prefix: token ? token.slice(0, 8) + '...' : undefined
+    });
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: "Token required"
+      });
+    }
+
+    // Find the token and check participant's line_user_id
+    const { data: tokenData, error: tokenError } = await supabaseAdmin
+      .from('activation_tokens')
+      .select(`
+        participant_id,
+        participants (
+          line_user_id,
+          full_name,
+          phone
+        )
+      `)
+      .eq('token', token)
+      .single();
+
+    if (tokenError || !tokenData) {
+      console.error(`${logPrefix} Token lookup failed:`, tokenError);
+      return res.status(400).json({
+        success: false,
+        error: "Invalid token"
+      });
+    }
+
+    const participant = Array.isArray(tokenData.participants)
+      ? tokenData.participants[0]
+      : tokenData.participants;
+
+    const hasLinkedLine = !!(participant?.line_user_id);
+
+    console.log(`${logPrefix} LINE link status:`, { hasLinkedLine });
+
+    return res.json({
+      success: true,
+      hasLinkedLine,
+      participant: participant ? {
+        full_name: participant.full_name,
+        phone: participant.phone
+      } : null
+    });
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);
     return res.status(500).json({

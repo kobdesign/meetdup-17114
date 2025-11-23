@@ -374,9 +374,21 @@ export default function Activate() {
     );
   }
 
-  // Note: We intentionally do NOT block activation if LINE is not linked
-  // The backend will attempt to send LINE notification, but activation proceeds regardless
-  // This prevents blocking users if webhook hasn't updated line_user_id yet
+  // Show LINE linking requirement if participant hasn't linked yet
+  // Polls backend to check if LINE gets linked, then auto-proceeds
+  if (!loading && !error && participant && !participant.line_user_id) {
+    return (
+      <RequireLINELink 
+        participantName={participant.full_name || `${participant.first_name} ${participant.last_name}`}
+        phone={participant.phone}
+        token={token}
+        onLinked={() => {
+          // Refresh participant data to get updated line_user_id
+          validateToken();
+        }}
+      />
+    );
+  }
 
   if (loading) {
     return (
