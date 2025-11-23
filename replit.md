@@ -49,6 +49,37 @@ None specified yet.
 - **Business Card Search**: Enhanced multi-field search across full_name, nickname, phone, company, notes, and tags array with input sanitization and SQL injection prevention. Two-phase search: (1) text fields with sanitized ILIKE, (2) tags array with .contains(). Conversational flow prompts for keywords if none provided. Supports "ค้นหานามบัตร" command from Rich Menu.
 - **Database Management & Health Monitoring**: Includes a health check system for database status, schema sync verification, and manual migration instructions for production Supabase. Migrations are manual for safety and transparency.
 
+### Database Architecture & Verification Rules
+
+**CRITICAL: Source of Truth**
+- ✅ **Supabase Production** (`sbknunooplaezvwtyooi`) = Source of Truth
+  - All application code uses `supabaseAdmin` from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+  - This is the ONLY database the application actually uses
+- ❌ **Local PostgreSQL** (Neon via `DATABASE_URL`) = Testing/Infrastructure ONLY
+  - Used for health checks and local testing only
+  - NOT connected to the application runtime
+  - Schema may differ from Supabase production
+
+**Verification Protocol (Mandatory)**
+
+Before making ANY claims about database state:
+1. ✅ Run verification script: `npx tsx server/scripts/check-supabase-production.ts [table_name]`
+2. ✅ Check actual Supabase production data, not local database
+3. ✅ Show evidence (query results, screenshots) to user
+4. ❌ NEVER use `execute_sql_tool` to verify production state (it connects to local PostgreSQL)
+5. ❌ NEVER assume migration status without verification
+
+**Tools for Production Verification:**
+- `server/scripts/check-supabase-production.ts` - Verify schema and columns exist
+- Supabase Dashboard SQL Editor - Manual queries and migrations
+- `supabaseAdmin` client in code - Runtime queries
+
+**Common Mistakes to Avoid:**
+- ❌ Using `execute_sql_tool` and thinking it's Supabase production
+- ❌ Assuming local schema matches production
+- ❌ Claiming "column doesn't exist" without checking Supabase
+- ❌ Claiming "migration not run" without verification
+
 ## External Dependencies
 
 - **Supabase** (`sbknunooplaezvwtyooi`):
