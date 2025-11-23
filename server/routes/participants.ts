@@ -3278,4 +3278,118 @@ router.post("/activate", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * TEMPORARY: Reset participant for testing
+ * Remove after testing is complete
+ * Admin-only endpoint
+ */
+router.post("/reset-for-testing", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[reset-testing:${requestId}]`;
+
+  try {
+    const { phone } = req.body;
+    const userId = req.user?.id;
+
+    console.log(`${logPrefix} Reset request for phone:`, phone?.slice(0, 3) + '****');
+
+    if (!userId || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+
+    // Verify user is super_admin
+    const { data: userRoles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+
+    const isSuperAdmin = userRoles?.some(r => r.role === 'super_admin');
+
+    if (!isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized: Super admin access required"
+      });
+    }
+
+    // Find participant by phone
+    const { data: participant, error: findError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name, phone, line_user_id, tenant_id")
+      .eq("phone", phone)
+      .maybeSingle();
+
+    if (findError) {
+      console.error(`${logPrefix} Error finding participant:`, findError);
+      return res.status(500).json({
+        success: false,
+        error: "Database error",
+        message: findError.message
+      });
+    }
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found"
+      });
+    }
+
+    console.log(`${logPrefix} Found participant:`, {
+      participant_id: participant.participant_id,
+      full_name: participant.full_name,
+      has_line: !!participant.line_user_id
+    });
+
+    // Clear line_user_id
+    const { error: updateError } = await supabaseAdmin
+      .from("participants")
+      .update({ line_user_id: null })
+      .eq("participant_id", participant.participant_id);
+
+    if (updateError) {
+      console.error(`${logPrefix} Error clearing line_user_id:`, updateError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to clear LINE link",
+        message: updateError.message
+      });
+    }
+
+    // Delete used activation tokens for this participant
+    const { error: deleteTokenError } = await supabaseAdmin
+      .from("activation_tokens")
+      .delete()
+      .eq("participant_id", participant.participant_id)
+      .not("used_at", "is", null);
+
+    if (deleteTokenError) {
+      console.error(`${logPrefix} Error deleting tokens:`, deleteTokenError);
+      // Don't fail the whole operation if token deletion fails
+    }
+
+    console.log(`${logPrefix} Successfully reset participant data`);
+
+    return res.json({
+      success: true,
+      message: "Participant reset successfully",
+      participant: {
+        participant_id: participant.participant_id,
+        full_name: participant.full_name,
+        phone: participant.phone
+      }
+    });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 export default router;
