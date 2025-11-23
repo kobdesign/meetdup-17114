@@ -2820,126 +2820,6 @@ router.post("/join-existing", verifySupabaseAuth, async (req: AuthenticatedReque
 });
 
 /**
- * Complete activation by creating user account and linking
- * Public endpoint (no auth required)
- */
-router.post("/activate", async (req: Request, res: Response) => {
-  const requestId = crypto.randomUUID();
-  const logPrefix = `[activate:${requestId}]`;
-
-  try {
-    const { token, email, password, full_name } = req.body;
-
-    console.log(`${logPrefix} Activation request`, {
-      token_prefix: token ? token.slice(0, 8) + '...' : undefined,
-      email
-    });
-
-    if (!token || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing required fields: token, email, password"
-      });
-    }
-
-    // Validate token first
-    const validation = await validateActivationToken(supabaseAdmin, token);
-    if (!validation.success || !validation.participant || !validation.tenantId) {
-      return res.status(400).json({
-        success: false,
-        error: validation.error || "Invalid token"
-      });
-    }
-
-    const participant = validation.participant;
-    const tenantId = validation.tenantId;
-
-    // Create user account
-    const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: full_name || participant.full_name,
-        phone: participant.phone
-      }
-    });
-
-    if (signUpError || !authData.user) {
-      console.error(`${logPrefix} Sign up error:`, signUpError);
-      return res.status(400).json({
-        success: false,
-        error: "Failed to create account",
-        message: signUpError?.message
-      });
-    }
-
-    const userId = authData.user.id;
-
-    // Link user to participant directly using participant_id
-    const { error: linkError } = await supabaseAdmin
-      .from('participants')
-      .update({ user_id: userId })
-      .eq('participant_id', participant.participant_id);
-
-    if (linkError) {
-      console.error(`${logPrefix} Failed to link participant:`, linkError);
-      // Rollback: delete the user account
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      return res.status(500).json({
-        success: false,
-        error: "Failed to link account",
-        message: linkError.message
-      });
-    }
-
-    // Create user_role for this tenant
-    const { error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .insert({
-        user_id: userId,
-        tenant_id: tenantId,
-        role: "member",
-      });
-
-    if (roleError) {
-      console.error(`${logPrefix} Failed to create role:`, roleError);
-      // Don't rollback if role creation fails, just log it
-    }
-
-    // Mark token as used
-    await markTokenAsUsed(supabaseAdmin, token);
-
-    // Update participant's email if provided
-    if (participant.email !== email) {
-      await supabaseAdmin
-        .from("participants")
-        .update({ email })
-        .eq("participant_id", participant.participant_id);
-    }
-
-    console.log(`${logPrefix} Activation successful`, {
-      user_id: userId,
-      participant_id: participant.participant_id
-    });
-
-    return res.json({
-      success: true,
-      message: "Account activated successfully",
-      user_id: userId,
-      participant_id: participant.participant_id
-    });
-  } catch (error: any) {
-    console.error(`${logPrefix} Error:`, error);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      message: error.message
-    });
-  }
-});
-
-/**
  * Send activation link via LINE
  * Requires participant to have line_user_id linked
  * Protected endpoint (chapter_admin or super_admin)
@@ -3261,6 +3141,90 @@ router.post("/activate", async (req: Request, res: Response) => {
       user_id: userId,
       participant_id: participant.participant_id
     });
+
+    // Send LINE notification if participant has linked LINE account
+    // Non-blocking - errors are logged but don't affect activation success
+    if (participant.line_user_id) {
+      console.log(`${logPrefix} Sending LINE notification to user`, {
+        line_user_id: participant.line_user_id
+      });
+
+      try {
+        // Get tenant LINE credentials
+        const { data: tenant, error: tenantError } = await supabaseAdmin
+          .from("tenants")
+          .select("line_channel_access_token")
+          .eq("tenant_id", tenantId)
+          .single();
+
+        if (tenantError || !tenant?.line_channel_access_token) {
+          console.error(`${logPrefix} Failed to get LINE credentials:`, tenantError);
+        } else {
+          const lineClient = new LineClient(tenant.line_channel_access_token);
+
+          // Send success message
+          const successMessage = {
+            type: "flex" as const,
+            altText: "ลงทะเบียนสำเร็จ!",
+            contents: {
+              type: "bubble",
+              body: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                  {
+                    type: "text",
+                    text: "✅ ลงทะเบียนสำเร็จ!",
+                    weight: "bold",
+                    size: "xl",
+                    color: "#22C55E"
+                  },
+                  {
+                    type: "separator",
+                    margin: "md"
+                  },
+                  {
+                    type: "text",
+                    text: "บัญชีของคุณได้รับการเปิดใช้งานแล้ว",
+                    margin: "md",
+                    wrap: true
+                  },
+                  {
+                    type: "text",
+                    text: `ชื่อ: ${participant.full_name}`,
+                    margin: "md",
+                    size: "sm",
+                    color: "#666666",
+                    wrap: true
+                  },
+                  {
+                    type: "text",
+                    text: `อีเมล: ${email}`,
+                    margin: "sm",
+                    size: "sm",
+                    color: "#666666",
+                    wrap: true
+                  }
+                ]
+              },
+              styles: {
+                footer: {
+                  separator: true
+                }
+              }
+            }
+          };
+
+          await lineClient.pushMessage(participant.line_user_id, [successMessage]);
+          console.log(`${logPrefix} LINE notification sent successfully`);
+        }
+      } catch (lineError: any) {
+        console.error(`${logPrefix} Failed to send LINE notification:`, lineError.message);
+        // Don't fail the activation if LINE notification fails
+      }
+    } else {
+      console.log(`${logPrefix} No LINE account linked, skipping notification`);
+    }
 
     return res.json({
       success: true,
