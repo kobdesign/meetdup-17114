@@ -8,6 +8,23 @@ None specified yet.
 
 ## Recent Changes
 
+### November 25, 2024 - Complete Role-Based Authorization Fix
+- **Role Naming Consistency**: Eliminated all `chapter_member` mapping confusion - system now uses actual database roles (`super_admin`, `chapter_admin`, `member`) throughout
+- **Frontend Authorization**: Implemented progressive disclosure navigation in `AdminLayout.tsx` with `getNavItemsByRole()`:
+  - **Member**: Dashboard + Meetings only (2 menu items)
+  - **Chapter Admin**: Full operational menu (10 items: participants, visitors, check-in, meetings, LINE config, rich menu, settings, etc.)
+  - **Super Admin**: Complete access (12 items including tenant management)
+- **Route-Level Protection**: Added `requiredRole` guards to admin-only routes:
+  - Protected routes: `/admin/participants`, `/admin/visitors`, `/admin/checkin`, `/admin/settings`, LINE config pages, rich menu pages
+  - Open routes (all authenticated users): `/admin` (Dashboard), `/admin/meetings`
+  - Super admin routes: Already protected with existing guards
+- **ProtectedRoute Simplification**: Removed confusing `roleMapping` constant, now compares roles directly (`userInfo.role !== requiredRole`)
+- **Security Architecture**: Three-layer defense:
+  1. Frontend menu filtering (UX - hide inaccessible items)
+  2. Route-level guards with ProtectedRoute (Security)
+  3. Backend RLS policies + middleware (Defense in depth)
+- **No Regressions**: Architect-verified implementation maintains all existing functionality while fixing member access issues
+
 ### November 22, 2024 - Rich Menu Edit Feature & Production Safety
 - **Rich Menu Edit**: Implemented full Edit Rich Menu functionality with production-safe rollback handling:
   - Edit form allows updating name, chat_bar_text, and areas JSON without requiring image re-upload
