@@ -75,18 +75,43 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const navItems = [
-    { icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard", href: "/admin" },
-    { icon: <Users className="h-4 w-4" />, label: "สมาชิก", href: "/admin/participants" },
-    { icon: <UserPlus className="h-4 w-4" />, label: "Visitor Pipeline", href: "/admin/visitors" },
-    { icon: <UserPlus className="h-4 w-4" />, label: "จัดการสมาชิก", href: "/admin/members-management" },
-    { icon: <Upload className="h-4 w-4" />, label: "นำเข้าสมาชิก", href: "/admin/import-members" },
-    { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
-    { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
-    { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/admin/line-config" },
-    { icon: <LayoutGrid className="h-4 w-4" />, label: "LINE Rich Menu", href: "/admin/rich-menu" },
-    { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
-  ];
+  // Role-based navigation items
+  const getNavItemsByRole = (role: string | null) => {
+    // Base items for all users
+    const baseItems = [
+      { icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard", href: "/admin" },
+    ];
+
+    // Member-only items
+    const memberItems = [
+      ...baseItems,
+      { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
+    ];
+
+    // Admin items (for both chapter_admin and super_admin)
+    const adminItems = [
+      ...baseItems,
+      { icon: <Users className="h-4 w-4" />, label: "สมาชิก", href: "/admin/participants" },
+      { icon: <UserPlus className="h-4 w-4" />, label: "Visitor Pipeline", href: "/admin/visitors" },
+      { icon: <UserPlus className="h-4 w-4" />, label: "จัดการสมาชิก", href: "/admin/members-management" },
+      { icon: <Upload className="h-4 w-4" />, label: "นำเข้าสมาชิก", href: "/admin/import-members" },
+      { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
+      { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
+      { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/admin/line-config" },
+      { icon: <LayoutGrid className="h-4 w-4" />, label: "LINE Rich Menu", href: "/admin/rich-menu" },
+      { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
+    ];
+
+    // Return appropriate items based on role
+    if (role === "super_admin" || role === "chapter_admin") {
+      return adminItems;
+    }
+    
+    // Default to member items
+    return memberItems;
+  };
+
+  const navItems = getNavItemsByRole(userRole);
 
   const superAdminNavItems = [
     { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },

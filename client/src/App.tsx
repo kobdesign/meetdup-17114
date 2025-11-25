@@ -79,7 +79,7 @@ const App = () => (
             </ProtectedRoute>
           } />
           <Route path="/admin/participants" element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredRole="chapter_admin">
               <Participants />
             </ProtectedRoute>
           } />
@@ -94,17 +94,17 @@ const App = () => (
             </ProtectedRoute>
           } />
           <Route path="/admin/visitors" element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredRole="chapter_admin">
               <Visitors />
             </ProtectedRoute>
           } />
           <Route path="/admin/checkin" element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredRole="chapter_admin">
               <CheckIn />
             </ProtectedRoute>
           } />
           <Route path="/admin/settings" element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredRole="chapter_admin">
               <Settings />
             </ProtectedRoute>
           } />

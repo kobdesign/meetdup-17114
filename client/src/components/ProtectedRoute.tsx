@@ -16,13 +16,6 @@ const ONBOARDING_ROUTES = [
   '/invite/',  // Any invite token route
 ];
 
-// Role mapping helper (defined before component to avoid TDZ)
-const roleMapping: Record<string, string> = {
-  super_admin: "super_admin",
-  chapter_admin: "chapter_admin",
-  member: "chapter_member",
-};
-
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -63,16 +56,8 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         return;
       }
 
-      // Map requiredRole to actual role values
-      const roleMapping: Record<string, string> = {
-        super_admin: "super_admin",
-        chapter_admin: "chapter_admin",
-        member: "chapter_member",
-      };
-
-      const expectedRole = roleMapping[requiredRole];
-      
-      if (userInfo.role !== expectedRole) {
+      // Check role directly (no mapping needed - database uses actual values)
+      if (userInfo.role !== requiredRole) {
         console.log("[ProtectedRoute] Insufficient role, redirecting to /");
         navigate("/");
         return;
@@ -110,7 +95,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
 
   // For protected routes, check role requirements
   if (requiredRole) {
-    if (!userInfo.isSuperAdmin && userInfo.role !== roleMapping[requiredRole]) {
+    if (!userInfo.isSuperAdmin && userInfo.role !== requiredRole) {
       return null; // Redirect will happen in useEffect
     }
   } else if (!userInfo.role) {
