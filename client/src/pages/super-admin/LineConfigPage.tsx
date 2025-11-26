@@ -19,11 +19,11 @@ export default function SuperAdminLineConfigPage() {
   const webhookUrl = `${window.location.origin}/api/line/webhook`;
 
   const { data: config, isLoading } = useQuery({
-    queryKey: ["/api/line/shared-config"],
+    queryKey: ["/api/line/config/shared-config"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       
-      const response = await fetch("/api/line/shared-config", {
+      const response = await fetch("/api/line/config/shared-config", {
         headers: {
           "Authorization": `Bearer ${session?.access_token}`
         }
@@ -45,7 +45,7 @@ export default function SuperAdminLineConfigPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
-      const response = await fetch("/api/line/shared-config/test", {
+      const response = await fetch("/api/line/config/shared-config/test", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${session?.access_token}`
