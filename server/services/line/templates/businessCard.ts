@@ -399,19 +399,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     });
   }
 
-  if (data.line_user_id) {
-    primaryActions.push({
-      type: "button",
-      action: {
-        type: "uri",
-        label: "แชท LINE",
-        uri: `https://line.me/R/ti/p/${data.line_user_id}`
-      },
-      style: "primary",
-      color: "#06C755",
-      height: "sm"
-    });
-  } else if (emailUri) {
+  if (emailUri) {
     primaryActions.push({
       type: "button",
       action: {
@@ -427,27 +415,51 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
 
   const secondaryActions: any[] = [];
 
-  secondaryActions.push({
-    type: "button",
-    action: {
-      type: "uri",
-      label: "บันทึกเบอร์",
-      uri: `${baseUrl}/api/participants/${data.participant_id}/vcard?tenant_id=${data.tenant_id}`
-    },
-    style: "secondary",
-    height: "sm"
-  });
+  if (onepageUrl) {
+    secondaryActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "ดู One Page",
+        uri: onepageUrl
+      },
+      style: "secondary",
+      height: "sm"
+    });
 
-  secondaryActions.push({
-    type: "button",
-    action: {
-      type: "uri",
-      label: "แชร์",
-      uri: `https://line.me/R/share?text=${encodeURIComponent(`นามบัตรของ ${data.full_name}\n${baseUrl}/api/participants/${data.participant_id}/business-card?tenant_id=${data.tenant_id}`)}`
-    },
-    style: "secondary",
-    height: "sm"
-  });
+    secondaryActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "แชร์",
+        uri: `https://line.me/R/share?text=${encodeURIComponent(`${data.full_name}${data.company ? ` - ${data.company}` : ""}\n${onepageUrl}`)}`
+      },
+      style: "secondary",
+      height: "sm"
+    });
+  } else if (websiteUrl) {
+    secondaryActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "ดูเว็บไซต์",
+        uri: websiteUrl
+      },
+      style: "secondary",
+      height: "sm"
+    });
+
+    secondaryActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "แชร์",
+        uri: `https://line.me/R/share?text=${encodeURIComponent(`${data.full_name}${data.company ? ` - ${data.company}` : ""}\n${websiteUrl}`)}`
+      },
+      style: "secondary",
+      height: "sm"
+    });
+  }
 
   const footerContents: any[] = [];
 
@@ -460,29 +472,17 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     });
   }
 
-  footerContents.push({
-    type: "box",
-    layout: "horizontal",
-    contents: secondaryActions,
-    spacing: "sm",
-    margin: primaryActions.length > 0 ? "sm" : "none"
-  });
-
-  const extraLinks: any[] = [];
-
-  if (onepageUrl) {
-    extraLinks.push({
-      type: "text",
-      text: "One Page",
-      size: "xs",
-      color: COLORS.primary,
-      decoration: "underline",
-      action: {
-        type: "uri",
-        uri: onepageUrl
-      }
+  if (secondaryActions.length > 0) {
+    footerContents.push({
+      type: "box",
+      layout: "horizontal",
+      contents: secondaryActions,
+      spacing: "sm",
+      margin: primaryActions.length > 0 ? "sm" : "none"
     });
   }
+
+  const extraLinks: any[] = [];
 
   if (facebookUrl) {
     extraLinks.push({
@@ -528,70 +528,75 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     });
   }
 
+  const bubble: any = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          contents: heroContents,
+          flex: 0
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          contents: nameSection,
+          flex: 1,
+          margin: "lg"
+        }
+      ],
+      paddingAll: "20px",
+      backgroundColor: COLORS.bgWhite,
+      alignItems: "center"
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: bodyContents.length > 0 ? bodyContents : [
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [],
+          height: "8px"
+        }
+      ],
+      paddingAll: "16px",
+      paddingTop: bodyContents.length > 0 ? "0px" : "8px",
+      paddingBottom: bodyContents.length > 0 ? "16px" : "8px",
+      backgroundColor: COLORS.bgWhite
+    },
+    styles: {
+      header: {
+        separator: false
+      },
+      body: {
+        separator: false
+      }
+    }
+  };
+
+  if (footerContents.length > 0) {
+    bubble.footer = {
+      type: "box",
+      layout: "vertical",
+      contents: footerContents,
+      spacing: "none",
+      paddingAll: "16px",
+      backgroundColor: COLORS.bgLight
+    };
+    bubble.styles.footer = {
+      separator: true,
+      separatorColor: COLORS.separator
+    };
+  }
+
   return {
     type: "flex",
     altText: `นามบัตร - ${data.full_name}`,
-    contents: {
-      type: "bubble",
-      size: "mega",
-      header: {
-        type: "box",
-        layout: "horizontal",
-        contents: [
-          {
-            type: "box",
-            layout: "vertical",
-            contents: heroContents,
-            flex: 0
-          },
-          {
-            type: "box",
-            layout: "vertical",
-            contents: nameSection,
-            flex: 1,
-            margin: "lg"
-          }
-        ],
-        paddingAll: "20px",
-        backgroundColor: COLORS.bgWhite,
-        alignItems: "center"
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        contents: bodyContents.length > 0 ? bodyContents : [
-          {
-            type: "box",
-            layout: "vertical",
-            contents: [],
-            height: "8px"
-          }
-        ],
-        paddingAll: "16px",
-        paddingTop: bodyContents.length > 0 ? "0px" : "8px",
-        paddingBottom: bodyContents.length > 0 ? "16px" : "8px",
-        backgroundColor: COLORS.bgWhite
-      },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        contents: footerContents,
-        spacing: "none",
-        paddingAll: "16px",
-        backgroundColor: COLORS.bgLight
-      },
-      styles: {
-        header: {
-          separator: false
-        },
-        body: {
-          separator: false
-        },
-        footer: {
-          separator: true,
-          separatorColor: COLORS.separator
-        }
-      }
-    }
+    contents: bubble
   };
 }
