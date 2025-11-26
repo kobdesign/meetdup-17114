@@ -65,14 +65,3 @@ export async function checkTenantAccess(
 
   return globalSuperAdmin !== null && globalSuperAdmin.length > 0;
 }
-
-export async function checkSuperAdmin(userId: string): Promise<boolean> {
-  const { data: superAdminRoles } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "super_admin")
-    .limit(1);
-
-  return superAdminRoles !== null && superAdminRoles.length > 0;
-}

@@ -97,6 +97,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       { icon: <Upload className="h-4 w-4" />, label: "นำเข้าสมาชิก", href: "/admin/import-members" },
       { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
       { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
+      { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/admin/line-config" },
       { icon: <LayoutGrid className="h-4 w-4" />, label: "LINE Rich Menu", href: "/admin/rich-menu" },
       { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
     ];
@@ -115,7 +116,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const superAdminNavItems = [
     { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },
     { icon: <Shield className="h-4 w-4" />, label: "จัดการสิทธิ์", href: "/admin/authorization" },
-    { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/super-admin/line-config" },
   ];
 
   return (

@@ -1,7 +1,6 @@
 import express from "express";
 import { registerVite } from "./vite";
 import lineRouter from "./routes/line/index";
-import liffRouter from "./routes/liff";
 import chaptersRouter from "./routes/chapters";
 import participantsRouter from "./routes/participants";
 import usersRouter from "./routes/users";
@@ -233,9 +232,6 @@ app.post("/api/test/line-webhook-simulate", async (req, res) => {
 
 // LINE Integration routes
 app.use("/api/line", lineRouter);
-
-// LIFF API routes
-app.use("/api/liff", liffRouter);
 
 // Chapter management routes
 app.use("/api/chapters", chaptersRouter);

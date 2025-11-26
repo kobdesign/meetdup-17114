@@ -27,7 +27,6 @@ import RichMenuPage from "./pages/admin/RichMenuPage";
 import MembersManagement from "./pages/admin/MembersManagement";
 import ImportMembers from "./pages/admin/ImportMembers";
 import Tenants from "./pages/super-admin/Tenants";
-import SuperAdminLineConfigPage from "./pages/super-admin/LineConfigPage";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import VisitorRegister from "./pages/public/VisitorRegister";
@@ -38,8 +37,6 @@ import ParticipantProfile from "./pages/ParticipantProfile";
 import Activate from "./pages/Activate";
 import LineActivate from "./pages/LineActivate";
 import NotFound from "./pages/NotFound";
-import { LiffProvider } from "./contexts/LiffContext";
-import BusinessCardSearch from "./pages/liff/BusinessCardSearch";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -73,13 +70,6 @@ const App = () => (
           {/* Member Activation */}
           <Route path="/activate/:token" element={<Activate />} />
           <Route path="/line-activate" element={<LineActivate />} />
-          
-          {/* LIFF Pages */}
-          <Route path="/liff/cards" element={
-            <LiffProvider>
-              <BusinessCardSearch />
-            </LiffProvider>
-          } />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
@@ -152,11 +142,6 @@ const App = () => (
           <Route path="/super-admin/tenants" element={
             <ProtectedRoute requiredRole="super_admin">
               <Tenants />
-            </ProtectedRoute>
-          } />
-          <Route path="/super-admin/line-config" element={
-            <ProtectedRoute requiredRole="super_admin">
-              <SuperAdminLineConfigPage />
             </ProtectedRoute>
           } />
           

@@ -121,15 +121,6 @@ export class LineClient {
     await this.request("DELETE", `/bot/user/${userId}/richmenu`);
   }
 
-  async getRichMenuIdOfUser(userId: string): Promise<string | null> {
-    try {
-      const result = await this.request<{ richMenuId: string }>("GET", `/bot/user/${userId}/richmenu`);
-      return result.richMenuId;
-    } catch (err) {
-      return null;
-    }
-  }
-
   async uploadRichMenuImage(richMenuId: string, imageBuffer: Buffer, contentType: string): Promise<void> {
     const url = `${LINE_API_DATA_BASE}/bot/richmenu/${richMenuId}/content`;
     

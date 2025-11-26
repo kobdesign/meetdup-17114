@@ -8,26 +8,6 @@ None specified yet.
 
 ## Recent Changes
 
-### November 26, 2024 - Database-Backed LINE Configuration
-- **LINE Credentials in Database**: Moved `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ID` from environment variables to `platform_config` table
-- **Reason**: Enable different LINE OA for Development vs Production (different databases = different LINE OA credentials)
-- **Migration Required**: Run SQL from `server/migrations/20251126_create_platform_config.sql` in Supabase SQL Editor
-- **Async Config Retrieval**: All LINE services now use `await getSharedLineConfigAsync()` instead of synchronous env var reads
-- **Super Admin UI**: LINE Config page allows viewing/editing credentials with masked input fields
-- **Fallback**: If database config missing, falls back to environment variables for backward compatibility
-- **LIFF Unchanged**: `LIFF_ID` and `VITE_LIFF_ID` still use environment variables (not moved to database)
-
-### November 26, 2024 - Shared LINE OA Architecture
-- **Shared LINE Official Account**: All chapters now use a single LINE OA and LIFF app, simplifying setup and reducing management overhead
-- **User-Based Tenant Resolution**: Webhook identifies tenant from user's participant record (via line_user_id) instead of destination-based resolution
-- **Per-User Rich Menu**: Each user gets their chapter's rich menu via `linkRichMenuToUser` instead of global default
-- **LIFF Integration**: Created LiffContext for dynamic tenant branding in LIFF pages
-  - `/liff/cards` - Business Card Search with shareTargetPicker
-  - API endpoints: `/api/liff/context`, `/api/liff/cards/search`, `/api/liff/cards/:id/flex`
-- **Phone Linking for Unlinked Users**: Users without chapter links can self-register via phone number
-- **Database Storage**: LINE credentials stored in `platform_config` table (not environment variables)
-- **Business Rule**: 1 User = 1 Chapter only (must resign to switch chapters)
-
 ### November 25, 2024 - Complete Role-Based Authorization Fix
 - **Role Naming Consistency**: Eliminated all `chapter_member` mapping confusion - system now uses actual database roles (`super_admin`, `chapter_admin`, `member`) throughout
 - **Frontend Authorization**: Implemented progressive disclosure navigation in `AdminLayout.tsx` with `getNavItemsByRole()`:
@@ -75,13 +55,7 @@ None specified yet.
 - **Multi-Tenancy**: Implemented with tenant-based data isolation, chapter-specific branding, and settings.
 - **Role-Based Access Control (RBAC)**: Supports Super Admin, Chapter Admin, and Member roles.
 - **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface.
-- **Shared LINE Integration**: Single LINE Official Account for all chapters with user-based tenant resolution via `line_user_id` in participants table. Features include:
-  - **Webhook**: Express-only at `/api/line/webhook` with HMAC validation using shared credentials
-  - **Per-User Rich Menus**: Each user gets their chapter's menu via `linkRichMenuToUser`
-  - **LIFF Pages**: Dynamic tenant branding at `/liff/cards` (Business Card Search/Share)
-  - **Phone Linking**: Self-registration flow for unlinked users
-  - **Business Card**: Search, view, and share via LINE Flex Messages and shareTargetPicker
-  - **Environment**: `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ID`, `LIFF_ID`
+- **LINE Integration**: Comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management (using supabaseAdmin singleton), rich menu management (with database persistence and tenant isolation), and message-based interaction flows (e.g., phone linking, business card search with tags support, automated LIFF activation). Uses an Express-only webhook at `/api/line/webhook`. Rich menus use api-data.line.me for image uploads.
 - **Check-In System**: QR code-based check-ins integrated with LINE webhooks, primarily using phone number for identification.
 - **Member/Visitor Pipeline Separation**: UI is restructured to separate active member management from visitor pipeline analytics, standardizing the visitor progression (Prospect → Visitor → Member → Alumni/Declined).
 - **Multi-Path Onboarding System**: Supports Pioneer (create chapter), Invite (accept invite link), and Discovery (search chapters) onboarding flows.

@@ -239,16 +239,3 @@ export function clearConversationState(tenantId: string, userId: string): void {
   const stateKey = `${tenantId}:${userId}`;
   conversationStates.delete(stateKey);
 }
-
-export function setConversationState(
-  tenantId: string, 
-  userId: string, 
-  state: { action: string; step: string; startedAt: number }
-): void {
-  const stateKey = `${tenantId}:${userId}`;
-  conversationStates.set(stateKey, {
-    step: state.step as "awaiting_phone" | "idle",
-    action: state.action as "link_line" | null,
-    expiresAt: state.startedAt + CONVERSATION_TIMEOUT
-  });
-}
