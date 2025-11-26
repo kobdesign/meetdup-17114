@@ -6,6 +6,7 @@ import { generateProfileToken, verifyProfileToken } from "../utils/profileToken"
 import { LineClient } from "../services/line/lineClient";
 import { getLineCredentials } from "../services/line/credentials";
 import { createBusinessCardFlexMessage } from "../services/line/templates/businessCard";
+import { createActivationSuccessFlexMessage } from "../services/line/templates/activationSuccess";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -3519,10 +3520,10 @@ router.post("/activate", async (req: Request, res: Response) => {
       });
 
       try {
-        // Get tenant LINE credentials
+        // Get tenant LINE credentials and name
         const { data: tenant, error: tenantError } = await supabaseAdmin
           .from("tenants")
-          .select("line_channel_access_token")
+          .select("line_channel_access_token, tenant_name")
           .eq("tenant_id", tenantId)
           .single();
 
@@ -3531,58 +3532,19 @@ router.post("/activate", async (req: Request, res: Response) => {
         } else {
           const lineClient = new LineClient(tenant.line_channel_access_token);
 
-          // Send success message
-          const successMessage = {
-            type: "flex" as const,
-            altText: "ลงทะเบียนสำเร็จ!",
-            contents: {
-              type: "bubble",
-              body: {
-                type: "box",
-                layout: "vertical",
-                contents: [
-                  {
-                    type: "text",
-                    text: "✅ ลงทะเบียนสำเร็จ!",
-                    weight: "bold",
-                    size: "xl",
-                    color: "#22C55E"
-                  },
-                  {
-                    type: "separator",
-                    margin: "md"
-                  },
-                  {
-                    type: "text",
-                    text: "บัญชีของคุณได้รับการเปิดใช้งานแล้ว",
-                    margin: "md",
-                    wrap: true
-                  },
-                  {
-                    type: "text",
-                    text: `ชื่อ: ${participant.full_name}`,
-                    margin: "md",
-                    size: "sm",
-                    color: "#666666",
-                    wrap: true
-                  },
-                  {
-                    type: "text",
-                    text: `อีเมล: ${email}`,
-                    margin: "sm",
-                    size: "sm",
-                    color: "#666666",
-                    wrap: true
-                  }
-                ]
-              },
-              styles: {
-                footer: {
-                  separator: true
-                }
-              }
-            }
-          };
+          // Build base URL for profile link
+          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+            : "http://localhost:5000";
+
+          // Create success Flex Message with profile button
+          const successMessage = createActivationSuccessFlexMessage({
+            participant_id: participant.participant_id,
+            full_name: participant.full_name,
+            nickname: participant.nickname,
+            chapter_name: tenant.tenant_name || "Chapter",
+            status: participant.status || "member"
+          }, baseUrl);
 
           await lineClient.pushMessage(participant.line_user_id, [successMessage]);
           console.log(`${logPrefix} LINE notification sent successfully`);

@@ -217,8 +217,10 @@ export async function validateActivationToken(
         participants (
           participant_id,
           full_name,
+          nickname,
           phone,
           email,
+          status,
           user_id,
           line_user_id
         ),
