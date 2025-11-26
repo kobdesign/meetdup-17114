@@ -1413,7 +1413,8 @@ router.patch("/profile", async (req: Request, res: Response) => {
         photo_url,
         tags,
         onepage_url,
-        tenant_id
+        tenant_id,
+        line_user_id
       `)
       .single();
 
@@ -1424,6 +1425,115 @@ router.patch("/profile", async (req: Request, res: Response) => {
         error: "Failed to update profile",
         message: updateError.message
       });
+    }
+
+    // Send LINE notification if user has LINE linked
+    if (updatedParticipant?.line_user_id) {
+      try {
+        // Get LINE credentials for this tenant using existing helper
+        const lineCredentials = await getLineCredentials(decoded.tenant_id);
+
+        if (lineCredentials?.channelAccessToken) {
+          const lineClient = new LineClient(lineCredentials.channelAccessToken);
+          
+          // Create success notification Flex Message
+          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+            : "http://localhost:5000";
+          
+          const businessCardUrl = `${baseUrl}/api/participants/${updatedParticipant.participant_id}/business-card?tenant_id=${decoded.tenant_id}`;
+          
+          const successFlexMessage = {
+            type: "flex",
+            altText: "อัพเดตข้อมูลสำเร็จ",
+            contents: {
+              type: "bubble",
+              size: "kilo",
+              header: {
+                type: "box",
+                layout: "vertical",
+                backgroundColor: "#10B981",
+                paddingAll: "16px",
+                contents: [
+                  {
+                    type: "box",
+                    layout: "horizontal",
+                    contents: [
+                      {
+                        type: "text",
+                        text: "บันทึกข้อมูลสำเร็จ",
+                        color: "#FFFFFF",
+                        weight: "bold",
+                        size: "lg",
+                        flex: 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "md",
+                paddingAll: "16px",
+                contents: [
+                  {
+                    type: "text",
+                    text: updatedParticipant.full_name,
+                    weight: "bold",
+                    size: "lg",
+                    wrap: true
+                  },
+                  ...(updatedParticipant.position || updatedParticipant.company ? [{
+                    type: "text",
+                    text: [updatedParticipant.position, updatedParticipant.company].filter(Boolean).join(" | "),
+                    size: "sm",
+                    color: "#666666",
+                    wrap: true
+                  }] : []),
+                  {
+                    type: "separator",
+                    margin: "md"
+                  },
+                  {
+                    type: "text",
+                    text: "ข้อมูลของคุณถูกบันทึกเรียบร้อยแล้ว สามารถดูนามบัตรได้จากปุ่มด้านล่าง",
+                    size: "xs",
+                    color: "#888888",
+                    wrap: true,
+                    margin: "md"
+                  }
+                ]
+              },
+              footer: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                paddingAll: "12px",
+                contents: [
+                  {
+                    type: "button",
+                    action: {
+                      type: "uri",
+                      label: "ดูนามบัตร",
+                      uri: businessCardUrl
+                    },
+                    style: "primary",
+                    color: "#10B981",
+                    height: "sm"
+                  }
+                ]
+              }
+            }
+          };
+
+          await lineClient.pushMessage(updatedParticipant.line_user_id, successFlexMessage);
+          console.log(`${logPrefix} Sent LINE success notification to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
+        }
+      } catch (lineError: any) {
+        // Don't fail the request if LINE notification fails
+        console.error(`${logPrefix} Failed to send LINE notification:`, lineError.message);
+      }
     }
 
     return res.json({
