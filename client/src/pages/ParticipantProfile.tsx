@@ -2,22 +2,39 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, User, Building2, Phone, Mail, Globe, Upload, CheckCircle } from "lucide-react";
+import { 
+  Loader2, User, Building2, Phone, Mail, Globe, Upload, CheckCircle, 
+  MapPin, Instagram, Facebook, FileImage, Target, MessageSquare
+} from "lucide-react";
 import imageCompression from "browser-image-compression";
+import BusinessTypeSelector from "@/components/BusinessTypeSelector";
+import TagInput from "@/components/TagInput";
 
 interface ParticipantProfile {
   participant_id: string;
   full_name: string;
+  nickname: string | null;
   email: string | null;
   phone: string;
   position: string | null;
   company: string | null;
+  tagline: string | null;
+  business_type_code: string | null;
+  goal: string | null;
   website_url: string | null;
-  avatar_url: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  business_address: string | null;
+  photo_url: string | null;
+  tags: string[] | null;
+  onepage_url: string | null;
+  member_type: string | null;
   tenant_id: string;
   tenant_name?: string;
   logo_url?: string;
@@ -27,20 +44,29 @@ export default function ParticipantProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingOnepage, setUploadingOnepage] = useState(false);
   const [profile, setProfile] = useState<ParticipantProfile | null>(null);
   const [token, setToken] = useState<string>("");
   
   // Form fields
   const [fullName, setFullName] = useState("");
+  const [nickname, setNickname] = useState("");
   const [position, setPosition] = useState("");
   const [company, setCompany] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [businessTypeCode, setBusinessTypeCode] = useState<string | null>(null);
+  const [goal, setGoal] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [businessAddress, setBusinessAddress] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [onepageUrl, setOnepageUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get token from URL query params
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token');
     
@@ -64,14 +90,24 @@ export default function ParticipantProfile() {
         throw new Error(data.message || "ไม่สามารถโหลดข้อมูลได้");
       }
       
-      setProfile(data.participant);
-      setFullName(data.participant.full_name || "");
-      setPosition(data.participant.position || "");
-      setCompany(data.participant.company || "");
-      setPhone(data.participant.phone || "");
-      setEmail(data.participant.email || "");
-      setWebsite(data.participant.website_url || "");
-      setAvatarPreview(data.participant.avatar_url);
+      const p = data.participant;
+      setProfile(p);
+      setFullName(p.full_name || "");
+      setNickname(p.nickname || "");
+      setPosition(p.position || "");
+      setCompany(p.company || "");
+      setTagline(p.tagline || "");
+      setBusinessTypeCode(p.business_type_code || null);
+      setGoal(p.goal || "");
+      setPhone(p.phone || "");
+      setEmail(p.email || "");
+      setWebsite(p.website_url || "");
+      setFacebook(p.facebook_url || "");
+      setInstagram(p.instagram_url || "");
+      setBusinessAddress(p.business_address || "");
+      setTags(p.tags || []);
+      setAvatarPreview(p.photo_url);
+      setOnepageUrl(p.onepage_url);
       
     } catch (error: any) {
       console.error("Error loading profile:", error);
@@ -86,13 +122,11 @@ export default function ParticipantProfile() {
       const file = e.target.files?.[0];
       if (!file) return;
 
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         toast.error("กรุณาเลือกไฟล์รูปภาพ");
         return;
       }
 
-      // Validate file size (max 5MB before compression)
       if (file.size > 5 * 1024 * 1024) {
         toast.error("ไฟล์ต้องมีขนาดไม่เกิน 5MB");
         return;
@@ -100,7 +134,6 @@ export default function ParticipantProfile() {
 
       setUploading(true);
 
-      // Compress image
       const options = {
         maxSizeMB: 1,
         maxWidthOrHeight: 800,
@@ -109,11 +142,9 @@ export default function ParticipantProfile() {
       
       const compressedFile = await imageCompression(file, options);
       
-      // Create FormData
       const formData = new FormData();
       formData.append("avatar", compressedFile);
 
-      // Upload avatar
       const response = await fetch(`/api/participants/profile/avatar?token=${token}`, {
         method: "POST",
         body: formData,
@@ -136,6 +167,61 @@ export default function ParticipantProfile() {
     }
   };
 
+  const handleOnepageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("กรุณาเลือกไฟล์รูปภาพหรือ PDF");
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("ไฟล์ต้องมีขนาดไม่เกิน 10MB");
+        return;
+      }
+
+      setUploadingOnepage(true);
+
+      let uploadFile = file;
+      
+      // Compress if image
+      if (file.type.startsWith('image/')) {
+        const options = {
+          maxSizeMB: 2,
+          maxWidthOrHeight: 2000,
+          useWebWorker: true
+        };
+        uploadFile = await imageCompression(file, options);
+      }
+      
+      const formData = new FormData();
+      formData.append("onepage", uploadFile);
+
+      const response = await fetch(`/api/participants/profile/onepage?token=${token}`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "ไม่สามารถอัปโหลดไฟล์ได้");
+      }
+
+      setOnepageUrl(data.onepage_url);
+      toast.success("อัปโหลด One Page สำเร็จ");
+      
+    } catch (error: any) {
+      console.error('Error uploading onepage:', error);
+      toast.error(error.message || "ไม่สามารถอัปโหลดไฟล์ได้");
+    } finally {
+      setUploadingOnepage(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -148,11 +234,19 @@ export default function ParticipantProfile() {
         },
         body: JSON.stringify({
           full_name: fullName,
-          position,
-          company,
+          nickname: nickname || null,
+          position: position || null,
+          company: company || null,
+          tagline: tagline || null,
+          business_type_code: businessTypeCode,
+          goal: goal || null,
           phone,
-          email,
-          website_url: website,
+          email: email || null,
+          website_url: website || null,
+          facebook_url: facebook || null,
+          instagram_url: instagram || null,
+          business_address: businessAddress || null,
+          tags: tags.length > 0 ? tags : null,
         }),
       });
 
@@ -220,57 +314,128 @@ export default function ParticipantProfile() {
           </Alert>
         )}
 
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Avatar Section */}
-          <Card className="md:col-span-1">
-            <CardHeader>
-              <CardTitle>รูปโปรไฟล์</CardTitle>
-              <CardDescription>อัปโหลดรูปประจำตัว</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center space-y-4">
-              <Avatar className="h-32 w-32">
-                <AvatarImage src={avatarPreview || undefined} />
-                <AvatarFallback className="text-2xl bg-primary/10 text-primary">
-                  {getInitials(fullName)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col items-center gap-2 w-full">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={uploading}
-                  onClick={() => document.getElementById('avatar-upload')?.click()}
-                  className="w-full"
-                  data-testid="button-upload-avatar"
-                >
-                  {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Upload className="mr-2 h-4 w-4" />
-                  {uploading ? "กำลังอัปโหลด..." : "เลือกรูปภาพ"}
-                </Button>
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarUpload}
-                  data-testid="input-avatar"
-                />
-                <p className="text-xs text-muted-foreground text-center">
-                  JPG, PNG (สูงสุด 5MB)<br />
-                  จะถูก compress เป็น 1MB
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* Left Column - Avatar & OnePage */}
+            <div className="space-y-6">
+              {/* Avatar Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>รูปโปรไฟล์</CardTitle>
+                  <CardDescription>อัปโหลดรูปประจำตัว</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center space-y-4">
+                  <Avatar className="h-32 w-32">
+                    <AvatarImage src={avatarPreview || undefined} />
+                    <AvatarFallback className="text-2xl bg-primary/10 text-primary">
+                      {getInitials(fullName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col items-center gap-2 w-full">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploading}
+                      onClick={() => document.getElementById('avatar-upload')?.click()}
+                      className="w-full"
+                      data-testid="button-upload-avatar"
+                    >
+                      {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Upload className="mr-2 h-4 w-4" />
+                      {uploading ? "กำลังอัปโหลด..." : "เลือกรูปภาพ"}
+                    </Button>
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                      data-testid="input-avatar"
+                    />
+                    <p className="text-xs text-muted-foreground text-center">
+                      JPG, PNG (สูงสุด 5MB)
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Profile Form */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>ข้อมูลส่วนตัว</CardTitle>
-              <CardDescription>แก้ไขข้อมูลที่จะแสดงในนามบัตร LINE</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              {/* OnePage Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileImage className="h-5 w-5" />
+                    One Page
+                  </CardTitle>
+                  <CardDescription>
+                    Infographic แนะนำธุรกิจของคุณ
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center space-y-4">
+                  {onepageUrl ? (
+                    <div className="w-full space-y-2">
+                      {onepageUrl.endsWith('.pdf') ? (
+                        <a 
+                          href={onepageUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="block p-4 border rounded-md text-center hover:bg-muted"
+                        >
+                          <FileImage className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">ดู PDF</span>
+                        </a>
+                      ) : (
+                        <a href={onepageUrl} target="_blank" rel="noopener noreferrer">
+                          <img 
+                            src={onepageUrl} 
+                            alt="One Page" 
+                            className="w-full rounded-md border"
+                          />
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-full p-8 border-2 border-dashed rounded-md text-center text-muted-foreground">
+                      <FileImage className="h-12 w-12 mx-auto mb-2" />
+                      <p className="text-sm">ยังไม่มี One Page</p>
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingOnepage}
+                    onClick={() => document.getElementById('onepage-upload')?.click()}
+                    className="w-full"
+                    data-testid="button-upload-onepage"
+                  >
+                    {uploadingOnepage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Upload className="mr-2 h-4 w-4" />
+                    {uploadingOnepage ? "กำลังอัปโหลด..." : onepageUrl ? "เปลี่ยน One Page" : "อัปโหลด One Page"}
+                  </Button>
+                  <input
+                    id="onepage-upload"
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={handleOnepageUpload}
+                    data-testid="input-onepage"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">
+                    รูปภาพหรือ PDF (สูงสุด 10MB)
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column - Profile Form */}
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle>ข้อมูลส่วนตัว</CardTitle>
+                <CardDescription>แก้ไขข้อมูลที่จะแสดงในนามบัตร LINE</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Basic Info */}
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="fullname">
@@ -289,32 +454,17 @@ export default function ParticipantProfile() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="position">
-                      <Building2 className="inline h-4 w-4 mr-2" />
-                      ตำแหน่ง
+                    <Label htmlFor="nickname">
+                      <MessageSquare className="inline h-4 w-4 mr-2" />
+                      ชื่อเล่น
                     </Label>
                     <Input
-                      id="position"
+                      id="nickname"
                       type="text"
-                      placeholder="Product Manager"
-                      value={position}
-                      onChange={(e) => setPosition(e.target.value)}
-                      data-testid="input-position"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="company">
-                      <Building2 className="inline h-4 w-4 mr-2" />
-                      บริษัท
-                    </Label>
-                    <Input
-                      id="company"
-                      type="text"
-                      placeholder="ABC Technology Co., Ltd."
-                      value={company}
-                      onChange={(e) => setCompany(e.target.value)}
-                      data-testid="input-company"
+                      placeholder="ชาย"
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      data-testid="input-nickname"
                     />
                   </div>
 
@@ -349,7 +499,89 @@ export default function ParticipantProfile() {
                     />
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="position">
+                      <Building2 className="inline h-4 w-4 mr-2" />
+                      ตำแหน่ง
+                    </Label>
+                    <Input
+                      id="position"
+                      type="text"
+                      placeholder="Product Manager"
+                      value={position}
+                      onChange={(e) => setPosition(e.target.value)}
+                      data-testid="input-position"
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Business Info */}
+                <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="company">
+                      <Building2 className="inline h-4 w-4 mr-2" />
+                      บริษัท/ชื่อธุรกิจ
+                    </Label>
+                    <Input
+                      id="company"
+                      type="text"
+                      placeholder="ABC Technology Co., Ltd."
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      data-testid="input-company"
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="tagline">Tagline / สโลแกน</Label>
+                    <Input
+                      id="tagline"
+                      type="text"
+                      placeholder="เราพัฒนาซอฟต์แวร์ที่ตอบโจทย์ธุรกิจคุณ"
+                      value={tagline}
+                      onChange={(e) => setTagline(e.target.value)}
+                      data-testid="input-tagline"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <BusinessTypeSelector
+                      value={businessTypeCode}
+                      onChange={setBusinessTypeCode}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="goal">
+                      <Target className="inline h-4 w-4 mr-2" />
+                      เป้าหมาย / ลูกค้าที่ต้องการ
+                    </Label>
+                    <Textarea
+                      id="goal"
+                      placeholder="กำลังมองหาลูกค้าที่เป็น SME ที่ต้องการระบบ ERP..."
+                      value={goal}
+                      onChange={(e) => setGoal(e.target.value)}
+                      rows={2}
+                      data-testid="input-goal"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <TagInput
+                      value={tags}
+                      onChange={setTags}
+                      maxTags={10}
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Contact & Social */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
                     <Label htmlFor="website">
                       <Globe className="inline h-4 w-4 mr-2" />
                       เว็บไซต์
@@ -363,9 +595,57 @@ export default function ParticipantProfile() {
                       data-testid="input-website"
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="facebook">
+                      <Facebook className="inline h-4 w-4 mr-2" />
+                      Facebook
+                    </Label>
+                    <Input
+                      id="facebook"
+                      type="url"
+                      placeholder="https://facebook.com/yourpage"
+                      value={facebook}
+                      onChange={(e) => setFacebook(e.target.value)}
+                      data-testid="input-facebook"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="instagram">
+                      <Instagram className="inline h-4 w-4 mr-2" />
+                      Instagram
+                    </Label>
+                    <Input
+                      id="instagram"
+                      type="url"
+                      placeholder="https://instagram.com/yourpage"
+                      value={instagram}
+                      onChange={(e) => setInstagram(e.target.value)}
+                      data-testid="input-instagram"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="address">
+                      <MapPin className="inline h-4 w-4 mr-2" />
+                      ที่อยู่ธุรกิจ
+                    </Label>
+                    <Input
+                      id="address"
+                      type="text"
+                      placeholder="123/45 อาคาร ABC ถนนสุขุมวิท"
+                      value={businessAddress}
+                      onChange={(e) => setBusinessAddress(e.target.value)}
+                      data-testid="input-address"
+                    />
+                  </div>
                 </div>
 
-                <div className="pt-4">
+                <Separator />
+
+                {/* Submit */}
+                <div className="pt-2">
                   <Button 
                     type="submit" 
                     disabled={saving || !fullName || !phone}
@@ -380,10 +660,10 @@ export default function ParticipantProfile() {
                 <p className="text-xs text-muted-foreground text-center">
                   * ข้อมูลที่มีเครื่องหมายดอกจันจำเป็นต้องกรอก
                 </p>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        </form>
       </div>
     </div>
   );

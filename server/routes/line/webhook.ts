@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
-import { handleViewCard, handleMemberSearch, handleCardSearch } from "../../services/line/handlers/businessCardHandler";
+import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest } from "../../services/line/handlers/businessCardHandler";
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 
@@ -202,6 +202,10 @@ async function processEvent(
     switch (action) {
       case "view_card":
         await handleViewCard(event, tenantId, accessToken, params);
+        break;
+      
+      case "edit_profile":
+        await handleEditProfileRequest(event, tenantId, accessToken);
         break;
       
       default:

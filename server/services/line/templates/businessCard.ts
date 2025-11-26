@@ -9,6 +9,7 @@ export interface BusinessCardData {
   participant_id: string;
   tenant_id: string;
   full_name: string;
+  nickname?: string | null;
   position?: string | null;
   company?: string | null;
   tagline?: string | null;
@@ -20,6 +21,8 @@ export interface BusinessCardData {
   instagram_url?: string | null;
   business_address?: string | null;
   line_user_id?: string | null;
+  tags?: string[] | null;
+  onepage_url?: string | null;
 }
 
 export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string) {
@@ -96,6 +99,21 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     style: "link",
     height: "sm"
   });
+
+  // One Page action (if available)
+  const onepageUrl = sanitizeUrl(data.onepage_url);
+  if (onepageUrl) {
+    actions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "📄 One Page",
+        uri: onepageUrl
+      },
+      style: "link",
+      height: "sm"
+    });
+  }
 
   // Share action
   actions.push({
@@ -177,6 +195,36 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       margin: "md",
       wrap: true,
       style: "italic"
+    });
+  }
+
+  // Display tags if available
+  if (data.tags && data.tags.length > 0) {
+    bodyContents.push({
+      type: "separator",
+      margin: "lg"
+    });
+    bodyContents.push({
+      type: "box",
+      layout: "horizontal",
+      margin: "md",
+      contents: [
+        {
+          type: "text",
+          text: "🏷️",
+          flex: 0,
+          size: "sm"
+        },
+        {
+          type: "text",
+          text: data.tags.slice(0, 5).join(", "),
+          size: "xs",
+          color: "#6B7280",
+          wrap: true,
+          flex: 1,
+          margin: "sm"
+        }
+      ]
     });
   }
 

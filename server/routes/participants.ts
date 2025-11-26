@@ -1564,12 +1564,22 @@ router.get("/profile", async (req: Request, res: Response) => {
       .select(`
         participant_id,
         full_name,
+        nickname,
         email,
         phone,
         position,
         company,
+        tagline,
+        business_type_code,
+        goal,
         website_url,
-        avatar_url,
+        facebook_url,
+        instagram_url,
+        business_address,
+        photo_url,
+        tags,
+        onepage_url,
+        member_type,
         tenant_id,
         tenants!inner (
           tenant_name,
@@ -1637,7 +1647,22 @@ router.patch("/profile", async (req: Request, res: Response) => {
       });
     }
 
-    const { full_name, position, company, phone, email, website_url } = req.body;
+    const { 
+      full_name, 
+      nickname,
+      position, 
+      company, 
+      tagline,
+      business_type_code,
+      goal,
+      phone, 
+      email, 
+      website_url,
+      facebook_url,
+      instagram_url,
+      business_address,
+      tags
+    } = req.body;
 
     // Validate required fields
     if (!full_name || !phone) {
@@ -1653,16 +1678,32 @@ router.patch("/profile", async (req: Request, res: Response) => {
     // Normalize phone
     const normalizedPhone = phone.replace(/\D/g, "");
 
+    // Validate tags if provided (must be array of strings)
+    let validatedTags: string[] | null = null;
+    if (tags) {
+      if (Array.isArray(tags)) {
+        validatedTags = tags.filter((t: any) => typeof t === 'string' && t.trim()).map((t: string) => t.trim());
+      }
+    }
+
     // Update participant
     const { data: updatedParticipant, error: updateError } = await supabaseAdmin
       .from("participants")
       .update({
         full_name,
+        nickname: nickname || null,
         position: position || null,
         company: company || null,
+        tagline: tagline || null,
+        business_type_code: business_type_code || null,
+        goal: goal || null,
         phone: normalizedPhone,
         email: email || null,
         website_url: website_url || null,
+        facebook_url: facebook_url || null,
+        instagram_url: instagram_url || null,
+        business_address: business_address || null,
+        tags: validatedTags,
         updated_at: new Date().toISOString(),
       })
       .eq("participant_id", decoded.participant_id)
@@ -1670,12 +1711,21 @@ router.patch("/profile", async (req: Request, res: Response) => {
       .select(`
         participant_id,
         full_name,
+        nickname,
         email,
         phone,
         position,
         company,
+        tagline,
+        business_type_code,
+        goal,
         website_url,
-        avatar_url,
+        facebook_url,
+        instagram_url,
+        business_address,
+        photo_url,
+        tags,
+        onepage_url,
         tenant_id
       `)
       .single();
@@ -1808,6 +1858,141 @@ router.post("/profile/avatar", upload.single('avatar'), async (req: Request, res
     return res.json({
       success: true,
       avatar_url: publicUrl
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Configure multer for onepage uploads (image or PDF)
+const onepageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max for onepage
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, WEBP, and PDF are allowed.'));
+    }
+  },
+});
+
+// Upload participant onepage (token-based auth)
+router.post("/profile/onepage", onepageUpload.single('onepage'), async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[upload-onepage:${requestId}]`;
+
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "Valid token is required"
+      });
+    }
+
+    // Verify token
+    const decoded = verifyProfileToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: "Token is invalid or expired"
+      });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded",
+        message: "Please upload an image or PDF file"
+      });
+    }
+
+    console.log(`${logPrefix} Uploading onepage for participant ${decoded.participant_id}`);
+
+    // Get current participant to check for existing onepage
+    const { data: participant } = await supabaseAdmin
+      .from("participants")
+      .select("onepage_url")
+      .eq("participant_id", decoded.participant_id)
+      .single();
+
+    // Delete old onepage if exists
+    if (participant?.onepage_url) {
+      try {
+        // Extract path from URL (format: .../onepages/tenant_id/participant_id/filename)
+        const urlParts = participant.onepage_url.split('/onepages/');
+        if (urlParts.length > 1) {
+          const oldPath = urlParts[1];
+          await supabaseAdmin.storage
+            .from('onepages')
+            .remove([oldPath]);
+          console.log(`${logPrefix} Deleted old onepage: ${oldPath}`);
+        }
+      } catch (err) {
+        console.warn(`${logPrefix} Could not delete old onepage:`, err);
+      }
+    }
+
+    // Upload new onepage to Supabase Storage
+    const fileExt = path.extname(file.originalname) || (file.mimetype === 'application/pdf' ? '.pdf' : '.jpg');
+    const fileName = `onepage_${Date.now()}${fileExt}`;
+    const filePath = `${decoded.tenant_id}/${decoded.participant_id}/${fileName}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('onepages')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error(`${logPrefix} Upload error:`, uploadError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to upload file",
+        message: uploadError.message
+      });
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabaseAdmin.storage
+      .from('onepages')
+      .getPublicUrl(filePath);
+
+    // Update participant onepage_url
+    const { error: updateError } = await supabaseAdmin
+      .from('participants')
+      .update({ onepage_url: publicUrl })
+      .eq('participant_id', decoded.participant_id);
+
+    if (updateError) {
+      console.error(`${logPrefix} Database update error:`, updateError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update onepage URL",
+        message: updateError.message
+      });
+    }
+
+    console.log(`${logPrefix} Onepage uploaded successfully: ${publicUrl}`);
+
+    return res.json({
+      success: true,
+      onepage_url: publicUrl
     });
 
   } catch (error: any) {

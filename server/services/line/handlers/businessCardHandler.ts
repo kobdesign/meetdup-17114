@@ -57,6 +57,7 @@ export async function handleViewCard(
         participant_id,
         tenant_id,
         full_name,
+        nickname,
         position,
         company,
         tagline,
@@ -67,7 +68,9 @@ export async function handleViewCard(
         facebook_url,
         instagram_url,
         business_address,
-        line_user_id
+        line_user_id,
+        tags,
+        onepage_url
       `)
       .eq("participant_id", targetParticipantId)
       .eq("tenant_id", tenantId)
@@ -345,6 +348,116 @@ export async function handleCardSearch(
     await replyMessage(event.replyToken, {
       type: "text",
       text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
+    }, accessToken);
+  }
+}
+
+/**
+ * Handle "edit_profile" postback action
+ * Generates a profile edit token and sends a Magic Link to the user
+ */
+export async function handleEditProfileRequest(
+  event: any,
+  tenantId: string,
+  accessToken: string
+): Promise<void> {
+  const logPrefix = `[EditProfile]`;
+  const lineUserId = event.source.userId;
+
+  console.log(`${logPrefix} Edit profile request from: ${lineUserId}`);
+
+  try {
+    // Find participant by LINE user ID
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name")
+      .eq("line_user_id", lineUserId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (error || !participant) {
+      console.error(`${logPrefix} Participant not found for LINE user:`, lineUserId);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่พบข้อมูลของคุณในระบบ กรุณาลงทะเบียนก่อน หรือเชื่อมต่อเบอร์โทรศัพท์ด้วยคำสั่ง \"เชื่อมเบอร์\""
+      }, accessToken);
+      return;
+    }
+
+    // Generate profile token
+    const { generateProfileToken } = await import("../../../utils/profileToken");
+    const token = generateProfileToken(participant.participant_id, tenantId);
+
+    // Get base URL
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : (process.env.REPLIT_DEPLOYMENT_URL || "http://localhost:5000");
+
+    const profileUrl = `${baseUrl}/participant-profile/edit?token=${token}`;
+
+    console.log(`${logPrefix} Generated profile edit URL for ${participant.full_name}`);
+
+    // Send message with link
+    await replyMessage(event.replyToken, {
+      type: "flex",
+      altText: "แก้ไขข้อมูลของคุณ",
+      contents: {
+        type: "bubble",
+        size: "kilo",
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "แก้ไขข้อมูลส่วนตัว",
+              weight: "bold",
+              size: "lg",
+              color: "#1F2937"
+            },
+            {
+              type: "text",
+              text: `สวัสดีคุณ ${participant.full_name} กรุณากดปุ่มด้านล่างเพื่อแก้ไขข้อมูลของคุณ`,
+              size: "sm",
+              color: "#6B7280",
+              wrap: true,
+              margin: "md"
+            },
+            {
+              type: "text",
+              text: "ลิงก์นี้ใช้ได้ 24 ชั่วโมง",
+              size: "xs",
+              color: "#9CA3AF",
+              margin: "md"
+            }
+          ]
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "button",
+              action: {
+                type: "uri",
+                label: "แก้ไขข้อมูล",
+                uri: profileUrl
+              },
+              style: "primary",
+              height: "md"
+            }
+          ]
+        }
+      }
+    }, accessToken);
+
+    console.log(`${logPrefix} Sent profile edit link to ${participant.full_name}`);
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error handling edit profile:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
     }, accessToken);
   }
 }

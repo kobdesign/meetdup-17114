@@ -1,0 +1,250 @@
+export interface BusinessTypeDetail {
+  value: string;
+  label: string;
+}
+
+export interface BusinessTypeSubcategory {
+  value: string;
+  label: string;
+  details?: BusinessTypeDetail[];
+}
+
+export interface BusinessTypeCategory {
+  value: string;
+  label: string;
+  subcategories: BusinessTypeSubcategory[];
+}
+
+export const BUSINESS_TYPES: BusinessTypeCategory[] = [
+  {
+    "value": "service",
+    "label": "ธุรกิจบริการ (Service Business)",
+    "subcategories": [
+      {
+        "value": "service_professional",
+        "label": "บริการวิชาชีพ/ที่ปรึกษา",
+        "details": [
+          {"value": "service_professional_legal", "label": "สำนักงานกฎหมาย/ที่ปรึกษากฎหมาย"},
+          {"value": "service_professional_accounting", "label": "สำนักงานบัญชี/ผู้สอบบัญชี"},
+          {"value": "service_professional_it", "label": "ที่ปรึกษาด้าน IT/พัฒนาซอฟต์แวร์"},
+          {"value": "service_professional_management", "label": "ที่ปรึกษาด้านการจัดการ/การตลาด"},
+          {"value": "service_professional_design", "label": "ออกแบบกราฟิก/ตกแต่งภายใน/สถาปัตยกรรม"}
+        ]
+      },
+      {
+        "value": "service_personal_beauty",
+        "label": "บริการส่วนบุคคลและความงาม",
+        "details": [
+          {"value": "service_personal_salon", "label": "ร้านเสริมสวย/ร้านทำผม"},
+          {"value": "service_personal_spa", "label": "สปา/นวดแผนไทย"},
+          {"value": "service_personal_fitness", "label": "ฟิตเนส/ยิม/สตูดิโอโยคะ"},
+          {"value": "service_personal_laundry", "label": "บริการซักรีด/ซักแห้ง"},
+          {"value": "service_personal_cleaning", "label": "บริการทำความสะอาดบ้าน/อาคาร"}
+        ]
+      },
+      {
+        "value": "service_finance_insurance",
+        "label": "บริการด้านการเงินและประกันภัย",
+        "details": [
+          {"value": "service_finance_banking", "label": "ธนาคารพาณิชย์/สถาบันการเงิน"},
+          {"value": "service_finance_insurance_company", "label": "บริษัทประกันชีวิต/ประกันวินาศภัย"},
+          {"value": "service_finance_securities", "label": "บริษัทหลักทรัพย์/กองทุนรวม"}
+        ]
+      },
+      {
+        "value": "service_travel_hospitality",
+        "label": "บริการด้านการท่องเที่ยวและการโรงแรม",
+        "details": [
+          {"value": "service_travel_hotel_resort", "label": "โรงแรม/รีสอร์ต/ที่พัก"},
+          {"value": "service_travel_agency", "label": "บริษัทนำเที่ยว (Tour Agency)"},
+          {"value": "service_travel_airline", "label": "สายการบิน/ขนส่งผู้โดยสาร"},
+          {"value": "service_travel_restaurant_cafe", "label": "ร้านอาหาร/คาเฟ่/เครื่องดื่ม"}
+        ]
+      },
+      {
+        "value": "service_health_education",
+        "label": "บริการสุขภาพและการศึกษา",
+        "details": [
+          {"value": "service_health_hospital_clinic", "label": "โรงพยาบาล/คลินิกการแพทย์"},
+          {"value": "service_health_pharmacy", "label": "ร้านขายยา/เวชภัณฑ์"},
+          {"value": "service_education_school", "label": "โรงเรียน/สถาบันการศึกษา"},
+          {"value": "service_education_tutoring", "label": "โรงเรียนกวดวิชา/ฝึกอบรมอาชีพ"}
+        ]
+      }
+    ]
+  },
+  {
+    "value": "merchandising",
+    "label": "ธุรกิจพาณิชยกรรม/ซื้อมาขายไป",
+    "subcategories": [
+      {
+        "value": "merchandising_retail",
+        "label": "ค้าปลีก (Retail)",
+        "details": [
+          {"value": "merchandising_retail_supermarket", "label": "ซูเปอร์มาร์เก็ต/ไฮเปอร์มาร์เก็ต"},
+          {"value": "merchandising_retail_convenience", "label": "ร้านสะดวกซื้อ (7-11, Family Mart)"},
+          {"value": "merchandising_retail_department_store", "label": "ห้างสรรพสินค้า (Central, The Mall)"},
+          {"value": "merchandising_retail_online_fashion", "label": "ร้านค้าออนไลน์ (แฟชั่น, เครื่องสำอาง)"},
+          {"value": "merchandising_retail_online_electronics", "label": "ร้านค้าออนไลน์ (อุปกรณ์อิเล็กทรอนิกส์)"},
+          {"value": "merchandising_retail_specialty_store", "label": "ร้านค้าเฉพาะทาง (เครื่องเขียน, กีฬา)"}
+        ]
+      },
+      {
+        "value": "merchandising_wholesale",
+        "label": "ค้าส่ง (Wholesale)",
+        "details": [
+          {"value": "merchandising_wholesale_distributor", "label": "ตัวแทนจำหน่าย/ผู้กระจายสินค้า (Distributor)"},
+          {"value": "merchandising_wholesale_cash_carry", "label": "ศูนย์ค้าส่ง (Makro)"},
+          {"value": "merchandising_wholesale_import_export", "label": "ธุรกิจนำเข้า-ส่งออก"}
+        ]
+      },
+      {
+        "value": "merchandising_agent_broker",
+        "label": "ตัวแทน/นายหน้า",
+        "details": [
+          {"value": "merchandising_agent_real_estate", "label": "นายหน้าอสังหาริมทรัพย์"},
+          {"value": "merchandising_agent_stock_broker", "label": "นายหน้าซื้อขายหลักทรัพย์/ฟิวเจอร์ส"},
+          {"value": "merchandising_agent_freight", "label": "ตัวแทนขนส่งสินค้า (Freight Forwarder)"}
+        ]
+      }
+    ]
+  },
+  {
+    "value": "manufacturing",
+    "label": "ธุรกิจอุตสาหกรรม/การผลิต",
+    "subcategories": [
+      {
+        "value": "manufacturing_heavy",
+        "label": "อุตสาหกรรมหนัก/การก่อสร้าง",
+        "details": [
+          {"value": "manufacturing_heavy_construction_building", "label": "รับเหมาก่อสร้าง (อาคาร, บ้านจัดสรร)"},
+          {"value": "manufacturing_heavy_construction_infrastructure", "label": "รับเหมาก่อสร้าง (ถนน, สะพาน, รถไฟฟ้า)"},
+          {"value": "manufacturing_heavy_automotive", "label": "ผลิตยานยนต์และชิ้นส่วน (Automotive)"},
+          {"value": "manufacturing_heavy_steel", "label": "ผลิตเหล็ก/โลหะพื้นฐาน"},
+          {"value": "manufacturing_heavy_petrochemical", "label": "ปิโตรเคมี/โรงกลั่นน้ำมัน"}
+        ]
+      },
+      {
+        "value": "manufacturing_light",
+        "label": "อุตสาหกรรมเบา/อุปโภคบริโภค",
+        "details": [
+          {"value": "manufacturing_light_food_beverage", "label": "ผลิตอาหารและเครื่องดื่ม"},
+          {"value": "manufacturing_light_textile_apparel", "label": "ผลิตสิ่งทอ/เสื้อผ้าสำเร็จรูป"},
+          {"value": "manufacturing_light_electronics", "label": "ผลิตเครื่องใช้ไฟฟ้า/อิเล็กทรอนิกส์"},
+          {"value": "manufacturing_light_plastic_rubber", "label": "ผลิตพลาสติก/ยาง/บรรจุภัณฑ์"}
+        ]
+      },
+      {
+        "value": "manufacturing_agro",
+        "label": "อุตสาหกรรมเกษตร",
+        "details": [
+          {"value": "manufacturing_agro_sugar_starch", "label": "ผลิตน้ำตาล/แป้งมันสำปะหลัง"},
+          {"value": "manufacturing_agro_canned_food", "label": "ผลิตอาหารกระป๋อง/แปรรูปอาหารทะเล"}
+        ]
+      }
+    ]
+  },
+  {
+    "value": "agriculture_natural_resources",
+    "label": "ธุรกิจเกษตรกรรมและทรัพยากรธรรมชาติ",
+    "subcategories": [
+      {"value": "agr_cultivation", "label": "การเพาะปลูกพืชไร่/พืชสวน"},
+      {"value": "agr_livestock", "label": "ปศุสัตว์ (ฟาร์มปศุสัตว์/สัตว์ปีก)"},
+      {"value": "agr_fishery", "label": "การประมง/เพาะเลี้ยงสัตว์น้ำ"},
+      {"value": "agr_mining", "label": "การทำเหมืองแร่/สำรวจและผลิตปิโตรเลียม"}
+    ]
+  }
+];
+
+export function getBusinessTypeLabel(code: string | null | undefined): string {
+  if (!code) return "";
+  
+  for (const category of BUSINESS_TYPES) {
+    if (category.value === code) return category.label;
+    
+    for (const subcategory of category.subcategories) {
+      if (subcategory.value === code) return subcategory.label;
+      
+      if (subcategory.details) {
+        for (const detail of subcategory.details) {
+          if (detail.value === code) return detail.label;
+        }
+      }
+    }
+  }
+  
+  return code;
+}
+
+export function getBusinessTypeShortLabel(code: string | null | undefined): string {
+  if (!code) return "";
+  
+  const fullLabel = getBusinessTypeLabel(code);
+  const match = fullLabel.match(/^([^(]+)/);
+  return match ? match[1].trim() : fullLabel;
+}
+
+export function getBusinessTypePath(code: string | null | undefined): {
+  category: string | null;
+  subcategory: string | null;
+  detail: string | null;
+} {
+  if (!code) return { category: null, subcategory: null, detail: null };
+  
+  for (const category of BUSINESS_TYPES) {
+    if (category.value === code) {
+      return { category: code, subcategory: null, detail: null };
+    }
+    
+    for (const subcategory of category.subcategories) {
+      if (subcategory.value === code) {
+        return { category: category.value, subcategory: code, detail: null };
+      }
+      
+      if (subcategory.details) {
+        for (const detail of subcategory.details) {
+          if (detail.value === code) {
+            return { 
+              category: category.value, 
+              subcategory: subcategory.value, 
+              detail: code 
+            };
+          }
+        }
+      }
+    }
+  }
+  
+  return { category: null, subcategory: null, detail: null };
+}
+
+export function getCategoriesForDropdown() {
+  return BUSINESS_TYPES.map(cat => ({
+    value: cat.value,
+    label: cat.label
+  }));
+}
+
+export function getSubcategoriesForCategory(categoryValue: string) {
+  const category = BUSINESS_TYPES.find(c => c.value === categoryValue);
+  if (!category) return [];
+  
+  return category.subcategories.map(sub => ({
+    value: sub.value,
+    label: sub.label,
+    hasDetails: !!(sub.details && sub.details.length > 0)
+  }));
+}
+
+export function getDetailsForSubcategory(categoryValue: string, subcategoryValue: string) {
+  const category = BUSINESS_TYPES.find(c => c.value === categoryValue);
+  if (!category) return [];
+  
+  const subcategory = category.subcategories.find(s => s.value === subcategoryValue);
+  if (!subcategory || !subcategory.details) return [];
+  
+  return subcategory.details.map(d => ({
+    value: d.value,
+    label: d.label
+  }));
+}

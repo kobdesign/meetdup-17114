@@ -282,6 +282,7 @@ export type Database = {
         Row: {
           business_address: string | null
           business_type: string | null
+          business_type_code: string | null
           company: string | null
           created_at: string
           email: string | null
@@ -292,14 +293,17 @@ export type Database = {
           invited_by: string | null
           joined_date: string | null
           line_user_id: string | null
+          member_type: string | null
           nickname: string | null
           notes: string | null
+          onepage_url: string | null
           participant_id: string
           phone: string | null
           photo_url: string | null
           position: string | null
           status: Database["public"]["Enums"]["participant_status"]
           tagline: string | null
+          tags: string[] | null
           tenant_id: string
           updated_at: string
           user_id: string | null
@@ -308,6 +312,7 @@ export type Database = {
         Insert: {
           business_address?: string | null
           business_type?: string | null
+          business_type_code?: string | null
           company?: string | null
           created_at?: string
           email?: string | null
@@ -318,14 +323,17 @@ export type Database = {
           invited_by?: string | null
           joined_date?: string | null
           line_user_id?: string | null
+          member_type?: string | null
           nickname?: string | null
           notes?: string | null
+          onepage_url?: string | null
           participant_id?: string
           phone?: string | null
           photo_url?: string | null
           position?: string | null
           status?: Database["public"]["Enums"]["participant_status"]
           tagline?: string | null
+          tags?: string[] | null
           tenant_id: string
           updated_at?: string
           user_id?: string | null
@@ -334,6 +342,7 @@ export type Database = {
         Update: {
           business_address?: string | null
           business_type?: string | null
+          business_type_code?: string | null
           company?: string | null
           created_at?: string
           email?: string | null
@@ -344,14 +353,17 @@ export type Database = {
           invited_by?: string | null
           joined_date?: string | null
           line_user_id?: string | null
+          member_type?: string | null
           nickname?: string | null
           notes?: string | null
+          onepage_url?: string | null
           participant_id?: string
           phone?: string | null
           photo_url?: string | null
           position?: string | null
           status?: Database["public"]["Enums"]["participant_status"]
           tagline?: string | null
+          tags?: string[] | null
           tenant_id?: string
           updated_at?: string
           user_id?: string | null
