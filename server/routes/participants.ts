@@ -3713,17 +3713,20 @@ router.post("/activate", async (req: Request, res: Response) => {
       });
 
       try {
-        // Get tenant LINE credentials and name
-        const { data: tenant, error: tenantError } = await supabaseAdmin
-          .from("tenants")
-          .select("line_channel_access_token, tenant_name")
-          .eq("tenant_id", tenantId)
-          .single();
+        // Get tenant LINE credentials from tenant_secrets
+        const lineCredentials = await getLineCredentials(tenantId);
 
-        if (tenantError || !tenant?.line_channel_access_token) {
-          console.error(`${logPrefix} Failed to get LINE credentials:`, tenantError);
+        if (!lineCredentials) {
+          console.error(`${logPrefix} No LINE credentials found for tenant`);
         } else {
-          const lineClient = new LineClient(tenant.line_channel_access_token);
+          // Get tenant name for the message
+          const { data: tenant } = await supabaseAdmin
+            .from("tenants")
+            .select("tenant_name")
+            .eq("tenant_id", tenantId)
+            .single();
+
+          const lineClient = new LineClient(lineCredentials.channelAccessToken);
 
           // Build base URL for profile link
           const baseUrl = process.env.REPLIT_DEV_DOMAIN 
@@ -3735,7 +3738,7 @@ router.post("/activate", async (req: Request, res: Response) => {
             participant_id: participant.participant_id,
             full_name: participant.full_name,
             nickname: participant.nickname,
-            chapter_name: tenant.tenant_name || "Chapter",
+            chapter_name: tenant?.tenant_name || "Chapter",
             status: participant.status || "member"
           }, baseUrl);
 
