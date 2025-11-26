@@ -8,6 +8,17 @@ None specified yet.
 
 ## Recent Changes
 
+### November 26, 2024 - Company Logo Upload Feature
+- **New Field**: Added `company_logo_url` column to `participants` table via migration
+- **API Endpoints**:
+  - `POST /api/participants/profile/company-logo` - Upload company logo (token-based auth, 2MB limit, JPG/PNG/SVG)
+  - `DELETE /api/participants/profile/company-logo` - Delete company logo
+  - Updated `GET /profile` and `GET /public/:participantId` to include `company_logo_url`
+- **ParticipantProfile Enhancement**: Added Company Logo card with upload/preview/delete functionality
+- **PublicProfile Enhancement**: Displays company logo next to company name (replaces Building2 icon when logo exists)
+- **Storage Path Fix**: Uses regex `/\/avatars\/([^?]+)/` to properly extract storage path from Supabase public URLs, stripping cache-busting query strings (`?t=...`)
+- **Migration**: `server/migrations/20251126_add_company_logo_url.sql`
+
 ### November 26, 2024 - Profile Photo Image Cropper Feature
 - **New Component**: Created `ImageCropper.tsx` using react-easy-crop library for circular image cropping
 - **UX Improvement**: Users can now preview and adjust their profile photo before uploading

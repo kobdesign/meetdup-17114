@@ -2008,6 +2008,7 @@ router.get("/profile", async (req: Request, res: Response) => {
         phone,
         position,
         company,
+        company_logo_url,
         tagline,
         business_type_code,
         goal,
@@ -2165,6 +2166,226 @@ router.post("/profile/avatar", upload.single('avatar'), async (req: Request, res
     return res.json({
       success: true,
       avatar_url: publicUrl
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Configure multer for company logo uploads
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB max for logos
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, WEBP, and SVG are allowed.'));
+    }
+  },
+});
+
+// Upload company logo (token-based auth)
+router.post("/profile/company-logo", logoUpload.single('logo'), async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[upload-company-logo:${requestId}]`;
+
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "Valid token is required"
+      });
+    }
+
+    // Verify token
+    const decoded = verifyProfileToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: "Token is invalid or expired"
+      });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded",
+        message: "Please upload an image file"
+      });
+    }
+
+    console.log(`${logPrefix} Uploading company logo for participant ${decoded.participant_id}`);
+
+    // Get current participant to check for existing logo
+    const { data: participant } = await supabaseAdmin
+      .from("participants")
+      .select("company_logo_url")
+      .eq("participant_id", decoded.participant_id)
+      .single();
+
+    // Delete old logo if exists
+    if (participant?.company_logo_url) {
+      try {
+        // Extract storage path from public URL: .../avatars/company-logos/{participant_id}/{filename}
+        // Also strip query string (?t=...) that Supabase adds for cache busting
+        const urlMatch = participant.company_logo_url.match(/\/avatars\/([^?]+)/);
+        if (urlMatch && urlMatch[1]) {
+          const storagePath = decodeURIComponent(urlMatch[1]);
+          console.log(`${logPrefix} Deleting old logo at path: ${storagePath}`);
+          await supabaseAdmin.storage
+            .from('avatars')
+            .remove([storagePath]);
+        }
+      } catch (err) {
+        console.warn(`${logPrefix} Could not delete old logo:`, err);
+      }
+    }
+
+    // Upload new logo to Supabase Storage
+    const fileExt = path.extname(file.originalname) || '.png';
+    const fileName = `${Date.now()}${fileExt}`;
+    const filePath = `company-logos/${decoded.participant_id}/${fileName}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('avatars')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error(`${logPrefix} Upload error:`, uploadError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to upload image",
+        message: uploadError.message
+      });
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabaseAdmin.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    // Update participant company_logo_url
+    const { error: updateError } = await supabaseAdmin
+      .from('participants')
+      .update({ company_logo_url: publicUrl })
+      .eq('participant_id', decoded.participant_id);
+
+    if (updateError) {
+      console.error(`${logPrefix} Database update error:`, updateError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update logo URL",
+        message: updateError.message
+      });
+    }
+
+    console.log(`${logPrefix} Company logo uploaded successfully`);
+
+    return res.json({
+      success: true,
+      logo_url: publicUrl
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
+// Delete company logo (token-based auth)
+router.delete("/profile/company-logo", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[delete-company-logo:${requestId}]`;
+
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "Valid token is required"
+      });
+    }
+
+    // Verify token
+    const decoded = verifyProfileToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: "Token is invalid or expired"
+      });
+    }
+
+    console.log(`${logPrefix} Deleting company logo for participant ${decoded.participant_id}`);
+
+    // Get current participant to find existing logo
+    const { data: participant } = await supabaseAdmin
+      .from("participants")
+      .select("company_logo_url")
+      .eq("participant_id", decoded.participant_id)
+      .single();
+
+    if (participant?.company_logo_url) {
+      try {
+        // Extract storage path from public URL: .../avatars/company-logos/{participant_id}/{filename}
+        // Also strip query string (?t=...) that Supabase adds for cache busting
+        const urlMatch = participant.company_logo_url.match(/\/avatars\/([^?]+)/);
+        if (urlMatch && urlMatch[1]) {
+          const storagePath = decodeURIComponent(urlMatch[1]);
+          console.log(`${logPrefix} Deleting logo at path: ${storagePath}`);
+          await supabaseAdmin.storage
+            .from('avatars')
+            .remove([storagePath]);
+        }
+      } catch (err) {
+        console.warn(`${logPrefix} Could not delete logo file:`, err);
+      }
+    }
+
+    // Update participant to remove logo URL
+    const { error: updateError } = await supabaseAdmin
+      .from('participants')
+      .update({ company_logo_url: null })
+      .eq('participant_id', decoded.participant_id);
+
+    if (updateError) {
+      console.error(`${logPrefix} Database update error:`, updateError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update database",
+        message: updateError.message
+      });
+    }
+
+    console.log(`${logPrefix} Company logo deleted successfully`);
+
+    return res.json({
+      success: true,
+      message: "Logo deleted successfully"
     });
 
   } catch (error: any) {
@@ -3944,6 +4165,7 @@ router.get("/public/:participantId", async (req: Request, res: Response) => {
         nickname,
         position,
         company,
+        company_logo_url,
         tagline,
         photo_url,
         email,

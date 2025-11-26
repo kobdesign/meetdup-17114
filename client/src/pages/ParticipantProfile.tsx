@@ -26,6 +26,7 @@ interface ParticipantProfile {
   phone: string;
   position: string | null;
   company: string | null;
+  company_logo_url: string | null;
   tagline: string | null;
   business_type_code: string | null;
   goal: string | null;
@@ -48,12 +49,14 @@ export default function ParticipantProfile() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingOnepage, setUploadingOnepage] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [profile, setProfile] = useState<ParticipantProfile | null>(null);
   const [token, setToken] = useState<string>("");
   
   const [cropperOpen, setCropperOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   
   // Form fields
   const [fullName, setFullName] = useState("");
@@ -117,6 +120,7 @@ export default function ParticipantProfile() {
       setTags(p.tags || []);
       setAvatarPreview(p.photo_url);
       setOnepageUrl(p.onepage_url);
+      setCompanyLogoUrl(p.company_logo_url);
       
     } catch (error: any) {
       console.error("Error loading profile:", error);
@@ -244,6 +248,85 @@ export default function ParticipantProfile() {
       toast.error(error.message || "ไม่สามารถอัปโหลดไฟล์ได้");
     } finally {
       setUploadingOnepage(false);
+    }
+  };
+
+  const handleCompanyLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP, SVG)");
+        return;
+      }
+
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("ไฟล์ต้องมีขนาดไม่เกิน 2MB");
+        return;
+      }
+
+      setUploadingLogo(true);
+
+      let uploadFile = file;
+      
+      if (file.type.startsWith('image/') && file.type !== 'image/svg+xml') {
+        const options = {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 500,
+          useWebWorker: true
+        };
+        uploadFile = await imageCompression(file, options);
+      }
+      
+      const formData = new FormData();
+      formData.append("logo", uploadFile);
+
+      const response = await fetch(`/api/participants/profile/company-logo?token=${token}`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "ไม่สามารถอัปโหลดโลโก้ได้");
+      }
+
+      setCompanyLogoUrl(data.logo_url);
+      toast.success("อัปโหลดโลโก้บริษัทสำเร็จ");
+      
+    } catch (error: any) {
+      console.error('Error uploading company logo:', error);
+      toast.error(error.message || "ไม่สามารถอัปโหลดโลโก้ได้");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleDeleteCompanyLogo = async () => {
+    try {
+      setUploadingLogo(true);
+
+      const response = await fetch(`/api/participants/profile/company-logo?token=${token}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "ไม่สามารถลบโลโก้ได้");
+      }
+
+      setCompanyLogoUrl(null);
+      toast.success("ลบโลโก้บริษัทสำเร็จ");
+      
+    } catch (error: any) {
+      console.error('Error deleting company logo:', error);
+      toast.error(error.message || "ไม่สามารถลบโลโก้ได้");
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -451,6 +534,76 @@ export default function ParticipantProfile() {
                   />
                   <p className="text-xs text-muted-foreground text-center">
                     รูปภาพหรือ PDF (สูงสุด 10MB)
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Company Logo Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    โลโก้บริษัท
+                  </CardTitle>
+                  <CardDescription>
+                    โลโก้จะแสดงในนามบัตรออนไลน์
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center space-y-4">
+                  {companyLogoUrl ? (
+                    <div className="w-full space-y-2">
+                      <div className="flex justify-center p-4 bg-muted/50 rounded-md">
+                        <img 
+                          src={companyLogoUrl} 
+                          alt="Company Logo" 
+                          className="max-h-24 object-contain"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full p-8 border-2 border-dashed rounded-md text-center text-muted-foreground">
+                      <Building2 className="h-12 w-12 mx-auto mb-2" />
+                      <p className="text-sm">ยังไม่มีโลโก้บริษัท</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2 w-full">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingLogo}
+                      onClick={() => document.getElementById('company-logo-upload')?.click()}
+                      className="flex-1"
+                      data-testid="button-upload-company-logo"
+                    >
+                      {uploadingLogo && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Upload className="mr-2 h-4 w-4" />
+                      {uploadingLogo ? "กำลังอัปโหลด..." : companyLogoUrl ? "เปลี่ยนโลโก้" : "อัปโหลดโลโก้"}
+                    </Button>
+                    {companyLogoUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={uploadingLogo}
+                        onClick={handleDeleteCompanyLogo}
+                        className="text-destructive hover:text-destructive"
+                        data-testid="button-delete-company-logo"
+                      >
+                        ลบ
+                      </Button>
+                    )}
+                  </div>
+                  <input
+                    id="company-logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleCompanyLogoUpload}
+                    data-testid="input-company-logo"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">
+                    JPG, PNG, SVG (สูงสุด 2MB)
                   </p>
                 </CardContent>
               </Card>

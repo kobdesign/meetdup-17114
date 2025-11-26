@@ -284,6 +284,7 @@ export type Database = {
           business_type: string | null
           business_type_code: string | null
           company: string | null
+          company_logo_url: string | null
           created_at: string
           email: string | null
           facebook_url: string | null
@@ -315,6 +316,7 @@ export type Database = {
           business_type?: string | null
           business_type_code?: string | null
           company?: string | null
+          company_logo_url?: string | null
           created_at?: string
           email?: string | null
           facebook_url?: string | null
@@ -346,6 +348,7 @@ export type Database = {
           business_type?: string | null
           business_type_code?: string | null
           company?: string | null
+          company_logo_url?: string | null
           created_at?: string
           email?: string | null
           facebook_url?: string | null

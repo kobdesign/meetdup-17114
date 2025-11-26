@@ -27,6 +27,7 @@ interface ProfileData {
   nickname?: string;
   position?: string;
   company?: string;
+  company_logo_url?: string;
   tagline?: string;
   photo_url?: string;
   email?: string;
@@ -234,16 +235,25 @@ export default function PublicProfile() {
             </div>
 
             {(profile.position || profile.company) && (
-              <div className="mt-3 space-y-1">
+              <div className="mt-3 space-y-2">
                 {profile.position && (
                   <p className="text-lg font-medium text-foreground" data-testid="text-position">
                     {profile.position}
                   </p>
                 )}
                 {profile.company && (
-                  <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
-                    <Building2 className="w-4 h-4" />
-                    <span data-testid="text-company">{profile.company}</span>
+                  <div className="flex items-center justify-center gap-2">
+                    {profile.company_logo_url ? (
+                      <img 
+                        src={profile.company_logo_url} 
+                        alt={profile.company}
+                        className="h-6 w-auto object-contain"
+                        data-testid="img-company-logo"
+                      />
+                    ) : (
+                      <Building2 className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <span className="text-muted-foreground" data-testid="text-company">{profile.company}</span>
                   </div>
                 )}
               </div>
