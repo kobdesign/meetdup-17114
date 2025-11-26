@@ -204,8 +204,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       layout: "horizontal",
       contents: tagBadges,
       spacing: "sm",
-      margin: "lg",
-      wrap: true
+      margin: "lg"
     });
   }
 

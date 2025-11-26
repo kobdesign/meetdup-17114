@@ -1457,18 +1457,11 @@ router.patch("/profile", async (req: Request, res: Response) => {
                 paddingAll: "16px",
                 contents: [
                   {
-                    type: "box",
-                    layout: "horizontal",
-                    contents: [
-                      {
-                        type: "text",
-                        text: "บันทึกข้อมูลสำเร็จ",
-                        color: "#FFFFFF",
-                        weight: "bold",
-                        size: "lg",
-                        flex: 1
-                      }
-                    ]
+                    type: "text",
+                    text: "บันทึกข้อมูลสำเร็จ",
+                    color: "#FFFFFF",
+                    weight: "bold",
+                    size: "lg"
                   }
                 ]
               },
@@ -1493,35 +1486,12 @@ router.patch("/profile", async (req: Request, res: Response) => {
                     wrap: true
                   }] : []),
                   {
-                    type: "separator",
-                    margin: "md"
-                  },
-                  {
                     type: "text",
-                    text: "ข้อมูลของคุณถูกบันทึกเรียบร้อยแล้ว สามารถดูนามบัตรได้จากปุ่มด้านล่าง",
-                    size: "xs",
-                    color: "#888888",
+                    text: "ข้อมูลของคุณถูกบันทึกเรียบร้อยแล้ว",
+                    size: "sm",
+                    color: "#444444",
                     wrap: true,
-                    margin: "md"
-                  }
-                ]
-              },
-              footer: {
-                type: "box",
-                layout: "vertical",
-                spacing: "sm",
-                paddingAll: "12px",
-                contents: [
-                  {
-                    type: "button",
-                    action: {
-                      type: "uri",
-                      label: "ดูนามบัตร",
-                      uri: businessCardUrl
-                    },
-                    style: "primary",
-                    color: "#10B981",
-                    height: "sm"
+                    margin: "lg"
                   }
                 ]
               }
