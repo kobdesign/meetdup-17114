@@ -8,6 +8,18 @@ None specified yet.
 
 ## Recent Changes
 
+### November 26, 2024 - Complete Participant Deletion with Auth User Cleanup
+- **DELETE /api/participants/:id Endpoint**: Comprehensive participant deletion that properly cleans up all related records:
+  - Deletes `activation_tokens` (allows retry for activation)
+  - Checks if user has roles in other tenants (business rule: 1 user = 1 chapter)
+  - If other tenant roles exist: Deletes only current tenant's `user_roles` and `participants` record
+  - If no other roles: Deletes all `user_roles`, then `auth.users`, then `participants`
+- **Error Handling Strategy**: All deletion steps are now fatal - if any step fails, returns 500 error and aborts before participant deletion to prevent orphaned records
+- **Execution Order**: Participant is deleted LAST to ensure any prior failure doesn't leave partial cleanup state
+- **Frontend Integration**: `Participants.tsx` updated to call DELETE API endpoint with auth header instead of direct Supabase client delete
+- **Cleanup Script**: `server/scripts/cleanup-orphan-user.ts` with pagination support to handle >1000 users - removes orphaned auth users that have no participant/role links
+- **Business Rule Enforcement**: Deletion logic validates multi-tenant scenarios; user can only belong to 1 chapter at a time
+
 ### November 25, 2024 - Complete Role-Based Authorization Fix
 - **Role Naming Consistency**: Eliminated all `chapter_member` mapping confusion - system now uses actual database roles (`super_admin`, `chapter_admin`, `member`) throughout
 - **Frontend Authorization**: Implemented progressive disclosure navigation in `AdminLayout.tsx` with `getNavItemsByRole()`:
