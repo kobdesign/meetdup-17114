@@ -131,7 +131,7 @@ export function createActivationSuccessFlexMessage(data: ActivationSuccessData, 
           type: "button",
           action: {
             type: "uri",
-            label: "ดูโปรไฟล์ของฉัน",
+            label: "แก้ไขโปรไฟล์",
             uri: profileUrl
           },
           style: "primary",
