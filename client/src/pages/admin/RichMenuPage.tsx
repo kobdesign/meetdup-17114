@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink, Edit } from "lucide-react";
+import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink, Edit, Link, Unlink, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
@@ -46,6 +46,7 @@ interface RichMenu {
   image_height: number;
   areas: RichMenuArea[];
   created_at: string;
+  alias_id: string | null;
 }
 
 export default function RichMenuPage() {
@@ -53,6 +54,9 @@ export default function RichMenuPage() {
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingMenu, setEditingMenu] = useState<RichMenu | null>(null);
+  const [aliasDialogMenu, setAliasDialogMenu] = useState<RichMenu | null>(null);
+  const [aliasInput, setAliasInput] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Fetch rich menus
   const { data: richMenusData, isLoading } = useQuery<{ richMenus: RichMenu[] }>({
@@ -159,6 +163,99 @@ export default function RichMenuPage() {
     },
   });
 
+  // Create alias mutation
+  const createAliasMutation = useMutation({
+    mutationFn: async ({ richMenuId, aliasId }: { richMenuId: string; aliasId: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await fetch(`/api/line/rich-menu/alias`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tenantId: effectiveTenantId,
+          richMenuId,
+          richMenuAliasId: aliasId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create alias");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/line/rich-menu", effectiveTenantId] });
+      toast({
+        title: "Success",
+        description: "Rich Menu Alias created successfully",
+      });
+      setAliasDialogMenu(null);
+      setAliasInput("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete alias mutation
+  const deleteAliasMutation = useMutation({
+    mutationFn: async (aliasId: string) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await fetch(
+        `/api/line/rich-menu/alias/${aliasId}?tenantId=${effectiveTenantId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete alias");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/line/rich-menu", effectiveTenantId] });
+      toast({
+        title: "Success",
+        description: "Rich Menu Alias deleted",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCopyId = (id: string, type: "menu" | "alias") => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    toast({
+      title: "Copied!",
+      description: `${type === "alias" ? "Alias" : "Rich Menu"} ID copied to clipboard`,
+    });
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const richMenus = richMenusData?.richMenus || [];
 
   if (!effectiveTenantId && isSuperAdmin) {
@@ -212,6 +309,80 @@ export default function RichMenuPage() {
                 onCancel={() => setEditingMenu(null)}
               />
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Alias Dialog */}
+        <Dialog open={!!aliasDialogMenu} onOpenChange={(open) => {
+          if (!open) {
+            setAliasDialogMenu(null);
+            setAliasInput("");
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Rich Menu Alias</DialogTitle>
+              <DialogDescription>
+                Create an alias to use with richmenuswitch action for menu switching
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="alias-id">Alias ID</Label>
+                <Input
+                  id="alias-id"
+                  value={aliasInput}
+                  onChange={(e) => setAliasInput(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                  placeholder="e.g., main-menu, more-menu"
+                  maxLength={32}
+                  data-testid="input-alias-id"
+                />
+                <p className="text-xs text-muted-foreground">
+                  1-32 characters: lowercase letters, numbers, dash, underscore only
+                </p>
+              </div>
+              {aliasDialogMenu && (
+                <div className="bg-muted/50 p-3 rounded-md space-y-1">
+                  <p className="text-sm font-medium">Menu: {aliasDialogMenu.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    LINE ID: {aliasDialogMenu.line_rich_menu_id}
+                  </p>
+                </div>
+              )}
+              <div className="bg-muted/50 p-3 rounded-md">
+                <p className="text-xs text-muted-foreground">
+                  After creating, use this alias in your richmenuswitch action:
+                </p>
+                <pre className="text-xs bg-background p-2 rounded mt-1 overflow-x-auto">
+{`{
+  "type": "richmenuswitch",
+  "richMenuAliasId": "${aliasInput || "your-alias-id"}",
+  "data": "switch-menu"
+}`}
+                </pre>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setAliasDialogMenu(null);
+                  setAliasInput("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => aliasDialogMenu && createAliasMutation.mutate({
+                  richMenuId: aliasDialogMenu.rich_menu_id,
+                  aliasId: aliasInput,
+                })}
+                disabled={createAliasMutation.isPending || !aliasInput || aliasInput.length < 1}
+                data-testid="button-create-alias"
+              >
+                {createAliasMutation.isPending ? "Creating..." : "Create Alias"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -286,27 +457,79 @@ export default function RichMenuPage() {
                       <span className="font-medium">{menu.selected ? "Yes" : "No"}</span>
                     </div>
                   </div>
-                  <div className="pt-2 border-t">
-                    <p className="text-xs text-muted-foreground mb-1">LINE Rich Menu ID (for switching):</p>
-                    <div className="flex items-center gap-2">
-                      <code className="text-xs bg-muted px-2 py-1 rounded flex-1 truncate" title={menu.line_rich_menu_id}>
-                        {menu.line_rich_menu_id}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7"
-                        onClick={() => {
-                          navigator.clipboard.writeText(menu.line_rich_menu_id);
-                          toast({
-                            title: "Copied!",
-                            description: "Rich Menu ID copied to clipboard",
-                          });
-                        }}
-                        data-testid={`button-copy-id-${menu.rich_menu_id}`}
-                      >
-                        Copy
-                      </Button>
+                  <div className="pt-2 border-t space-y-2">
+                    {/* Alias Section */}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Alias (for richmenuswitch):
+                      </p>
+                      {menu.alias_id ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="font-mono text-xs">
+                            {menu.alias_id}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleCopyId(menu.alias_id!, "alias")}
+                            data-testid={`button-copy-alias-${menu.rich_menu_id}`}
+                          >
+                            {copiedId === menu.alias_id ? (
+                              <Check className="w-3 h-3 text-green-500" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive"
+                            onClick={() => {
+                              if (confirm("Delete this alias? Menu switching using this alias will stop working.")) {
+                                deleteAliasMutation.mutate(menu.alias_id!);
+                              }
+                            }}
+                            disabled={deleteAliasMutation.isPending}
+                            data-testid={`button-delete-alias-${menu.rich_menu_id}`}
+                          >
+                            <Unlink className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setAliasDialogMenu(menu)}
+                          data-testid={`button-create-alias-${menu.rich_menu_id}`}
+                        >
+                          <Link className="w-3 h-3 mr-1" />
+                          Create Alias
+                        </Button>
+                      )}
+                    </div>
+                    {/* LINE Rich Menu ID */}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">LINE Rich Menu ID:</p>
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs bg-muted px-2 py-1 rounded flex-1 truncate" title={menu.line_rich_menu_id}>
+                          {menu.line_rich_menu_id}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleCopyId(menu.line_rich_menu_id, "menu")}
+                          data-testid={`button-copy-id-${menu.rich_menu_id}`}
+                        >
+                          {copiedId === menu.line_rich_menu_id ? (
+                            <Check className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -380,22 +603,23 @@ export default function RichMenuPage() {
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">Rich Menu Switching Example</h4>
+              <h4 className="font-semibold mb-2">Rich Menu Switching</h4>
               <p className="text-sm text-muted-foreground mb-2">
-                To create a menu that switches to another menu, use the richmenuswitch action. The <code className="bg-muted px-1">richMenuAliasId</code> field accepts either a Rich Menu Alias ID or the actual LINE Rich Menu ID directly:
+                To switch between menus, you need to:
               </p>
+              <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground mb-3">
+                <li>Create an Alias for the target menu (click "Create Alias" on the menu card)</li>
+                <li>Use that alias in your richmenuswitch action</li>
+              </ol>
               <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
 {`{
   "type": "richmenuswitch",
-  "richMenuAliasId": "richmenu-xxxxxxxxxxxxx",
+  "richMenuAliasId": "your-alias-id",
   "data": "switch-to-menu-2"
 }`}
               </pre>
               <p className="text-xs text-muted-foreground mt-2">
-                💡 <strong>Quick Setup:</strong> Copy the LINE Rich Menu ID from any menu card above and paste it directly into <code className="bg-muted px-1">richMenuAliasId</code>
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                📝 <strong>Note:</strong> Despite the parameter name, you can use the actual Rich Menu ID without creating an alias (LINE API supports both)
+                The <code className="bg-muted px-1">richMenuAliasId</code> must be an Alias you created, not the LINE Rich Menu ID directly.
               </p>
             </div>
             <div>
