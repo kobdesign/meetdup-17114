@@ -5,6 +5,7 @@ import { generateVCard, getVCardFilename, VCardData } from "../services/line/vca
 import { generateProfileToken, verifyProfileToken } from "../utils/profileToken";
 import { LineClient } from "../services/line/lineClient";
 import { getLineCredentials } from "../services/line/credentials";
+import { createBusinessCardFlexMessage } from "../services/line/templates/businessCard";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -1527,8 +1528,33 @@ router.patch("/profile", async (req: Request, res: Response) => {
             }
           };
 
+          // Send success notification first
           await lineClient.pushMessage(updatedParticipant.line_user_id, successFlexMessage);
           console.log(`${logPrefix} Sent LINE success notification to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
+
+          // Create and send business card Flex Message using the new template
+          const businessCardFlexMessage = createBusinessCardFlexMessage({
+            participant_id: updatedParticipant.participant_id,
+            tenant_id: decoded.tenant_id,
+            full_name: updatedParticipant.full_name,
+            nickname: updatedParticipant.nickname,
+            position: updatedParticipant.position,
+            company: updatedParticipant.company,
+            tagline: updatedParticipant.tagline,
+            photo_url: updatedParticipant.photo_url,
+            email: updatedParticipant.email,
+            phone: updatedParticipant.phone,
+            website_url: updatedParticipant.website_url,
+            facebook_url: updatedParticipant.facebook_url,
+            instagram_url: updatedParticipant.instagram_url,
+            business_address: updatedParticipant.business_address,
+            line_user_id: updatedParticipant.line_user_id,
+            tags: updatedParticipant.tags,
+            onepage_url: updatedParticipant.onepage_url
+          }, baseUrl);
+
+          await lineClient.pushMessage(updatedParticipant.line_user_id, businessCardFlexMessage);
+          console.log(`${logPrefix} Sent business card to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
         }
       } catch (lineError: any) {
         // Don't fail the request if LINE notification fails
