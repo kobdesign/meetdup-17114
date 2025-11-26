@@ -173,4 +173,30 @@ export class LineClient {
       messages: messageArray
     });
   }
+
+  // Rich Menu Alias methods
+  async createRichMenuAlias(richMenuAliasId: string, richMenuId: string): Promise<void> {
+    await this.request("POST", "/bot/richmenu/alias", {
+      richMenuAliasId,
+      richMenuId
+    });
+  }
+
+  async deleteRichMenuAlias(richMenuAliasId: string): Promise<void> {
+    await this.request("DELETE", `/bot/richmenu/alias/${richMenuAliasId}`);
+  }
+
+  async updateRichMenuAlias(richMenuAliasId: string, richMenuId: string): Promise<void> {
+    await this.request("POST", `/bot/richmenu/alias/${richMenuAliasId}`, {
+      richMenuId
+    });
+  }
+
+  async getRichMenuAlias(richMenuAliasId: string): Promise<{ richMenuAliasId: string; richMenuId: string }> {
+    return this.request("GET", `/bot/richmenu/alias/${richMenuAliasId}`);
+  }
+
+  async getRichMenuAliasList(): Promise<{ aliases: Array<{ richMenuAliasId: string; richMenuId: string }> }> {
+    return this.request("GET", "/bot/richmenu/alias/list");
+  }
 }
