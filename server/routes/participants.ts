@@ -1791,17 +1791,17 @@ router.post("/profile/avatar", upload.single('avatar'), async (req: Request, res
 
     console.log(`${logPrefix} Uploading avatar for participant ${decoded.participant_id}`);
 
-    // Get current participant to check for existing avatar
+    // Get current participant to check for existing avatar (using photo_url column)
     const { data: participant } = await supabaseAdmin
       .from("participants")
-      .select("avatar_url")
+      .select("photo_url")
       .eq("participant_id", decoded.participant_id)
       .single();
 
     // Delete old avatar if exists
-    if (participant?.avatar_url) {
+    if (participant?.photo_url) {
       try {
-        const oldPath = participant.avatar_url.split('/').pop();
+        const oldPath = participant.photo_url.split('/').pop();
         if (oldPath) {
           await supabaseAdmin.storage
             .from('avatars')
@@ -1838,17 +1838,17 @@ router.post("/profile/avatar", upload.single('avatar'), async (req: Request, res
       .from('avatars')
       .getPublicUrl(filePath);
 
-    // Update participant avatar_url
+    // Update participant photo_url
     const { error: updateError } = await supabaseAdmin
       .from('participants')
-      .update({ avatar_url: publicUrl })
+      .update({ photo_url: publicUrl })
       .eq('participant_id', decoded.participant_id);
 
     if (updateError) {
       console.error(`${logPrefix} Database update error:`, updateError);
       return res.status(500).json({
         success: false,
-        error: "Failed to update avatar URL",
+        error: "Failed to update photo URL",
         message: updateError.message
       });
     }

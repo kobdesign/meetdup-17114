@@ -1,6 +1,7 @@
 -- Migration: Add enhanced profile fields for self-service editing
 -- Date: 2024-11-26
 -- Description: Adds tags array, onepage_url, member_type, and business_type_code columns
+-- Note: photo_url already exists in participants table for avatar storage
 
 -- Add tags column (text array for keywords search)
 ALTER TABLE participants 
