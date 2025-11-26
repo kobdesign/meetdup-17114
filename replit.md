@@ -8,6 +8,12 @@ None specified yet.
 
 ## Recent Changes
 
+### November 26, 2024 - Activation Success Flex Message Fix
+- **Bug Fix**: Activation success Flex Message was not sending after user activation
+- **Root Cause**: Code was querying non-existent `tenants.line_channel_access_token` column
+- **Solution**: Changed to use `getLineCredentials(tenantId)` function that retrieves encrypted credentials from `tenant_secrets` table
+- **Result**: Users now receive congratulatory Flex Message with chapter name, status, and profile link button after successful account activation
+
 ### November 26, 2024 - Complete Participant Deletion with Auth User Cleanup
 - **DELETE /api/participants/:id Endpoint**: Comprehensive participant deletion that properly cleans up all related records:
   - Deletes `activation_tokens` (allows retry for activation)
