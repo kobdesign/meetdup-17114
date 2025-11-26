@@ -1650,6 +1650,199 @@ router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedReq
   }
 });
 
+/**
+ * Delete participant completely
+ * Removes: participants, user_roles, activation_tokens, and auth.users
+ * This ensures clean deletion without orphaned records
+ */
+router.delete("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[delete-participant:${requestId}]`;
+
+  try {
+    const { participantId } = req.params;
+    const userId = req.user?.id;
+
+    console.log(`${logPrefix} Delete request for participant: ${participantId}`);
+
+    if (!participantId) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing participant ID"
+      });
+    }
+
+    // Get participant to verify ownership and get user_id
+    const { data: participant, error: fetchError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, tenant_id, user_id, full_name, email")
+      .eq("participant_id", participantId)
+      .single();
+
+    if (fetchError || !participant) {
+      console.log(`${logPrefix} Participant not found`);
+      return res.status(404).json({
+        success: false,
+        error: "Participant not found"
+      });
+    }
+
+    // Verify user has permission (super_admin or tenant admin)
+    const { data: superAdminRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "super_admin")
+      .maybeSingle();
+
+    if (!superAdminRole) {
+      const { data: userRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", participant.tenant_id)
+        .in("role", ["chapter_admin", "admin"])
+        .maybeSingle();
+
+      if (!userRole) {
+        console.log(`${logPrefix} User ${userId} not authorized for tenant ${participant.tenant_id}`);
+        return res.status(403).json({
+          success: false,
+          error: "You don't have permission to delete participants in this chapter"
+        });
+      }
+    }
+
+    // Check for dependencies (checkins)
+    const { data: checkins } = await supabaseAdmin
+      .from("checkins")
+      .select("checkin_id")
+      .eq("participant_id", participantId)
+      .limit(1);
+
+    if (checkins && checkins.length > 0) {
+      console.log(`${logPrefix} Cannot delete - has checkin history`);
+      return res.status(400).json({
+        success: false,
+        error: "Cannot delete participant with check-in history"
+      });
+    }
+
+    // Begin deletion process
+    console.log(`${logPrefix} Starting deletion for ${participant.full_name} (user_id: ${participant.user_id || 'none'})`);
+
+    // 1. Delete activation_tokens
+    const { error: tokenDeleteError } = await supabaseAdmin
+      .from("activation_tokens")
+      .delete()
+      .eq("participant_id", participantId);
+
+    if (tokenDeleteError) {
+      console.warn(`${logPrefix} Failed to delete activation_tokens:`, tokenDeleteError);
+      // Continue - not critical
+    } else {
+      console.log(`${logPrefix} Deleted activation_tokens`);
+    }
+
+    // If participant has a linked user account, clean up user-related records
+    if (participant.user_id) {
+      // 2. First check if user has roles in OTHER tenants (business rule: 1 user = 1 chapter)
+      const { data: otherTenantRoles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role_id, tenant_id, role")
+        .eq("user_id", participant.user_id)
+        .neq("tenant_id", participant.tenant_id);
+
+      if (otherTenantRoles && otherTenantRoles.length > 0) {
+        // User has roles in other tenants - this shouldn't happen with 1 user = 1 chapter rule
+        // But if it does, we only delete this tenant's role and keep the user
+        console.log(`${logPrefix} User has roles in other tenants - keeping auth user`);
+        
+        // Delete only this tenant's role
+        const { error: roleDeleteError } = await supabaseAdmin
+          .from("user_roles")
+          .delete()
+          .eq("user_id", participant.user_id)
+          .eq("tenant_id", participant.tenant_id);
+
+        if (roleDeleteError) {
+          console.error(`${logPrefix} Failed to delete user_roles:`, roleDeleteError);
+          return res.status(500).json({
+            success: false,
+            error: "Failed to delete user role",
+            message: roleDeleteError.message
+          });
+        }
+        console.log(`${logPrefix} Deleted user_roles for this tenant only`);
+      } else {
+        // User only has roles in this tenant - safe to delete everything
+        console.log(`${logPrefix} User has no roles in other tenants - deleting all user data`);
+        
+        // Delete all roles for this user (should be just this tenant)
+        const { error: roleDeleteError } = await supabaseAdmin
+          .from("user_roles")
+          .delete()
+          .eq("user_id", participant.user_id);
+
+        if (roleDeleteError) {
+          console.error(`${logPrefix} Failed to delete user_roles:`, roleDeleteError);
+          return res.status(500).json({
+            success: false,
+            error: "Failed to delete user roles",
+            message: roleDeleteError.message
+          });
+        }
+        console.log(`${logPrefix} Deleted all user_roles`);
+
+        // Delete auth user
+        const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(
+          participant.user_id
+        );
+
+        if (authDeleteError) {
+          console.error(`${logPrefix} Failed to delete auth user:`, authDeleteError);
+          return res.status(500).json({
+            success: false,
+            error: "Failed to delete user account",
+            message: authDeleteError.message
+          });
+        }
+        console.log(`${logPrefix} Deleted auth user`);
+      }
+    }
+
+    // 4. Delete the participant record
+    const { error: participantDeleteError } = await supabaseAdmin
+      .from("participants")
+      .delete()
+      .eq("participant_id", participantId);
+
+    if (participantDeleteError) {
+      console.error(`${logPrefix} Failed to delete participant:`, participantDeleteError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to delete participant",
+        message: participantDeleteError.message
+      });
+    }
+
+    console.log(`${logPrefix} Successfully deleted participant ${participant.full_name}`);
+
+    return res.json({
+      success: true,
+      message: `Deleted participant: ${participant.full_name}`
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 // Get members for referral dropdown (public endpoint - used in registration forms)
 // Returns members with nickname and full_name for selection
 // Uses meeting_id for implicit tenant authorization (prevent data leaks)

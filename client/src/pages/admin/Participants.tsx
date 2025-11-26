@@ -226,25 +226,27 @@ export default function Participants() {
   const handleDeleteParticipant = async (participantId: string) => {
     setDeleting(true);
     try {
-      // Check for dependencies
-      const { data: checkins } = await supabase
-        .from("checkins")
-        .select("checkin_id")
-        .eq("participant_id", participantId)
-        .limit(1);
-
-      if (checkins && checkins.length > 0) {
-        toast.error("ไม่สามารถลบได้ เนื่องจากมีประวัติการเช็คอิน");
+      // Get session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
         return;
       }
 
-      // Delete participant
-      const { error } = await supabase
-        .from("participants")
-        .delete()
-        .eq("participant_id", participantId);
+      // Call API endpoint to delete participant (handles all cleanup)
+      const response = await fetch(`/api/participants/${participantId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json"
+        }
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to delete participant");
+      }
 
       toast.success("ลบสมาชิกสำเร็จ");
       fetchParticipants();
