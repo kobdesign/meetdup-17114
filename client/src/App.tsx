@@ -37,6 +37,8 @@ import ParticipantProfile from "./pages/ParticipantProfile";
 import Activate from "./pages/Activate";
 import LineActivate from "./pages/LineActivate";
 import NotFound from "./pages/NotFound";
+import { LiffProvider } from "./contexts/LiffContext";
+import BusinessCardSearch from "./pages/liff/BusinessCardSearch";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -70,6 +72,13 @@ const App = () => (
           {/* Member Activation */}
           <Route path="/activate/:token" element={<Activate />} />
           <Route path="/line-activate" element={<LineActivate />} />
+          
+          {/* LIFF Pages */}
+          <Route path="/liff/cards" element={
+            <LiffProvider>
+              <BusinessCardSearch />
+            </LiffProvider>
+          } />
           
           {/* Protected Routes */}
           <Route path="/profile" element={
