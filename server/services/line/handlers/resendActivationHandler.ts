@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
+import { startPhoneLinkingFlow } from "./phoneLinkingHandler";
 
 function getStatusLabel(status: string): string {
   const statusMap: Record<string, string> = {
@@ -45,12 +46,9 @@ export async function handleResendActivation(
   }
 
   if (!participant) {
-    console.log(`${logPrefix} No participant found with this LINE User ID`);
-    await lineClient.replyMessage(event.replyToken, {
-      type: "text",
-      text: "❌ คุณยังไม่ได้เชื่อมโยง LINE\n\n" +
-            "กรุณาพิมพ์ \"ลงทะเบียน\" เพื่อเชื่อมโยงบัญชี LINE ของคุณก่อนนะครับ"
-    });
+    console.log(`${logPrefix} No participant found with this LINE User ID - auto-starting phone linking flow`);
+    // Auto-redirect to phone linking instead of showing message and waiting
+    await startPhoneLinkingFlow(event, tenantId, accessToken, logPrefix);
     return;
   }
 
