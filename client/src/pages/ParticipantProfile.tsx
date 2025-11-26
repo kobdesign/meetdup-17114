@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { 
   Loader2, User, Building2, Phone, Mail, Globe, Upload, CheckCircle, 
-  MapPin, Instagram, Facebook, FileImage, Target, MessageSquare
+  MapPin, Instagram, Facebook, FileImage, Target, MessageSquare, MessageCircle
 } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
@@ -30,6 +30,7 @@ interface ParticipantProfile {
   website_url: string | null;
   facebook_url: string | null;
   instagram_url: string | null;
+  line_id: string | null;
   business_address: string | null;
   photo_url: string | null;
   tags: string[] | null;
@@ -61,6 +62,7 @@ export default function ParticipantProfile() {
   const [website, setWebsite] = useState("");
   const [facebook, setFacebook] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [lineId, setLineId] = useState("");
   const [businessAddress, setBusinessAddress] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -104,6 +106,7 @@ export default function ParticipantProfile() {
       setWebsite(p.website_url || "");
       setFacebook(p.facebook_url || "");
       setInstagram(p.instagram_url || "");
+      setLineId(p.line_id || "");
       setBusinessAddress(p.business_address || "");
       setTags(p.tags || []);
       setAvatarPreview(p.photo_url);
@@ -245,6 +248,7 @@ export default function ParticipantProfile() {
           website_url: website || null,
           facebook_url: facebook || null,
           instagram_url: instagram || null,
+          line_id: lineId || null,
           business_address: businessAddress || null,
           tags: tags.length > 0 ? tags : null,
         }),
@@ -624,6 +628,24 @@ export default function ParticipantProfile() {
                       onChange={(e) => setInstagram(e.target.value)}
                       data-testid="input-instagram"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="line-id">
+                      <MessageCircle className="inline h-4 w-4 mr-2" />
+                      LINE ID
+                    </Label>
+                    <Input
+                      id="line-id"
+                      type="text"
+                      placeholder="mylineid"
+                      value={lineId}
+                      onChange={(e) => setLineId(e.target.value.replace(/^@/, ''))}
+                      data-testid="input-line-id"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      LINE ID สาธารณะ (ไม่ต้องใส่ @) เพื่อให้คนอื่นเปิดโปรไฟล์ LINE ของคุณได้
+                    </p>
                   </div>
 
                   <div className="space-y-2">

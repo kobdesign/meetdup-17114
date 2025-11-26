@@ -69,6 +69,7 @@ export async function handleViewCard(
         instagram_url,
         business_address,
         line_user_id,
+        line_id,
         tags,
         onepage_url
       `)
@@ -233,6 +234,7 @@ export async function handleCardSearch(
       website_url,
       facebook_url,
       instagram_url,
+      line_id,
       business_address,
       notes,
       tags,

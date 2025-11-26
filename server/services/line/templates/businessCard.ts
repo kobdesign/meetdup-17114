@@ -21,6 +21,7 @@ export interface BusinessCardData {
   instagram_url?: string | null;
   business_address?: string | null;
   line_user_id?: string | null;
+  line_id?: string | null;
   tags?: string[] | null;
   onepage_url?: string | null;
 }
@@ -399,7 +400,20 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     });
   }
 
-  if (emailUri) {
+  if (data.line_id) {
+    const lineProfileUrl = `https://line.me/R/ti/p/~${encodeURIComponent(data.line_id)}`;
+    primaryActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "LINE",
+        uri: lineProfileUrl
+      },
+      style: "primary",
+      color: "#06C755",
+      height: "sm"
+    });
+  } else if (emailUri) {
     primaryActions.push({
       type: "button",
       action: {

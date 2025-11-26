@@ -1348,6 +1348,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
       website_url,
       facebook_url,
       instagram_url,
+      line_id,
       business_address,
       tags
     } = req.body;
@@ -1390,6 +1391,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
         website_url: website_url || null,
         facebook_url: facebook_url || null,
         instagram_url: instagram_url || null,
+        line_id: line_id || null,
         business_address: business_address || null,
         tags: validatedTags,
         updated_at: new Date().toISOString(),
@@ -1410,6 +1412,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
         website_url,
         facebook_url,
         instagram_url,
+        line_id,
         business_address,
         photo_url,
         tags,
@@ -1519,6 +1522,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
             instagram_url: updatedParticipant.instagram_url,
             business_address: updatedParticipant.business_address,
             line_user_id: updatedParticipant.line_user_id,
+            line_id: updatedParticipant.line_id,
             tags: updatedParticipant.tags,
             onepage_url: updatedParticipant.onepage_url
           }, baseUrl);
@@ -1814,6 +1818,7 @@ router.get("/profile", async (req: Request, res: Response) => {
         website_url,
         facebook_url,
         instagram_url,
+        line_id,
         business_address,
         photo_url,
         tags,

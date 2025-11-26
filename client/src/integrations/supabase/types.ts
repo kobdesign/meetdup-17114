@@ -292,6 +292,7 @@ export type Database = {
           instagram_url: string | null
           invited_by: string | null
           joined_date: string | null
+          line_id: string | null
           line_user_id: string | null
           member_type: string | null
           nickname: string | null
@@ -322,6 +323,7 @@ export type Database = {
           instagram_url?: string | null
           invited_by?: string | null
           joined_date?: string | null
+          line_id?: string | null
           line_user_id?: string | null
           member_type?: string | null
           nickname?: string | null
@@ -352,6 +354,7 @@ export type Database = {
           instagram_url?: string | null
           invited_by?: string | null
           joined_date?: string | null
+          line_id?: string | null
           line_user_id?: string | null
           member_type?: string | null
           nickname?: string | null
