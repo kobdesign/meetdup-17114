@@ -8,6 +8,18 @@ None specified yet.
 
 ## Recent Changes
 
+### November 26, 2024 - Profile Photo Image Cropper Feature
+- **New Component**: Created `ImageCropper.tsx` using react-easy-crop library for circular image cropping
+- **UX Improvement**: Users can now preview and adjust their profile photo before uploading
+- **Features**: 
+  - Circular crop preview (1:1 aspect ratio) to match avatar display
+  - Zoom slider control
+  - Rotate control
+  - Cancel/Confirm actions
+- **Integration**: Updated `ParticipantProfile.tsx` to use cropper flow before compression and upload
+- **Fix**: Cropper dialog properly closes after upload success/error (setCropperOpen in finally block)
+- **Result**: Prevents distorted profile photos when users upload non-square images
+
 ### November 26, 2024 - Activation Success Flex Message Fix
 - **Bug Fix**: Activation success Flex Message was not sending after user activation
 - **Root Cause**: Code was querying non-existent `tenants.line_channel_access_token` column
