@@ -1,9 +1,76 @@
 import { Router } from "express";
-import { verifySupabaseAuth, checkTenantAccess, AuthenticatedRequest } from "../../utils/auth";
+import { verifySupabaseAuth, checkTenantAccess, AuthenticatedRequest, checkSuperAdmin } from "../../utils/auth";
 import { getLineCredentials, saveLineCredentials } from "../../services/line/credentials";
 import { LineClient } from "../../services/line/lineClient";
+import { getSharedLineConfig } from "../../services/line/sharedConfig";
 
 const router = Router();
+
+// Get shared LINE config status (Super Admin only)
+router.get("/shared-config", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const isSuperAdmin = await checkSuperAdmin(req.user!.id);
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: "Super admin access required" });
+    }
+
+    const sharedConfig = getSharedLineConfig();
+    const liffId = process.env.LIFF_ID || process.env.VITE_LIFF_ID;
+
+    return res.json({
+      hasAccessToken: !!sharedConfig?.channelAccessToken,
+      hasChannelSecret: !!sharedConfig?.channelSecret,
+      hasChannelId: !!sharedConfig?.channelId,
+      hasLiffId: !!liffId,
+      channelId: sharedConfig?.channelId || null,
+      liffId: liffId || null,
+      accessTokenPreview: sharedConfig?.channelAccessToken 
+        ? "••••" + sharedConfig.channelAccessToken.slice(-4) 
+        : null,
+      channelSecretPreview: sharedConfig?.channelSecret 
+        ? "••••" + sharedConfig.channelSecret.slice(-4) 
+        : null,
+    });
+  } catch (error: any) {
+    console.error("Error fetching shared LINE config:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Test shared LINE config connection (Super Admin only)
+router.post("/shared-config/test", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const isSuperAdmin = await checkSuperAdmin(req.user!.id);
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: "Super admin access required" });
+    }
+
+    const sharedConfig = getSharedLineConfig();
+    
+    if (!sharedConfig?.channelAccessToken) {
+      return res.json({ 
+        success: false, 
+        error: "LINE_CHANNEL_ACCESS_TOKEN not configured" 
+      });
+    }
+
+    const lineClient = new LineClient(sharedConfig.channelAccessToken);
+    const botInfo = await lineClient.getBotInfo();
+
+    return res.json({
+      success: true,
+      botName: botInfo.displayName,
+      botId: botInfo.userId,
+      basicId: botInfo.basicId,
+    });
+  } catch (error: any) {
+    console.error("Error testing LINE connection:", error);
+    return res.json({
+      success: false,
+      error: error.message || "Connection failed",
+    });
+  }
+});
 
 router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
   try {
