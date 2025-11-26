@@ -459,8 +459,8 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     type: "button",
     action: {
       type: "uri",
-      label: "แชร์",
-      uri: `https://line.me/R/share?text=${encodeURIComponent(`${data.full_name}${data.company ? ` - ${data.company}` : ""}\n${publicProfileUrl}`)}`
+      label: "Profile Page",
+      uri: publicProfileUrl
     },
     style: "secondary",
     height: "sm"
