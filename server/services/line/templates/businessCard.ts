@@ -429,6 +429,8 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
 
   const secondaryActions: any[] = [];
 
+  const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
+
   if (onepageUrl) {
     secondaryActions.push({
       type: "button",
@@ -436,17 +438,6 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
         type: "uri",
         label: "ดู One Page",
         uri: onepageUrl
-      },
-      style: "secondary",
-      height: "sm"
-    });
-
-    secondaryActions.push({
-      type: "button",
-      action: {
-        type: "uri",
-        label: "แชร์",
-        uri: `https://line.me/R/share?text=${encodeURIComponent(`${data.full_name}${data.company ? ` - ${data.company}` : ""}\n${onepageUrl}`)}`
       },
       style: "secondary",
       height: "sm"
@@ -462,18 +453,18 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       style: "secondary",
       height: "sm"
     });
-
-    secondaryActions.push({
-      type: "button",
-      action: {
-        type: "uri",
-        label: "แชร์",
-        uri: `https://line.me/R/share?text=${encodeURIComponent(`${data.full_name}${data.company ? ` - ${data.company}` : ""}\n${websiteUrl}`)}`
-      },
-      style: "secondary",
-      height: "sm"
-    });
   }
+
+  secondaryActions.push({
+    type: "button",
+    action: {
+      type: "uri",
+      label: "แชร์",
+      uri: `https://line.me/R/share?text=${encodeURIComponent(`${data.full_name}${data.company ? ` - ${data.company}` : ""}\n${publicProfileUrl}`)}`
+    },
+    style: "secondary",
+    height: "sm"
+  });
 
   const footerContents: any[] = [];
 

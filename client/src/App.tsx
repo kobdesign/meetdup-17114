@@ -30,6 +30,7 @@ import Tenants from "./pages/super-admin/Tenants";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import VisitorRegister from "./pages/public/VisitorRegister";
+import PublicProfile from "./pages/public/PublicProfile";
 // DEPRECATED: LIFF-based LINE registration (using message-based flow instead)
 // import LineRegister from "./pages/public/LineRegister";
 import ParticipantProfile from "./pages/ParticipantProfile";
@@ -55,6 +56,9 @@ const App = () => (
           
           {/* Public Chapter Profile */}
           <Route path="/chapter/:subdomain" element={<ChapterProfile />} />
+          
+          {/* Public Member Profile (for sharing) */}
+          <Route path="/p/:participantId" element={<PublicProfile />} />
           
           {/* Public Check-In & Registration */}
           <Route path="/checkin/:meetingId" element={<CheckInScanner />} />

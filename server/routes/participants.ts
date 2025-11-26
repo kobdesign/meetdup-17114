@@ -3754,4 +3754,165 @@ router.post("/reset-for-testing", verifySupabaseAuth, async (req: AuthenticatedR
   }
 });
 
+/**
+ * PUBLIC: Get participant profile for public sharing
+ * No authentication required - only returns public-safe fields
+ */
+router.get("/public/:participantId", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[public-profile:${requestId}]`;
+  
+  try {
+    const { participantId } = req.params;
+    
+    if (!participantId) {
+      return res.status(400).json({
+        success: false,
+        error: "Participant ID is required"
+      });
+    }
+    
+    console.log(`${logPrefix} Fetching public profile for:`, participantId);
+    
+    // Fetch participant with tenant info - only public fields
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name,
+        nickname,
+        position,
+        company,
+        tagline,
+        photo_url,
+        email,
+        phone,
+        website_url,
+        facebook_url,
+        instagram_url,
+        line_id,
+        business_address,
+        tags,
+        onepage_url,
+        status
+      `)
+      .eq("participant_id", participantId)
+      .in("status", ["member", "visitor"])
+      .single();
+    
+    if (error || !participant) {
+      console.log(`${logPrefix} Participant not found or not active`);
+      return res.status(404).json({
+        success: false,
+        error: "Profile not found"
+      });
+    }
+    
+    // Fetch tenant info for branding
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, subdomain")
+      .eq("tenant_id", participant.tenant_id)
+      .single();
+    
+    // Fetch tenant settings for logo/branding
+    const { data: settings } = await supabaseAdmin
+      .from("tenant_settings")
+      .select("logo_url, branding_color")
+      .eq("tenant_id", participant.tenant_id)
+      .single();
+    
+    console.log(`${logPrefix} Found profile for:`, participant.full_name);
+    
+    return res.json({
+      success: true,
+      profile: {
+        ...participant,
+        tenant: {
+          name: tenant?.tenant_name || "Unknown",
+          subdomain: tenant?.subdomain || null,
+          logo_url: settings?.logo_url || null,
+          branding_color: settings?.branding_color || "#1e40af"
+        }
+      }
+    });
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch profile"
+    });
+  }
+});
+
+/**
+ * PUBLIC: Generate vCard for download
+ */
+router.get("/public/:participantId/vcard", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[vcard-download:${requestId}]`;
+  
+  try {
+    const { participantId } = req.params;
+    
+    console.log(`${logPrefix} Generating vCard for:`, participantId);
+    
+    // Fetch participant data
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        full_name,
+        nickname,
+        position,
+        company,
+        email,
+        phone,
+        website_url,
+        business_address,
+        photo_url,
+        status
+      `)
+      .eq("participant_id", participantId)
+      .in("status", ["member", "visitor"])
+      .single();
+    
+    if (error || !participant) {
+      return res.status(404).json({
+        success: false,
+        error: "Profile not found"
+      });
+    }
+    
+    // Generate vCard
+    const vCardData: VCardData = {
+      full_name: participant.full_name,
+      position: participant.position || undefined,
+      company: participant.company || undefined,
+      email: participant.email || undefined,
+      phone: participant.phone || undefined,
+      website_url: participant.website_url || undefined,
+      business_address: participant.business_address || undefined,
+      photo_url: participant.photo_url || undefined
+    };
+    
+    const vCardContent = generateVCard(vCardData);
+    const filename = getVCardFilename(participant.full_name);
+    
+    res.setHeader("Content-Type", "text/vcard; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(vCardContent);
+    
+    console.log(`${logPrefix} vCard generated for:`, participant.full_name);
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to generate vCard"
+    });
+  }
+});
+
 export default router;
