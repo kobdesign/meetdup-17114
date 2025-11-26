@@ -1308,6 +1308,139 @@ router.get("/:participantId/vcard", async (req: Request, res: Response) => {
   }
 });
 
+// Update participant profile (token-based auth) - MUST be before /:participantId to avoid route conflict
+router.patch("/profile", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[update-profile:${requestId}]`;
+
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "Valid token is required"
+      });
+    }
+
+    // Verify token
+    const decoded = verifyProfileToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: "Token is invalid or expired"
+      });
+    }
+
+    const { 
+      full_name, 
+      nickname,
+      position, 
+      company, 
+      tagline,
+      business_type_code,
+      goal,
+      phone, 
+      email, 
+      website_url,
+      facebook_url,
+      instagram_url,
+      business_address,
+      tags
+    } = req.body;
+
+    // Validate required fields
+    if (!full_name || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Validation error",
+        message: "full_name and phone are required"
+      });
+    }
+
+    console.log(`${logPrefix} Updating profile for participant ${decoded.participant_id}`);
+
+    // Normalize phone
+    const normalizedPhone = phone.replace(/\D/g, "");
+
+    // Validate tags if provided (must be array of strings)
+    let validatedTags: string[] | null = null;
+    if (tags) {
+      if (Array.isArray(tags)) {
+        validatedTags = tags.filter((t: any) => typeof t === 'string' && t.trim()).map((t: string) => t.trim());
+      }
+    }
+
+    // Update participant
+    const { data: updatedParticipant, error: updateError } = await supabaseAdmin
+      .from("participants")
+      .update({
+        full_name,
+        nickname: nickname || null,
+        position: position || null,
+        company: company || null,
+        tagline: tagline || null,
+        business_type_code: business_type_code || null,
+        goal: goal || null,
+        phone: normalizedPhone,
+        email: email || null,
+        website_url: website_url || null,
+        facebook_url: facebook_url || null,
+        instagram_url: instagram_url || null,
+        business_address: business_address || null,
+        tags: validatedTags,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("participant_id", decoded.participant_id)
+      .eq("tenant_id", decoded.tenant_id)
+      .select(`
+        participant_id,
+        full_name,
+        nickname,
+        email,
+        phone,
+        position,
+        company,
+        tagline,
+        business_type_code,
+        goal,
+        website_url,
+        facebook_url,
+        instagram_url,
+        business_address,
+        photo_url,
+        tags,
+        onepage_url,
+        tenant_id
+      `)
+      .single();
+
+    if (updateError) {
+      console.error(`${logPrefix} Update error:`, updateError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update profile",
+        message: updateError.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      participant: updatedParticipant
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
+
 // Update participant details (authenticated endpoint - for admin editing)
 router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -1609,139 +1742,6 @@ router.get("/profile", async (req: Request, res: Response) => {
         tenant_name: tenantInfo?.tenant_name,
         logo_url: tenantInfo?.logo_url,
       }
-    });
-
-  } catch (error: any) {
-    console.error(`${logPrefix} Error:`, error);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      message: error.message
-    });
-  }
-});
-
-// Update participant profile (token-based auth)
-router.patch("/profile", async (req: Request, res: Response) => {
-  const requestId = crypto.randomUUID();
-  const logPrefix = `[update-profile:${requestId}]`;
-
-  try {
-    const { token } = req.query;
-
-    if (!token || typeof token !== 'string') {
-      return res.status(401).json({
-        success: false,
-        error: "Unauthorized",
-        message: "Valid token is required"
-      });
-    }
-
-    // Verify token
-    const decoded = verifyProfileToken(token);
-    if (!decoded) {
-      return res.status(401).json({
-        success: false,
-        error: "Invalid token",
-        message: "Token is invalid or expired"
-      });
-    }
-
-    const { 
-      full_name, 
-      nickname,
-      position, 
-      company, 
-      tagline,
-      business_type_code,
-      goal,
-      phone, 
-      email, 
-      website_url,
-      facebook_url,
-      instagram_url,
-      business_address,
-      tags
-    } = req.body;
-
-    // Validate required fields
-    if (!full_name || !phone) {
-      return res.status(400).json({
-        success: false,
-        error: "Validation error",
-        message: "full_name and phone are required"
-      });
-    }
-
-    console.log(`${logPrefix} Updating profile for participant ${decoded.participant_id}`);
-
-    // Normalize phone
-    const normalizedPhone = phone.replace(/\D/g, "");
-
-    // Validate tags if provided (must be array of strings)
-    let validatedTags: string[] | null = null;
-    if (tags) {
-      if (Array.isArray(tags)) {
-        validatedTags = tags.filter((t: any) => typeof t === 'string' && t.trim()).map((t: string) => t.trim());
-      }
-    }
-
-    // Update participant
-    const { data: updatedParticipant, error: updateError } = await supabaseAdmin
-      .from("participants")
-      .update({
-        full_name,
-        nickname: nickname || null,
-        position: position || null,
-        company: company || null,
-        tagline: tagline || null,
-        business_type_code: business_type_code || null,
-        goal: goal || null,
-        phone: normalizedPhone,
-        email: email || null,
-        website_url: website_url || null,
-        facebook_url: facebook_url || null,
-        instagram_url: instagram_url || null,
-        business_address: business_address || null,
-        tags: validatedTags,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("participant_id", decoded.participant_id)
-      .eq("tenant_id", decoded.tenant_id)
-      .select(`
-        participant_id,
-        full_name,
-        nickname,
-        email,
-        phone,
-        position,
-        company,
-        tagline,
-        business_type_code,
-        goal,
-        website_url,
-        facebook_url,
-        instagram_url,
-        business_address,
-        photo_url,
-        tags,
-        onepage_url,
-        tenant_id
-      `)
-      .single();
-
-    if (updateError) {
-      console.error(`${logPrefix} Update error:`, updateError);
-      return res.status(500).json({
-        success: false,
-        error: "Failed to update profile",
-        message: updateError.message
-      });
-    }
-
-    return res.json({
-      success: true,
-      participant: updatedParticipant
     });
 
   } catch (error: any) {
