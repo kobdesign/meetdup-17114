@@ -15,6 +15,7 @@ import {
 import imageCompression from "browser-image-compression";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
 import TagInput from "@/components/TagInput";
+import { getBusinessTypeLabel } from "@/lib/business-types";
 
 interface ParticipantProfile {
   participant_id: string;
@@ -241,6 +242,7 @@ export default function ParticipantProfile() {
           position: position || null,
           company: company || null,
           tagline: tagline || null,
+          business_type: businessTypeCode ? getBusinessTypeLabel(businessTypeCode) : null,
           business_type_code: businessTypeCode,
           goal: goal || null,
           phone,

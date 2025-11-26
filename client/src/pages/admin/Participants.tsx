@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle, Globe, Instagram, Facebook, MessageCircle, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -34,6 +34,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import TagInput from "@/components/TagInput";
+import BusinessTypeSelector from "@/components/BusinessTypeSelector";
+import { getBusinessTypeLabel } from "@/lib/business-types";
 
 export default function Participants() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
@@ -49,10 +53,19 @@ export default function Participants() {
     email: "",
     phone: "",
     company: "",
+    position: "",
+    tagline: "",
     business_type: "",
+    business_type_code: null as string | null,
     goal: "",
     status: "member" as const,
     notes: "",
+    website_url: "",
+    facebook_url: "",
+    instagram_url: "",
+    line_id: "",
+    business_address: "",
+    tags: [] as string[],
   });
 
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -113,10 +126,19 @@ export default function Participants() {
           email: newParticipant.email || null,
           phone: newParticipant.phone || null,
           company: newParticipant.company || null,
+          position: newParticipant.position || null,
+          tagline: newParticipant.tagline || null,
           business_type: newParticipant.business_type || null,
+          business_type_code: newParticipant.business_type_code || null,
           goal: newParticipant.goal || null,
           status: newParticipant.status,
           notes: newParticipant.notes || null,
+          website_url: newParticipant.website_url || null,
+          facebook_url: newParticipant.facebook_url || null,
+          instagram_url: newParticipant.instagram_url || null,
+          line_id: newParticipant.line_id || null,
+          business_address: newParticipant.business_address || null,
+          tags: newParticipant.tags.length > 0 ? newParticipant.tags : null,
         });
 
       if (error) throw error;
@@ -129,10 +151,19 @@ export default function Participants() {
         email: "",
         phone: "",
         company: "",
+        position: "",
+        tagline: "",
         business_type: "",
+        business_type_code: null,
         goal: "",
         status: "member",
         notes: "",
+        website_url: "",
+        facebook_url: "",
+        instagram_url: "",
+        line_id: "",
+        business_address: "",
+        tags: [],
       });
       fetchParticipants();
     } catch (error: any) {
@@ -163,10 +194,19 @@ export default function Participants() {
           email: editingParticipant.email || null,
           phone: editingParticipant.phone || null,
           company: editingParticipant.company || null,
+          position: editingParticipant.position || null,
+          tagline: editingParticipant.tagline || null,
           business_type: editingParticipant.business_type || null,
+          business_type_code: editingParticipant.business_type_code || null,
           goal: editingParticipant.goal || null,
           status: editingParticipant.status,
           notes: editingParticipant.notes || null,
+          website_url: editingParticipant.website_url || null,
+          facebook_url: editingParticipant.facebook_url || null,
+          instagram_url: editingParticipant.instagram_url || null,
+          line_id: editingParticipant.line_id || null,
+          business_address: editingParticipant.business_address || null,
+          tags: editingParticipant.tags?.length > 0 ? editingParticipant.tags : null,
         })
         .eq("participant_id", editingParticipant.participant_id);
 
@@ -252,6 +292,7 @@ export default function Participants() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                {/* Basic Info Section */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="full_name">ชื่อ-นามสกุล *</Label>
@@ -260,6 +301,7 @@ export default function Participants() {
                       value={newParticipant.full_name}
                       onChange={(e) => setNewParticipant({ ...newParticipant, full_name: e.target.value })}
                       placeholder="จอห์น สมิธ"
+                      data-testid="input-add-fullname"
                     />
                   </div>
                   <div className="space-y-2">
@@ -269,11 +311,59 @@ export default function Participants() {
                       value={newParticipant.nickname}
                       onChange={(e) => setNewParticipant({ ...newParticipant, nickname: e.target.value })}
                       placeholder="จอห์น"
+                      data-testid="input-add-nickname"
                     />
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="position">ตำแหน่ง</Label>
+                    <Input
+                      id="position"
+                      value={newParticipant.position}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, position: e.target.value })}
+                      placeholder="CEO, Manager, etc."
+                      data-testid="input-add-position"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company">บริษัท</Label>
+                    <Input
+                      id="company"
+                      value={newParticipant.company}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, company: e.target.value })}
+                      placeholder="ABC Company Ltd."
+                      data-testid="input-add-company"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="tagline">Tagline / คำโปรย</Label>
+                  <Input
+                    id="tagline"
+                    value={newParticipant.tagline}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, tagline: e.target.value })}
+                    placeholder="ผู้เชี่ยวชาญด้านการตลาดดิจิทัล"
+                    data-testid="input-add-tagline"
+                  />
+                </div>
+
+                <Separator />
+
+                {/* Contact Info Section */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">เบอร์โทร</Label>
+                    <Input
+                      id="phone"
+                      value={newParticipant.phone}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, phone: e.target.value })}
+                      placeholder="081-234-5678"
+                      data-testid="input-add-phone"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">อีเมล</Label>
                     <Input
@@ -282,55 +372,121 @@ export default function Participants() {
                       value={newParticipant.email}
                       onChange={(e) => setNewParticipant({ ...newParticipant, email: e.target.value })}
                       placeholder="john@example.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">เบอร์โทร</Label>
-                    <Input
-                      id="phone"
-                      value={newParticipant.phone}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, phone: e.target.value })}
-                      placeholder="081-234-5678"
+                      data-testid="input-add-email"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="company">บริษัท</Label>
+                    <Label htmlFor="line_id" className="flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4" />
+                      LINE ID
+                    </Label>
                     <Input
-                      id="company"
-                      value={newParticipant.company}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, company: e.target.value })}
-                      placeholder="ABC Company Ltd."
+                      id="line_id"
+                      value={newParticipant.line_id}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, line_id: e.target.value })}
+                      placeholder="@lineid"
+                      data-testid="input-add-lineid"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="business_type">ประเภทธุรกิจ</Label>
+                    <Label htmlFor="website_url" className="flex items-center gap-2">
+                      <Globe className="h-4 w-4" />
+                      Website
+                    </Label>
                     <Input
-                      id="business_type"
-                      value={newParticipant.business_type}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, business_type: e.target.value })}
-                      placeholder="เทคโนโลยี"
+                      id="website_url"
+                      value={newParticipant.website_url}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, website_url: e.target.value })}
+                      placeholder="https://example.com"
+                      data-testid="input-add-website"
                     />
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="facebook_url" className="flex items-center gap-2">
+                      <Facebook className="h-4 w-4" />
+                      Facebook URL
+                    </Label>
+                    <Input
+                      id="facebook_url"
+                      value={newParticipant.facebook_url}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, facebook_url: e.target.value })}
+                      placeholder="https://facebook.com/username"
+                      data-testid="input-add-facebook"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="instagram_url" className="flex items-center gap-2">
+                      <Instagram className="h-4 w-4" />
+                      Instagram URL
+                    </Label>
+                    <Input
+                      id="instagram_url"
+                      value={newParticipant.instagram_url}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, instagram_url: e.target.value })}
+                      placeholder="https://instagram.com/username"
+                      data-testid="input-add-instagram"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="business_address" className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    ที่อยู่ธุรกิจ
+                  </Label>
+                  <Textarea
+                    id="business_address"
+                    value={newParticipant.business_address}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, business_address: e.target.value })}
+                    placeholder="123 ถนนสุขุมวิท, กรุงเทพฯ 10110"
+                    rows={2}
+                    data-testid="input-add-address"
+                  />
+                </div>
+
+                <Separator />
+
+                {/* Business Info Section */}
+                <BusinessTypeSelector
+                  value={newParticipant.business_type_code}
+                  onChange={(value) => setNewParticipant({ 
+                    ...newParticipant, 
+                    business_type_code: value,
+                    business_type: value ? getBusinessTypeLabel(value) : ""
+                  })}
+                />
+
+                <TagInput
+                  value={newParticipant.tags}
+                  onChange={(tags) => setNewParticipant({ ...newParticipant, tags })}
+                  placeholder="พิมพ์แล้วกด Enter เช่น Marketing, Finance"
+                  maxTags={10}
+                />
+
+                <Separator />
+
+                {/* Status Section */}
                 <div className="space-y-2">
                   <Label htmlFor="status">สถานะ</Label>
                   <Select
                     value={newParticipant.status}
                     onValueChange={(value: any) => setNewParticipant({ ...newParticipant, status: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger data-testid="select-add-status">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="prospect">🟡 ผู้สนใจ</SelectItem>
-                      <SelectItem value="visitor">🟢 ผู้เยี่ยมชม</SelectItem>
-                      <SelectItem value="declined">🔴 ไม่สนใจ</SelectItem>
-                      <SelectItem value="member">🔵 สมาชิก</SelectItem>
-                      <SelectItem value="alumni">⚫ อดีตสมาชิก</SelectItem>
+                      <SelectItem value="prospect">ผู้สนใจ</SelectItem>
+                      <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
+                      <SelectItem value="declined">ไม่สนใจ</SelectItem>
+                      <SelectItem value="member">สมาชิก</SelectItem>
+                      <SelectItem value="alumni">อดีตสมาชิก</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -343,17 +499,19 @@ export default function Participants() {
                     onChange={(e) => setNewParticipant({ ...newParticipant, goal: e.target.value })}
                     placeholder="ต้องการหาพาร์ทเนอร์ทางธุรกิจ"
                     rows={2}
+                    data-testid="input-add-goal"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="notes">หมายเหตุ</Label>
+                  <Label htmlFor="notes">หมายเหตุ (Admin เท่านั้น)</Label>
                   <Textarea
                     id="notes"
                     value={newParticipant.notes}
                     onChange={(e) => setNewParticipant({ ...newParticipant, notes: e.target.value })}
                     placeholder="บันทึกเพิ่มเติม..."
                     rows={2}
+                    data-testid="input-add-notes"
                   />
                 </div>
               </div>
@@ -379,6 +537,7 @@ export default function Participants() {
               </DialogHeader>
               {editingParticipant && (
                 <div className="grid gap-4 py-4">
+                  {/* Basic Info Section */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="edit_full_name">ชื่อ-นามสกุล *</Label>
@@ -387,6 +546,7 @@ export default function Participants() {
                         value={editingParticipant.full_name}
                         onChange={(e) => setEditingParticipant({ ...editingParticipant, full_name: e.target.value })}
                         placeholder="จอห์น สมิธ"
+                        data-testid="input-edit-fullname"
                       />
                     </div>
                     <div className="space-y-2">
@@ -396,11 +556,59 @@ export default function Participants() {
                         value={editingParticipant.nickname || ""}
                         onChange={(e) => setEditingParticipant({ ...editingParticipant, nickname: e.target.value })}
                         placeholder="จอห์น"
+                        data-testid="input-edit-nickname"
                       />
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_position">ตำแหน่ง</Label>
+                      <Input
+                        id="edit_position"
+                        value={editingParticipant.position || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, position: e.target.value })}
+                        placeholder="CEO, Manager, etc."
+                        data-testid="input-edit-position"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_company">บริษัท</Label>
+                      <Input
+                        id="edit_company"
+                        value={editingParticipant.company || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, company: e.target.value })}
+                        placeholder="ABC Company Ltd."
+                        data-testid="input-edit-company"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_tagline">Tagline / คำโปรย</Label>
+                    <Input
+                      id="edit_tagline"
+                      value={editingParticipant.tagline || ""}
+                      onChange={(e) => setEditingParticipant({ ...editingParticipant, tagline: e.target.value })}
+                      placeholder="ผู้เชี่ยวชาญด้านการตลาดดิจิทัล"
+                      data-testid="input-edit-tagline"
+                    />
+                  </div>
+
+                  <Separator />
+
+                  {/* Contact Info Section */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_phone">เบอร์โทร</Label>
+                      <Input
+                        id="edit_phone"
+                        value={editingParticipant.phone || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, phone: e.target.value })}
+                        placeholder="081-234-5678"
+                        data-testid="input-edit-phone"
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit_email">อีเมล</Label>
                       <Input
@@ -409,55 +617,121 @@ export default function Participants() {
                         value={editingParticipant.email || ""}
                         onChange={(e) => setEditingParticipant({ ...editingParticipant, email: e.target.value })}
                         placeholder="john@example.com"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit_phone">เบอร์โทร</Label>
-                      <Input
-                        id="edit_phone"
-                        value={editingParticipant.phone || ""}
-                        onChange={(e) => setEditingParticipant({ ...editingParticipant, phone: e.target.value })}
-                        placeholder="081-234-5678"
+                        data-testid="input-edit-email"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="edit_company">บริษัท</Label>
+                      <Label htmlFor="edit_line_id" className="flex items-center gap-2">
+                        <MessageCircle className="h-4 w-4" />
+                        LINE ID
+                      </Label>
                       <Input
-                        id="edit_company"
-                        value={editingParticipant.company || ""}
-                        onChange={(e) => setEditingParticipant({ ...editingParticipant, company: e.target.value })}
-                        placeholder="ABC Company Ltd."
+                        id="edit_line_id"
+                        value={editingParticipant.line_id || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, line_id: e.target.value })}
+                        placeholder="@lineid"
+                        data-testid="input-edit-lineid"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="edit_business_type">ประเภทธุรกิจ</Label>
+                      <Label htmlFor="edit_website_url" className="flex items-center gap-2">
+                        <Globe className="h-4 w-4" />
+                        Website
+                      </Label>
                       <Input
-                        id="edit_business_type"
-                        value={editingParticipant.business_type || ""}
-                        onChange={(e) => setEditingParticipant({ ...editingParticipant, business_type: e.target.value })}
-                        placeholder="เทคโนโลยี"
+                        id="edit_website_url"
+                        value={editingParticipant.website_url || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, website_url: e.target.value })}
+                        placeholder="https://example.com"
+                        data-testid="input-edit-website"
                       />
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_facebook_url" className="flex items-center gap-2">
+                        <Facebook className="h-4 w-4" />
+                        Facebook URL
+                      </Label>
+                      <Input
+                        id="edit_facebook_url"
+                        value={editingParticipant.facebook_url || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, facebook_url: e.target.value })}
+                        placeholder="https://facebook.com/username"
+                        data-testid="input-edit-facebook"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_instagram_url" className="flex items-center gap-2">
+                        <Instagram className="h-4 w-4" />
+                        Instagram URL
+                      </Label>
+                      <Input
+                        id="edit_instagram_url"
+                        value={editingParticipant.instagram_url || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, instagram_url: e.target.value })}
+                        placeholder="https://instagram.com/username"
+                        data-testid="input-edit-instagram"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_business_address" className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      ที่อยู่ธุรกิจ
+                    </Label>
+                    <Textarea
+                      id="edit_business_address"
+                      value={editingParticipant.business_address || ""}
+                      onChange={(e) => setEditingParticipant({ ...editingParticipant, business_address: e.target.value })}
+                      placeholder="123 ถนนสุขุมวิท, กรุงเทพฯ 10110"
+                      rows={2}
+                      data-testid="input-edit-address"
+                    />
+                  </div>
+
+                  <Separator />
+
+                  {/* Business Info Section */}
+                  <BusinessTypeSelector
+                    value={editingParticipant.business_type_code}
+                    onChange={(value) => setEditingParticipant({ 
+                      ...editingParticipant, 
+                      business_type_code: value,
+                      business_type: value ? getBusinessTypeLabel(value) : null
+                    })}
+                  />
+
+                  <TagInput
+                    value={editingParticipant.tags || []}
+                    onChange={(tags) => setEditingParticipant({ ...editingParticipant, tags })}
+                    placeholder="พิมพ์แล้วกด Enter เช่น Marketing, Finance"
+                    maxTags={10}
+                  />
+
+                  <Separator />
+
+                  {/* Status Section */}
                   <div className="space-y-2">
                     <Label htmlFor="edit_status">สถานะ</Label>
                     <Select
                       value={editingParticipant.status}
                       onValueChange={(value: any) => setEditingParticipant({ ...editingParticipant, status: value })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger data-testid="select-edit-status">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="prospect">🟡 ผู้สนใจ</SelectItem>
-                        <SelectItem value="visitor">🟢 ผู้เยี่ยมชม</SelectItem>
-                        <SelectItem value="declined">🔴 ไม่สนใจ</SelectItem>
-                        <SelectItem value="member">🔵 สมาชิก</SelectItem>
-                        <SelectItem value="alumni">⚫ อดีตสมาชิก</SelectItem>
+                        <SelectItem value="prospect">ผู้สนใจ</SelectItem>
+                        <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
+                        <SelectItem value="declined">ไม่สนใจ</SelectItem>
+                        <SelectItem value="member">สมาชิก</SelectItem>
+                        <SelectItem value="alumni">อดีตสมาชิก</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -470,17 +744,19 @@ export default function Participants() {
                       onChange={(e) => setEditingParticipant({ ...editingParticipant, goal: e.target.value })}
                       placeholder="ต้องการหาพาร์ทเนอร์ทางธุรกิจ"
                       rows={2}
+                      data-testid="input-edit-goal"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="edit_notes">หมายเหตุ</Label>
+                    <Label htmlFor="edit_notes">หมายเหตุ (Admin เท่านั้น)</Label>
                     <Textarea
                       id="edit_notes"
                       value={editingParticipant.notes || ""}
                       onChange={(e) => setEditingParticipant({ ...editingParticipant, notes: e.target.value })}
                       placeholder="บันทึกเพิ่มเติม..."
                       rows={2}
+                      data-testid="input-edit-notes"
                     />
                   </div>
                 </div>
