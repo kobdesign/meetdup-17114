@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import imageCompression from "browser-image-compression";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
 import TagInput from "@/components/TagInput";
 import { getBusinessTypeLabel } from "@/lib/business-types";
+import ImageCropper from "@/components/ImageCropper";
 
 interface ParticipantProfile {
   participant_id: string;
@@ -49,6 +50,10 @@ export default function ParticipantProfile() {
   const [uploadingOnepage, setUploadingOnepage] = useState(false);
   const [profile, setProfile] = useState<ParticipantProfile | null>(null);
   const [token, setToken] = useState<string>("");
+  
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form fields
   const [fullName, setFullName] = useState("");
@@ -121,21 +126,34 @@ export default function ParticipantProfile() {
     }
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("กรุณาเลือกไฟล์รูปภาพ");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("ไฟล์ต้องมีขนาดไม่เกิน 10MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImage(reader.result as string);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleCroppedImage = async (croppedBlob: Blob) => {
     try {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      if (!file.type.startsWith('image/')) {
-        toast.error("กรุณาเลือกไฟล์รูปภาพ");
-        return;
-      }
-
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("ไฟล์ต้องมีขนาดไม่เกิน 5MB");
-        return;
-      }
-
       setUploading(true);
 
       const options = {
@@ -144,6 +162,7 @@ export default function ParticipantProfile() {
         useWebWorker: true
       };
       
+      const file = new File([croppedBlob], "avatar.jpg", { type: "image/jpeg" });
       const compressedFile = await imageCompression(file, options);
       
       const formData = new FormData();
@@ -168,6 +187,8 @@ export default function ParticipantProfile() {
       toast.error(error.message || "ไม่สามารถอัปโหลดรูปภาพได้");
     } finally {
       setUploading(false);
+      setCropperOpen(false);
+      setSelectedImage(null);
     }
   };
 
@@ -353,14 +374,15 @@ export default function ParticipantProfile() {
                     </Button>
                     <input
                       id="avatar-upload"
+                      ref={fileInputRef}
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={handleAvatarUpload}
+                      onChange={handleAvatarSelect}
                       data-testid="input-avatar"
                     />
                     <p className="text-xs text-muted-foreground text-center">
-                      JPG, PNG (สูงสุด 5MB)
+                      JPG, PNG (สูงสุด 10MB) - สามารถครอปรูปได้
                     </p>
                   </div>
                 </CardContent>
@@ -689,6 +711,20 @@ export default function ParticipantProfile() {
           </div>
         </form>
       </div>
+
+      {selectedImage && (
+        <ImageCropper
+          image={selectedImage}
+          open={cropperOpen}
+          onClose={() => {
+            setCropperOpen(false);
+            setSelectedImage(null);
+          }}
+          onCropComplete={handleCroppedImage}
+          aspectRatio={1}
+          cropShape="round"
+        />
+      )}
     </div>
   );
 }
