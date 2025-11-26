@@ -708,4 +708,126 @@ router.post("/upload-image", verifySupabaseAuth, async (req: AuthenticatedReques
   }
 });
 
+// Rich Menu Alias endpoints
+router.get("/alias/list", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const tenantId = req.query.tenantId as string;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId" });
+    }
+
+    const hasAccess = await checkTenantAccess(req.user!.id, tenantId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const credentials = await getLineCredentials(tenantId);
+    if (!credentials) {
+      return res.status(404).json({ error: "LINE not configured" });
+    }
+
+    const lineClient = new LineClient(credentials.channelAccessToken);
+    const result = await lineClient.getRichMenuAliasList();
+
+    return res.json({ aliases: result.aliases || [] });
+  } catch (error: any) {
+    console.error("Error fetching rich menu aliases:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/alias", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { tenantId, richMenuAliasId, richMenuId } = req.body;
+
+    if (!tenantId || !richMenuAliasId || !richMenuId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Validate alias format (1-32 chars, alphanumeric, dash, underscore)
+    if (!/^[a-zA-Z0-9_-]{1,32}$/.test(richMenuAliasId)) {
+      return res.status(400).json({ 
+        error: "Invalid alias format. Use 1-32 characters: letters, numbers, dash, underscore only" 
+      });
+    }
+
+    const hasAccess = await checkTenantAccess(req.user!.id, tenantId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const credentials = await getLineCredentials(tenantId);
+    if (!credentials) {
+      return res.status(404).json({ error: "LINE not configured" });
+    }
+
+    // Find rich menu in database to get LINE rich menu ID
+    let lineRichMenuId = richMenuId;
+    const { data: richMenu } = await supabaseAdmin
+      .from("rich_menus")
+      .select("line_rich_menu_id, rich_menu_id")
+      .eq("tenant_id", tenantId)
+      .eq("rich_menu_id", richMenuId)
+      .maybeSingle();
+
+    if (richMenu?.line_rich_menu_id) {
+      lineRichMenuId = richMenu.line_rich_menu_id;
+    }
+
+    const lineClient = new LineClient(credentials.channelAccessToken);
+    await lineClient.createRichMenuAlias(richMenuAliasId, lineRichMenuId);
+
+    // Update database with alias
+    if (richMenu) {
+      await supabaseAdmin
+        .from("rich_menus")
+        .update({ alias_id: richMenuAliasId })
+        .eq("rich_menu_id", richMenu.rich_menu_id)
+        .eq("tenant_id", tenantId);
+    }
+
+    return res.json({ success: true, richMenuAliasId });
+  } catch (error: any) {
+    console.error("Error creating rich menu alias:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete("/alias/:aliasId", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const tenantId = req.query.tenantId as string;
+    const { aliasId } = req.params;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId" });
+    }
+
+    const hasAccess = await checkTenantAccess(req.user!.id, tenantId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const credentials = await getLineCredentials(tenantId);
+    if (!credentials) {
+      return res.status(404).json({ error: "LINE not configured" });
+    }
+
+    const lineClient = new LineClient(credentials.channelAccessToken);
+    await lineClient.deleteRichMenuAlias(aliasId);
+
+    // Update database to clear alias
+    await supabaseAdmin
+      .from("rich_menus")
+      .update({ alias_id: null })
+      .eq("alias_id", aliasId)
+      .eq("tenant_id", tenantId);
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error deleting rich menu alias:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
