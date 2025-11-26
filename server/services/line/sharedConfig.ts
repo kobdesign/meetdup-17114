@@ -4,6 +4,8 @@
  * This module manages the shared LINE OA that all chapters use.
  * Instead of per-tenant LINE credentials, we use a single shared OA.
  * Tenant identification happens via user's participant record.
+ * 
+ * Config is stored in platform_config table for easy management via admin UI.
  */
 
 import { supabaseAdmin } from "../../utils/supabaseClient";
@@ -16,15 +18,55 @@ export interface SharedLineConfig {
 }
 
 let cachedConfig: SharedLineConfig | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_TTL = 60000; // 1 minute cache
 
 /**
- * Get shared LINE OA configuration from environment variables
+ * Get shared LINE OA configuration from database
+ * Falls back to environment variables if database config not available
  */
-export function getSharedLineConfig(): SharedLineConfig | null {
-  if (cachedConfig) {
+export async function getSharedLineConfigAsync(): Promise<SharedLineConfig | null> {
+  // Check cache
+  if (cachedConfig && Date.now() - cacheTimestamp < CACHE_TTL) {
     return cachedConfig;
   }
 
+  try {
+    // Try to read from database first
+    const { data: configs, error } = await supabaseAdmin
+      .from("platform_config")
+      .select("key, value")
+      .in("key", ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET", "LINE_CHANNEL_ID", "LIFF_ID"]);
+
+    if (!error && configs && configs.length > 0) {
+      const configMap: Record<string, string> = {};
+      for (const c of configs) {
+        if (c.value) {
+          configMap[c.key] = c.value;
+        }
+      }
+
+      const channelAccessToken = configMap["LINE_CHANNEL_ACCESS_TOKEN"];
+      const channelSecret = configMap["LINE_CHANNEL_SECRET"];
+      const channelId = configMap["LINE_CHANNEL_ID"];
+      const liffId = configMap["LIFF_ID"];
+
+      if (channelAccessToken && channelSecret && channelId) {
+        cachedConfig = {
+          channelAccessToken,
+          channelSecret,
+          channelId,
+          liffId: liffId || "",
+        };
+        cacheTimestamp = Date.now();
+        return cachedConfig;
+      }
+    }
+  } catch (err) {
+    console.warn("⚠️ Could not read LINE config from database, falling back to env vars");
+  }
+
+  // Fallback to environment variables
   const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   const channelSecret = process.env.LINE_CHANNEL_SECRET;
   const channelId = process.env.LINE_CHANNEL_ID;
@@ -41,8 +83,133 @@ export function getSharedLineConfig(): SharedLineConfig | null {
     channelId,
     liffId: liffId || "",
   };
+  cacheTimestamp = Date.now();
 
   return cachedConfig;
+}
+
+/**
+ * @deprecated Use getSharedLineConfigAsync() instead.
+ * This synchronous version is deprecated and will be removed.
+ * All LINE services should use the async database-backed function.
+ */
+export function getSharedLineConfig(): SharedLineConfig | null {
+  console.warn("⚠️ DEPRECATED: getSharedLineConfig() is deprecated. Use getSharedLineConfigAsync() instead.");
+  
+  // Return cached if available (populated by async calls)
+  if (cachedConfig && Date.now() - cacheTimestamp < CACHE_TTL) {
+    return cachedConfig;
+  }
+
+  // Return null to force callers to use async version
+  // This prevents accidentally bypassing the database
+  console.error("❌ getSharedLineConfig() called but no cache available. Use getSharedLineConfigAsync() instead.");
+  return null;
+}
+
+/**
+ * Save LINE config to database
+ */
+export async function saveSharedLineConfig(config: Partial<SharedLineConfig>): Promise<void> {
+  const updates: { key: string; value: string; is_secret: boolean }[] = [];
+
+  if (config.channelAccessToken !== undefined) {
+    updates.push({ key: "LINE_CHANNEL_ACCESS_TOKEN", value: config.channelAccessToken, is_secret: true });
+  }
+  if (config.channelSecret !== undefined) {
+    updates.push({ key: "LINE_CHANNEL_SECRET", value: config.channelSecret, is_secret: true });
+  }
+  if (config.channelId !== undefined) {
+    updates.push({ key: "LINE_CHANNEL_ID", value: config.channelId, is_secret: false });
+  }
+  if (config.liffId !== undefined) {
+    updates.push({ key: "LIFF_ID", value: config.liffId, is_secret: false });
+  }
+
+  for (const update of updates) {
+    const { error } = await supabaseAdmin
+      .from("platform_config")
+      .upsert({
+        key: update.key,
+        value: update.value,
+        is_secret: update.is_secret,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "key" });
+
+    if (error) {
+      throw new Error(`Failed to save config ${update.key}: ${error.message}`);
+    }
+  }
+
+  // Clear cache to force reload
+  clearConfigCache();
+}
+
+/**
+ * Get config status for display (without exposing secrets)
+ */
+export async function getSharedLineConfigStatus(): Promise<{
+  hasAccessToken: boolean;
+  hasChannelSecret: boolean;
+  hasChannelId: boolean;
+  hasLiffId: boolean;
+  channelId: string | null;
+  liffId: string | null;
+  accessTokenPreview: string | null;
+  channelSecretPreview: string | null;
+  source: "database" | "environment";
+}> {
+  // Try database first
+  try {
+    const { data: configs, error } = await supabaseAdmin
+      .from("platform_config")
+      .select("key, value")
+      .in("key", ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET", "LINE_CHANNEL_ID", "LIFF_ID"]);
+
+    if (!error && configs && configs.length > 0) {
+      const configMap: Record<string, string> = {};
+      for (const c of configs) {
+        configMap[c.key] = c.value || "";
+      }
+
+      const accessToken = configMap["LINE_CHANNEL_ACCESS_TOKEN"];
+      const secret = configMap["LINE_CHANNEL_SECRET"];
+      const channelId = configMap["LINE_CHANNEL_ID"];
+      const liffId = configMap["LIFF_ID"];
+
+      return {
+        hasAccessToken: !!accessToken,
+        hasChannelSecret: !!secret,
+        hasChannelId: !!channelId,
+        hasLiffId: !!liffId,
+        channelId: channelId || null,
+        liffId: liffId || null,
+        accessTokenPreview: accessToken ? "••••" + accessToken.slice(-4) : null,
+        channelSecretPreview: secret ? "••••" + secret.slice(-4) : null,
+        source: "database",
+      };
+    }
+  } catch (err) {
+    // Fall through to env vars
+  }
+
+  // Fallback to environment variables
+  const accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  const secret = process.env.LINE_CHANNEL_SECRET;
+  const channelId = process.env.LINE_CHANNEL_ID;
+  const liffId = process.env.LIFF_ID || process.env.VITE_LIFF_ID;
+
+  return {
+    hasAccessToken: !!accessToken,
+    hasChannelSecret: !!secret,
+    hasChannelId: !!channelId,
+    hasLiffId: !!liffId,
+    channelId: channelId || null,
+    liffId: liffId || null,
+    accessTokenPreview: accessToken ? "••••" + accessToken.slice(-4) : null,
+    channelSecretPreview: secret ? "••••" + secret.slice(-4) : null,
+    source: "environment",
+  };
 }
 
 /**
@@ -50,6 +217,7 @@ export function getSharedLineConfig(): SharedLineConfig | null {
  */
 export function clearConfigCache(): void {
   cachedConfig = null;
+  cacheTimestamp = 0;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import { validateLineSignature, LineWebhookPayload } from "../../services/line/webhook";
-import { getSharedLineConfig, findParticipantByLineUserId, getTenantRichMenuId } from "../../services/line/sharedConfig";
+import { getSharedLineConfigAsync, findParticipantByLineUserId, getTenantRichMenuId } from "../../services/line/sharedConfig";
 import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest } from "../../services/line/handlers/businessCardHandler";
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState, setConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
@@ -56,7 +56,7 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     // Get shared LINE config
-    const sharedConfig = getSharedLineConfig();
+    const sharedConfig = await getSharedLineConfigAsync();
     
     if (!sharedConfig) {
       console.error(`${logPrefix} Shared LINE config not available`);

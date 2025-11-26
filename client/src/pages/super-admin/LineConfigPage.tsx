@@ -1,20 +1,31 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle, XCircle, Copy, ExternalLink, MessageSquare, Smartphone, Link as LinkIcon } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Copy, ExternalLink, MessageSquare, Smartphone, Link as LinkIcon, Save, Edit2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function SuperAdminLineConfigPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { isSuperAdmin } = useTenantContext();
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [testMessage, setTestMessage] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    channelAccessToken: "",
+    channelSecret: "",
+    channelId: "",
+    liffId: "",
+  });
   
   const webhookUrl = `${window.location.origin}/api/line/webhook`;
 
@@ -36,6 +47,44 @@ export default function SuperAdminLineConfigPage() {
       return response.json();
     },
     enabled: isSuperAdmin,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch("/api/line/config/shared-config", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session?.access_token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to save configuration");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Saved!",
+        description: "LINE configuration has been updated",
+      });
+      setIsEditing(false);
+      setFormData({ channelAccessToken: "", channelSecret: "", channelId: "", liffId: "" });
+      queryClient.invalidateQueries({ queryKey: ["/api/line/config/shared-config"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save configuration",
+        variant: "destructive",
+      });
+    }
   });
 
   const handleTestConnection = async () => {
@@ -75,6 +124,10 @@ export default function SuperAdminLineConfigPage() {
     });
   };
 
+  const handleSave = () => {
+    saveMutation.mutate(formData);
+  };
+
   if (!isSuperAdmin) {
     return (
       <AdminLayout>
@@ -92,11 +145,26 @@ export default function SuperAdminLineConfigPage() {
   return (
     <AdminLayout>
       <div className="container py-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">LINE Configuration</h1>
-          <p className="text-muted-foreground">
-            Shared LINE Official Account configuration for all chapters
-          </p>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold" data-testid="text-page-title">LINE Configuration</h1>
+            <p className="text-muted-foreground">
+              Shared LINE Official Account configuration for all chapters
+              {config?.source && (
+                <Badge variant="outline" className="ml-2">
+                  Source: {config.source}
+                </Badge>
+              )}
+            </p>
+          </div>
+          <Button
+            variant={isEditing ? "outline" : "default"}
+            onClick={() => setIsEditing(!isEditing)}
+            data-testid="button-toggle-edit"
+          >
+            <Edit2 className="mr-2 h-4 w-4" />
+            {isEditing ? "Cancel" : "Edit Configuration"}
+          </Button>
         </div>
 
         {isLoading ? (
@@ -117,42 +185,92 @@ export default function SuperAdminLineConfigPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Channel Access Token</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant={config?.hasAccessToken ? "default" : "destructive"}>
-                      {config?.hasAccessToken ? "Configured" : "Not Set"}
-                    </Badge>
-                    {config?.hasAccessToken && (
-                      <span className="text-sm text-muted-foreground">
-                        {config.accessTokenPreview}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                {isEditing ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="channelAccessToken">Channel Access Token</Label>
+                      <Input
+                        id="channelAccessToken"
+                        type="password"
+                        placeholder={config?.hasAccessToken ? "Leave empty to keep current" : "Enter access token"}
+                        value={formData.channelAccessToken}
+                        onChange={(e) => setFormData({ ...formData, channelAccessToken: e.target.value })}
+                        data-testid="input-access-token"
+                      />
+                      {config?.hasAccessToken && (
+                        <p className="text-xs text-muted-foreground">Current: {config.accessTokenPreview}</p>
+                      )}
+                    </div>
 
-                <div>
-                  <label className="text-sm font-medium">Channel Secret</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant={config?.hasChannelSecret ? "default" : "destructive"}>
-                      {config?.hasChannelSecret ? "Configured" : "Not Set"}
-                    </Badge>
-                    {config?.hasChannelSecret && (
-                      <span className="text-sm text-muted-foreground">
-                        {config.channelSecretPreview}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="channelSecret">Channel Secret</Label>
+                      <Input
+                        id="channelSecret"
+                        type="password"
+                        placeholder={config?.hasChannelSecret ? "Leave empty to keep current" : "Enter channel secret"}
+                        value={formData.channelSecret}
+                        onChange={(e) => setFormData({ ...formData, channelSecret: e.target.value })}
+                        data-testid="input-channel-secret"
+                      />
+                      {config?.hasChannelSecret && (
+                        <p className="text-xs text-muted-foreground">Current: {config.channelSecretPreview}</p>
+                      )}
+                    </div>
 
-                <div>
-                  <label className="text-sm font-medium">Channel ID</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant={config?.hasChannelId ? "default" : "secondary"}>
-                      {config?.channelId || "Not Set"}
-                    </Badge>
-                  </div>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="channelId">Channel ID</Label>
+                      <Input
+                        id="channelId"
+                        placeholder={config?.hasChannelId ? "Leave empty to keep current" : "Enter channel ID"}
+                        value={formData.channelId}
+                        onChange={(e) => setFormData({ ...formData, channelId: e.target.value })}
+                        data-testid="input-channel-id"
+                      />
+                      {config?.channelId && (
+                        <p className="text-xs text-muted-foreground">Current: {config.channelId}</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium">Channel Access Token</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant={config?.hasAccessToken ? "default" : "destructive"}>
+                          {config?.hasAccessToken ? "Configured" : "Not Set"}
+                        </Badge>
+                        {config?.hasAccessToken && (
+                          <span className="text-sm text-muted-foreground">
+                            {config.accessTokenPreview}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">Channel Secret</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant={config?.hasChannelSecret ? "default" : "destructive"}>
+                          {config?.hasChannelSecret ? "Configured" : "Not Set"}
+                        </Badge>
+                        {config?.hasChannelSecret && (
+                          <span className="text-sm text-muted-foreground">
+                            {config.channelSecretPreview}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">Channel ID</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant={config?.hasChannelId ? "default" : "secondary"}>
+                          {config?.channelId || "Not Set"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="pt-2">
                   <Button 
@@ -190,47 +308,85 @@ export default function SuperAdminLineConfigPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">LIFF ID</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant={config?.hasLiffId ? "default" : "destructive"}>
-                      {config?.hasLiffId ? "Configured" : "Not Set"}
-                    </Badge>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="liffId">LIFF ID</Label>
+                    <Input
+                      id="liffId"
+                      placeholder={config?.hasLiffId ? "Leave empty to keep current" : "Enter LIFF ID"}
+                      value={formData.liffId}
+                      onChange={(e) => setFormData({ ...formData, liffId: e.target.value })}
+                      data-testid="input-liff-id"
+                    />
                     {config?.liffId && (
-                      <span className="text-sm text-muted-foreground font-mono">
-                        {config.liffId}
-                      </span>
+                      <p className="text-xs text-muted-foreground">Current: {config.liffId}</p>
                     )}
                   </div>
-                </div>
-
-                {config?.liffId && (
-                  <div>
-                    <label className="text-sm font-medium">LIFF URL</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <code className="text-sm bg-muted px-2 py-1 rounded">
-                        https://liff.line.me/{config.liffId}
-                      </code>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => copyToClipboard(`https://liff.line.me/${config.liffId}`, "LIFF URL")}
-                        data-testid="button-copy-liff-url"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium">LIFF ID</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant={config?.hasLiffId ? "default" : "destructive"}>
+                          {config?.hasLiffId ? "Configured" : "Not Set"}
+                        </Badge>
+                        {config?.liffId && (
+                          <span className="text-sm text-muted-foreground font-mono">
+                            {config.liffId}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                <Alert>
-                  <AlertDescription className="text-sm">
-                    LIFF credentials are managed via environment variables.
-                    Update <code className="bg-muted px-1 rounded">LIFF_ID</code> and <code className="bg-muted px-1 rounded">VITE_LIFF_ID</code> in Replit Secrets.
-                  </AlertDescription>
-                </Alert>
+                    {config?.liffId && (
+                      <div>
+                        <label className="text-sm font-medium">LIFF URL</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="text-sm bg-muted px-2 py-1 rounded">
+                            https://liff.line.me/{config.liffId}
+                          </code>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(`https://liff.line.me/${config.liffId}`, "LIFF URL")}
+                            data-testid="button-copy-liff-url"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
+
+            {/* Save Button when editing */}
+            {isEditing && (
+              <Card className="md:col-span-2">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <Alert className="flex-1">
+                      <AlertDescription>
+                        Leave fields empty to keep their current values. Only fill in the fields you want to update.
+                      </AlertDescription>
+                    </Alert>
+                    <Button 
+                      onClick={handleSave}
+                      disabled={saveMutation.isPending}
+                      data-testid="button-save-config"
+                    >
+                      {saveMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      Save Configuration
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Webhook URL */}
             <Card className="md:col-span-2">
@@ -287,60 +443,6 @@ export default function SuperAdminLineConfigPage() {
                     </ol>
                   </AlertDescription>
                 </Alert>
-              </CardContent>
-            </Card>
-
-            {/* Environment Variables Info */}
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>Environment Variables</CardTitle>
-                <CardDescription>
-                  Required environment variables for LINE integration
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Messaging API</h4>
-                    <ul className="text-sm space-y-1">
-                      <li className="flex items-center gap-2">
-                        <Badge variant={config?.hasAccessToken ? "default" : "destructive"} className="text-xs">
-                          {config?.hasAccessToken ? "Set" : "Missing"}
-                        </Badge>
-                        <code>LINE_CHANNEL_ACCESS_TOKEN</code>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Badge variant={config?.hasChannelSecret ? "default" : "destructive"} className="text-xs">
-                          {config?.hasChannelSecret ? "Set" : "Missing"}
-                        </Badge>
-                        <code>LINE_CHANNEL_SECRET</code>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Badge variant={config?.hasChannelId ? "default" : "secondary"} className="text-xs">
-                          {config?.hasChannelId ? "Set" : "Optional"}
-                        </Badge>
-                        <code>LINE_CHANNEL_ID</code>
-                      </li>
-                    </ul>
-                  </div>
-                  <div className="space-y-2">
-                    <h4 className="font-medium">LIFF</h4>
-                    <ul className="text-sm space-y-1">
-                      <li className="flex items-center gap-2">
-                        <Badge variant={config?.hasLiffId ? "default" : "destructive"} className="text-xs">
-                          {config?.hasLiffId ? "Set" : "Missing"}
-                        </Badge>
-                        <code>LIFF_ID</code>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Badge variant={config?.hasLiffId ? "default" : "destructive"} className="text-xs">
-                          {config?.hasLiffId ? "Set" : "Missing"}
-                        </Badge>
-                        <code>VITE_LIFF_ID</code>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>

@@ -6,7 +6,7 @@
 
 import { supabaseAdmin } from "../../utils/supabaseClient";
 import { LineClient } from "./lineClient";
-import { getSharedLineConfig } from "./sharedConfig";
+import { getSharedLineConfigAsync } from "./sharedConfig";
 
 /**
  * Link a user to their chapter's default rich menu
@@ -15,7 +15,7 @@ export async function linkUserToChapterRichMenu(
   lineUserId: string,
   tenantId: string
 ): Promise<{ success: boolean; richMenuId?: string; error?: string }> {
-  const config = getSharedLineConfig();
+  const config = await getSharedLineConfigAsync();
   
   if (!config) {
     return { success: false, error: "Shared LINE config not available" };
@@ -53,7 +53,7 @@ export async function linkUserToChapterRichMenu(
 export async function unlinkUserRichMenu(
   lineUserId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const config = getSharedLineConfig();
+  const config = await getSharedLineConfigAsync();
   
   if (!config) {
     return { success: false, error: "Shared LINE config not available" };
@@ -80,7 +80,7 @@ export async function updateChapterUsersRichMenu(
   tenantId: string,
   newRichMenuId: string
 ): Promise<{ success: boolean; updated: number; failed: number }> {
-  const config = getSharedLineConfig();
+  const config = await getSharedLineConfigAsync();
   
   if (!config) {
     return { success: false, updated: 0, failed: 0 };
@@ -131,7 +131,7 @@ export async function updateChapterUsersRichMenu(
 export async function getUserRichMenu(
   lineUserId: string
 ): Promise<string | null> {
-  const config = getSharedLineConfig();
+  const config = await getSharedLineConfigAsync();
   
   if (!config) {
     return null;

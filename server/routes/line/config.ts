@@ -2,7 +2,12 @@ import { Router } from "express";
 import { verifySupabaseAuth, checkTenantAccess, AuthenticatedRequest, checkSuperAdmin } from "../../utils/auth";
 import { getLineCredentials, saveLineCredentials } from "../../services/line/credentials";
 import { LineClient } from "../../services/line/lineClient";
-import { getSharedLineConfig } from "../../services/line/sharedConfig";
+import { 
+  getSharedLineConfigAsync, 
+  getSharedLineConfigStatus, 
+  saveSharedLineConfig,
+  clearConfigCache 
+} from "../../services/line/sharedConfig";
 
 const router = Router();
 
@@ -14,25 +19,48 @@ router.get("/shared-config", verifySupabaseAuth, async (req: AuthenticatedReques
       return res.status(403).json({ error: "Super admin access required" });
     }
 
-    const sharedConfig = getSharedLineConfig();
-    const liffId = process.env.LIFF_ID || process.env.VITE_LIFF_ID;
-
-    return res.json({
-      hasAccessToken: !!sharedConfig?.channelAccessToken,
-      hasChannelSecret: !!sharedConfig?.channelSecret,
-      hasChannelId: !!sharedConfig?.channelId,
-      hasLiffId: !!liffId,
-      channelId: sharedConfig?.channelId || null,
-      liffId: liffId || null,
-      accessTokenPreview: sharedConfig?.channelAccessToken 
-        ? "••••" + sharedConfig.channelAccessToken.slice(-4) 
-        : null,
-      channelSecretPreview: sharedConfig?.channelSecret 
-        ? "••••" + sharedConfig.channelSecret.slice(-4) 
-        : null,
-    });
+    const status = await getSharedLineConfigStatus();
+    return res.json(status);
   } catch (error: any) {
     console.error("Error fetching shared LINE config:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Save shared LINE config (Super Admin only)
+router.post("/shared-config", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const isSuperAdmin = await checkSuperAdmin(req.user!.id);
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: "Super admin access required" });
+    }
+
+    const { channelAccessToken, channelSecret, channelId, liffId } = req.body;
+
+    // Build config object with only non-empty values
+    const configToSave: any = {};
+    if (channelAccessToken && channelAccessToken.trim()) {
+      configToSave.channelAccessToken = channelAccessToken.trim();
+    }
+    if (channelSecret && channelSecret.trim()) {
+      configToSave.channelSecret = channelSecret.trim();
+    }
+    if (channelId && channelId.trim()) {
+      configToSave.channelId = channelId.trim();
+    }
+    if (liffId && liffId.trim()) {
+      configToSave.liffId = liffId.trim();
+    }
+
+    if (Object.keys(configToSave).length === 0) {
+      return res.status(400).json({ error: "No configuration values provided" });
+    }
+
+    await saveSharedLineConfig(configToSave);
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error saving shared LINE config:", error);
     return res.status(500).json({ error: error.message });
   }
 });
@@ -45,7 +73,7 @@ router.post("/shared-config/test", verifySupabaseAuth, async (req: Authenticated
       return res.status(403).json({ error: "Super admin access required" });
     }
 
-    const sharedConfig = getSharedLineConfig();
+    const sharedConfig = await getSharedLineConfigAsync();
     
     if (!sharedConfig?.channelAccessToken) {
       return res.json({ 
@@ -69,6 +97,22 @@ router.post("/shared-config/test", verifySupabaseAuth, async (req: Authenticated
       success: false,
       error: error.message || "Connection failed",
     });
+  }
+});
+
+// Clear config cache (Super Admin only) - useful after updating config
+router.post("/shared-config/clear-cache", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const isSuperAdmin = await checkSuperAdmin(req.user!.id);
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: "Super admin access required" });
+    }
+
+    clearConfigCache();
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error clearing config cache:", error);
+    return res.status(500).json({ error: error.message });
   }
 });
 

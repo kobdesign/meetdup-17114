@@ -8,6 +8,15 @@ None specified yet.
 
 ## Recent Changes
 
+### November 26, 2024 - Database-Backed LINE Configuration
+- **LINE Credentials in Database**: Moved `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ID` from environment variables to `platform_config` table
+- **Reason**: Enable different LINE OA for Development vs Production (different databases = different LINE OA credentials)
+- **Migration Required**: Run SQL from `server/migrations/20251126_create_platform_config.sql` in Supabase SQL Editor
+- **Async Config Retrieval**: All LINE services now use `await getSharedLineConfigAsync()` instead of synchronous env var reads
+- **Super Admin UI**: LINE Config page allows viewing/editing credentials with masked input fields
+- **Fallback**: If database config missing, falls back to environment variables for backward compatibility
+- **LIFF Unchanged**: `LIFF_ID` and `VITE_LIFF_ID` still use environment variables (not moved to database)
+
 ### November 26, 2024 - Shared LINE OA Architecture
 - **Shared LINE Official Account**: All chapters now use a single LINE OA and LIFF app, simplifying setup and reducing management overhead
 - **User-Based Tenant Resolution**: Webhook identifies tenant from user's participant record (via line_user_id) instead of destination-based resolution
@@ -16,7 +25,7 @@ None specified yet.
   - `/liff/cards` - Business Card Search with shareTargetPicker
   - API endpoints: `/api/liff/context`, `/api/liff/cards/search`, `/api/liff/cards/:id/flex`
 - **Phone Linking for Unlinked Users**: Users without chapter links can self-register via phone number
-- **Environment Variables**: `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ID`, `LIFF_ID`
+- **Database Storage**: LINE credentials stored in `platform_config` table (not environment variables)
 - **Business Rule**: 1 User = 1 Chapter only (must resign to switch chapters)
 
 ### November 25, 2024 - Complete Role-Based Authorization Fix
