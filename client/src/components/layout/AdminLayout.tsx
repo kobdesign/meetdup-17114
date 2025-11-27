@@ -28,7 +28,8 @@ import {
   RefreshCw,
   MessageSquare,
   LayoutGrid,
-  Upload
+  Upload,
+  Smartphone
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -116,6 +117,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const superAdminNavItems = [
     { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },
     { icon: <Shield className="h-4 w-4" />, label: "จัดการสิทธิ์", href: "/admin/authorization" },
+    { icon: <Smartphone className="h-4 w-4" />, label: "LIFF Settings", href: "/super-admin/liff-settings" },
   ];
 
   return (

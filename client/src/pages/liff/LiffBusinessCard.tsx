@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { SiFacebook, SiInstagram, SiLine } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
+import { useLiff, generateFlexMessage } from "@/hooks/useLiff";
 
 interface Member {
   participant_id: string;
@@ -57,6 +58,7 @@ export default function LiffBusinessCard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { isLiffReady, isInLiff, shareTargetPicker, closeWindow } = useLiff();
   const [member, setMember] = useState<Member | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,10 +108,8 @@ export default function LiffBusinessCard() {
   const handleBack = () => {
     if (window.history.length > 1) {
       window.history.back();
-    } else {
-      if (typeof window !== "undefined" && (window as any).liff) {
-        (window as any).liff.closeWindow();
-      }
+    } else if (isInLiff) {
+      closeWindow();
     }
   };
 
@@ -118,73 +118,9 @@ export default function LiffBusinessCard() {
     
     setSharing(true);
     try {
-      const liff = (window as any).liff;
-      if (liff && liff.isInClient()) {
-        const shareUrl = `${window.location.origin}/liff/card/${member.participant_id}?tenant=${member.tenant_id}`;
-        
-        await liff.shareTargetPicker([
-          {
-            type: "flex",
-            altText: `นามบัตรของ ${member.full_name}`,
-            contents: {
-              type: "bubble",
-              hero: member.photo_url ? {
-                type: "image",
-                url: member.photo_url,
-                size: "full",
-                aspectRatio: "1:1",
-                aspectMode: "cover"
-              } : undefined,
-              body: {
-                type: "box",
-                layout: "vertical",
-                contents: [
-                  {
-                    type: "text",
-                    text: member.full_name,
-                    weight: "bold",
-                    size: "xl"
-                  },
-                  member.position ? {
-                    type: "text",
-                    text: member.position,
-                    size: "sm",
-                    color: "#666666"
-                  } : null,
-                  member.company ? {
-                    type: "text",
-                    text: member.company,
-                    size: "sm",
-                    color: "#666666",
-                    margin: "sm"
-                  } : null,
-                  {
-                    type: "text",
-                    text: member.tenants?.tenant_name || "",
-                    size: "xs",
-                    color: "#999999",
-                    margin: "md"
-                  }
-                ].filter(Boolean) as any[]
-              },
-              footer: {
-                type: "box",
-                layout: "vertical",
-                contents: [
-                  {
-                    type: "button",
-                    action: {
-                      type: "uri",
-                      label: "ดูนามบัตร",
-                      uri: shareUrl
-                    },
-                    style: "primary"
-                  }
-                ]
-              }
-            }
-          }
-        ]);
+      if (isInLiff && isLiffReady) {
+        const flexMessage = generateFlexMessage(member, category);
+        await shareTargetPicker([flexMessage]);
         
         toast({
           title: "แชร์สำเร็จ",
@@ -205,13 +141,29 @@ export default function LiffBusinessCard() {
           });
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Share error:", err);
-      toast({
-        variant: "destructive",
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถแชร์ได้"
-      });
+      if (err.message === "LIFF is not configured") {
+        if (navigator.share) {
+          await navigator.share({
+            title: `นามบัตรของ ${member.full_name}`,
+            text: `${member.full_name} - ${member.position || ""} @ ${member.company || ""}`,
+            url: window.location.href
+          });
+        } else {
+          await navigator.clipboard.writeText(window.location.href);
+          toast({
+            title: "คัดลอก URL แล้ว",
+            description: "สามารถนำไปแชร์ได้เลย"
+          });
+        }
+      } else {
+        toast({
+          variant: "destructive",
+          title: "เกิดข้อผิดพลาด",
+          description: "ไม่สามารถแชร์ได้"
+        });
+      }
     } finally {
       setSharing(false);
     }

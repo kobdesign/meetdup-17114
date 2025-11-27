@@ -27,6 +27,7 @@ import RichMenuPage from "./pages/admin/RichMenuPage";
 import MembersManagement from "./pages/admin/MembersManagement";
 import ImportMembers from "./pages/admin/ImportMembers";
 import Tenants from "./pages/super-admin/Tenants";
+import LiffSettings from "./pages/admin/LiffSettings";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import VisitorRegister from "./pages/public/VisitorRegister";
@@ -146,6 +147,11 @@ const App = () => (
           <Route path="/super-admin/tenants" element={
             <ProtectedRoute requiredRole="super_admin">
               <Tenants />
+            </ProtectedRoute>
+          } />
+          <Route path="/super-admin/liff-settings" element={
+            <ProtectedRoute requiredRole="super_admin">
+              <LiffSettings />
             </ProtectedRoute>
           } />
           
