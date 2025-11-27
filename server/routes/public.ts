@@ -196,6 +196,49 @@ router.get("/member/:participantId", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Member not found" });
     }
 
+    // Generate signed URLs for private storage images
+    const memberWithSignedUrls = { ...member };
+    
+    if (member.photo_url && member.photo_url.includes('supabase')) {
+      try {
+        const photoPath = member.photo_url.split('/storage/v1/object/public/')[1] || 
+                          member.photo_url.split('/storage/v1/object/sign/')[1]?.split('?')[0];
+        if (photoPath) {
+          const bucketAndPath = photoPath.split('/');
+          const bucket = bucketAndPath[0];
+          const path = bucketAndPath.slice(1).join('/');
+          const { data: signedData } = await supabaseAdmin.storage
+            .from(bucket)
+            .createSignedUrl(path, 60 * 60 * 24); // 24 hours
+          if (signedData?.signedUrl) {
+            memberWithSignedUrls.photo_url = signedData.signedUrl;
+          }
+        }
+      } catch (err) {
+        console.error("[public/member] Error generating signed URL for photo:", err);
+      }
+    }
+
+    if (member.company_logo_url && member.company_logo_url.includes('supabase')) {
+      try {
+        const logoPath = member.company_logo_url.split('/storage/v1/object/public/')[1] || 
+                         member.company_logo_url.split('/storage/v1/object/sign/')[1]?.split('?')[0];
+        if (logoPath) {
+          const bucketAndPath = logoPath.split('/');
+          const bucket = bucketAndPath[0];
+          const path = bucketAndPath.slice(1).join('/');
+          const { data: signedData } = await supabaseAdmin.storage
+            .from(bucket)
+            .createSignedUrl(path, 60 * 60 * 24); // 24 hours
+          if (signedData?.signedUrl) {
+            memberWithSignedUrls.company_logo_url = signedData.signedUrl;
+          }
+        }
+      } catch (err) {
+        console.error("[public/member] Error generating signed URL for company logo:", err);
+      }
+    }
+
     let categoryName = null;
     if (member.business_type_code) {
       const { data: cat } = await supabaseAdmin
@@ -207,7 +250,7 @@ router.get("/member/:participantId", async (req: Request, res: Response) => {
     }
 
     return res.json({ 
-      member,
+      member: memberWithSignedUrls,
       category: categoryName
     });
   } catch (error: any) {

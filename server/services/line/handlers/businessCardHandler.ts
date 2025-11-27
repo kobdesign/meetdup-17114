@@ -303,47 +303,86 @@ export async function handleCardSearch(
       return;
     }
 
-    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : "http://localhost:5000";
+    const baseUrl = getBaseUrl();
 
-    // Get tenant info separately
-    const { data: tenantInfo } = await supabaseAdmin
-      .from("tenants")
-      .select("tenant_name, logo_url")
-      .eq("tenant_id", tenantId)
-      .single();
-
-    // Add tenant info to participants
-    const participantsWithTenant = participants.map(p => ({
-      ...p,
-      tenants: tenantInfo
-    }));
-
-    // If only one result, send single Business Card
-    if (participantsWithTenant.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl);
-      await replyMessage(event.replyToken, flexMessage, accessToken);
-      console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name}`);
+    // If only one result, send LIFF URL directly
+    if (participants.length === 1) {
+      const p = participants[0];
+      const liffUrl = `${baseUrl}/liff/card/${p.participant_id}?tenant=${tenantId}`;
+      
+      await replyMessage(event.replyToken, {
+        type: "flex",
+        altText: `นามบัตร ${p.full_name}`,
+        contents: {
+          type: "bubble",
+          size: "kilo",
+          body: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              {
+                type: "text",
+                text: p.full_name,
+                weight: "bold",
+                size: "lg",
+                color: "#1F2937"
+              },
+              {
+                type: "text",
+                text: [p.position, p.company].filter(Boolean).join(" • ") || "สมาชิก",
+                size: "sm",
+                color: "#6B7280",
+                margin: "sm"
+              }
+            ]
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              {
+                type: "button",
+                action: {
+                  type: "uri",
+                  label: "ดูนามบัตร",
+                  uri: liffUrl
+                },
+                style: "primary",
+                color: "#1E40AF"
+              }
+            ]
+          }
+        }
+      }, accessToken);
+      
+      console.log(`${logPrefix} Sent LIFF URL for ${p.full_name}`);
       return;
     }
 
-    // Multiple results - send Carousel
-    const carouselContents = participantsWithTenant.map(p => {
-      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl);
-      return flexMessage.contents;
-    });
+    // Multiple results - send list with quick reply buttons to open LIFF
+    const quickReplyItems = participants.slice(0, 13).map((p: any) => ({
+      type: "action",
+      action: {
+        type: "uri",
+        label: p.full_name.substring(0, 20),
+        uri: `${baseUrl}/liff/card/${p.participant_id}?tenant=${tenantId}`
+      }
+    }));
+
+    const resultText = `🔍 พบ ${participants.length} คน:\n\n${participants.slice(0, 10).map((p: any, i: number) => {
+      const subtitle = [p.position, p.company].filter(Boolean).join(" • ");
+      return `${i + 1}. ${p.full_name}${subtitle ? `\n   ${subtitle}` : ""}`;
+    }).join("\n\n")}\n\n👆 กดเลือกเพื่อดูนามบัตร`;
 
     await replyMessage(event.replyToken, {
-      type: "flex",
-      altText: `พบ ${participantsWithTenant.length} รายการที่ตรงกับ "${searchTerm}"`,
-      contents: {
-        type: "carousel",
-        contents: carouselContents
+      type: "text",
+      text: resultText,
+      quickReply: {
+        items: quickReplyItems
       }
     }, accessToken);
 
-    console.log(`${logPrefix} Sent carousel with ${participantsWithTenant.length} cards`);
+    console.log(`${logPrefix} Sent ${participants.length} results with LIFF quick replies`);
 
   } catch (error: any) {
     console.error(`${logPrefix} Error searching cards:`, error);
