@@ -252,17 +252,25 @@ function MenuSwitchWizard({
               <SelectValue placeholder="Select Main Menu" />
             </SelectTrigger>
             <SelectContent>
-              {lineStatus.menus.map(menu => (
+              {lineStatus.menus.map((menu, idx) => (
                 <SelectItem key={menu.richMenuId} value={menu.richMenuId}>
-                  <div className="flex items-center gap-2">
-                    <span>{menu.name}</span>
-                    {menu.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">#{idx + 1} {menu.name}</span>
+                      {menu.isDefault && <Badge variant="default" className="text-xs">Default</Badge>}
+                      {menu.switchActions.some(a => a.targetAlias === "sub-menu") && (
+                        <Badge variant="outline" className="text-xs">Has Switch</Badge>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      Chat Bar: "{menu.chatBarText}" | ID: ...{menu.richMenuId.slice(-6)}
+                    </span>
                   </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">This is the menu users see first</p>
+          <p className="text-xs text-muted-foreground">This is the menu users see first (usually the Default one)</p>
         </div>
 
         <div className="space-y-2">
@@ -279,17 +287,25 @@ function MenuSwitchWizard({
               <SelectValue placeholder="Select Sub Menu" />
             </SelectTrigger>
             <SelectContent>
-              {lineStatus.menus.map(menu => (
+              {lineStatus.menus.map((menu, idx) => (
                 <SelectItem key={menu.richMenuId} value={menu.richMenuId}>
-                  <div className="flex items-center gap-2">
-                    <span>{menu.name}</span>
-                    {menu.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">#{idx + 1} {menu.name}</span>
+                      {menu.isDefault && <Badge variant="default" className="text-xs">Default</Badge>}
+                      {menu.switchActions.some(a => a.targetAlias === "main-menu") && (
+                        <Badge variant="outline" className="text-xs">Has Switch</Badge>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      Chat Bar: "{menu.chatBarText}" | ID: ...{menu.richMenuId.slice(-6)}
+                    </span>
                   </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">This is the menu users switch to</p>
+          <p className="text-xs text-muted-foreground">This is the menu users switch to (usually named "Sub Menu")</p>
         </div>
       </div>
 
