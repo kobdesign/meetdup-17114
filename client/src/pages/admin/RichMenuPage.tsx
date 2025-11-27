@@ -82,8 +82,29 @@ function MenuSwitchWizard({
   const [selectedSubMenu, setSelectedSubMenu] = useState<string>("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const mainMenuAlias = lineStatus.aliases.find(a => a.richMenuAliasId === "main-menu");
-  const subMenuAlias = lineStatus.aliases.find(a => a.richMenuAliasId === "sub-menu");
+  // Detect alias names - PRIORITIZE switch actions (the actual wiring) over existing aliases
+  // Switch actions tell us what alias IDs the menus are actually configured to use
+  // Use exact match patterns to avoid false positives (e.g., "domain-menu" matching "main")
+  const MAIN_ALIAS_PATTERNS = ["mainmenu", "main-menu", "main_menu", "richmenu-main"];
+  const SUB_ALIAS_PATTERNS = ["submenu", "sub-menu", "sub_menu", "richmenu-sub"];
+  
+  const allSwitchTargets = lineStatus.menus.flatMap(m => m.switchActions.map(a => a.targetAlias));
+  const allExistingAliasIds = lineStatus.aliases.map(a => a.richMenuAliasId);
+  
+  // FIRST: Check switch actions - these are the actual alias IDs the menus expect
+  const switchMainAlias = allSwitchTargets.find(t => MAIN_ALIAS_PATTERNS.includes(t));
+  const switchSubAlias = allSwitchTargets.find(t => SUB_ALIAS_PATTERNS.includes(t));
+  
+  // SECOND: Fall back to existing aliases only if no switch actions found
+  const existingMainAlias = allExistingAliasIds.find(id => MAIN_ALIAS_PATTERNS.includes(id));
+  const existingSubAlias = allExistingAliasIds.find(id => SUB_ALIAS_PATTERNS.includes(id));
+  
+  // Use switch targets first (actual wiring), then existing aliases, then defaults
+  const mainAliasName = switchMainAlias || existingMainAlias || "mainmenu";
+  const subAliasName = switchSubAlias || existingSubAlias || "submenu";
+
+  const mainMenuAlias = lineStatus.aliases.find(a => a.richMenuAliasId === mainAliasName);
+  const subMenuAlias = lineStatus.aliases.find(a => a.richMenuAliasId === subAliasName);
   
   const mainMenuValid = mainMenuAlias && lineStatus.menus.some(m => m.richMenuId === mainMenuAlias.richMenuId);
   const subMenuValid = subMenuAlias && lineStatus.menus.some(m => m.richMenuId === subMenuAlias.richMenuId);
@@ -94,13 +115,16 @@ function MenuSwitchWizard({
     !lineStatus.menus.some(m => m.richMenuId === a.richMenuId)
   );
 
+  // Auto-detect suggested menus based on switch actions
   const suggestedMainMenu = lineStatus.menus.find(m => m.isDefault) || 
+    lineStatus.menus.find(m => m.switchActions.some(a => a.targetAlias === subAliasName)) ||
     lineStatus.menus.find(m => m.name.toLowerCase().includes("main")) ||
     lineStatus.menus[0];
   
   const suggestedSubMenu = lineStatus.menus.find(m => 
-    m.name.toLowerCase().includes("sub") || 
-    m.switchActions.some(a => a.targetAlias === "main-menu")
+    m.switchActions.some(a => a.targetAlias === mainAliasName)
+  ) || lineStatus.menus.find(m => 
+    m.name.toLowerCase().includes("sub")
   ) || lineStatus.menus.find(m => m.richMenuId !== suggestedMainMenu?.richMenuId);
 
   const handleAutoFix = async () => {
@@ -121,53 +145,79 @@ function MenuSwitchWizard({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
+      // Track which aliases we've successfully deleted to avoid double-deletion
+      const deletedAliases = new Set<string>();
+      
+      // Helper to safely delete an alias and track success
+      const safeDeleteAlias = async (aliasId: string): Promise<boolean> => {
+        if (deletedAliases.has(aliasId)) return true; // Already deleted
+        try {
+          const res = await fetch(`/api/line/rich-menu/alias/${aliasId}?tenantId=${tenantId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${session?.access_token}` }
+          });
+          if (res.ok || res.status === 404) {
+            // 200 = deleted, 404 = already gone - both are success
+            deletedAliases.add(aliasId);
+            return true;
+          }
+          return false;
+        } catch (e) {
+          return false;
+        }
+      };
+      
+      // Delete all broken aliases (pointing to non-existent menus)
       for (const alias of brokenAliases) {
-        await fetch(`/api/line/rich-menu/alias/${alias.richMenuAliasId}?tenantId=${tenantId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${session?.access_token}` }
-        });
-      }
-
-      if (mainMenuAlias && !mainMenuValid) {
-        await fetch(`/api/line/rich-menu/alias/${mainMenuAlias.richMenuAliasId}?tenantId=${tenantId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${session?.access_token}` }
-        });
-      }
-      if (subMenuAlias && !subMenuValid) {
-        await fetch(`/api/line/rich-menu/alias/${subMenuAlias.richMenuAliasId}?tenantId=${tenantId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${session?.access_token}` }
-        });
-      }
-
-      if (!mainMenuValid) {
-        const res = await fetch(`/api/line/rich-menu/alias`, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}` 
-          },
-          body: JSON.stringify({ tenantId, richMenuId: mainId, richMenuAliasId: "main-menu" })
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Failed to create main-menu alias");
+        const deleted = await safeDeleteAlias(alias.richMenuAliasId);
+        if (!deleted) {
+          throw new Error(`Failed to delete broken alias "${alias.richMenuAliasId}". Please try again.`);
         }
       }
 
-      if (!subMenuValid) {
+      // Delete invalid main/sub aliases if they exist and point to wrong menus
+      if (mainMenuAlias && !mainMenuValid) {
+        const deleted = await safeDeleteAlias(mainMenuAlias.richMenuAliasId);
+        if (!deleted) {
+          throw new Error(`Failed to delete alias "${mainMenuAlias.richMenuAliasId}". Please try again.`);
+        }
+      }
+      if (subMenuAlias && !subMenuValid) {
+        const deleted = await safeDeleteAlias(subMenuAlias.richMenuAliasId);
+        if (!deleted) {
+          throw new Error(`Failed to delete alias "${subMenuAlias.richMenuAliasId}". Please try again.`);
+        }
+      }
+
+      // Create aliases using detected alias names
+      // Only create if the alias was deleted or doesn't exist
+      if (!mainMenuValid || deletedAliases.has(mainAliasName)) {
         const res = await fetch(`/api/line/rich-menu/alias`, {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
             Authorization: `Bearer ${session?.access_token}` 
           },
-          body: JSON.stringify({ tenantId, richMenuId: subId, richMenuAliasId: "sub-menu" })
+          body: JSON.stringify({ tenantId, richMenuId: mainId, richMenuAliasId: mainAliasName })
         });
         if (!res.ok) {
           const err = await res.json();
-          throw new Error(err.error || "Failed to create sub-menu alias");
+          throw new Error(err.error || `Failed to create ${mainAliasName} alias`);
+        }
+      }
+
+      if (!subMenuValid || deletedAliases.has(subAliasName)) {
+        const res = await fetch(`/api/line/rich-menu/alias`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}` 
+          },
+          body: JSON.stringify({ tenantId, richMenuId: subId, richMenuAliasId: subAliasName })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || `Failed to create ${subAliasName} alias`);
         }
       }
 
@@ -213,12 +263,12 @@ function MenuSwitchWizard({
           <Card className="p-4">
             <div className="text-sm text-muted-foreground mb-1">Main Menu</div>
             <div className="font-medium">{mainMenu?.name}</div>
-            <Badge variant="secondary" className="mt-2 font-mono text-xs">main-menu</Badge>
+            <Badge variant="secondary" className="mt-2 font-mono text-xs">{mainAliasName}</Badge>
           </Card>
           <Card className="p-4">
             <div className="text-sm text-muted-foreground mb-1">Sub Menu</div>
             <div className="font-medium">{subMenu?.name}</div>
-            <Badge variant="secondary" className="mt-2 font-mono text-xs">sub-menu</Badge>
+            <Badge variant="secondary" className="mt-2 font-mono text-xs">{subAliasName}</Badge>
           </Card>
         </div>
         
@@ -258,7 +308,7 @@ function MenuSwitchWizard({
                     <div className="flex items-center gap-2">
                       <span className="font-medium">#{idx + 1} {menu.name}</span>
                       {menu.isDefault && <Badge variant="default" className="text-xs">Default</Badge>}
-                      {menu.switchActions.some(a => a.targetAlias === "sub-menu") && (
+                      {menu.switchActions.some(a => a.targetAlias === subAliasName) && (
                         <Badge variant="outline" className="text-xs">Has Switch</Badge>
                       )}
                     </div>
@@ -293,7 +343,7 @@ function MenuSwitchWizard({
                     <div className="flex items-center gap-2">
                       <span className="font-medium">#{idx + 1} {menu.name}</span>
                       {menu.isDefault && <Badge variant="default" className="text-xs">Default</Badge>}
-                      {menu.switchActions.some(a => a.targetAlias === "main-menu") && (
+                      {menu.switchActions.some(a => a.targetAlias === mainAliasName) && (
                         <Badge variant="outline" className="text-xs">Has Switch</Badge>
                       )}
                     </div>
