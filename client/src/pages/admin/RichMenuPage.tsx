@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink, Edit, Link, Unlink, Copy, Check, RefreshCw, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink, Edit, Link, Unlink, Copy, Check, RefreshCw, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
@@ -446,13 +446,30 @@ export default function RichMenuPage() {
 
                 {lineStatus.aliases.length > 0 && (
                   <div className="space-y-2">
-                    <h4 className="font-semibold">All Aliases:</h4>
-                    <div className="flex gap-2 flex-wrap">
-                      {lineStatus.aliases.map((alias) => (
-                        <Badge key={alias.richMenuAliasId} variant="outline">
-                          {alias.richMenuAliasId}
-                        </Badge>
-                      ))}
+                    <h4 className="font-semibold">All Aliases (Alias → Rich Menu):</h4>
+                    <div className="space-y-2">
+                      {lineStatus.aliases.map((alias) => {
+                        const targetMenu = lineStatus.menus.find(m => m.richMenuId === alias.richMenuId);
+                        return (
+                          <div key={alias.richMenuAliasId} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                            <Badge variant="secondary" className="font-mono">{alias.richMenuAliasId}</Badge>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            {targetMenu ? (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{targetMenu.name}</span>
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  ({alias.richMenuId.slice(-8)})
+                                </span>
+                                {targetMenu.isDefault && (
+                                  <Badge variant="default" className="text-xs">Default</Badge>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-destructive">Rich Menu not found!</span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
