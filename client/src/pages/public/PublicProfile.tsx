@@ -69,7 +69,6 @@ export default function PublicProfile() {
       
       setProfile(data.profile);
       
-      // Update document title for SEO
       const p = data.profile;
       const title = p.company 
         ? `${p.full_name} - ${p.position || ""} | ${p.company}`.trim()
@@ -169,8 +168,9 @@ export default function PublicProfile() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      {/* Hero Header */}
       <div 
-        className="h-80 sm:h-96 relative overflow-hidden"
+        className="h-[22rem] sm:h-[26rem] relative"
         style={{ 
           background: `linear-gradient(135deg, ${brandingColor} 0%, ${brandingColor}dd 50%, ${brandingColor}aa 100%)`
         }}
@@ -195,7 +195,7 @@ export default function PublicProfile() {
           <Button 
             size="sm" 
             variant="secondary"
-            className="bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30"
+            className="bg-white/20 backdrop-blur-sm border-white/30 text-white"
             onClick={handleShare}
             data-testid="button-share"
           >
@@ -205,73 +205,86 @@ export default function PublicProfile() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 pb-8 -mt-32 relative z-10">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden">
-          <div className="pt-4 pb-6 px-6 text-center relative">
-            <div className="w-44 sm:w-52 mx-auto rounded-xl border-4 border-white dark:border-slate-700 shadow-lg -mt-40 overflow-hidden bg-muted">
-              {profile.photo_url ? (
-                <img 
-                  src={profile.photo_url} 
-                  alt={profile.full_name}
-                  className="w-full h-auto object-contain"
-                  data-testid="img-profile-photo"
-                />
-              ) : (
-                <div 
-                  className="w-full aspect-[3/4] flex items-center justify-center text-3xl sm:text-4xl font-bold text-white"
-                  style={{ backgroundColor: brandingColor }}
-                  data-testid="fallback-initials"
-                >
-                  {getInitials(profile.full_name)}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 space-y-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground" data-testid="text-full-name">
-                {profile.full_name}
-              </h1>
-              {profile.nickname && (
-                <p className="text-lg text-muted-foreground" data-testid="text-nickname">
-                  ({profile.nickname})
-                </p>
-              )}
-            </div>
-
-            {(profile.position || profile.company) && (
-              <div className="mt-3 space-y-2">
-                {profile.position && (
-                  <p className="text-lg font-medium text-foreground" data-testid="text-position">
-                    {profile.position}
-                  </p>
-                )}
-                {profile.company && (
-                  <div className="flex flex-col items-center gap-2">
-                    {profile.company_logo_url && (
-                      <img 
-                        src={profile.company_logo_url} 
-                        alt={profile.company}
-                        className="h-12 w-auto object-contain max-w-[160px]"
-                        data-testid="img-company-logo"
-                      />
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground" data-testid="text-company">{profile.company}</span>
-                    </div>
+      {/* Profile Card */}
+      <div className="max-w-lg mx-auto px-4 pb-8 -mt-56 sm:-mt-64 relative z-10">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl">
+          
+          {/* Profile Photo Section */}
+          <div className="pt-6 pb-4 px-4 sm:px-6 text-center">
+            <div className="flex justify-center">
+              <div className="w-[240px] sm:w-[260px] md:w-[280px] max-h-[24rem] rounded-2xl border-4 border-white dark:border-slate-700 shadow-xl bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                {profile.photo_url ? (
+                  <img 
+                    src={profile.photo_url} 
+                    alt={profile.full_name}
+                    className="w-full h-auto max-h-[23rem] object-contain"
+                    data-testid="img-profile-photo"
+                  />
+                ) : (
+                  <div 
+                    className="w-full aspect-[3/4] flex items-center justify-center text-4xl sm:text-5xl font-bold text-white"
+                    style={{ backgroundColor: brandingColor }}
+                    data-testid="fallback-initials"
+                  >
+                    {getInitials(profile.full_name)}
                   </div>
                 )}
               </div>
-            )}
+            </div>
+          </div>
 
-            {profile.tagline && (
-              <p className="mt-4 text-sm text-muted-foreground italic px-4" data-testid="text-tagline">
-                "{profile.tagline}"
+          {/* Identity Section */}
+          <div className="px-6 pb-4 text-center">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground" data-testid="text-full-name">
+              {profile.full_name}
+            </h1>
+            {profile.nickname && (
+              <p className="text-lg text-muted-foreground mt-1" data-testid="text-nickname">
+                ({profile.nickname})
               </p>
             )}
+          </div>
 
-            {profile.tags && profile.tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {/* Position & Company Section */}
+          {(profile.position || profile.company) && (
+            <div className="px-6 pb-4 text-center space-y-2">
+              {profile.position && (
+                <p className="text-lg font-medium text-foreground" data-testid="text-position">
+                  {profile.position}
+                </p>
+              )}
+              {profile.company && (
+                <div className="flex flex-col items-center gap-2">
+                  {profile.company_logo_url && (
+                    <img 
+                      src={profile.company_logo_url} 
+                      alt={profile.company}
+                      className="h-12 w-auto object-contain max-w-[160px]"
+                      data-testid="img-company-logo"
+                    />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground" data-testid="text-company">{profile.company}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tagline */}
+          {profile.tagline && (
+            <div className="px-6 pb-4 text-center">
+              <p className="text-sm text-muted-foreground italic" data-testid="text-tagline">
+                "{profile.tagline}"
+              </p>
+            </div>
+          )}
+
+          {/* Tags Section */}
+          {profile.tags && profile.tags.length > 0 && (
+            <div className="px-6 pb-4">
+              <div className="flex flex-wrap justify-center gap-2">
                 {profile.tags.map((tag, index) => (
                   <Badge 
                     key={index} 
@@ -283,9 +296,10 @@ export default function PublicProfile() {
                   </Badge>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
+          {/* Contact Section */}
           <div className="border-t border-border/50">
             <div className="p-4 space-y-1">
               {profile.phone && (
@@ -388,6 +402,7 @@ export default function PublicProfile() {
             </div>
           </div>
 
+          {/* Social Media Section */}
           {(profile.facebook_url || profile.instagram_url) && (
             <div className="border-t border-border/50 p-4">
               <p className="text-xs text-muted-foreground text-center mb-3">โซเชียลมีเดีย</p>
@@ -418,6 +433,7 @@ export default function PublicProfile() {
             </div>
           )}
 
+          {/* Action Buttons */}
           <div className="p-4 space-y-3">
             <Button 
               className="w-full h-12 text-base font-medium"
@@ -448,6 +464,7 @@ export default function PublicProfile() {
             )}
           </div>
 
+          {/* Footer */}
           <div className="border-t border-border/50 py-4 px-6">
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
               {profile.tenant.logo_url ? (
