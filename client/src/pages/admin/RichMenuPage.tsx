@@ -508,86 +508,126 @@ export default function RichMenuPage() {
                 <div className="border-t pt-4 space-y-3">
                   <h4 className="font-semibold">Quick Fix: Create Missing Aliases</h4>
                   <p className="text-sm text-muted-foreground">
-                    Click to create the required aliases for menu switching:
+                    Select a Rich Menu to create alias for menu switching:
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {lineStatus.menus.filter(m => m.switchActions.some(a => a.targetAlias === "sub-menu")).map(menu => (
-                      <Button
-                        key={`create-main-for-${menu.richMenuId}`}
-                        size="sm"
-                        variant="outline"
-                        disabled={lineStatus.aliases.some(a => a.richMenuAliasId === "main-menu")}
-                        onClick={async () => {
-                          try {
-                            const { data: { session } } = await supabase.auth.getSession();
-                            const res = await fetch(`/api/line/rich-menu/alias`, {
-                              method: "POST",
-                              headers: { 
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${session?.access_token}` 
-                              },
-                              body: JSON.stringify({
-                                tenantId: effectiveTenantId,
-                                richMenuId: menu.richMenuId,
-                                aliasId: "main-menu"
-                              })
-                            });
-                            if (res.ok) {
-                              toast({ title: "Created alias 'main-menu'" });
-                              fetchLineStatus();
-                            } else {
-                              const err = await res.json();
-                              toast({ title: "Error", description: err.error, variant: "destructive" });
-                            }
-                          } catch (e: any) {
-                            toast({ title: "Error", description: e.message, variant: "destructive" });
-                          }
-                        }}
-                        data-testid="button-create-main-menu-alias"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        main-menu → {menu.name}
-                      </Button>
-                    ))}
-                    {lineStatus.menus.filter(m => m.switchActions.some(a => a.targetAlias === "main-menu")).map(menu => (
-                      <Button
-                        key={`create-sub-for-${menu.richMenuId}`}
-                        size="sm"
-                        variant="outline"
-                        disabled={lineStatus.aliases.some(a => a.richMenuAliasId === "sub-menu")}
-                        onClick={async () => {
-                          try {
-                            const { data: { session } } = await supabase.auth.getSession();
-                            const res = await fetch(`/api/line/rich-menu/alias`, {
-                              method: "POST",
-                              headers: { 
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${session?.access_token}` 
-                              },
-                              body: JSON.stringify({
-                                tenantId: effectiveTenantId,
-                                richMenuId: menu.richMenuId,
-                                aliasId: "sub-menu"
-                              })
-                            });
-                            if (res.ok) {
-                              toast({ title: "Created alias 'sub-menu'" });
-                              fetchLineStatus();
-                            } else {
-                              const err = await res.json();
-                              toast({ title: "Error", description: err.error, variant: "destructive" });
-                            }
-                          } catch (e: any) {
-                            toast({ title: "Error", description: e.message, variant: "destructive" });
-                          }
-                        }}
-                        data-testid="button-create-sub-menu-alias"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        sub-menu → {menu.name}
-                      </Button>
-                    ))}
-                  </div>
+                  
+                  {(() => {
+                    const hasMainMenu = lineStatus.aliases.some(a => a.richMenuAliasId === "main-menu");
+                    const hasSubMenu = lineStatus.aliases.some(a => a.richMenuAliasId === "sub-menu");
+                    const defaultMenu = lineStatus.menus.find(m => m.isDefault);
+                    const subMenuCandidate = lineStatus.menus.find(m => 
+                      m.name.toLowerCase().includes("sub") || 
+                      m.switchActions.some(a => a.targetAlias === "main-menu")
+                    );
+                    
+                    return (
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">
+                            main-menu alias {hasMainMenu ? "(exists)" : "(missing)"}
+                          </Label>
+                          <Select
+                            disabled={hasMainMenu}
+                            onValueChange={async (richMenuId) => {
+                              try {
+                                const { data: { session } } = await supabase.auth.getSession();
+                                const res = await fetch(`/api/line/rich-menu/alias`, {
+                                  method: "POST",
+                                  headers: { 
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${session?.access_token}` 
+                                  },
+                                  body: JSON.stringify({
+                                    tenantId: effectiveTenantId,
+                                    richMenuId,
+                                    aliasId: "main-menu"
+                                  })
+                                });
+                                if (res.ok) {
+                                  toast({ title: "Created alias 'main-menu'" });
+                                  fetchLineStatus();
+                                } else {
+                                  const err = await res.json();
+                                  toast({ title: "Error", description: err.error, variant: "destructive" });
+                                }
+                              } catch (e: any) {
+                                toast({ title: "Error", description: e.message, variant: "destructive" });
+                              }
+                            }}
+                          >
+                            <SelectTrigger data-testid="select-main-menu-alias">
+                              <SelectValue placeholder={hasMainMenu ? "Already exists" : "Select Rich Menu for main-menu"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {lineStatus.menus.map(menu => (
+                                <SelectItem key={menu.richMenuId} value={menu.richMenuId}>
+                                  {menu.name} {menu.isDefault ? "(Default)" : ""} 
+                                  <span className="text-muted-foreground ml-2">...{menu.richMenuId.slice(-8)}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {defaultMenu && !hasMainMenu && (
+                            <p className="text-xs text-muted-foreground">
+                              Recommended: {defaultMenu.name} (Default Menu)
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">
+                            sub-menu alias {hasSubMenu ? "(exists)" : "(missing)"}
+                          </Label>
+                          <Select
+                            disabled={hasSubMenu}
+                            onValueChange={async (richMenuId) => {
+                              try {
+                                const { data: { session } } = await supabase.auth.getSession();
+                                const res = await fetch(`/api/line/rich-menu/alias`, {
+                                  method: "POST",
+                                  headers: { 
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${session?.access_token}` 
+                                  },
+                                  body: JSON.stringify({
+                                    tenantId: effectiveTenantId,
+                                    richMenuId,
+                                    aliasId: "sub-menu"
+                                  })
+                                });
+                                if (res.ok) {
+                                  toast({ title: "Created alias 'sub-menu'" });
+                                  fetchLineStatus();
+                                } else {
+                                  const err = await res.json();
+                                  toast({ title: "Error", description: err.error, variant: "destructive" });
+                                }
+                              } catch (e: any) {
+                                toast({ title: "Error", description: e.message, variant: "destructive" });
+                              }
+                            }}
+                          >
+                            <SelectTrigger data-testid="select-sub-menu-alias">
+                              <SelectValue placeholder={hasSubMenu ? "Already exists" : "Select Rich Menu for sub-menu"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {lineStatus.menus.map(menu => (
+                                <SelectItem key={menu.richMenuId} value={menu.richMenuId}>
+                                  {menu.name} {menu.isDefault ? "(Default)" : ""} 
+                                  <span className="text-muted-foreground ml-2">...{menu.richMenuId.slice(-8)}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {subMenuCandidate && !hasSubMenu && (
+                            <p className="text-xs text-muted-foreground">
+                              Recommended: {subMenuCandidate.name}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
