@@ -41,6 +41,80 @@ router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// Get all Rich Menus directly from LINE (for debugging)
+router.get("/line-status", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const tenantId = req.query.tenantId as string;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId" });
+    }
+
+    const hasAccess = await checkTenantAccess(req.user!.id, tenantId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const credentials = await getLineCredentials(tenantId);
+    if (!credentials) {
+      return res.status(404).json({ error: "LINE not configured" });
+    }
+
+    const lineClient = new LineClient(credentials.channelAccessToken);
+    
+    // Get all Rich Menus from LINE
+    const richMenus = await lineClient.getRichMenuList();
+    
+    // Get all Aliases
+    const aliases = await lineClient.getRichMenuAliasList();
+    
+    // Get default Rich Menu
+    let defaultRichMenuId = null;
+    try {
+      const defaultMenu = await lineClient.getDefaultRichMenu();
+      defaultRichMenuId = defaultMenu.richMenuId;
+    } catch (e) {
+      // No default set
+    }
+
+    // Build a summary with menu names and their aliases
+    const menuSummary = (richMenus.richmenus || []).map((menu: any) => {
+      const menuAliases = (aliases.aliases || [])
+        .filter((a: any) => a.richMenuId === menu.richMenuId)
+        .map((a: any) => a.richMenuAliasId);
+      
+      // Check if any area uses richmenuswitch
+      const switchActions = (menu.areas || [])
+        .filter((area: any) => area.action?.type === 'richmenuswitch')
+        .map((area: any) => ({
+          targetAlias: area.action.richMenuAliasId,
+          data: area.action.data
+        }));
+
+      return {
+        richMenuId: menu.richMenuId,
+        name: menu.name,
+        chatBarText: menu.chatBarText,
+        isDefault: menu.richMenuId === defaultRichMenuId,
+        aliases: menuAliases,
+        switchActions: switchActions
+      };
+    });
+
+    return res.json({
+      success: true,
+      defaultRichMenuId,
+      totalMenus: (richMenus.richmenus || []).length,
+      totalAliases: (aliases.aliases || []).length,
+      menus: menuSummary,
+      aliases: aliases.aliases || []
+    });
+  } catch (error: any) {
+    console.error("Error fetching LINE status:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.post("/", verifySupabaseAuth, upload.single("image"), async (req: AuthenticatedRequest, res) => {
   try {
     const { tenantId, name, chatBarText, imageHeight, areas, selected, setAsDefault } = req.body;

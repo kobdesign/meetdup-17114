@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink, Edit, Link, Unlink, Copy, Check } from "lucide-react";
+import { Plus, Trash2, Star, StarOff, Image as ImageIcon, ExternalLink, Edit, Link, Unlink, Copy, Check, RefreshCw, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 
@@ -49,6 +49,22 @@ interface RichMenu {
   alias_id: string | null;
 }
 
+interface LineStatusData {
+  success: boolean;
+  defaultRichMenuId: string | null;
+  totalMenus: number;
+  totalAliases: number;
+  menus: Array<{
+    richMenuId: string;
+    name: string;
+    chatBarText: string;
+    isDefault: boolean;
+    aliases: string[];
+    switchActions: Array<{ targetAlias: string; data: string }>;
+  }>;
+  aliases: Array<{ richMenuAliasId: string; richMenuId: string }>;
+}
+
 export default function RichMenuPage() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const { toast } = useToast();
@@ -57,6 +73,9 @@ export default function RichMenuPage() {
   const [aliasDialogMenu, setAliasDialogMenu] = useState<RichMenu | null>(null);
   const [aliasInput, setAliasInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [lineStatus, setLineStatus] = useState<LineStatusData | null>(null);
+  const [isLoadingLineStatus, setIsLoadingLineStatus] = useState(false);
+  const [showLineStatus, setShowLineStatus] = useState(false);
 
   // Fetch rich menus
   const { data: richMenusData, isLoading } = useQuery<{ richMenus: RichMenu[] }>({
@@ -256,6 +275,40 @@ export default function RichMenuPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const fetchLineStatus = async () => {
+    setIsLoadingLineStatus(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await fetch(
+        `/api/line/rich-menu/line-status?tenantId=${effectiveTenantId}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch LINE status");
+      }
+
+      const data = await response.json();
+      setLineStatus(data);
+      setShowLineStatus(true);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingLineStatus(false);
+    }
+  };
+
   const richMenus = richMenusData?.richMenus || [];
 
   if (!effectiveTenantId && isSuperAdmin) {
@@ -276,13 +329,27 @@ export default function RichMenuPage() {
               Create and manage LINE Rich Menus for your chapter
             </p>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-create-rich-menu">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Rich Menu
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              variant="outline" 
+              onClick={fetchLineStatus}
+              disabled={isLoadingLineStatus}
+              data-testid="button-check-line-status"
+            >
+              {isLoadingLineStatus ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Check LINE Status
+            </Button>
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-create-rich-menu">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Rich Menu
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <CreateRichMenuForm
                 tenantId={effectiveTenantId || ""}
@@ -292,8 +359,110 @@ export default function RichMenuPage() {
                 }}
               />
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
+
+        {/* LINE Status Dialog */}
+        <Dialog open={showLineStatus} onOpenChange={setShowLineStatus}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>LINE Rich Menu Status</DialogTitle>
+              <DialogDescription>
+                Current status of Rich Menus and Aliases in LINE
+              </DialogDescription>
+            </DialogHeader>
+            {lineStatus && (
+              <div className="space-y-4">
+                <div className="flex gap-4 flex-wrap">
+                  <Badge variant="outline">
+                    Total Menus: {lineStatus.totalMenus}
+                  </Badge>
+                  <Badge variant="outline">
+                    Total Aliases: {lineStatus.totalAliases}
+                  </Badge>
+                </div>
+
+                {lineStatus.menus.length > 0 ? (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Rich Menus in LINE:</h4>
+                    {lineStatus.menus.map((menu) => (
+                      <Card key={menu.richMenuId} className="p-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">{menu.name}</span>
+                            {menu.isDefault && (
+                              <Badge variant="default">Default</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Chat Bar: {menu.chatBarText}
+                          </p>
+                          <div className="text-xs text-muted-foreground font-mono">
+                            ID: {menu.richMenuId}
+                          </div>
+                          
+                          {menu.aliases.length > 0 ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm">Aliases:</span>
+                              {menu.aliases.map((alias) => (
+                                <Badge key={alias} variant="secondary">{alias}</Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              No alias set
+                            </div>
+                          )}
+
+                          {menu.switchActions.length > 0 && (
+                            <div className="space-y-1">
+                              <span className="text-sm font-medium">Switch Actions:</span>
+                              {menu.switchActions.map((action, idx) => {
+                                const aliasExists = lineStatus.aliases.some(
+                                  a => a.richMenuAliasId === action.targetAlias
+                                );
+                                return (
+                                  <div key={idx} className="flex items-center gap-2 text-sm">
+                                    <span>Target: {action.targetAlias}</span>
+                                    {aliasExists ? (
+                                      <Badge variant="outline" className="text-green-600">Valid</Badge>
+                                    ) : (
+                                      <Badge variant="destructive">Missing Alias!</Badge>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">No Rich Menus found in LINE</p>
+                )}
+
+                {lineStatus.aliases.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold">All Aliases:</h4>
+                    <div className="flex gap-2 flex-wrap">
+                      {lineStatus.aliases.map((alias) => (
+                        <Badge key={alias.richMenuAliasId} variant="outline">
+                          {alias.richMenuAliasId}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button onClick={() => setShowLineStatus(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Dialog */}
         <Dialog open={!!editingMenu} onOpenChange={(open) => !open && setEditingMenu(null)}>
