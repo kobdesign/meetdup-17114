@@ -224,8 +224,12 @@ export default function LiffBusinessCard() {
         <Card className="overflow-hidden">
           <CardContent className="p-6">
             <div className="flex flex-col items-center text-center mb-6">
-              <Avatar className="h-24 w-24 mb-4 border-4 border-background shadow-lg">
-                <AvatarImage src={member.photo_url || undefined} alt={member.full_name} />
+              <Avatar className="h-24 w-24 mb-4 border-4 border-background shadow-lg bg-muted">
+                <AvatarImage 
+                  src={member.photo_url || undefined} 
+                  alt={member.full_name}
+                  className="object-contain"
+                />
                 <AvatarFallback className="text-2xl">
                   {getInitials(member.full_name)}
                 </AvatarFallback>

@@ -435,10 +435,10 @@ export default function ParticipantProfile() {
                   <CardDescription>อัปโหลดรูปประจำตัว</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center space-y-4">
-                  <Avatar className="h-32 w-32">
+                  <Avatar className="h-32 w-32 bg-muted">
                     <AvatarImage 
                       src={avatarPreview || undefined} 
-                      className="object-cover"
+                      className="object-contain"
                     />
                     <AvatarFallback className="text-2xl bg-primary/10 text-primary">
                       {getInitials(fullName)}
