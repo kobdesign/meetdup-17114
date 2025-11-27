@@ -1746,19 +1746,33 @@ router.delete("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRe
 
     // If participant has a linked user account, clean up user-related records
     if (participant.user_id) {
-      // 2. First check if user has roles in OTHER tenants (business rule: 1 user = 1 chapter)
+      // 2. First check if user has roles in OTHER tenants OR is a super_admin
+      // IMPORTANT: Use separate queries because .neq() doesn't work with NULL values
+      
+      // Check for super_admin role (tenant_id = null)
+      const { data: superAdminRoles } = await supabaseAdmin
+        .from("user_roles")
+        .select("id, tenant_id, role")
+        .eq("user_id", participant.user_id)
+        .eq("role", "super_admin")
+        .is("tenant_id", null);
+
+      // Check for roles in other tenants (not this one, not null)
       const { data: otherTenantRoles } = await supabaseAdmin
         .from("user_roles")
-        .select("role_id, tenant_id, role")
+        .select("id, tenant_id, role")
         .eq("user_id", participant.user_id)
+        .not("tenant_id", "is", null)
         .neq("tenant_id", participant.tenant_id);
 
-      if (otherTenantRoles && otherTenantRoles.length > 0) {
-        // User has roles in other tenants - this shouldn't happen with 1 user = 1 chapter rule
-        // But if it does, we only delete this tenant's role and keep the user
-        console.log(`${logPrefix} User has roles in other tenants - keeping auth user`);
+      const hasSuperAdmin = superAdminRoles && superAdminRoles.length > 0;
+      const hasOtherTenants = otherTenantRoles && otherTenantRoles.length > 0;
+
+      if (hasSuperAdmin || hasOtherTenants) {
+        // User has super_admin role or roles in other tenants - KEEP the user and auth account
+        console.log(`${logPrefix} User has super_admin=${hasSuperAdmin} or other tenants=${hasOtherTenants} - keeping auth user`);
         
-        // Delete only this tenant's role
+        // Delete only this tenant's role (not super_admin)
         const { error: roleDeleteError } = await supabaseAdmin
           .from("user_roles")
           .delete()
@@ -1773,10 +1787,10 @@ router.delete("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRe
             message: roleDeleteError.message
           });
         }
-        console.log(`${logPrefix} Deleted user_roles for this tenant only`);
+        console.log(`${logPrefix} Deleted user_roles for this tenant only - preserved super_admin and other roles`);
       } else {
-        // User only has roles in this tenant - safe to delete everything
-        console.log(`${logPrefix} User has no roles in other tenants - deleting all user data`);
+        // User only has roles in this tenant and is not super_admin - safe to delete everything
+        console.log(`${logPrefix} User has no super_admin or other tenant roles - deleting all user data`);
         
         // Delete all roles for this user (should be just this tenant)
         const { error: roleDeleteError } = await supabaseAdmin
