@@ -8,6 +8,24 @@ None specified yet.
 
 ## Recent Changes
 
+### November 27, 2024 - LIFF Business Card Search by Category
+- **New Feature**: Complete LIFF-based member search system accessible from LINE
+- **LIFF Pages**:
+  - `/liff/search` - Search home with 3 options: By Category, By Position, By Power Team (with tenant branding)
+  - `/liff/search/category` - Grid of business categories with member counts (only shows categories with members)
+  - `/liff/search/category/:code` - Members list within selected category
+  - `/liff/card/:participantId` - Full business card display with share functionality
+- **Public API Endpoints** (server/routes/public.ts):
+  - `GET /api/public/categories?tenantId=` - Returns categories with member counts
+  - `GET /api/public/members/by-category/:code?tenantId=` - Returns members in category
+  - `GET /api/public/member/:participantId?tenantId=` - Returns member details (tenant-isolated)
+  - `GET /api/public/tenant/:tenantId` - Returns tenant info for branding
+- **LINE Webhook Handler**: Added `handleCategorySearch()` function triggered by "ค้นหาตามประเภทธุรกิจ" command
+- **Share Functionality**: `generateBusinessCardFlexMessage()` creates shareable Flex Message with member details
+- **Security**: All endpoints require and validate tenantId (UUID format), preventing cross-tenant data exposure
+- **Error Handling**: LIFF pages gracefully handle HTTP errors and display user-friendly error states
+- **Migration**: `server/migrations/20251127_create_business_categories.sql` - Standard BNI categories (01-20+)
+
 ### November 26, 2024 - Company Logo Upload Feature
 - **New Field**: Added `company_logo_url` column to `participants` table via migration
 - **API Endpoints**:
