@@ -245,21 +245,27 @@ export default function LiffBusinessCard() {
             </div>
 
             {member.company && (
-              <div className="flex items-center gap-3 mb-4 p-3 bg-muted rounded-lg">
-                {member.company_logo_url ? (
-                  <img 
-                    src={member.company_logo_url} 
-                    alt={member.company}
-                    className="h-10 w-10 object-contain"
-                  />
-                ) : (
-                  <Building2 className="h-6 w-6 text-muted-foreground" />
-                )}
-                <div>
-                  <p className="font-semibold">{member.company}</p>
-                  {category && (
-                    <p className="text-xs text-muted-foreground">{category.name_th}</p>
+              <div className="mb-4 p-4 bg-muted rounded-lg">
+                <div className="flex items-center gap-4">
+                  {member.company_logo_url ? (
+                    <div className="flex-shrink-0 h-16 w-16 bg-background rounded-lg p-2 border flex items-center justify-center">
+                      <img 
+                        src={member.company_logo_url} 
+                        alt={member.company}
+                        className="max-h-12 max-w-12 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex-shrink-0 h-16 w-16 bg-background rounded-lg border flex items-center justify-center">
+                      <Building2 className="h-8 w-8 text-muted-foreground" />
+                    </div>
                   )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-lg truncate">{member.company}</p>
+                    {category && (
+                      <p className="text-sm text-muted-foreground">{category.name_th}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
