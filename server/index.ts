@@ -4,6 +4,7 @@ import lineRouter from "./routes/line/index";
 import chaptersRouter from "./routes/chapters";
 import participantsRouter from "./routes/participants";
 import usersRouter from "./routes/users";
+import publicRouter from "./routes/public";
 import { performHealthCheck, printHealthCheckReport } from "./utils/dbHealthCheck";
 import { setupRichMenuStorage } from "./utils/setupStorage";
 
@@ -241,6 +242,9 @@ app.use("/api/participants", participantsRouter);
 
 // User management routes (Super Admin only)
 app.use("/api/users", usersRouter);
+
+// Public API routes (no auth required - for LIFF and public pages)
+app.use("/api/public", publicRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();

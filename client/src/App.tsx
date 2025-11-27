@@ -37,6 +37,10 @@ import ParticipantProfile from "./pages/ParticipantProfile";
 import Activate from "./pages/Activate";
 import LineActivate from "./pages/LineActivate";
 import NotFound from "./pages/NotFound";
+import LiffSearchHome from "./pages/liff/LiffSearchHome";
+import LiffCategories from "./pages/liff/LiffCategories";
+import LiffMembersList from "./pages/liff/LiffMembersList";
+import LiffBusinessCard from "./pages/liff/LiffBusinessCard";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -144,6 +148,12 @@ const App = () => (
               <Tenants />
             </ProtectedRoute>
           } />
+          
+          {/* LIFF Routes (Public - for LINE in-app browser) */}
+          <Route path="/liff/search" element={<LiffSearchHome />} />
+          <Route path="/liff/search/category" element={<LiffCategories />} />
+          <Route path="/liff/search/category/:code" element={<LiffMembersList />} />
+          <Route path="/liff/card/:participantId" element={<LiffBusinessCard />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

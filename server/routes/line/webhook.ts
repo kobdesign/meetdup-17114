@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
-import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest } from "../../services/line/handlers/businessCardHandler";
+import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch } from "../../services/line/handlers/businessCardHandler";
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 
@@ -185,6 +185,13 @@ async function processEvent(
       const searchTerm = match[2].trim();
       console.log(`${logPrefix} Command: MEMBER_SEARCH, term: "${searchTerm}"`);
       await handleMemberSearch(event, tenantId, accessToken, searchTerm);
+      return;
+    }
+    
+    // Priority 5: Search by business category - open LIFF
+    if (textLower === "ค้นหาตามประเภทธุรกิจ" || textLower === "ประเภทธุรกิจ" || textLower === "search category") {
+      console.log(`${logPrefix} Command: CATEGORY_SEARCH - opening LIFF`);
+      await handleCategorySearch(event, tenantId, accessToken, logPrefix);
       return;
     }
 

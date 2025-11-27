@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      business_categories: {
+        Row: {
+          category_code: string
+          name_th: string
+          name_en: string | null
+          description_th: string | null
+          description_en: string | null
+          sort_order: number
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          category_code: string
+          name_th: string
+          name_en?: string | null
+          description_th?: string | null
+          description_en?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          category_code?: string
+          name_th?: string
+          name_en?: string | null
+          description_th?: string | null
+          description_en?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       checkins: {
         Row: {
           checkin_id: string

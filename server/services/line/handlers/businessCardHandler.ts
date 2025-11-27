@@ -465,6 +465,98 @@ export async function handleEditProfileRequest(
 }
 
 /**
+ * Get base URL for LIFF pages
+ * Supports production deployment, dev domain, and fallback
+ */
+function getBaseUrl(): string {
+  if (process.env.REPLIT_DEPLOYMENT_DOMAIN) {
+    return `https://${process.env.REPLIT_DEPLOYMENT_DOMAIN}`;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  const replitUrl = process.env.REPL_SLUG && process.env.REPL_OWNER 
+    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+    : null;
+  if (replitUrl) {
+    return replitUrl;
+  }
+  return "https://meetdup.replit.app";
+}
+
+/**
+ * Handle category search command - send LIFF URL
+ */
+export async function handleCategorySearch(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  try {
+    const baseUrl = getBaseUrl();
+    const liffUrl = `${baseUrl}/liff/search?tenant=${tenantId}`;
+    
+    console.log(`${logPrefix} Sending LIFF URL for category search: ${liffUrl}`);
+    
+    const flexMessage = {
+      type: "flex",
+      altText: "ค้นหาสมาชิกตามประเภทธุรกิจ",
+      contents: {
+        type: "bubble",
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "ค้นหาสมาชิก",
+              weight: "bold",
+              size: "xl",
+              color: "#1DB446"
+            },
+            {
+              type: "text",
+              text: "เลือกค้นหาสมาชิกตามประเภทธุรกิจ ตำแหน่ง หรือ Power Team",
+              size: "sm",
+              color: "#666666",
+              margin: "md",
+              wrap: true
+            }
+          ]
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "button",
+              action: {
+                type: "uri",
+                label: "ค้นหาสมาชิก",
+                uri: liffUrl
+              },
+              style: "primary",
+              color: "#1DB446"
+            }
+          ]
+        }
+      }
+    };
+    
+    await replyMessage(event.replyToken, flexMessage, accessToken);
+    console.log(`${logPrefix} Category search LIFF URL sent successfully`);
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error handling category search:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    }, accessToken);
+  }
+}
+
+/**
  * Send LINE reply message
  */
 async function replyMessage(
