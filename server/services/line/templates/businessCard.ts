@@ -14,6 +14,7 @@ export interface BusinessCardData {
   company?: string | null;
   tagline?: string | null;
   photo_url?: string | null;
+  company_logo_url?: string | null;
   email?: string | null;
   phone?: string | null;
   website_url?: string | null;
@@ -143,15 +144,55 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     }
     
     if (data.company) {
-      nameSection.push({
-        type: "text",
-        text: companyText,
-        size: "sm",
-        color: COLORS.primary,
-        weight: "bold",
-        margin: "xs",
-        wrap: true
-      });
+      if (data.company_logo_url) {
+        nameSection.push({
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "image",
+                  url: data.company_logo_url,
+                  size: "full",
+                  aspectRatio: "1:1",
+                  aspectMode: "cover"
+                }
+              ],
+              width: "24px",
+              height: "24px",
+              cornerRadius: "4px",
+              borderWidth: "1px",
+              borderColor: COLORS.separator
+            },
+            {
+              type: "text",
+              text: companyText,
+              size: "sm",
+              color: COLORS.primary,
+              weight: "bold",
+              margin: "sm",
+              wrap: true,
+              flex: 1,
+              gravity: "center"
+            }
+          ],
+          alignItems: "center",
+          margin: "xs"
+        });
+      } else {
+        nameSection.push({
+          type: "text",
+          text: companyText,
+          size: "sm",
+          color: COLORS.primary,
+          weight: "bold",
+          margin: "xs",
+          wrap: true
+        });
+      }
     }
   }
 

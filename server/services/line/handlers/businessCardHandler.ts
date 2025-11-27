@@ -62,6 +62,7 @@ export async function handleViewCard(
         company,
         tagline,
         photo_url,
+        company_logo_url,
         email,
         phone,
         website_url,
@@ -229,6 +230,7 @@ export async function handleCardSearch(
       company,
       tagline,
       photo_url,
+      company_logo_url,
       email,
       phone,
       website_url,
@@ -305,84 +307,50 @@ export async function handleCardSearch(
 
     const baseUrl = getBaseUrl();
 
-    // If only one result, send LIFF URL directly
-    if (participants.length === 1) {
-      const p = participants[0];
-      const liffUrl = `${baseUrl}/liff/card/${p.participant_id}?tenant=${tenantId}`;
-      
-      await replyMessage(event.replyToken, {
-        type: "flex",
-        altText: `นามบัตร ${p.full_name}`,
-        contents: {
-          type: "bubble",
-          size: "kilo",
-          body: {
-            type: "box",
-            layout: "vertical",
-            contents: [
-              {
-                type: "text",
-                text: p.full_name,
-                weight: "bold",
-                size: "lg",
-                color: "#1F2937"
-              },
-              {
-                type: "text",
-                text: [p.position, p.company].filter(Boolean).join(" • ") || "สมาชิก",
-                size: "sm",
-                color: "#6B7280",
-                margin: "sm"
-              }
-            ]
-          },
-          footer: {
-            type: "box",
-            layout: "vertical",
-            contents: [
-              {
-                type: "button",
-                action: {
-                  type: "uri",
-                  label: "ดูนามบัตร",
-                  uri: liffUrl
-                },
-                style: "primary",
-                color: "#1E40AF"
-              }
-            ]
-          }
-        }
-      }, accessToken);
-      
-      console.log(`${logPrefix} Sent LIFF URL for ${p.full_name}`);
+    // Get tenant info for branding
+    const { data: tenantInfo } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, logo_url")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    // Add tenant info to participants
+    const participantsWithTenant = participants.map(p => ({
+      ...p,
+      tenants: tenantInfo
+    }));
+
+    // If only one result, send single Business Card Flex Message
+    if (participantsWithTenant.length === 1) {
+      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl);
+      await replyMessage(event.replyToken, flexMessage, accessToken);
+      console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name}`);
       return;
     }
 
-    // Multiple results - send list with quick reply buttons to open LIFF
-    const quickReplyItems = participants.slice(0, 13).map((p: any) => ({
-      type: "action",
-      action: {
-        type: "uri",
-        label: p.full_name.substring(0, 20),
-        uri: `${baseUrl}/liff/card/${p.participant_id}?tenant=${tenantId}`
-      }
-    }));
+    // Multiple results - send Carousel of Flex Messages (LINE limits to 12 bubbles max)
+    const maxBubbles = 12;
+    const limitedParticipants = participantsWithTenant.slice(0, maxBubbles);
+    const carouselContents = limitedParticipants.map(p => {
+      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl);
+      return flexMessage.contents;
+    });
 
-    const resultText = `🔍 พบ ${participants.length} คน:\n\n${participants.slice(0, 10).map((p: any, i: number) => {
-      const subtitle = [p.position, p.company].filter(Boolean).join(" • ");
-      return `${i + 1}. ${p.full_name}${subtitle ? `\n   ${subtitle}` : ""}`;
-    }).join("\n\n")}\n\n👆 กดเลือกเพื่อดูนามบัตร`;
+    const totalCount = participantsWithTenant.length;
+    const altText = totalCount > maxBubbles 
+      ? `พบ ${totalCount} รายการ (แสดง ${maxBubbles} รายการแรก)`
+      : `พบ ${totalCount} รายการที่ตรงกับ "${searchTerm}"`;
 
     await replyMessage(event.replyToken, {
-      type: "text",
-      text: resultText,
-      quickReply: {
-        items: quickReplyItems
+      type: "flex",
+      altText,
+      contents: {
+        type: "carousel",
+        contents: carouselContents
       }
     }, accessToken);
 
-    console.log(`${logPrefix} Sent ${participants.length} results with LIFF quick replies`);
+    console.log(`${logPrefix} Sent carousel with ${limitedParticipants.length}/${totalCount} cards`);
 
   } catch (error: any) {
     console.error(`${logPrefix} Error searching cards:`, error);
