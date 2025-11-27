@@ -450,22 +450,53 @@ export default function RichMenuPage() {
                     <div className="space-y-2">
                       {lineStatus.aliases.map((alias) => {
                         const targetMenu = lineStatus.menus.find(m => m.richMenuId === alias.richMenuId);
+                        const isBroken = !targetMenu;
                         return (
-                          <div key={alias.richMenuAliasId} className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                            <Badge variant="secondary" className="font-mono">{alias.richMenuAliasId}</Badge>
-                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                            {targetMenu ? (
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{targetMenu.name}</span>
-                                <span className="text-xs text-muted-foreground font-mono">
-                                  ({alias.richMenuId.slice(-8)})
-                                </span>
-                                {targetMenu.isDefault && (
-                                  <Badge variant="default" className="text-xs">Default</Badge>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-destructive">Rich Menu not found!</span>
+                          <div key={alias.richMenuAliasId} className="flex items-center justify-between gap-2 p-2 bg-muted rounded-md">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="font-mono">{alias.richMenuAliasId}</Badge>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                              {targetMenu ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{targetMenu.name}</span>
+                                  <span className="text-xs text-muted-foreground font-mono">
+                                    ({alias.richMenuId.slice(-8)})
+                                  </span>
+                                  {targetMenu.isDefault && (
+                                    <Badge variant="default" className="text-xs">Default</Badge>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-destructive">Rich Menu not found!</span>
+                              )}
+                            </div>
+                            {isBroken && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={async () => {
+                                  if (!confirm(`Delete orphaned alias "${alias.richMenuAliasId}"?`)) return;
+                                  try {
+                                    const { data: { session } } = await supabase.auth.getSession();
+                                    const res = await fetch(`/api/line/rich-menu/alias/${alias.richMenuAliasId}?tenantId=${effectiveTenantId}`, {
+                                      method: "DELETE",
+                                      headers: { Authorization: `Bearer ${session?.access_token}` }
+                                    });
+                                    if (res.ok) {
+                                      toast({ title: "Alias deleted" });
+                                      fetchLineStatus();
+                                    } else {
+                                      const err = await res.json();
+                                      toast({ title: "Error", description: err.error, variant: "destructive" });
+                                    }
+                                  } catch (e: any) {
+                                    toast({ title: "Error", description: e.message, variant: "destructive" });
+                                  }
+                                }}
+                                data-testid={`button-delete-alias-${alias.richMenuAliasId}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             )}
                           </div>
                         );
@@ -473,6 +504,91 @@ export default function RichMenuPage() {
                     </div>
                   </div>
                 )}
+
+                <div className="border-t pt-4 space-y-3">
+                  <h4 className="font-semibold">Quick Fix: Create Missing Aliases</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Click to create the required aliases for menu switching:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {lineStatus.menus.filter(m => m.switchActions.some(a => a.targetAlias === "sub-menu")).map(menu => (
+                      <Button
+                        key={`create-main-for-${menu.richMenuId}`}
+                        size="sm"
+                        variant="outline"
+                        disabled={lineStatus.aliases.some(a => a.richMenuAliasId === "main-menu")}
+                        onClick={async () => {
+                          try {
+                            const { data: { session } } = await supabase.auth.getSession();
+                            const res = await fetch(`/api/line/rich-menu/alias`, {
+                              method: "POST",
+                              headers: { 
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${session?.access_token}` 
+                              },
+                              body: JSON.stringify({
+                                tenantId: effectiveTenantId,
+                                richMenuId: menu.richMenuId,
+                                aliasId: "main-menu"
+                              })
+                            });
+                            if (res.ok) {
+                              toast({ title: "Created alias 'main-menu'" });
+                              fetchLineStatus();
+                            } else {
+                              const err = await res.json();
+                              toast({ title: "Error", description: err.error, variant: "destructive" });
+                            }
+                          } catch (e: any) {
+                            toast({ title: "Error", description: e.message, variant: "destructive" });
+                          }
+                        }}
+                        data-testid="button-create-main-menu-alias"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        main-menu → {menu.name}
+                      </Button>
+                    ))}
+                    {lineStatus.menus.filter(m => m.switchActions.some(a => a.targetAlias === "main-menu")).map(menu => (
+                      <Button
+                        key={`create-sub-for-${menu.richMenuId}`}
+                        size="sm"
+                        variant="outline"
+                        disabled={lineStatus.aliases.some(a => a.richMenuAliasId === "sub-menu")}
+                        onClick={async () => {
+                          try {
+                            const { data: { session } } = await supabase.auth.getSession();
+                            const res = await fetch(`/api/line/rich-menu/alias`, {
+                              method: "POST",
+                              headers: { 
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${session?.access_token}` 
+                              },
+                              body: JSON.stringify({
+                                tenantId: effectiveTenantId,
+                                richMenuId: menu.richMenuId,
+                                aliasId: "sub-menu"
+                              })
+                            });
+                            if (res.ok) {
+                              toast({ title: "Created alias 'sub-menu'" });
+                              fetchLineStatus();
+                            } else {
+                              const err = await res.json();
+                              toast({ title: "Error", description: err.error, variant: "destructive" });
+                            }
+                          } catch (e: any) {
+                            toast({ title: "Error", description: e.message, variant: "destructive" });
+                          }
+                        }}
+                        data-testid="button-create-sub-menu-alias"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        sub-menu → {menu.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
             <DialogFooter>
