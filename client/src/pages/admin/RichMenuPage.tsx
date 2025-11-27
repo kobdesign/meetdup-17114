@@ -65,6 +65,316 @@ interface LineStatusData {
   aliases: Array<{ richMenuAliasId: string; richMenuId: string }>;
 }
 
+function MenuSwitchWizard({ 
+  lineStatus, 
+  tenantId, 
+  onRefresh, 
+  onClose 
+}: { 
+  lineStatus: LineStatusData; 
+  tenantId: string; 
+  onRefresh: () => void; 
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [isFixing, setIsFixing] = useState(false);
+  const [selectedMainMenu, setSelectedMainMenu] = useState<string>("");
+  const [selectedSubMenu, setSelectedSubMenu] = useState<string>("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const mainMenuAlias = lineStatus.aliases.find(a => a.richMenuAliasId === "main-menu");
+  const subMenuAlias = lineStatus.aliases.find(a => a.richMenuAliasId === "sub-menu");
+  
+  const mainMenuValid = mainMenuAlias && lineStatus.menus.some(m => m.richMenuId === mainMenuAlias.richMenuId);
+  const subMenuValid = subMenuAlias && lineStatus.menus.some(m => m.richMenuId === subMenuAlias.richMenuId);
+  
+  const isWorking = mainMenuValid && subMenuValid;
+
+  const brokenAliases = lineStatus.aliases.filter(a => 
+    !lineStatus.menus.some(m => m.richMenuId === a.richMenuId)
+  );
+
+  const suggestedMainMenu = lineStatus.menus.find(m => m.isDefault) || 
+    lineStatus.menus.find(m => m.name.toLowerCase().includes("main")) ||
+    lineStatus.menus[0];
+  
+  const suggestedSubMenu = lineStatus.menus.find(m => 
+    m.name.toLowerCase().includes("sub") || 
+    m.switchActions.some(a => a.targetAlias === "main-menu")
+  ) || lineStatus.menus.find(m => m.richMenuId !== suggestedMainMenu?.richMenuId);
+
+  const handleAutoFix = async () => {
+    const mainId = selectedMainMenu || suggestedMainMenu?.richMenuId;
+    const subId = selectedSubMenu || suggestedSubMenu?.richMenuId;
+    
+    if (!mainId || !subId) {
+      toast({ title: "Error", description: "Please select both menus", variant: "destructive" });
+      return;
+    }
+    
+    if (mainId === subId) {
+      toast({ title: "Error", description: "Main Menu and Sub Menu must be different", variant: "destructive" });
+      return;
+    }
+
+    setIsFixing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      for (const alias of brokenAliases) {
+        await fetch(`/api/line/rich-menu/alias/${alias.richMenuAliasId}?tenantId=${tenantId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${session?.access_token}` }
+        });
+      }
+
+      if (mainMenuAlias && !mainMenuValid) {
+        await fetch(`/api/line/rich-menu/alias/${mainMenuAlias.richMenuAliasId}?tenantId=${tenantId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${session?.access_token}` }
+        });
+      }
+      if (subMenuAlias && !subMenuValid) {
+        await fetch(`/api/line/rich-menu/alias/${subMenuAlias.richMenuAliasId}?tenantId=${tenantId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${session?.access_token}` }
+        });
+      }
+
+      if (!mainMenuValid) {
+        const res = await fetch(`/api/line/rich-menu/alias`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}` 
+          },
+          body: JSON.stringify({ tenantId, richMenuId: mainId, aliasId: "main-menu" })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to create main-menu alias");
+        }
+      }
+
+      if (!subMenuValid) {
+        const res = await fetch(`/api/line/rich-menu/alias`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}` 
+          },
+          body: JSON.stringify({ tenantId, richMenuId: subId, aliasId: "sub-menu" })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to create sub-menu alias");
+        }
+      }
+
+      toast({ title: "Success", description: "Menu switching is now configured!" });
+      onRefresh();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
+  if (lineStatus.menus.length < 2) {
+    return (
+      <div className="space-y-4 py-4">
+        <div className="text-center p-6 bg-muted rounded-lg">
+          <AlertTriangle className="h-12 w-12 mx-auto text-orange-500 mb-3" />
+          <h3 className="font-semibold text-lg mb-2">Need at least 2 Rich Menus</h3>
+          <p className="text-muted-foreground">
+            You need to create at least 2 Rich Menus before you can set up menu switching.
+          </p>
+        </div>
+        <Button onClick={onClose} className="w-full">Close</Button>
+      </div>
+    );
+  }
+
+  if (isWorking) {
+    const mainMenu = lineStatus.menus.find(m => m.richMenuId === mainMenuAlias?.richMenuId);
+    const subMenu = lineStatus.menus.find(m => m.richMenuId === subMenuAlias?.richMenuId);
+    
+    return (
+      <div className="space-y-4 py-4">
+        <div className="text-center p-6 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+          <Check className="h-12 w-12 mx-auto text-green-600 mb-3" />
+          <h3 className="font-semibold text-lg mb-2 text-green-800 dark:text-green-200">Menu Switching is Working!</h3>
+          <p className="text-green-700 dark:text-green-300 text-sm">
+            Your rich menu switching is properly configured.
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-4">
+            <div className="text-sm text-muted-foreground mb-1">Main Menu</div>
+            <div className="font-medium">{mainMenu?.name}</div>
+            <Badge variant="secondary" className="mt-2 font-mono text-xs">main-menu</Badge>
+          </Card>
+          <Card className="p-4">
+            <div className="text-sm text-muted-foreground mb-1">Sub Menu</div>
+            <div className="font-medium">{subMenu?.name}</div>
+            <Badge variant="secondary" className="mt-2 font-mono text-xs">sub-menu</Badge>
+          </Card>
+        </div>
+        
+        <Button onClick={onClose} className="w-full">Close</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 py-4">
+      <div className="text-center p-4 bg-orange-50 dark:bg-orange-950 rounded-lg border border-orange-200 dark:border-orange-800">
+        <AlertTriangle className="h-8 w-8 mx-auto text-orange-600 mb-2" />
+        <h3 className="font-semibold mb-1 text-orange-800 dark:text-orange-200">Menu Switching Needs Setup</h3>
+        <p className="text-orange-700 dark:text-orange-300 text-sm">
+          Select which menus to use, then click "Apply" to fix.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            Main Menu
+            {mainMenuValid && <Badge variant="outline" className="text-green-600 text-xs">OK</Badge>}
+            {!mainMenuValid && <Badge variant="destructive" className="text-xs">Missing</Badge>}
+          </Label>
+          <Select
+            value={selectedMainMenu || suggestedMainMenu?.richMenuId || ""}
+            onValueChange={setSelectedMainMenu}
+          >
+            <SelectTrigger data-testid="select-main-menu">
+              <SelectValue placeholder="Select Main Menu" />
+            </SelectTrigger>
+            <SelectContent>
+              {lineStatus.menus.map(menu => (
+                <SelectItem key={menu.richMenuId} value={menu.richMenuId}>
+                  <div className="flex items-center gap-2">
+                    <span>{menu.name}</span>
+                    {menu.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">This is the menu users see first</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            Sub Menu
+            {subMenuValid && <Badge variant="outline" className="text-green-600 text-xs">OK</Badge>}
+            {!subMenuValid && <Badge variant="destructive" className="text-xs">Missing</Badge>}
+          </Label>
+          <Select
+            value={selectedSubMenu || suggestedSubMenu?.richMenuId || ""}
+            onValueChange={setSelectedSubMenu}
+          >
+            <SelectTrigger data-testid="select-sub-menu">
+              <SelectValue placeholder="Select Sub Menu" />
+            </SelectTrigger>
+            <SelectContent>
+              {lineStatus.menus.map(menu => (
+                <SelectItem key={menu.richMenuId} value={menu.richMenuId}>
+                  <div className="flex items-center gap-2">
+                    <span>{menu.name}</span>
+                    {menu.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">This is the menu users switch to</p>
+        </div>
+      </div>
+
+      {brokenAliases.length > 0 && (
+        <div className="text-sm text-muted-foreground p-3 bg-muted rounded-md">
+          <span className="font-medium">Note:</span> {brokenAliases.length} broken alias(es) will be cleaned up automatically.
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button onClick={onClose} variant="outline" className="flex-1">Cancel</Button>
+        <Button 
+          onClick={handleAutoFix} 
+          disabled={isFixing}
+          className="flex-1"
+          data-testid="button-apply-menu-switch"
+        >
+          {isFixing ? (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              Applying...
+            </>
+          ) : (
+            "Apply"
+          )}
+        </Button>
+      </div>
+
+      <div className="border-t pt-4">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="text-muted-foreground"
+        >
+          {showAdvanced ? "Hide" : "Show"} Technical Details
+        </Button>
+        
+        {showAdvanced && (
+          <div className="mt-3 space-y-3 text-sm">
+            <div className="p-3 bg-muted rounded-md">
+              <div className="font-medium mb-2">Current Aliases ({lineStatus.totalAliases}):</div>
+              {lineStatus.aliases.length === 0 ? (
+                <span className="text-muted-foreground">None</span>
+              ) : (
+                <div className="space-y-1">
+                  {lineStatus.aliases.map(alias => {
+                    const menu = lineStatus.menus.find(m => m.richMenuId === alias.richMenuId);
+                    return (
+                      <div key={alias.richMenuAliasId} className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono">{alias.richMenuAliasId}</Badge>
+                        <ArrowRight className="h-3 w-3" />
+                        {menu ? (
+                          <span>{menu.name}</span>
+                        ) : (
+                          <span className="text-destructive">Not found</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-3 bg-muted rounded-md">
+              <div className="font-medium mb-2">Rich Menus ({lineStatus.totalMenus}):</div>
+              <div className="space-y-1">
+                {lineStatus.menus.map(menu => (
+                  <div key={menu.richMenuId} className="flex items-center gap-2">
+                    <span>{menu.name}</span>
+                    {menu.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
+                    <span className="text-muted-foreground font-mono text-xs">
+                      ...{menu.richMenuId.slice(-8)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function RichMenuPage() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const { toast } = useToast();
@@ -363,277 +673,23 @@ export default function RichMenuPage() {
           </div>
         </div>
 
-        {/* LINE Status Dialog */}
+        {/* LINE Status Dialog - Simplified Wizard */}
         <Dialog open={showLineStatus} onOpenChange={setShowLineStatus}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
             <DialogHeader>
-              <DialogTitle>LINE Rich Menu Status</DialogTitle>
+              <DialogTitle>Setup Menu Switching</DialogTitle>
               <DialogDescription>
-                Current status of Rich Menus and Aliases in LINE
+                Configure which menus to use for switching
               </DialogDescription>
             </DialogHeader>
             {lineStatus && (
-              <div className="space-y-4">
-                <div className="flex gap-4 flex-wrap">
-                  <Badge variant="outline">
-                    Total Menus: {lineStatus.totalMenus}
-                  </Badge>
-                  <Badge variant="outline">
-                    Total Aliases: {lineStatus.totalAliases}
-                  </Badge>
-                </div>
-
-                {lineStatus.menus.length > 0 ? (
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">Rich Menus in LINE:</h4>
-                    {lineStatus.menus.map((menu) => (
-                      <Card key={menu.richMenuId} className="p-3">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium">{menu.name}</span>
-                            {menu.isDefault && (
-                              <Badge variant="default">Default</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            Chat Bar: {menu.chatBarText}
-                          </p>
-                          <div className="text-xs text-muted-foreground font-mono">
-                            ID: {menu.richMenuId}
-                          </div>
-                          
-                          {menu.aliases.length > 0 ? (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm">Aliases:</span>
-                              {menu.aliases.map((alias) => (
-                                <Badge key={alias} variant="secondary">{alias}</Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-sm text-orange-600 dark:text-orange-400 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              No alias set
-                            </div>
-                          )}
-
-                          {menu.switchActions.length > 0 && (
-                            <div className="space-y-1">
-                              <span className="text-sm font-medium">Switch Actions:</span>
-                              {menu.switchActions.map((action, idx) => {
-                                const aliasExists = lineStatus.aliases.some(
-                                  a => a.richMenuAliasId === action.targetAlias
-                                );
-                                return (
-                                  <div key={idx} className="flex items-center gap-2 text-sm">
-                                    <span>Target: {action.targetAlias}</span>
-                                    {aliasExists ? (
-                                      <Badge variant="outline" className="text-green-600">Valid</Badge>
-                                    ) : (
-                                      <Badge variant="destructive">Missing Alias!</Badge>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">No Rich Menus found in LINE</p>
-                )}
-
-                {lineStatus.aliases.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold">All Aliases (Alias → Rich Menu):</h4>
-                    <div className="space-y-2">
-                      {lineStatus.aliases.map((alias) => {
-                        const targetMenu = lineStatus.menus.find(m => m.richMenuId === alias.richMenuId);
-                        const isBroken = !targetMenu;
-                        return (
-                          <div key={alias.richMenuAliasId} className="flex items-center justify-between gap-2 p-2 bg-muted rounded-md">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="font-mono">{alias.richMenuAliasId}</Badge>
-                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                              {targetMenu ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{targetMenu.name}</span>
-                                  <span className="text-xs text-muted-foreground font-mono">
-                                    ({alias.richMenuId.slice(-8)})
-                                  </span>
-                                  {targetMenu.isDefault && (
-                                    <Badge variant="default" className="text-xs">Default</Badge>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-destructive">Rich Menu not found!</span>
-                              )}
-                            </div>
-                            {isBroken && (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={async () => {
-                                  if (!confirm(`Delete orphaned alias "${alias.richMenuAliasId}"?`)) return;
-                                  try {
-                                    const { data: { session } } = await supabase.auth.getSession();
-                                    const res = await fetch(`/api/line/rich-menu/alias/${alias.richMenuAliasId}?tenantId=${effectiveTenantId}`, {
-                                      method: "DELETE",
-                                      headers: { Authorization: `Bearer ${session?.access_token}` }
-                                    });
-                                    if (res.ok) {
-                                      toast({ title: "Alias deleted" });
-                                      fetchLineStatus();
-                                    } else {
-                                      const err = await res.json();
-                                      toast({ title: "Error", description: err.error, variant: "destructive" });
-                                    }
-                                  } catch (e: any) {
-                                    toast({ title: "Error", description: e.message, variant: "destructive" });
-                                  }
-                                }}
-                                data-testid={`button-delete-alias-${alias.richMenuAliasId}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div className="border-t pt-4 space-y-3">
-                  <h4 className="font-semibold">Quick Fix: Create Missing Aliases</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Select a Rich Menu to create alias for menu switching:
-                  </p>
-                  
-                  {(() => {
-                    const hasMainMenu = lineStatus.aliases.some(a => a.richMenuAliasId === "main-menu");
-                    const hasSubMenu = lineStatus.aliases.some(a => a.richMenuAliasId === "sub-menu");
-                    const defaultMenu = lineStatus.menus.find(m => m.isDefault);
-                    const subMenuCandidate = lineStatus.menus.find(m => 
-                      m.name.toLowerCase().includes("sub") || 
-                      m.switchActions.some(a => a.targetAlias === "main-menu")
-                    );
-                    
-                    return (
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">
-                            main-menu alias {hasMainMenu ? "(exists)" : "(missing)"}
-                          </Label>
-                          <Select
-                            disabled={hasMainMenu}
-                            onValueChange={async (richMenuId) => {
-                              try {
-                                const { data: { session } } = await supabase.auth.getSession();
-                                const res = await fetch(`/api/line/rich-menu/alias`, {
-                                  method: "POST",
-                                  headers: { 
-                                    "Content-Type": "application/json",
-                                    Authorization: `Bearer ${session?.access_token}` 
-                                  },
-                                  body: JSON.stringify({
-                                    tenantId: effectiveTenantId,
-                                    richMenuId,
-                                    aliasId: "main-menu"
-                                  })
-                                });
-                                if (res.ok) {
-                                  toast({ title: "Created alias 'main-menu'" });
-                                  fetchLineStatus();
-                                } else {
-                                  const err = await res.json();
-                                  toast({ title: "Error", description: err.error, variant: "destructive" });
-                                }
-                              } catch (e: any) {
-                                toast({ title: "Error", description: e.message, variant: "destructive" });
-                              }
-                            }}
-                          >
-                            <SelectTrigger data-testid="select-main-menu-alias">
-                              <SelectValue placeholder={hasMainMenu ? "Already exists" : "Select Rich Menu for main-menu"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {lineStatus.menus.map(menu => (
-                                <SelectItem key={menu.richMenuId} value={menu.richMenuId}>
-                                  {menu.name} {menu.isDefault ? "(Default)" : ""} 
-                                  <span className="text-muted-foreground ml-2">...{menu.richMenuId.slice(-8)}</span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {defaultMenu && !hasMainMenu && (
-                            <p className="text-xs text-muted-foreground">
-                              Recommended: {defaultMenu.name} (Default Menu)
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">
-                            sub-menu alias {hasSubMenu ? "(exists)" : "(missing)"}
-                          </Label>
-                          <Select
-                            disabled={hasSubMenu}
-                            onValueChange={async (richMenuId) => {
-                              try {
-                                const { data: { session } } = await supabase.auth.getSession();
-                                const res = await fetch(`/api/line/rich-menu/alias`, {
-                                  method: "POST",
-                                  headers: { 
-                                    "Content-Type": "application/json",
-                                    Authorization: `Bearer ${session?.access_token}` 
-                                  },
-                                  body: JSON.stringify({
-                                    tenantId: effectiveTenantId,
-                                    richMenuId,
-                                    aliasId: "sub-menu"
-                                  })
-                                });
-                                if (res.ok) {
-                                  toast({ title: "Created alias 'sub-menu'" });
-                                  fetchLineStatus();
-                                } else {
-                                  const err = await res.json();
-                                  toast({ title: "Error", description: err.error, variant: "destructive" });
-                                }
-                              } catch (e: any) {
-                                toast({ title: "Error", description: e.message, variant: "destructive" });
-                              }
-                            }}
-                          >
-                            <SelectTrigger data-testid="select-sub-menu-alias">
-                              <SelectValue placeholder={hasSubMenu ? "Already exists" : "Select Rich Menu for sub-menu"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {lineStatus.menus.map(menu => (
-                                <SelectItem key={menu.richMenuId} value={menu.richMenuId}>
-                                  {menu.name} {menu.isDefault ? "(Default)" : ""} 
-                                  <span className="text-muted-foreground ml-2">...{menu.richMenuId.slice(-8)}</span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {subMenuCandidate && !hasSubMenu && (
-                            <p className="text-xs text-muted-foreground">
-                              Recommended: {subMenuCandidate.name}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
+              <MenuSwitchWizard 
+                lineStatus={lineStatus}
+                tenantId={effectiveTenantId || ""}
+                onRefresh={fetchLineStatus}
+                onClose={() => setShowLineStatus(false)}
+              />
             )}
-            <DialogFooter>
-              <Button onClick={() => setShowLineStatus(false)}>Close</Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
 
