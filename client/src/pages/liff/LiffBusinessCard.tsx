@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
   ArrowLeft, 
@@ -224,16 +223,20 @@ export default function LiffBusinessCard() {
         <Card className="overflow-hidden">
           <CardContent className="p-6">
             <div className="flex flex-col items-center text-center mb-6">
-              <Avatar className="h-24 w-24 mb-4 border-4 border-background shadow-lg bg-muted">
-                <AvatarImage 
-                  src={member.photo_url || undefined} 
-                  alt={member.full_name}
-                  className="object-contain"
-                />
-                <AvatarFallback className="text-2xl">
-                  {getInitials(member.full_name)}
-                </AvatarFallback>
-              </Avatar>
+              <div className="w-24 h-32 mb-4 rounded-xl border-4 border-background shadow-lg overflow-hidden bg-muted">
+                {member.photo_url ? (
+                  <img 
+                    src={member.photo_url} 
+                    alt={member.full_name}
+                    className="w-full h-full object-contain"
+                    data-testid="img-member-photo"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-2xl font-bold bg-primary text-primary-foreground">
+                    {getInitials(member.full_name)}
+                  </div>
+                )}
+              </div>
               <h1 className="text-2xl font-bold">{member.full_name}</h1>
               {member.nickname && (
                 <p className="text-muted-foreground">({member.nickname})</p>

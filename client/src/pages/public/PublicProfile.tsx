@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   Phone, 
   Mail, 
@@ -209,19 +208,24 @@ export default function PublicProfile() {
       <div className="max-w-lg mx-auto px-4 pb-8 -mt-20 relative z-10">
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden">
           <div className="pt-4 pb-6 px-6 text-center relative">
-            <Avatar className="w-28 h-28 sm:w-32 sm:h-32 mx-auto border-4 border-white dark:border-slate-700 shadow-lg -mt-20">
-              <AvatarImage 
-                src={profile.photo_url || undefined} 
-                alt={profile.full_name}
-                className="object-cover"
-              />
-              <AvatarFallback 
-                className="text-2xl sm:text-3xl font-bold"
-                style={{ backgroundColor: brandingColor, color: "white" }}
-              >
-                {getInitials(profile.full_name)}
-              </AvatarFallback>
-            </Avatar>
+            <div className="w-28 h-36 sm:w-32 sm:h-40 mx-auto rounded-xl border-4 border-white dark:border-slate-700 shadow-lg -mt-20 overflow-hidden bg-muted">
+              {profile.photo_url ? (
+                <img 
+                  src={profile.photo_url} 
+                  alt={profile.full_name}
+                  className="w-full h-full object-contain"
+                  data-testid="img-profile-photo"
+                />
+              ) : (
+                <div 
+                  className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-bold text-white"
+                  style={{ backgroundColor: brandingColor }}
+                  data-testid="fallback-initials"
+                >
+                  {getInitials(profile.full_name)}
+                </div>
+              )}
+            </div>
 
             <div className="mt-4 space-y-1">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground" data-testid="text-full-name">
