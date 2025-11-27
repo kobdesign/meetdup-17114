@@ -148,7 +148,7 @@ function MenuSwitchWizard({
             "Content-Type": "application/json",
             Authorization: `Bearer ${session?.access_token}` 
           },
-          body: JSON.stringify({ tenantId, richMenuId: mainId, aliasId: "main-menu" })
+          body: JSON.stringify({ tenantId, richMenuId: mainId, richMenuAliasId: "main-menu" })
         });
         if (!res.ok) {
           const err = await res.json();
@@ -163,7 +163,7 @@ function MenuSwitchWizard({
             "Content-Type": "application/json",
             Authorization: `Bearer ${session?.access_token}` 
           },
-          body: JSON.stringify({ tenantId, richMenuId: subId, aliasId: "sub-menu" })
+          body: JSON.stringify({ tenantId, richMenuId: subId, richMenuAliasId: "sub-menu" })
         });
         if (!res.ok) {
           const err = await res.json();
