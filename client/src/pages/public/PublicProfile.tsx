@@ -208,17 +208,17 @@ export default function PublicProfile() {
       <div className="max-w-lg mx-auto px-4 pb-8 -mt-20 relative z-10">
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden">
           <div className="pt-4 pb-6 px-6 text-center relative">
-            <div className="w-28 h-36 sm:w-32 sm:h-40 mx-auto rounded-xl border-4 border-white dark:border-slate-700 shadow-lg -mt-20 overflow-hidden bg-muted">
+            <div className="w-44 h-56 sm:w-52 sm:h-64 mx-auto rounded-xl border-4 border-white dark:border-slate-700 shadow-lg -mt-24 overflow-hidden bg-muted">
               {profile.photo_url ? (
                 <img 
                   src={profile.photo_url} 
                   alt={profile.full_name}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover"
                   data-testid="img-profile-photo"
                 />
               ) : (
                 <div 
-                  className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-bold text-white"
+                  className="w-full h-full flex items-center justify-center text-3xl sm:text-4xl font-bold text-white"
                   style={{ backgroundColor: brandingColor }}
                   data-testid="fallback-initials"
                 >
@@ -246,18 +246,19 @@ export default function PublicProfile() {
                   </p>
                 )}
                 {profile.company && (
-                  <div className="flex items-center justify-center gap-2">
-                    {profile.company_logo_url ? (
+                  <div className="flex flex-col items-center gap-2">
+                    {profile.company_logo_url && (
                       <img 
                         src={profile.company_logo_url} 
                         alt={profile.company}
-                        className="h-6 w-auto object-contain"
+                        className="h-12 w-auto object-contain max-w-[160px]"
                         data-testid="img-company-logo"
                       />
-                    ) : (
-                      <Building2 className="w-4 h-4 text-muted-foreground" />
                     )}
-                    <span className="text-muted-foreground" data-testid="text-company">{profile.company}</span>
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground" data-testid="text-company">{profile.company}</span>
+                    </div>
                   </div>
                 )}
               </div>

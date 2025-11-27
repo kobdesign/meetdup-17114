@@ -4221,10 +4221,55 @@ router.get("/public/:participantId", async (req: Request, res: Response) => {
     
     console.log(`${logPrefix} Found profile for:`, participant.full_name);
     
+    // Generate signed URLs for private storage assets
+    let signedPhotoUrl = participant.photo_url;
+    let signedCompanyLogoUrl = participant.company_logo_url;
+    
+    // Sign photo_url if it's a Supabase storage URL
+    if (participant.photo_url && participant.photo_url.includes('supabase.co/storage')) {
+      try {
+        // Extract path from URL: /storage/v1/object/public/avatars/... or /storage/v1/object/sign/avatars/...
+        const pathMatch = participant.photo_url.match(/\/avatars\/([^?]+)/);
+        if (pathMatch) {
+          const storagePath = pathMatch[1];
+          const { data: signedData } = await supabaseAdmin.storage
+            .from('avatars')
+            .createSignedUrl(storagePath, 60 * 60 * 24); // 24 hours
+          if (signedData?.signedUrl) {
+            signedPhotoUrl = signedData.signedUrl;
+            console.log(`${logPrefix} Generated signed URL for photo`);
+          }
+        }
+      } catch (e) {
+        console.log(`${logPrefix} Failed to sign photo URL:`, e);
+      }
+    }
+    
+    // Sign company_logo_url if it's a Supabase storage URL
+    if (participant.company_logo_url && participant.company_logo_url.includes('supabase.co/storage')) {
+      try {
+        const pathMatch = participant.company_logo_url.match(/\/avatars\/([^?]+)/);
+        if (pathMatch) {
+          const storagePath = pathMatch[1];
+          const { data: signedData } = await supabaseAdmin.storage
+            .from('avatars')
+            .createSignedUrl(storagePath, 60 * 60 * 24); // 24 hours
+          if (signedData?.signedUrl) {
+            signedCompanyLogoUrl = signedData.signedUrl;
+            console.log(`${logPrefix} Generated signed URL for company logo`);
+          }
+        }
+      } catch (e) {
+        console.log(`${logPrefix} Failed to sign company logo URL:`, e);
+      }
+    }
+    
     return res.json({
       success: true,
       profile: {
         ...participant,
+        photo_url: signedPhotoUrl,
+        company_logo_url: signedCompanyLogoUrl,
         tenant: {
           name: tenant?.tenant_name || "Unknown",
           subdomain: tenant?.subdomain || null,
