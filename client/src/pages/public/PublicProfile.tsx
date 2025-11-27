@@ -208,17 +208,17 @@ export default function PublicProfile() {
       <div className="max-w-lg mx-auto px-4 pb-8 -mt-32 relative z-10">
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden">
           <div className="pt-4 pb-6 px-6 text-center relative">
-            <div className="w-44 h-56 sm:w-52 sm:h-64 mx-auto rounded-xl border-4 border-white dark:border-slate-700 shadow-lg -mt-40 overflow-hidden bg-muted">
+            <div className="w-44 sm:w-52 mx-auto rounded-xl border-4 border-white dark:border-slate-700 shadow-lg -mt-40 overflow-hidden bg-muted">
               {profile.photo_url ? (
                 <img 
                   src={profile.photo_url} 
                   alt={profile.full_name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-auto object-contain"
                   data-testid="img-profile-photo"
                 />
               ) : (
                 <div 
-                  className="w-full h-full flex items-center justify-center text-3xl sm:text-4xl font-bold text-white"
+                  className="w-full aspect-[3/4] flex items-center justify-center text-3xl sm:text-4xl font-bold text-white"
                   style={{ backgroundColor: brandingColor }}
                   data-testid="fallback-initials"
                 >
