@@ -488,7 +488,7 @@ function getBaseUrl(): string {
 }
 
 /**
- * Handle category search command - send LIFF URL
+ * Handle category search command - send Flex with 3 search options
  */
 export async function handleCategorySearch(
   event: any,
@@ -498,15 +498,20 @@ export async function handleCategorySearch(
 ): Promise<void> {
   try {
     const baseUrl = getBaseUrl();
-    const liffUrl = `${baseUrl}/liff/search?tenant=${tenantId}`;
     
-    console.log(`${logPrefix} Sending LIFF URL for category search: ${liffUrl}`);
+    // Create URLs for each search type with pre-selected tab
+    const categoryUrl = `${baseUrl}/liff/search?tenant=${tenantId}&tab=category`;
+    const powerteamUrl = `${baseUrl}/liff/search?tenant=${tenantId}&tab=powerteam`;
+    const positionUrl = `${baseUrl}/liff/search?tenant=${tenantId}&tab=position`;
+    
+    console.log(`${logPrefix} Sending search options Flex Message`);
     
     const flexMessage = {
       type: "flex",
-      altText: "ค้นหาสมาชิกตามประเภทธุรกิจ",
+      altText: "ค้นหาสมาชิก - เลือกวิธีค้นหา",
       contents: {
         type: "bubble",
+        size: "kilo",
         body: {
           type: "box",
           layout: "vertical",
@@ -520,27 +525,50 @@ export async function handleCategorySearch(
             },
             {
               type: "text",
-              text: "เลือกค้นหาสมาชิกตามประเภทธุรกิจ ตำแหน่ง หรือ Power Team",
+              text: "เลือกวิธีค้นหาที่ต้องการ",
               size: "sm",
               color: "#666666",
-              margin: "md",
-              wrap: true
+              margin: "md"
             }
           ]
         },
         footer: {
           type: "box",
           layout: "vertical",
+          spacing: "sm",
           contents: [
             {
               type: "button",
               action: {
                 type: "uri",
-                label: "ค้นหาสมาชิก",
-                uri: liffUrl
+                label: "ค้นหาตามประเภทธุรกิจ",
+                uri: categoryUrl
               },
               style: "primary",
-              color: "#1DB446"
+              color: "#1DB446",
+              height: "sm"
+            },
+            {
+              type: "button",
+              action: {
+                type: "uri",
+                label: "ค้นหาตาม Power Team",
+                uri: powerteamUrl
+              },
+              style: "primary",
+              color: "#5B8DEF",
+              height: "sm"
+            },
+            {
+              type: "button",
+              action: {
+                type: "uri",
+                label: "ค้นหาตามตำแหน่ง",
+                uri: positionUrl
+              },
+              style: "primary",
+              color: "#FF6B6B",
+              height: "sm"
             }
           ]
         }
@@ -548,7 +576,7 @@ export async function handleCategorySearch(
     };
     
     await replyMessage(event.replyToken, flexMessage, accessToken);
-    console.log(`${logPrefix} Category search LIFF URL sent successfully`);
+    console.log(`${logPrefix} Search options Flex sent successfully`);
     
   } catch (error: any) {
     console.error(`${logPrefix} Error handling category search:`, error);
