@@ -3544,10 +3544,29 @@ router.post("/join-existing", verifySupabaseAuth, async (req: AuthenticatedReque
       });
     }
 
-    // Link this participant to user
+    // Get current participant status to check if already a member
+    const { data: currentParticipant } = await supabaseAdmin
+      .from("participants")
+      .select("status, joined_date")
+      .eq("participant_id", participant.participant_id)
+      .single();
+
+    // Only upgrade status and set joined_date if not already a member
+    const isAlreadyMember = currentParticipant?.status === "member";
+    const updateData: Record<string, any> = { user_id: userId };
+    
+    if (!isAlreadyMember) {
+      updateData.status = "member";
+      // Only set joined_date if not already set
+      if (!currentParticipant?.joined_date) {
+        updateData.joined_date = new Date().toISOString();
+      }
+    }
+
+    // Link this participant to user AND upgrade status to member (if not already)
     const { error: linkError } = await supabaseAdmin
       .from("participants")
-      .update({ user_id: userId })
+      .update(updateData)
       .eq("participant_id", participant.participant_id);
 
     if (linkError) {
@@ -3556,6 +3575,12 @@ router.post("/join-existing", verifySupabaseAuth, async (req: AuthenticatedReque
         success: false,
         error: "Failed to link participant"
       });
+    }
+
+    if (!isAlreadyMember) {
+      console.log(`${logPrefix} Participant status upgraded to member`);
+    } else {
+      console.log(`${logPrefix} Participant already a member, status preserved`);
     }
 
     // Check if user_role already exists
@@ -3888,13 +3913,30 @@ router.post("/activate", async (req: Request, res: Response) => {
 
     const userId = authData.user.id;
 
-    // Link user to participant
+    // Get current participant status to check if already a member
+    const { data: currentParticipant } = await supabaseAdmin
+      .from("participants")
+      .select("status, joined_date")
+      .eq("participant_id", participant.participant_id)
+      .single();
+
+    // Only upgrade status and set joined_date if not already a member
+    const isAlreadyMember = currentParticipant?.status === "member";
+    const updateData: Record<string, any> = { user_id: userId };
+    
+    if (!isAlreadyMember) {
+      updateData.status = "member";
+      // Only set joined_date if not already set
+      if (!currentParticipant?.joined_date) {
+        updateData.joined_date = new Date().toISOString();
+      }
+    }
+
+    // Link user to participant AND upgrade status to member (if not already)
     // LINE linking will happen separately when user registers via LINE
     const { error: linkError } = await supabaseAdmin
       .from('participants')
-      .update({ 
-        user_id: userId
-      })
+      .update(updateData)
       .eq('participant_id', participant.participant_id);
 
     if (linkError) {
@@ -3906,6 +3948,12 @@ router.post("/activate", async (req: Request, res: Response) => {
         error: "Failed to link account",
         message: linkError.message
       });
+    }
+
+    if (!isAlreadyMember) {
+      console.log(`${logPrefix} Participant status upgraded to member`);
+    } else {
+      console.log(`${logPrefix} Participant already a member, status preserved`);
     }
 
     // Create user_role for this tenant

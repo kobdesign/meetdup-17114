@@ -29,7 +29,11 @@ None specified yet.
 - **Unified Member-Participant Architecture**: Every member has records in both `user_roles` (for access control) and `participants` (for chapter activities), linked via `user_id`.
 - **Bulk Member Import System**: Excel-based import with validation, phone normalization, duplicate detection, and error reporting.
 - **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching during registration.
-- **Activation Flow**: Secure token-based self-registration for imported members with single-use, expiring tokens.
+- **Activation Flow**: Secure token-based self-registration for imported members with single-use, expiring tokens. Upon successful activation, participant status is automatically upgraded to "member" with joined_date set (preserving existing values if already a member).
+- **User Journey Status Transitions**:
+  - `prospect` → Initial registration as a visitor
+  - `visitor` → After first check-in (auto-upgrade from prospect)  
+  - `member` → After using activation link (sets joined_date and role)
 - **Business Card Search**: Enhanced multi-field search across various participant data fields with input sanitization and SQL injection prevention.
 - **Participant Deletion**: Comprehensive participant deletion with cleanup of related records and proper handling of multi-tenant scenarios, ensuring data integrity.
 - **Database Management & Health Monitoring**: Includes a health check system for database status and schema sync verification. Supabase Production is the source of truth, with manual migration for safety.
