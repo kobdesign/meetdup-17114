@@ -58,3 +58,4 @@ externalPort = 3002
 
 [userenv.shared]
 INTERNAL_API_SECRET = "dev-secret-replace-in-production"
+PRODUCTION_DOMAIN = "meetdup.com"
