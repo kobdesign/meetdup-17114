@@ -467,24 +467,14 @@ export async function handleEditProfileRequest(
   }
 }
 
+import { getProductionBaseUrl } from "../../../utils/getProductionUrl";
+
 /**
  * Get base URL for LIFF pages
- * Supports production deployment, dev domain, and fallback
+ * Uses shared utility for consistent production URL handling
  */
 function getBaseUrl(): string {
-  if (process.env.REPLIT_DEPLOYMENT_DOMAIN) {
-    return `https://${process.env.REPLIT_DEPLOYMENT_DOMAIN}`;
-  }
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  }
-  const replitUrl = process.env.REPL_SLUG && process.env.REPL_OWNER 
-    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
-    : null;
-  if (replitUrl) {
-    return replitUrl;
-  }
-  return "https://meetdup.replit.app";
+  return getProductionBaseUrl();
 }
 
 /**

@@ -7,6 +7,7 @@ import { LineClient } from "../services/line/lineClient";
 import { getLineCredentials } from "../services/line/credentials";
 import { createBusinessCardFlexMessage } from "../services/line/templates/businessCard";
 import { createActivationSuccessFlexMessage } from "../services/line/templates/activationSuccess";
+import { getProductionBaseUrl } from "../utils/getProductionUrl";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -77,9 +78,7 @@ async function sendActivationLink(params: {
     }
 
     // Generate web activation URL (no LIFF needed)
-    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : 'http://localhost:5000';
+    const baseUrl = getProductionBaseUrl();
     
     const activationUrl = `${baseUrl}/activate/${token}`;
 
@@ -1444,9 +1443,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
           const lineClient = new LineClient(lineCredentials.channelAccessToken);
           
           // Create success notification Flex Message
-          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-            : "http://localhost:5000";
+          const baseUrl = getProductionBaseUrl();
           
           const businessCardUrl = `${baseUrl}/api/participants/${updatedParticipant.participant_id}/business-card?tenant_id=${decoded.tenant_id}`;
           
@@ -3293,9 +3290,7 @@ router.post("/generate-activation-link", verifySupabaseAuth, async (req: Authent
     }
 
     // Build activation URL
-    const baseUrl = process.env.REPLIT_DOMAINS 
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-      : 'http://localhost:5000';
+    const baseUrl = getProductionBaseUrl();
     
     const activationUrl = `${baseUrl}/activate/${result.token}`;
 
@@ -3964,9 +3959,7 @@ router.post("/activate", async (req: Request, res: Response) => {
           const lineClient = new LineClient(lineCredentials.channelAccessToken);
 
           // Build base URL for profile link
-          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-            : "http://localhost:5000";
+          const baseUrl = getProductionBaseUrl();
 
           // Create success Flex Message with profile button
           const successMessage = createActivationSuccessFlexMessage({

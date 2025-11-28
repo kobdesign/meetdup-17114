@@ -1,20 +1,10 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
 
+import { getProductionBaseUrl } from "../../../utils/getProductionUrl";
+
 function getBaseUrl(): string {
-  if (process.env.REPLIT_DEPLOYMENT_DOMAIN) {
-    return `https://${process.env.REPLIT_DEPLOYMENT_DOMAIN}`;
-  }
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  }
-  const replitUrl = process.env.REPL_SLUG && process.env.REPL_OWNER 
-    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
-    : null;
-  if (replitUrl) {
-    return replitUrl;
-  }
-  return "https://meetdup.replit.app";
+  return getProductionBaseUrl();
 }
 
 interface ConversationState {
