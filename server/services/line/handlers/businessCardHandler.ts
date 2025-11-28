@@ -88,10 +88,8 @@ export async function handleViewCard(
       return;
     }
 
-    // Get base URL from environment
-    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : "http://localhost:5000";
+    // Get base URL from environment (prioritize deployment URL)
+    const baseUrl = getBaseUrl();
 
     // Create and send Flex Message
     const flexMessage = createBusinessCardFlexMessage(cardData as BusinessCardData, baseUrl);
