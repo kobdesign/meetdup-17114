@@ -189,9 +189,19 @@ async function processEvent(
     }
     
     // Priority 5: Search by business category - open LIFF
-    if (textLower === "ค้นหาตามประเภทธุรกิจ" || textLower === "ประเภทธุรกิจ" || textLower === "search category") {
+    if (textLower === "ค้นหาตามประเภทธุรกิจ" || textLower === "ประเภทธุรกิจ" || 
+        textLower === "ค้นหาประเภทธุรกิจ" || textLower === "member ตามประเภทธุรกิจ" ||
+        textLower === "search category") {
       console.log(`${logPrefix} Command: CATEGORY_SEARCH - opening LIFF`);
       await handleCategorySearch(event, tenantId, accessToken, logPrefix);
+      return;
+    }
+
+    // Priority 6: Edit profile command - send Magic Link
+    if (textLower === "แก้ไขโปรไฟล์" || textLower === "edit profile" || textLower === "update profile" ||
+        textLower === "อัพเดทโปรไฟล์" || textLower === "แก้ไขข้อมูล") {
+      console.log(`${logPrefix} Command: EDIT_PROFILE`);
+      await handleEditProfileRequest(event, tenantId, accessToken);
       return;
     }
 
