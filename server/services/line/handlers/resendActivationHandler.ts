@@ -1,12 +1,7 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
 import { startPhoneLinkingFlow } from "./phoneLinkingHandler";
-
-import { getInternalApiBaseUrl } from "../../../utils/getProductionUrl";
-
-function getInternalBaseUrl(): string {
-  return getInternalApiBaseUrl();
-}
+import { sendActivationLink } from "../../activation/sendActivationLink";
 
 function getStatusLabel(status: string): string {
   const statusMap: Record<string, string> = {
@@ -77,46 +72,21 @@ export async function handleResendActivation(
     text: `📤 กำลังส่งลิงก์ลงทะเบียนให้คุณ...\n\nชื่อ: ${participant.full_name}`
   });
 
-  try {
-    const baseUrl = getInternalBaseUrl();
-    const internalSecret = process.env.INTERNAL_API_SECRET;
-    
-    if (!internalSecret) {
-      console.error(`${logPrefix} Missing INTERNAL_API_SECRET env var`);
-      throw new Error("Missing INTERNAL_API_SECRET");
-    }
+  const result = await sendActivationLink({
+    participantId: participant.participant_id,
+    tenantId: tenantId,
+    lineUserId: userId,
+    fullName: participant.full_name,
+    logPrefix
+  });
 
-    const response = await fetch(`${baseUrl}/api/participants/send-activation-auto`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "x-internal-secret": internalSecret
-      },
-      body: JSON.stringify({
-        participant_id: participant.participant_id,
-        tenant_id: tenantId,
-        line_user_id: userId,
-        full_name: participant.full_name
-      })
-    });
-
-    const responseData = await response.json();
-    
-    if (!response.ok) {
-      console.error(`${logPrefix} Failed to send activation link:`, responseData);
-      
-      await lineClient.pushMessage(userId, {
-        type: "text",
-        text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
-      });
-    } else {
-      console.log(`${logPrefix} Successfully sent activation link`);
-    }
-  } catch (err) {
-    console.error(`${logPrefix} Error calling activation API:`, err);
+  if (!result.success) {
+    console.error(`${logPrefix} Failed to send activation link:`, result.error);
     await lineClient.pushMessage(userId, {
       type: "text",
       text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
     });
+  } else {
+    console.log(`${logPrefix} Successfully sent activation link`);
   }
 }
