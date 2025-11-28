@@ -503,16 +503,24 @@ router.get("/members/by-powerteam/:id", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid power team ID format" });
     }
 
-    const { data: powerTeam } = await supabaseAdmin
+    // Verify power team belongs to the specified tenant (tenant isolation)
+    const { data: powerTeam, error: ptError } = await supabaseAdmin
       .from("power_teams")
       .select("name, description")
       .eq("power_team_id", id)
+      .eq("tenant_id", tenantId)
       .single();
 
+    if (ptError || !powerTeam) {
+      return res.status(404).json({ error: "Power team not found" });
+    }
+
+    // Get member IDs with tenant-isolated join
     const { data: memberIds, error: memberError } = await supabaseAdmin
       .from("power_team_members")
-      .select("participant_id")
-      .eq("power_team_id", id);
+      .select("participant_id, participants!inner(tenant_id)")
+      .eq("power_team_id", id)
+      .eq("participants.tenant_id", tenantId);
 
     if (memberError) {
       console.error("Error fetching power team members:", memberError);
@@ -524,7 +532,7 @@ router.get("/members/by-powerteam/:id", async (req: Request, res: Response) => {
     if (participantIds.length === 0) {
       return res.json({ 
         members: [],
-        powerTeam: powerTeam || { name: "Unknown", description: null },
+        powerTeam: powerTeam,
         total: 0
       });
     }
@@ -557,7 +565,7 @@ router.get("/members/by-powerteam/:id", async (req: Request, res: Response) => {
 
     return res.json({ 
       members: members || [],
-      powerTeam: powerTeam || { name: "Unknown", description: null },
+      powerTeam: powerTeam,
       total: members?.length || 0
     });
   } catch (error: any) {
