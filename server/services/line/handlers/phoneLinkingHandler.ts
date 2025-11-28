@@ -1,6 +1,22 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
 
+function getBaseUrl(): string {
+  if (process.env.REPLIT_DEPLOYMENT_DOMAIN) {
+    return `https://${process.env.REPLIT_DEPLOYMENT_DOMAIN}`;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  const replitUrl = process.env.REPL_SLUG && process.env.REPL_OWNER 
+    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+    : null;
+  if (replitUrl) {
+    return replitUrl;
+  }
+  return "https://meetdup.replit.app";
+}
+
 interface ConversationState {
   step: "awaiting_phone" | "idle";
   action: "link_line" | null;
@@ -173,9 +189,7 @@ export async function handlePhoneLinking(
     });
 
     try {
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-        : "http://localhost:5000";
+      const baseUrl = getBaseUrl();
       const internalSecret = process.env.INTERNAL_API_SECRET;
       
       if (!internalSecret) {
