@@ -18,7 +18,7 @@ interface Member {
   email: string | null;
 }
 
-interface Category {
+interface FilterInfo {
   name_th: string;
   name_en: string | null;
 }
@@ -29,24 +29,51 @@ interface Tenant {
   logo_url: string | null;
 }
 
+type SearchType = "category" | "position" | "powerteam";
+
 export default function LiffMembersList() {
-  const { code } = useParams<{ code: string }>();
+  const { code, id } = useParams<{ code?: string; id?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const [members, setMembers] = useState<Member[]>([]);
-  const [category, setCategory] = useState<Category | null>(null);
+  const [filterInfo, setFilterInfo] = useState<FilterInfo | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchType, setSearchType] = useState<SearchType>("category");
 
   const searchParams = new URLSearchParams(location.search);
   const tenantId = searchParams.get("tenant");
 
+  // Determine search type from URL path
+  const getSearchType = (): SearchType => {
+    if (location.pathname.includes("/position/")) return "position";
+    if (location.pathname.includes("/powerteam/")) return "powerteam";
+    return "category";
+  };
+
   useEffect(() => {
-    if (!tenantId || !code) {
+    const currentSearchType = getSearchType();
+    setSearchType(currentSearchType);
+    
+    const identifier = code || id;
+    if (!tenantId || !identifier) {
       setError("Missing parameters");
       setLoading(false);
       return;
+    }
+
+    // Build API URL based on search type
+    let membersApiUrl = "";
+    switch (currentSearchType) {
+      case "position":
+        membersApiUrl = `/api/public/members/by-position/${identifier}?tenantId=${tenantId}`;
+        break;
+      case "powerteam":
+        membersApiUrl = `/api/public/members/by-powerteam/${identifier}?tenantId=${tenantId}`;
+        break;
+      default:
+        membersApiUrl = `/api/public/members/by-category/${identifier}?tenantId=${tenantId}`;
     }
 
     Promise.all([
@@ -54,7 +81,7 @@ export default function LiffMembersList() {
         if (!res.ok) throw new Error(`Tenant: HTTP ${res.status}`);
         return res.json();
       }),
-      fetch(`/api/public/members/by-category/${code}?tenantId=${tenantId}`).then(res => {
+      fetch(membersApiUrl).then(res => {
         if (!res.ok) throw new Error(`Members: HTTP ${res.status}`);
         return res.json();
       })
@@ -73,7 +100,14 @@ export default function LiffMembersList() {
         }
         if (membersData.members) {
           setMembers(membersData.members);
-          setCategory(membersData.category);
+          // Handle different response structures
+          if (membersData.category) {
+            setFilterInfo(membersData.category);
+          } else if (membersData.position) {
+            setFilterInfo(membersData.position);
+          } else if (membersData.powerTeam) {
+            setFilterInfo({ name_th: membersData.powerTeam.name, name_en: membersData.powerTeam.description });
+          }
         }
       })
       .catch(err => {
@@ -81,10 +115,35 @@ export default function LiffMembersList() {
         setError("Failed to load members");
       })
       .finally(() => setLoading(false));
-  }, [tenantId, code]);
+  }, [tenantId, code, id, location.pathname]);
 
   const handleBack = () => {
-    navigate(`/liff/search/category?tenant=${tenantId}`);
+    switch (searchType) {
+      case "position":
+        navigate(`/liff/search/position?tenant=${tenantId}`);
+        break;
+      case "powerteam":
+        navigate(`/liff/search/powerteam?tenant=${tenantId}`);
+        break;
+      default:
+        navigate(`/liff/search/category?tenant=${tenantId}`);
+    }
+  };
+
+  const getHeaderColor = () => {
+    switch (searchType) {
+      case "position": return "bg-[#FF6B6B]";
+      case "powerteam": return "bg-[#5B8DEF]";
+      default: return "bg-primary";
+    }
+  };
+
+  const getHeaderTitle = () => {
+    switch (searchType) {
+      case "position": return "ตำแหน่งใน BNI";
+      case "powerteam": return "Power Team";
+      default: return "ประเภทธุรกิจ";
+    }
   };
 
   const handleMemberClick = (participantId: string) => {
@@ -117,12 +176,12 @@ export default function LiffMembersList() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <div className="bg-primary text-primary-foreground p-4">
+      <div className={`${getHeaderColor()} text-white p-4`}>
         <Button 
           variant="ghost" 
           size="sm" 
           onClick={handleBack}
-          className="text-primary-foreground hover:bg-primary/80 mb-4"
+          className="text-white hover:bg-white/20 mb-4"
           data-testid="button-back"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -140,15 +199,16 @@ export default function LiffMembersList() {
           <h1 className="text-xl font-bold">{tenant?.tenant_name}</h1>
         </div>
 
+        <p className="text-white/80 text-xs mb-1">{getHeaderTitle()}</p>
         <h2 className="text-2xl font-bold mb-1">
-          {category?.name_th || "ไม่ระบุ"}
+          {filterInfo?.name_th || "ไม่ระบุ"}
         </h2>
-        {category?.name_en && (
-          <p className="text-primary-foreground/80 text-sm mb-2">
-            {category.name_en}
+        {filterInfo?.name_en && (
+          <p className="text-white/80 text-sm mb-2">
+            {filterInfo.name_en}
           </p>
         )}
-        <p className="text-primary-foreground/80 text-sm">
+        <p className="text-white/80 text-sm">
           พบสมาชิก {members.length} คน
         </p>
       </div>

@@ -40,6 +40,8 @@ import LineActivate from "./pages/LineActivate";
 import NotFound from "./pages/NotFound";
 import LiffSearchHome from "./pages/liff/LiffSearchHome";
 import LiffCategories from "./pages/liff/LiffCategories";
+import LiffPositions from "./pages/liff/LiffPositions";
+import LiffPowerTeams from "./pages/liff/LiffPowerTeams";
 import LiffMembersList from "./pages/liff/LiffMembersList";
 import LiffBusinessCard from "./pages/liff/LiffBusinessCard";
 
@@ -159,6 +161,10 @@ const App = () => (
           <Route path="/liff/search" element={<LiffSearchHome />} />
           <Route path="/liff/search/category" element={<LiffCategories />} />
           <Route path="/liff/search/category/:code" element={<LiffMembersList />} />
+          <Route path="/liff/search/position" element={<LiffPositions />} />
+          <Route path="/liff/search/position/:code" element={<LiffMembersList />} />
+          <Route path="/liff/search/powerteam" element={<LiffPowerTeams />} />
+          <Route path="/liff/search/powerteam/:id" element={<LiffMembersList />} />
           <Route path="/liff/card/:participantId" element={<LiffBusinessCard />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

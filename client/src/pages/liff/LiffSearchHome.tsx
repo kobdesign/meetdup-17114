@@ -20,6 +20,25 @@ export default function LiffSearchHome() {
 
   const searchParams = new URLSearchParams(location.search);
   const tenantId = searchParams.get("tenant");
+  const tabParam = searchParams.get("tab");
+
+  // Auto-redirect based on tab parameter
+  useEffect(() => {
+    if (!tenantId) return;
+    
+    if (tabParam === "category") {
+      navigate(`/liff/search/category?tenant=${tenantId}`, { replace: true });
+      return;
+    }
+    if (tabParam === "powerteam") {
+      navigate(`/liff/search/powerteam?tenant=${tenantId}`, { replace: true });
+      return;
+    }
+    if (tabParam === "position") {
+      navigate(`/liff/search/position?tenant=${tenantId}`, { replace: true });
+      return;
+    }
+  }, [tenantId, tabParam, navigate]);
 
   useEffect(() => {
     if (!tenantId) {
@@ -27,6 +46,9 @@ export default function LiffSearchHome() {
       setLoading(false);
       return;
     }
+
+    // Skip fetching if we're redirecting
+    if (tabParam) return;
 
     fetch(`/api/public/tenant/${tenantId}`)
       .then(res => res.json())
@@ -42,7 +64,7 @@ export default function LiffSearchHome() {
         setError("Failed to load chapter");
       })
       .finally(() => setLoading(false));
-  }, [tenantId]);
+  }, [tenantId, tabParam]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -56,12 +78,12 @@ export default function LiffSearchHome() {
 
   const searchOptions = [
     {
-      id: "position",
-      title: "ตำแหน่งใน BNI",
+      id: "category",
+      title: "ประเภทธุรกิจ",
       subtitle: "ค้นหาจาก",
-      icon: Award,
-      path: `/liff/search/position?tenant=${tenantId}`,
-      disabled: true,
+      icon: Briefcase,
+      path: `/liff/search/category?tenant=${tenantId}`,
+      disabled: false,
     },
     {
       id: "powerteam",
@@ -69,14 +91,14 @@ export default function LiffSearchHome() {
       subtitle: "ค้นหาจาก",
       icon: Users,
       path: `/liff/search/powerteam?tenant=${tenantId}`,
-      disabled: true,
+      disabled: false,
     },
     {
-      id: "category",
-      title: "ประเภทธุรกิจ",
+      id: "position",
+      title: "ตำแหน่งใน BNI",
       subtitle: "ค้นหาจาก",
-      icon: Briefcase,
-      path: `/liff/search/category?tenant=${tenantId}`,
+      icon: Award,
+      path: `/liff/search/position?tenant=${tenantId}`,
       disabled: false,
     },
   ];

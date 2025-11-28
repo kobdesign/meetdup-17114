@@ -326,4 +326,244 @@ router.get("/tenant/:tenantId", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/positions", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId parameter" });
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      return res.status(400).json({ error: "Invalid tenantId format" });
+    }
+
+    const { data: participants, error } = await supabaseAdmin
+      .from("participants")
+      .select("bni_position")
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .not("bni_position", "is", null);
+
+    if (error) {
+      console.error("Error fetching positions:", error);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    const countMap = new Map<string, number>();
+    for (const p of participants || []) {
+      if (p.bni_position) {
+        countMap.set(p.bni_position, (countMap.get(p.bni_position) || 0) + 1);
+      }
+    }
+
+    const positions = Array.from(countMap.entries()).map(([position_code, member_count]) => ({
+      position_code,
+      member_count
+    }));
+
+    return res.json({ positions });
+  } catch (error: any) {
+    console.error("Error in getPositions:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/members/by-position/:code", async (req: Request, res: Response) => {
+  try {
+    const { code } = req.params;
+    const tenantId = req.query.tenantId as string;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId parameter" });
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      return res.status(400).json({ error: "Invalid tenantId format" });
+    }
+
+    if (!code) {
+      return res.status(400).json({ error: "Invalid position code" });
+    }
+
+    const { data: members, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        nickname,
+        company,
+        position,
+        tagline,
+        photo_url,
+        business_type,
+        business_type_code,
+        phone,
+        email,
+        bni_position,
+        tags
+      `)
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .eq("bni_position", code)
+      .order("full_name", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching members by position:", error);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    const positionNames: Record<string, { name_th: string; name_en: string }> = {
+      president: { name_th: "ประธาน", name_en: "President" },
+      vice_president: { name_th: "รองประธาน", name_en: "Vice President" },
+      secretary: { name_th: "เลขานุการ", name_en: "Secretary/Treasurer" },
+      membership: { name_th: "ฝ่ายสมาชิก", name_en: "Membership Committee" },
+      visitor: { name_th: "ฝ่ายต้อนรับ", name_en: "Visitor Host" },
+      education: { name_th: "ฝ่ายการศึกษา", name_en: "Education Coordinator" },
+      mentor: { name_th: "พี่เลี้ยง", name_en: "Mentor Coordinator" },
+      member: { name_th: "สมาชิก", name_en: "Member" }
+    };
+
+    return res.json({ 
+      members: members || [],
+      position: positionNames[code] || { name_th: code, name_en: code },
+      total: members?.length || 0
+    });
+  } catch (error: any) {
+    console.error("Error in getMembersByPosition:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/power-teams", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId parameter" });
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      return res.status(400).json({ error: "Invalid tenantId format" });
+    }
+
+    const { data: powerTeams, error: ptError } = await supabaseAdmin
+      .from("power_teams")
+      .select("power_team_id, name, description")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("name", { ascending: true });
+
+    if (ptError) {
+      console.error("Error fetching power teams:", ptError);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    const { data: memberships, error: memberError } = await supabaseAdmin
+      .from("power_team_members")
+      .select("power_team_id, participants!inner(status)")
+      .eq("participants.tenant_id", tenantId)
+      .eq("participants.status", "member");
+
+    if (memberError) {
+      console.error("Error fetching power team memberships:", memberError);
+    }
+
+    const countMap = new Map<string, number>();
+    for (const m of memberships || []) {
+      countMap.set(m.power_team_id, (countMap.get(m.power_team_id) || 0) + 1);
+    }
+
+    const powerTeamsWithCount = (powerTeams || []).map(pt => ({
+      ...pt,
+      member_count: countMap.get(pt.power_team_id) || 0
+    }));
+
+    return res.json({ powerTeams: powerTeamsWithCount });
+  } catch (error: any) {
+    console.error("Error in getPowerTeams:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/members/by-powerteam/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.query.tenantId as string;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId parameter" });
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      return res.status(400).json({ error: "Invalid tenantId format" });
+    }
+
+    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return res.status(400).json({ error: "Invalid power team ID format" });
+    }
+
+    const { data: powerTeam } = await supabaseAdmin
+      .from("power_teams")
+      .select("name, description")
+      .eq("power_team_id", id)
+      .single();
+
+    const { data: memberIds, error: memberError } = await supabaseAdmin
+      .from("power_team_members")
+      .select("participant_id")
+      .eq("power_team_id", id);
+
+    if (memberError) {
+      console.error("Error fetching power team members:", memberError);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    const participantIds = (memberIds || []).map(m => m.participant_id);
+
+    if (participantIds.length === 0) {
+      return res.json({ 
+        members: [],
+        powerTeam: powerTeam || { name: "Unknown", description: null },
+        total: 0
+      });
+    }
+
+    const { data: members, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name,
+        nickname,
+        company,
+        position,
+        tagline,
+        photo_url,
+        business_type,
+        business_type_code,
+        phone,
+        email,
+        tags
+      `)
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .in("participant_id", participantIds)
+      .order("full_name", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching members:", error);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    return res.json({ 
+      members: members || [],
+      powerTeam: powerTeam || { name: "Unknown", description: null },
+      total: members?.length || 0
+    });
+  } catch (error: any) {
+    console.error("Error in getMembersByPowerTeam:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
