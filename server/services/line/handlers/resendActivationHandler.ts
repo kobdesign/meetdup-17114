@@ -2,6 +2,22 @@ import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
 import { startPhoneLinkingFlow } from "./phoneLinkingHandler";
 
+function getBaseUrl(): string {
+  if (process.env.REPLIT_DEPLOYMENT_DOMAIN) {
+    return `https://${process.env.REPLIT_DEPLOYMENT_DOMAIN}`;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  const replitUrl = process.env.REPL_SLUG && process.env.REPL_OWNER 
+    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+    : null;
+  if (replitUrl) {
+    return replitUrl;
+  }
+  return "https://meetdup.replit.app";
+}
+
 function getStatusLabel(status: string): string {
   const statusMap: Record<string, string> = {
     prospect: "ผู้สนใจ",
@@ -72,9 +88,7 @@ export async function handleResendActivation(
   });
 
   try {
-    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-      : "http://localhost:5000";
+    const baseUrl = getBaseUrl();
     const internalSecret = process.env.INTERNAL_API_SECRET;
     
     if (!internalSecret) {
