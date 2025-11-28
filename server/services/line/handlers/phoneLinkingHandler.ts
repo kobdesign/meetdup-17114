@@ -1,10 +1,10 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
 
-import { getProductionBaseUrl } from "../../../utils/getProductionUrl";
+import { getInternalApiBaseUrl } from "../../../utils/getProductionUrl";
 
-function getBaseUrl(): string {
-  return getProductionBaseUrl();
+function getInternalBaseUrl(): string {
+  return getInternalApiBaseUrl();
 }
 
 interface ConversationState {
@@ -179,7 +179,7 @@ export async function handlePhoneLinking(
     });
 
     try {
-      const baseUrl = getBaseUrl();
+      const baseUrl = getInternalBaseUrl();
       const internalSecret = process.env.INTERNAL_API_SECRET;
       
       if (!internalSecret) {

@@ -2,10 +2,10 @@ import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
 import { startPhoneLinkingFlow } from "./phoneLinkingHandler";
 
-import { getProductionBaseUrl } from "../../../utils/getProductionUrl";
+import { getInternalApiBaseUrl } from "../../../utils/getProductionUrl";
 
-function getBaseUrl(): string {
-  return getProductionBaseUrl();
+function getInternalBaseUrl(): string {
+  return getInternalApiBaseUrl();
 }
 
 function getStatusLabel(status: string): string {
@@ -78,7 +78,7 @@ export async function handleResendActivation(
   });
 
   try {
-    const baseUrl = getBaseUrl();
+    const baseUrl = getInternalBaseUrl();
     const internalSecret = process.env.INTERNAL_API_SECRET;
     
     if (!internalSecret) {

@@ -1,5 +1,5 @@
 /**
- * Get base URL for the application
+ * Get base URL for user-facing URLs (activation links, etc.)
  * Priority:
  * 1. PRODUCTION_DOMAIN env var (custom domain for production)
  * 2. REPLIT_DEPLOYMENT_DOMAIN (Replit autoscale deployment)
@@ -20,6 +20,28 @@ export function getProductionBaseUrl(): string {
   // In production mode without other vars, use production domain
   if (process.env.NODE_ENV === "production") {
     return "https://meetdup.com";
+  }
+  // Local development fallback
+  return "http://localhost:5000";
+}
+
+/**
+ * Get base URL for internal API calls (server-to-server)
+ * Uses Replit deployment domain which is resolvable from within the container
+ * Priority:
+ * 1. REPLIT_DEPLOYMENT_DOMAIN (Replit autoscale deployment - resolvable from container)
+ * 2. REPLIT_DEV_DOMAIN (Replit development environment)
+ * 3. localhost:5000 (local development fallback)
+ * 
+ * NOTE: Custom domains like meetdup.com are NOT used here because
+ * they may not be resolvable from within the Replit container (DNS issue)
+ */
+export function getInternalApiBaseUrl(): string {
+  if (process.env.REPLIT_DEPLOYMENT_DOMAIN) {
+    return `https://${process.env.REPLIT_DEPLOYMENT_DOMAIN}`;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
   }
   // Local development fallback
   return "http://localhost:5000";
