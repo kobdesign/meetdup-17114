@@ -488,7 +488,7 @@ function getBaseUrl(): string {
 }
 
 /**
- * Handle category search command - send Flex with 3 search options
+ * Handle category search command - redirect directly to LIFF category search page
  */
 export async function handleCategorySearch(
   event: any,
@@ -499,16 +499,15 @@ export async function handleCategorySearch(
   try {
     const baseUrl = getBaseUrl();
     
-    // Create URLs for each search type with pre-selected tab
-    const categoryUrl = `${baseUrl}/liff/search?tenant=${tenantId}&tab=category`;
-    const powerteamUrl = `${baseUrl}/liff/search?tenant=${tenantId}&tab=powerteam`;
-    const positionUrl = `${baseUrl}/liff/search?tenant=${tenantId}&tab=position`;
+    // Direct URL to category search LIFF page
+    const categoryUrl = `${baseUrl}/liff/search/category?tenant=${tenantId}`;
     
-    console.log(`${logPrefix} Sending search options Flex Message`);
+    console.log(`${logPrefix} Sending direct category search link`);
     
+    // Simple Flex with single button for direct access
     const flexMessage = {
       type: "flex",
-      altText: "ค้นหาสมาชิก - เลือกวิธีค้นหา",
+      altText: "ค้นหาตามประเภทธุรกิจ",
       contents: {
         type: "bubble",
         size: "kilo",
@@ -520,55 +519,32 @@ export async function handleCategorySearch(
               type: "text",
               text: "ค้นหาสมาชิก",
               weight: "bold",
-              size: "xl",
+              size: "lg",
               color: "#1DB446"
             },
             {
               type: "text",
-              text: "เลือกวิธีค้นหาที่ต้องการ",
+              text: "กดปุ่มด้านล่างเพื่อค้นหาตามประเภทธุรกิจ",
               size: "sm",
               color: "#666666",
-              margin: "md"
+              margin: "md",
+              wrap: true
             }
           ]
         },
         footer: {
           type: "box",
           layout: "vertical",
-          spacing: "sm",
           contents: [
             {
               type: "button",
               action: {
                 type: "uri",
-                label: "ค้นหาตามประเภทธุรกิจ",
+                label: "เปิดหน้าค้นหา",
                 uri: categoryUrl
               },
               style: "primary",
-              color: "#1DB446",
-              height: "sm"
-            },
-            {
-              type: "button",
-              action: {
-                type: "uri",
-                label: "ค้นหาตาม Power Team",
-                uri: powerteamUrl
-              },
-              style: "primary",
-              color: "#5B8DEF",
-              height: "sm"
-            },
-            {
-              type: "button",
-              action: {
-                type: "uri",
-                label: "ค้นหาตามตำแหน่ง",
-                uri: positionUrl
-              },
-              style: "primary",
-              color: "#FF6B6B",
-              height: "sm"
+              color: "#1DB446"
             }
           ]
         }
@@ -576,7 +552,7 @@ export async function handleCategorySearch(
     };
     
     await replyMessage(event.replyToken, flexMessage, accessToken);
-    console.log(`${logPrefix} Search options Flex sent successfully`);
+    console.log(`${logPrefix} Category search link sent successfully`);
     
   } catch (error: any) {
     console.error(`${logPrefix} Error handling category search:`, error);
