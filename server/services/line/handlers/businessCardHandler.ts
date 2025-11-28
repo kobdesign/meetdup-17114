@@ -395,10 +395,8 @@ export async function handleEditProfileRequest(
     const { generateProfileToken } = await import("../../../utils/profileToken");
     const token = generateProfileToken(participant.participant_id, tenantId);
 
-    // Get base URL
-    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : (process.env.REPLIT_DEPLOYMENT_URL || "http://localhost:5000");
+    // Get base URL (prioritize deployment URL)
+    const baseUrl = getBaseUrl();
 
     const profileUrl = `${baseUrl}/participant-profile/edit?token=${token}`;
 
