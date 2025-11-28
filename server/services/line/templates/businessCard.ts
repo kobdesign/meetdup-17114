@@ -472,35 +472,26 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
 
   const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
 
+  // Always show One Page button if onepage_url exists (no website fallback)
   if (onepageUrl) {
     secondaryActions.push({
       type: "button",
       action: {
         type: "uri",
-        label: "ดู One Page",
+        label: "One Page",
         uri: onepageUrl
-      },
-      style: "secondary",
-      height: "sm"
-    });
-  } else if (websiteUrl) {
-    secondaryActions.push({
-      type: "button",
-      action: {
-        type: "uri",
-        label: "ดูเว็บไซต์",
-        uri: websiteUrl
       },
       style: "secondary",
       height: "sm"
     });
   }
 
+  // Always show Profile Page button
   secondaryActions.push({
     type: "button",
     action: {
       type: "uri",
-      label: "Profile Page",
+      label: "Profile",
       uri: publicProfileUrl
     },
     style: "secondary",
