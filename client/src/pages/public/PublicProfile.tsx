@@ -11,6 +11,7 @@ import {
   Share2,
   Facebook,
   Instagram,
+  Linkedin,
   MessageCircle,
   ExternalLink,
   FileText,
@@ -34,6 +35,7 @@ interface ProfileData {
   website_url?: string;
   facebook_url?: string;
   instagram_url?: string;
+  linkedin_url?: string;
   line_id?: string;
   business_address?: string;
   tags?: string[];
@@ -403,10 +405,21 @@ export default function PublicProfile() {
           </div>
 
           {/* Social Media Section */}
-          {(profile.facebook_url || profile.instagram_url) && (
+          {(profile.linkedin_url || profile.facebook_url || profile.instagram_url) && (
             <div className="border-t border-border/50 p-4">
               <p className="text-xs text-muted-foreground text-center mb-3">โซเชียลมีเดีย</p>
               <div className="flex justify-center gap-3">
+                {profile.linkedin_url && (
+                  <a
+                    href={profile.linkedin_url.startsWith("http") ? profile.linkedin_url : `https://${profile.linkedin_url}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-12 h-12 rounded-full bg-[#0A66C2]/10 flex items-center justify-center hover-elevate active-elevate-2"
+                    data-testid="link-linkedin"
+                  >
+                    <Linkedin className="w-6 h-6 text-[#0A66C2]" />
+                  </a>
+                )}
                 {profile.facebook_url && (
                   <a
                     href={profile.facebook_url}

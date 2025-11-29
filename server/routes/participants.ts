@@ -4272,6 +4272,7 @@ router.get("/public/:participantId", async (req: Request, res: Response) => {
         website_url,
         facebook_url,
         instagram_url,
+        linkedin_url,
         line_id,
         business_address,
         tags,

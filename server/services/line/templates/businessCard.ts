@@ -20,6 +20,7 @@ export interface BusinessCardData {
   website_url?: string | null;
   facebook_url?: string | null;
   instagram_url?: string | null;
+  linkedin_url?: string | null;
   business_address?: string | null;
   line_user_id?: string | null;
   line_id?: string | null;
@@ -47,6 +48,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   const websiteUrl = sanitizeUrl(data.website_url);
   const facebookUrl = sanitizeUrl(data.facebook_url);
   const instagramUrl = sanitizeUrl(data.instagram_url);
+  const linkedinUrl = sanitizeUrl(data.linkedin_url);
   const onepageUrl = sanitizeUrl(data.onepage_url);
 
   const heroContents: any[] = [];
@@ -520,6 +522,20 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   }
 
   const extraLinks: any[] = [];
+
+  if (linkedinUrl) {
+    extraLinks.push({
+      type: "text",
+      text: "LinkedIn",
+      size: "xs",
+      color: "#0A66C2",
+      decoration: "underline",
+      action: {
+        type: "uri",
+        uri: linkedinUrl
+      }
+    });
+  }
 
   if (facebookUrl) {
     extraLinks.push({
