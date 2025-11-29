@@ -7,8 +7,10 @@ export default function LiffCards() {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const liffState = searchParams.get("liff.state");
+    // Log all received parameters for debugging
+    console.log("[LiffCards] All params:", Object.fromEntries(searchParams.entries()));
     
+    const liffState = searchParams.get("liff.state");
     console.log("[LiffCards] Received liff.state:", liffState);
     
     if (liffState) {
@@ -16,6 +18,7 @@ export default function LiffCards() {
         let decodedState = decodeURIComponent(liffState);
         console.log("[LiffCards] Decoded once:", decodedState);
         
+        // Handle nested liff.state (from LINE redirect issues)
         while (decodedState.includes("liff.state=")) {
           const nestedMatch = decodedState.match(/[?&]?liff\.state=([^&]+)/);
           if (nestedMatch) {
@@ -26,8 +29,20 @@ export default function LiffCards() {
           }
         }
         
+        // Check for new colon-separated format: share:{tenant}:{participant}
+        if (decodedState.startsWith("share:")) {
+          const parts = decodedState.split(":");
+          if (parts.length === 3) {
+            const [, tenantId, participantId] = parts;
+            console.log("[LiffCards] Share action detected:", { tenantId, participantId });
+            navigate(`/liff/share/${tenantId}/${participantId}`, { replace: true });
+            return;
+          }
+        }
+        
+        // Legacy: path-based format starting with /
         if (decodedState.startsWith("/")) {
-          console.log("[LiffCards] Navigating to:", decodedState);
+          console.log("[LiffCards] Navigating to path:", decodedState);
           navigate(decodedState, { replace: true });
           return;
         }
@@ -36,9 +51,10 @@ export default function LiffCards() {
       }
     }
     
-    const tenantId = searchParams.get("tenant");
-    if (tenantId) {
-      navigate(`/liff/search?tenant=${tenantId}`, { replace: true });
+    // Default: go to search page with tenant if available
+    const tenantParam = searchParams.get("tenant");
+    if (tenantParam) {
+      navigate(`/liff/search?tenant=${tenantParam}`, { replace: true });
     } else {
       navigate("/", { replace: true });
     }
