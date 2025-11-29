@@ -3039,13 +3039,48 @@ router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), a
       });
     }
 
+    // Helper function to find column value with flexible matching
+    const getColumnValue = (row: any, ...possibleNames: string[]): string => {
+      // First try exact matches
+      for (const name of possibleNames) {
+        if (row[name] !== undefined && row[name] !== '') {
+          return String(row[name]);
+        }
+      }
+      // Then try trimmed keys matching trimmed names
+      const rowKeys = Object.keys(row);
+      for (const name of possibleNames) {
+        const trimmedName = name.trim().toLowerCase();
+        for (const key of rowKeys) {
+          if (key.trim().toLowerCase() === trimmedName) {
+            if (row[key] !== undefined && row[key] !== '') {
+              return String(row[key]);
+            }
+          }
+        }
+      }
+      return '';
+    };
+
+    // Log column names from first row for debugging
+    if (rawData.length > 0) {
+      const firstRow = rawData[0] as Record<string, unknown>;
+      const columnNames = Object.keys(firstRow);
+      console.log(`${logPrefix} Excel columns found:`, columnNames);
+    }
+
     // Map Excel columns to our schema
     const participants = rawData.map((row: any, index: number) => {
-      const fullNameTh = row['ชื่อ - สกุล'] || row['full_name_th'] || row['full_name'] || '';
-      const nickname = row['ชื่อเล่น'] || row['nickname'] || '';
-      const company = row['บริษัทฯ'] || row['company'] || '';
-      const businessType = row['ธุรกิจ'] || row['business_type'] || '';
-      const phone = row['เบอร์โทร'] || row['phone'] || '';
+      const fullNameTh = getColumnValue(row, 'ชื่อ - สกุล', 'ชื่อ-สกุล', 'ชื่อ', 'full_name_th', 'full_name', 'name');
+      const nickname = getColumnValue(row, 'ชื่อเล่น', 'nickname', 'nick');
+      const company = getColumnValue(row, 'บริษัทฯ', 'บริษัท', 'company');
+      const businessType = getColumnValue(row, 'ธุรกิจ', 'business_type', 'business');
+      const phone = getColumnValue(row, 'เบอร์โทร', 'โทร', 'phone', 'tel');
+      
+      // Debug log for first few rows
+      if (index < 3) {
+        console.log(`${logPrefix} Row ${index + 2}: name="${fullNameTh}", nickname="${nickname}", phone="${phone}"`);
+      }
 
       // Normalize phone (strip non-digits)
       const normalizedPhone = String(phone).replace(/\D/g, '');
