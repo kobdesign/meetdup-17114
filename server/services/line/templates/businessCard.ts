@@ -500,33 +500,6 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     height: "sm"
   });
 
-  // Share button row - only show if LIFF ID is provided
-  const shareActions: any[] = [];
-  
-  if (liffId) {
-    // Use simple colon-separated format for liff.state to avoid URL nesting issues
-    // Format: share:{tenant_id}:{participant_id}
-    // This avoids path separators (/) that might confuse LINE's redirect handling
-    const stateValue = `share:${data.tenant_id}:${data.participant_id}`;
-    const shareUrl = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(stateValue)}`;
-    
-    // Debug logging to trace URL generation
-    console.log(`[BusinessCard:Share] LIFF ID: ${liffId}`);
-    console.log(`[BusinessCard:Share] stateValue: ${stateValue}`);
-    console.log(`[BusinessCard:Share] shareUrl: ${shareUrl}`);
-    shareActions.push({
-      type: "button",
-      action: {
-        type: "uri",
-        label: "แชร์ให้เพื่อน",
-        uri: shareUrl
-      },
-      style: "link",
-      height: "sm",
-      color: COLORS.primary
-    });
-  }
-
   const footerContents: any[] = [];
 
   if (primaryActions.length > 0) {
@@ -545,18 +518,6 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       contents: secondaryActions,
       spacing: "sm",
       margin: primaryActions.length > 0 ? "sm" : "none"
-    });
-  }
-
-  // Add share button row if available
-  if (shareActions.length > 0) {
-    footerContents.push({
-      type: "box",
-      layout: "horizontal",
-      contents: shareActions,
-      spacing: "sm",
-      margin: "sm",
-      justifyContent: "center"
     });
   }
 
