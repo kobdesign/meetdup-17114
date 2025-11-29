@@ -42,7 +42,7 @@ const COLORS = {
   separator: "#E2E8F0",
 };
 
-export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string, liffId?: string | null) {
+export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string) {
   const phoneUri = sanitizePhone(data.phone);
   const emailUri = sanitizeEmail(data.email);
   const websiteUrl = sanitizeUrl(data.website_url);

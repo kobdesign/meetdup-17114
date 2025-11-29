@@ -127,11 +127,8 @@ export async function handleViewCard(
     // Get base URL from environment (prioritize deployment URL)
     const baseUrl = getBaseUrl();
 
-    // Get LIFF ID for share button
-    const liffId = await getLiffId();
-
     // Create and send Flex Message
-    const flexMessage = createBusinessCardFlexMessage(cardData as BusinessCardData, baseUrl, liffId);
+    const flexMessage = createBusinessCardFlexMessage(cardData as BusinessCardData, baseUrl);
 
     await replyMessage(event.replyToken, flexMessage, accessToken);
 
@@ -345,9 +342,6 @@ export async function handleCardSearch(
 
     const baseUrl = getBaseUrl();
 
-    // Get LIFF ID for share button
-    const liffId = await getLiffId();
-
     // Get tenant info for branding
     const { data: tenantInfo } = await supabaseAdmin
       .from("tenants")
@@ -363,7 +357,7 @@ export async function handleCardSearch(
 
     // If only one result, send single Business Card Flex Message
     if (participantsWithTenant.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl, liffId);
+      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl);
       await replyMessage(event.replyToken, flexMessage, accessToken);
       console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name}`);
       return;
@@ -373,7 +367,7 @@ export async function handleCardSearch(
     const maxBubbles = 12;
     const limitedParticipants = participantsWithTenant.slice(0, maxBubbles);
     const carouselContents = limitedParticipants.map(p => {
-      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl, liffId);
+      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl);
       return flexMessage.contents;
     });
 
