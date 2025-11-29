@@ -10,6 +10,7 @@ export interface ActivationSuccessData {
   nickname?: string | null;
   chapter_name: string;
   status: string;
+  profile_token: string; // JWT token for profile editing
 }
 
 const COLORS = {
@@ -34,7 +35,8 @@ function getStatusLabel(status: string): string {
 }
 
 export function createActivationSuccessFlexMessage(data: ActivationSuccessData, baseUrl: string) {
-  const profileUrl = `${baseUrl}/p/${data.participant_id}`;
+  // Use profile edit URL with token instead of public profile view
+  const profileEditUrl = `${baseUrl}/participant-profile/edit?token=${data.profile_token}`;
   const displayName = data.nickname ? `${data.full_name} (${data.nickname})` : data.full_name;
 
   const bubble = {
@@ -132,7 +134,7 @@ export function createActivationSuccessFlexMessage(data: ActivationSuccessData, 
           action: {
             type: "uri",
             label: "แก้ไขโปรไฟล์",
-            uri: profileUrl
+            uri: profileEditUrl
           },
           style: "primary",
           margin: "lg"

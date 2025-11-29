@@ -4014,13 +4014,17 @@ router.post("/activate", async (req: Request, res: Response) => {
           // Build base URL for profile link
           const baseUrl = getProductionBaseUrl();
 
-          // Create success Flex Message with profile button
+          // Generate profile edit token (24h expiry)
+          const profileToken = generateProfileToken(participant.participant_id, tenantId);
+
+          // Create success Flex Message with profile edit button
           const successMessage = createActivationSuccessFlexMessage({
             participant_id: participant.participant_id,
             full_name: participant.full_name,
             nickname: participant.nickname,
             chapter_name: tenant?.tenant_name || "Chapter",
-            status: participant.status || "member"
+            status: participant.status || "member",
+            profile_token: profileToken
           }, baseUrl);
 
           await lineClient.pushMessage(participant.line_user_id, [successMessage]);
