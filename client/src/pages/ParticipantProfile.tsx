@@ -10,7 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { 
   Loader2, User, Building2, Phone, Mail, Globe, Upload, CheckCircle, 
-  MapPin, Instagram, Facebook, FileImage, Target, MessageSquare, MessageCircle
+  MapPin, Instagram, Facebook, FileImage, Target, MessageSquare, MessageCircle,
+  Linkedin, AlertCircle
 } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
@@ -418,13 +419,18 @@ export default function ParticipantProfile() {
     }
   };
 
-  const getInitials = (name: string) => {
-    if (!name) return "?";
-    const parts = name.split(" ");
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  const getInitials = () => {
+    if (firstNameTh && lastNameTh) {
+      return `${firstNameTh[0]}${lastNameTh[0]}`.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+    if (fullName) {
+      const parts = fullName.split(" ");
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      }
+      return fullName.substring(0, 2).toUpperCase();
+    }
+    return "?";
   };
 
   if (loading) {
@@ -482,7 +488,7 @@ export default function ParticipantProfile() {
                       className="object-contain"
                     />
                     <AvatarFallback className="text-2xl bg-primary/10 text-primary">
-                      {getInitials(fullName)}
+                      {getInitials()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col items-center gap-2 w-full">
@@ -660,39 +666,97 @@ export default function ParticipantProfile() {
                 <CardDescription>แก้ไขข้อมูลที่จะแสดงในนามบัตร LINE</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Basic Info */}
+                {/* Thai Names (Required) */}
+                <div>
+                  <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    ชื่อ-นามสกุล (ภาษาไทย) *
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="first-name-th">ชื่อ *</Label>
+                      <Input
+                        id="first-name-th"
+                        type="text"
+                        placeholder="สมชาย"
+                        value={firstNameTh}
+                        onChange={(e) => setFirstNameTh(e.target.value)}
+                        required
+                        data-testid="input-first-name-th"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="last-name-th">นามสกุล *</Label>
+                      <Input
+                        id="last-name-th"
+                        type="text"
+                        placeholder="ใจดี"
+                        value={lastNameTh}
+                        onChange={(e) => setLastNameTh(e.target.value)}
+                        required
+                        data-testid="input-last-name-th"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="nickname-th">ชื่อเล่น</Label>
+                      <Input
+                        id="nickname-th"
+                        type="text"
+                        placeholder="ชาย"
+                        value={nicknameTh}
+                        onChange={(e) => setNicknameTh(e.target.value)}
+                        data-testid="input-nickname-th"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* English Names (Optional) */}
+                <div>
+                  <h3 className="text-sm font-medium mb-3 text-muted-foreground">
+                    ชื่อ-นามสกุล (ภาษาอังกฤษ) - ไม่บังคับ
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="first-name-en">First Name</Label>
+                      <Input
+                        id="first-name-en"
+                        type="text"
+                        placeholder="Somchai"
+                        value={firstNameEn}
+                        onChange={(e) => setFirstNameEn(e.target.value)}
+                        data-testid="input-first-name-en"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="last-name-en">Last Name</Label>
+                      <Input
+                        id="last-name-en"
+                        type="text"
+                        placeholder="Jaidee"
+                        value={lastNameEn}
+                        onChange={(e) => setLastNameEn(e.target.value)}
+                        data-testid="input-last-name-en"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="nickname-en">Nickname</Label>
+                      <Input
+                        id="nickname-en"
+                        type="text"
+                        placeholder="Chai"
+                        value={nicknameEn}
+                        onChange={(e) => setNicknameEn(e.target.value)}
+                        data-testid="input-nickname-en"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Contact Info */}
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="fullname">
-                      <User className="inline h-4 w-4 mr-2" />
-                      ชื่อ-นามสกุล *
-                    </Label>
-                    <Input
-                      id="fullname"
-                      type="text"
-                      placeholder="สมชาย ใจดี"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      required
-                      data-testid="input-fullname"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="nickname">
-                      <MessageSquare className="inline h-4 w-4 mr-2" />
-                      ชื่อเล่น
-                    </Label>
-                    <Input
-                      id="nickname"
-                      type="text"
-                      placeholder="ชาย"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      data-testid="input-nickname"
-                    />
-                  </div>
-
                   <div className="space-y-2">
                     <Label htmlFor="phone">
                       <Phone className="inline h-4 w-4 mr-2" />
@@ -822,6 +886,21 @@ export default function ParticipantProfile() {
                   </div>
 
                   <div className="space-y-2">
+                    <Label htmlFor="linkedin">
+                      <Linkedin className="inline h-4 w-4 mr-2" />
+                      LinkedIn
+                    </Label>
+                    <Input
+                      id="linkedin"
+                      type="url"
+                      placeholder="https://linkedin.com/in/yourprofile"
+                      value={linkedin}
+                      onChange={(e) => setLinkedin(e.target.value)}
+                      data-testid="input-linkedin"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="facebook">
                       <Facebook className="inline h-4 w-4 mr-2" />
                       Facebook
@@ -851,7 +930,7 @@ export default function ParticipantProfile() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="line-id">
                       <MessageCircle className="inline h-4 w-4 mr-2" />
                       LINE ID
@@ -867,19 +946,27 @@ export default function ParticipantProfile() {
                     <p className="text-xs text-muted-foreground">
                       LINE ID สาธารณะ (ไม่ต้องใส่ @) เพื่อให้คนอื่นเปิดโปรไฟล์ LINE ของคุณได้
                     </p>
+                    {!lineId && (
+                      <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 rounded-md border border-amber-200 dark:border-amber-800">
+                        <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          กรุณากรอก LINE ID เพื่อให้สมาชิกท่านอื่นติดต่อคุณผ่าน LINE ได้สะดวก
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="address">
                       <MapPin className="inline h-4 w-4 mr-2" />
                       ที่อยู่ธุรกิจ
                     </Label>
-                    <Input
+                    <Textarea
                       id="address"
-                      type="text"
-                      placeholder="123/45 อาคาร ABC ถนนสุขุมวิท"
+                      placeholder="123/45 อาคาร ABC ถนนสุขุมวิท กรุงเทพฯ 10110"
                       value={businessAddress}
                       onChange={(e) => setBusinessAddress(e.target.value)}
+                      rows={2}
                       data-testid="input-address"
                     />
                   </div>
@@ -891,7 +978,7 @@ export default function ParticipantProfile() {
                 <div className="pt-2">
                   <Button 
                     type="submit" 
-                    disabled={saving || !fullName || !phone}
+                    disabled={saving || !firstNameTh || !lastNameTh || !phone}
                     className="w-full"
                     data-testid="button-save-profile"
                   >
