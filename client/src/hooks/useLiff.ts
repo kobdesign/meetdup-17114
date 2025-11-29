@@ -10,12 +10,15 @@ interface UseLiffReturn {
   isLiffReady: boolean;
   isInLiff: boolean;
   isLoggedIn: boolean;
+  needsLogin: boolean;
+  canShare: boolean;
   liffError: string | null;
   profile: {
     userId: string;
     displayName: string;
     pictureUrl?: string;
   } | null;
+  login: () => void;
   shareTargetPicker: (messages: any[]) => Promise<void>;
   closeWindow: () => void;
 }
@@ -76,6 +79,27 @@ export function useLiff(): UseLiffReturn {
     initLiff();
   }, []);
 
+  // Check if user needs to login (for External browser)
+  // In LINE app, login is automatic. In External browser, need to call liff.login()
+  const needsLogin = isLiffReady && !isInLiff && !isLoggedIn && liffConfig?.liff_enabled === true;
+
+  // Check if shareTargetPicker is available
+  // This API is available in LINE app and in some External browsers after login
+  const canShare = isLiffReady && isLoggedIn && liffConfig?.liff_enabled === true && 
+    (typeof liff !== 'undefined' && liff.isApiAvailable?.('shareTargetPicker'));
+
+  // Login function for External browser
+  const login = useCallback(() => {
+    if (!liffConfig?.liff_enabled || !liffConfig?.liff_id) {
+      console.log("[LIFF] Cannot login - LIFF not configured");
+      return;
+    }
+
+    console.log("[LIFF] Calling liff.login() for External browser");
+    // After login, LINE will redirect back to the current URL
+    liff.login({ redirectUri: window.location.href });
+  }, [liffConfig]);
+
   const shareTargetPicker = useCallback(async (messages: any[]) => {
     if (!liffConfig?.liff_enabled || !liffConfig?.liff_id) {
       console.log("[LIFF] Share not available - LIFF not configured");
@@ -113,8 +137,11 @@ export function useLiff(): UseLiffReturn {
     isLiffReady,
     isInLiff,
     isLoggedIn,
+    needsLogin,
+    canShare,
     liffError,
     profile,
+    login,
     shareTargetPicker,
     closeWindow
   };

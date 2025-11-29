@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Loader2, Share2, CheckCircle2, XCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { Loader2, Share2, CheckCircle2, XCircle, AlertCircle, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLiff } from "@/hooks/useLiff";
 
-type ShareStatus = "loading" | "ready" | "sharing" | "success" | "cancelled" | "error" | "not-in-liff" | "missing-tenant";
+type ShareStatus = "loading" | "ready" | "sharing" | "success" | "cancelled" | "error" | "not-in-liff" | "missing-tenant" | "needs-login";
 
 export default function LiffShareCard() {
   const { tenantId, participantId } = useParams<{ tenantId: string; participantId: string }>();
   
-  const { isLiffReady, isInLiff, shareTargetPicker, closeWindow, liffError } = useLiff();
+  const { isLiffReady, isInLiff, isLoggedIn, needsLogin, canShare, login, shareTargetPicker, closeWindow, liffError } = useLiff();
   
   const [status, setStatus] = useState<ShareStatus>("loading");
   const [memberName, setMemberName] = useState<string>("");
@@ -63,11 +63,27 @@ export default function LiffShareCard() {
   useEffect(() => {
     if (status !== "ready" || !isLiffReady || !flexMessage) return;
 
-    if (!isInLiff) {
-      setStatus("not-in-liff");
+    // Check if user needs to login (External browser case)
+    if (needsLogin) {
+      console.log("[LiffShareCard] User needs to login first (External browser)");
+      setStatus("needs-login");
       return;
     }
 
+    // Check if shareTargetPicker is available
+    // This includes checking: logged in + API available
+    if (!canShare) {
+      console.log("[LiffShareCard] Cannot share - API not available", { isLoggedIn, isInLiff, canShare });
+      // If logged in but can't share, it means shareTargetPicker is not available in this context
+      if (isLoggedIn) {
+        setStatus("not-in-liff");
+      } else {
+        setStatus("needs-login");
+      }
+      return;
+    }
+
+    // shareTargetPicker is available, proceed with sharing
     const autoShare = async () => {
       setStatus("sharing");
       
@@ -91,7 +107,7 @@ export default function LiffShareCard() {
     };
 
     autoShare();
-  }, [status, isLiffReady, isInLiff, flexMessage, shareTargetPicker, closeWindow]);
+  }, [status, isLiffReady, isLoggedIn, isInLiff, needsLogin, canShare, flexMessage, shareTargetPicker, closeWindow]);
 
   const handleRetry = async () => {
     if (!flexMessage) return;
@@ -217,6 +233,39 @@ export default function LiffShareCard() {
                 data-testid="button-close"
               >
                 ปิดหน้านี้
+              </Button>
+            </div>
+          </>
+        )}
+
+        {status === "needs-login" && (
+          <>
+            <div className="w-20 h-20 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
+              <LogIn className="w-10 h-10 text-primary" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-xl font-semibold">เข้าสู่ระบบด้วย LINE</h1>
+              <p className="text-muted-foreground text-sm">
+                กรุณาเข้าสู่ระบบด้วย LINE เพื่อแชร์นามบัตรของ
+              </p>
+              <p className="font-medium">{memberName}</p>
+            </div>
+            <div className="space-y-3 pt-4">
+              <Button 
+                onClick={login}
+                className="w-full bg-[#06C755] hover:bg-[#05b34d]"
+                data-testid="button-line-login"
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                เข้าสู่ระบบด้วย LINE
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleClose}
+                className="w-full"
+                data-testid="button-close"
+              >
+                ยกเลิก
               </Button>
             </div>
           </>
