@@ -16,8 +16,21 @@ function extractFinalPath(liffState: string): string | null {
       }
     }
     
+    // Handle path format: /liff/share/tenant/participant
     if (decoded.startsWith("/")) {
       return decoded;
+    }
+    
+    // Handle colon-separated format: share:tenant:participant
+    // Convert to path format: /liff/share/tenant/participant
+    if (decoded.startsWith("share:")) {
+      const parts = decoded.split(":");
+      if (parts.length === 3) {
+        const [action, tenantId, participantId] = parts;
+        const path = `/liff/${action}/${tenantId}/${participantId}`;
+        console.log("[LiffStateHandler] Converted share format to path:", path);
+        return path;
+      }
     }
     
     return null;
