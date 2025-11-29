@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { 
   Loader2, User, Building2, Phone, Mail, Globe, Upload, CheckCircle, 
-  MapPin, Instagram, Facebook, Target
+  MapPin, Instagram, Facebook, Target, MessageCircle, Linkedin, Tag
 } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import ImageCropper from "@/components/ImageCropper";
@@ -17,19 +17,31 @@ import ImageCropper from "@/components/ImageCropper";
 interface ParticipantProfile {
   participant_id: string;
   full_name: string;
+  first_name_th: string | null;
+  last_name_th: string | null;
+  nickname_th: string | null;
+  first_name_en: string | null;
+  last_name_en: string | null;
+  nickname_en: string | null;
   nickname: string | null;
   email: string | null;
   phone: string;
   position: string | null;
   company: string | null;
+  company_logo_url: string | null;
   tagline: string | null;
   business_type: string | null;
+  business_type_code: string | null;
   goal: string | null;
   website_url: string | null;
   facebook_url: string | null;
   instagram_url: string | null;
+  line_id: string | null;
+  linkedin_url: string | null;
   business_address: string | null;
   photo_url: string | null;
+  tags: string[] | null;
+  onepage_url: string | null;
   tenant_id: string;
   tenant_name?: string;
   logo_url?: string;
@@ -46,20 +58,30 @@ export default function ParticipantProfile() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Form fields - using existing database columns only
+  // Form fields - full Supabase schema columns
   const [fullName, setFullName] = useState("");
+  const [firstNameTh, setFirstNameTh] = useState("");
+  const [lastNameTh, setLastNameTh] = useState("");
+  const [nicknameTh, setNicknameTh] = useState("");
+  const [firstNameEn, setFirstNameEn] = useState("");
+  const [lastNameEn, setLastNameEn] = useState("");
+  const [nicknameEn, setNicknameEn] = useState("");
   const [nickname, setNickname] = useState("");
   const [position, setPosition] = useState("");
   const [company, setCompany] = useState("");
   const [tagline, setTagline] = useState("");
   const [businessType, setBusinessType] = useState("");
+  const [businessTypeCode, setBusinessTypeCode] = useState("");
   const [goal, setGoal] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
   const [facebook, setFacebook] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [lineId, setLineId] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [businessAddress, setBusinessAddress] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
@@ -89,18 +111,28 @@ export default function ParticipantProfile() {
       const p = data.participant;
       setProfile(p);
       setFullName(p.full_name || "");
+      setFirstNameTh(p.first_name_th || "");
+      setLastNameTh(p.last_name_th || "");
+      setNicknameTh(p.nickname_th || "");
+      setFirstNameEn(p.first_name_en || "");
+      setLastNameEn(p.last_name_en || "");
+      setNicknameEn(p.nickname_en || "");
       setNickname(p.nickname || "");
       setPosition(p.position || "");
       setCompany(p.company || "");
       setTagline(p.tagline || "");
       setBusinessType(p.business_type || "");
+      setBusinessTypeCode(p.business_type_code || "");
       setGoal(p.goal || "");
       setPhone(p.phone || "");
       setEmail(p.email || "");
       setWebsite(p.website_url || "");
       setFacebook(p.facebook_url || "");
       setInstagram(p.instagram_url || "");
+      setLineId(p.line_id || "");
+      setLinkedinUrl(p.linkedin_url || "");
       setBusinessAddress(p.business_address || "");
+      setTags(p.tags || []);
       setAvatarPreview(p.photo_url);
       
     } catch (error: any) {
@@ -189,18 +221,28 @@ export default function ParticipantProfile() {
         },
         body: JSON.stringify({
           full_name: fullName,
+          first_name_th: firstNameTh || null,
+          last_name_th: lastNameTh || null,
+          nickname_th: nicknameTh || null,
+          first_name_en: firstNameEn || null,
+          last_name_en: lastNameEn || null,
+          nickname_en: nicknameEn || null,
           nickname: nickname || null,
           position: position || null,
           company: company || null,
           tagline: tagline || null,
           business_type: businessType || null,
+          business_type_code: businessTypeCode || null,
           goal: goal || null,
           phone,
           email: email || null,
           website_url: website || null,
           facebook_url: facebook || null,
           instagram_url: instagram || null,
+          line_id: lineId || null,
+          linkedin_url: linkedinUrl || null,
           business_address: businessAddress || null,
+          tags: tags.length > 0 ? tags : null,
         }),
       });
 
@@ -335,7 +377,7 @@ export default function ParticipantProfile() {
                   </h3>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="full-name">ชื่อ-นามสกุล *</Label>
+                      <Label htmlFor="full-name">ชื่อ-นามสกุล (แสดง) *</Label>
                       <Input
                         id="full-name"
                         type="text"
@@ -357,6 +399,89 @@ export default function ParticipantProfile() {
                         data-testid="input-nickname"
                       />
                     </div>
+                  </div>
+                  
+                  {/* Thai Name Fields */}
+                  <div className="mt-4">
+                    <p className="text-xs text-muted-foreground mb-2">ชื่อภาษาไทย (สำหรับการค้นหา)</p>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="first-name-th">ชื่อ (ไทย)</Label>
+                        <Input
+                          id="first-name-th"
+                          type="text"
+                          placeholder="สมชาย"
+                          value={firstNameTh}
+                          onChange={(e) => setFirstNameTh(e.target.value)}
+                          data-testid="input-first-name-th"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="last-name-th">นามสกุล (ไทย)</Label>
+                        <Input
+                          id="last-name-th"
+                          type="text"
+                          placeholder="ใจดี"
+                          value={lastNameTh}
+                          onChange={(e) => setLastNameTh(e.target.value)}
+                          data-testid="input-last-name-th"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="nickname-th">ชื่อเล่น (ไทย)</Label>
+                        <Input
+                          id="nickname-th"
+                          type="text"
+                          placeholder="ชาย"
+                          value={nicknameTh}
+                          onChange={(e) => setNicknameTh(e.target.value)}
+                          data-testid="input-nickname-th"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* English Name Fields */}
+                  <div className="mt-4">
+                    <p className="text-xs text-muted-foreground mb-2">ชื่อภาษาอังกฤษ (สำหรับการค้นหา)</p>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="first-name-en">First Name</Label>
+                        <Input
+                          id="first-name-en"
+                          type="text"
+                          placeholder="Somchai"
+                          value={firstNameEn}
+                          onChange={(e) => setFirstNameEn(e.target.value)}
+                          data-testid="input-first-name-en"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="last-name-en">Last Name</Label>
+                        <Input
+                          id="last-name-en"
+                          type="text"
+                          placeholder="Jaidee"
+                          value={lastNameEn}
+                          onChange={(e) => setLastNameEn(e.target.value)}
+                          data-testid="input-last-name-en"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="nickname-en">Nickname</Label>
+                        <Input
+                          id="nickname-en"
+                          type="text"
+                          placeholder="Chai"
+                          value={nicknameEn}
+                          onChange={(e) => setNicknameEn(e.target.value)}
+                          data-testid="input-nickname-en"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-4 md:grid-cols-2 mt-4">
                     <div className="space-y-2">
                       <Label htmlFor="position">ตำแหน่ง</Label>
                       <Input
@@ -482,6 +607,34 @@ export default function ParticipantProfile() {
                 <div>
                   <h3 className="text-sm font-medium mb-3">โซเชียลมีเดีย</h3>
                   <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="line-id" className="flex items-center gap-2">
+                        <MessageCircle className="h-4 w-4" />
+                        LINE ID
+                      </Label>
+                      <Input
+                        id="line-id"
+                        type="text"
+                        placeholder="@yourlineid"
+                        value={lineId}
+                        onChange={(e) => setLineId(e.target.value)}
+                        data-testid="input-line-id"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="linkedin" className="flex items-center gap-2">
+                        <Linkedin className="h-4 w-4" />
+                        LinkedIn
+                      </Label>
+                      <Input
+                        id="linkedin"
+                        type="url"
+                        placeholder="https://linkedin.com/in/yourprofile"
+                        value={linkedinUrl}
+                        onChange={(e) => setLinkedinUrl(e.target.value)}
+                        data-testid="input-linkedin"
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="facebook" className="flex items-center gap-2">
                         <Facebook className="h-4 w-4" />

@@ -1341,19 +1341,29 @@ router.patch("/profile", async (req: Request, res: Response) => {
     }
 
     const { 
-      full_name, 
+      full_name,
+      first_name_th,
+      last_name_th,
+      nickname_th,
+      first_name_en,
+      last_name_en,
+      nickname_en,
       nickname,
       position, 
       company, 
       tagline,
       business_type,
+      business_type_code,
       goal,
       phone, 
       email, 
       website_url,
       facebook_url,
       instagram_url,
+      line_id,
+      linkedin_url,
       business_address,
+      tags,
     } = req.body;
 
     // Validate required fields
@@ -1370,24 +1380,33 @@ router.patch("/profile", async (req: Request, res: Response) => {
     // Normalize phone
     const normalizedPhone = phone.replace(/\D/g, "");
 
-    // Update participant - using only columns that exist in current database schema
-    // Note: line_id column does NOT exist yet
+    // Update participant - full Supabase schema columns
     const { data: updatedParticipant, error: updateError } = await supabaseAdmin
       .from("participants")
       .update({
         full_name,
+        first_name_th: first_name_th || null,
+        last_name_th: last_name_th || null,
+        nickname_th: nickname_th || null,
+        first_name_en: first_name_en || null,
+        last_name_en: last_name_en || null,
+        nickname_en: nickname_en || null,
         nickname: nickname || null,
         position: position || null,
         company: company || null,
         tagline: tagline || null,
         business_type: business_type || null,
+        business_type_code: business_type_code || null,
         goal: goal || null,
         phone: normalizedPhone,
         email: email || null,
         website_url: website_url || null,
         facebook_url: facebook_url || null,
         instagram_url: instagram_url || null,
+        line_id: line_id || null,
+        linkedin_url: linkedin_url || null,
         business_address: business_address || null,
+        tags: tags || null,
         updated_at: new Date().toISOString(),
       })
       .eq("participant_id", decoded.participant_id)
@@ -1395,19 +1414,31 @@ router.patch("/profile", async (req: Request, res: Response) => {
       .select(`
         participant_id,
         full_name,
+        first_name_th,
+        last_name_th,
+        nickname_th,
+        first_name_en,
+        last_name_en,
+        nickname_en,
         nickname,
         email,
         phone,
         position,
         company,
+        company_logo_url,
         tagline,
         business_type,
+        business_type_code,
         goal,
         website_url,
         facebook_url,
         instagram_url,
+        line_id,
+        linkedin_url,
         business_address,
         photo_url,
+        tags,
+        onepage_url,
         tenant_id,
         line_user_id
       `)
@@ -1495,7 +1526,6 @@ router.patch("/profile", async (req: Request, res: Response) => {
           console.log(`${logPrefix} Sent LINE success notification to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
 
           // Create and send business card Flex Message using the new template
-          // Note: Some columns don't exist yet - pass null for them
           const businessCardFlexMessage = createBusinessCardFlexMessage({
             participant_id: updatedParticipant.participant_id,
             tenant_id: decoded.tenant_id,
@@ -1512,9 +1542,9 @@ router.patch("/profile", async (req: Request, res: Response) => {
             instagram_url: updatedParticipant.instagram_url,
             business_address: updatedParticipant.business_address,
             line_user_id: updatedParticipant.line_user_id,
-            line_id: null,
-            tags: null,
-            onepage_url: null
+            line_id: updatedParticipant.line_id,
+            tags: updatedParticipant.tags,
+            onepage_url: updatedParticipant.onepage_url
           }, baseUrl);
 
           await lineClient.pushMessage(updatedParticipant.line_user_id, businessCardFlexMessage);
@@ -1998,27 +2028,37 @@ router.get("/profile", async (req: Request, res: Response) => {
 
     console.log(`${logPrefix} Loading profile for participant ${decoded.participant_id}`);
 
-    // Get participant with tenant info
-    // Note: Using only columns that exist in current database schema
-    // line_id does NOT exist yet - only line_user_id (internal system ID)
+    // Get participant with tenant info - full Supabase schema columns
     const { data: participant, error } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
         full_name,
+        first_name_th,
+        last_name_th,
+        nickname_th,
+        first_name_en,
+        last_name_en,
+        nickname_en,
         nickname,
         email,
         phone,
         position,
         company,
+        company_logo_url,
         tagline,
         business_type,
+        business_type_code,
         goal,
         website_url,
         facebook_url,
         instagram_url,
+        line_id,
+        linkedin_url,
         business_address,
         photo_url,
+        tags,
+        onepage_url,
         tenant_id,
         tenants!inner (
           tenant_name,
