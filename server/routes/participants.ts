@@ -3089,7 +3089,7 @@ router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), a
         row_number: index + 2, // +2 because Excel is 1-indexed and has header row
         tenant_id,
         full_name_th: fullNameTh.trim(),
-        nickname: nickname.trim(),
+        nickname_th: nickname.trim() || null, // Use nickname_th (new schema)
         company: company.trim() || null,
         business_type: businessType.trim() || null,
         phone: normalizedPhone || null,
