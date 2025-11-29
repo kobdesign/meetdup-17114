@@ -361,14 +361,28 @@ export default function ParticipantProfile() {
     setSaving(true);
 
     try {
+      // Build full_name from Thai names if available, otherwise use legacy
+      const computedFullName = firstNameTh && lastNameTh 
+        ? `${firstNameTh} ${lastNameTh}` 
+        : fullName;
+      
       const response = await fetch(`/api/participants/profile?token=${token}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          full_name: fullName,
-          nickname: nickname || null,
+          // Thai names
+          first_name_th: firstNameTh || null,
+          last_name_th: lastNameTh || null,
+          nickname_th: nicknameTh || null,
+          // English names
+          first_name_en: firstNameEn || null,
+          last_name_en: lastNameEn || null,
+          nickname_en: nicknameEn || null,
+          // Legacy full_name for backward compatibility
+          full_name: computedFullName,
+          nickname: nicknameTh || nickname || null,
           position: position || null,
           company: company || null,
           tagline: tagline || null,
@@ -380,6 +394,7 @@ export default function ParticipantProfile() {
           website_url: website || null,
           facebook_url: facebook || null,
           instagram_url: instagram || null,
+          linkedin_url: linkedin || null,
           line_id: lineId || null,
           business_address: businessAddress || null,
           tags: tags.length > 0 ? tags : null,
