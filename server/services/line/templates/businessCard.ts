@@ -510,6 +510,11 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     // which can cause LINE to return 400 Bad Request
     const sharePath = `/liff/share/${data.tenant_id}/${data.participant_id}`;
     const shareUrl = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(sharePath)}`;
+    
+    // Debug logging to trace URL generation
+    console.log(`[BusinessCard:Share] LIFF ID: ${liffId}`);
+    console.log(`[BusinessCard:Share] sharePath: ${sharePath}`);
+    console.log(`[BusinessCard:Share] shareUrl: ${shareUrl}`);
     shareActions.push({
       type: "button",
       action: {
