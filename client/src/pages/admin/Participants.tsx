@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle, Globe, Instagram, Facebook, MessageCircle, MapPin } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle, Globe, Instagram, Facebook, MessageCircle, MapPin, Linkedin, AlertCircle, Users, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -48,6 +48,12 @@ export default function Participants() {
   const [adding, setAdding] = useState(false);
   
   const [newParticipant, setNewParticipant] = useState({
+    first_name_th: "",
+    last_name_th: "",
+    nickname_th: "",
+    first_name_en: "",
+    last_name_en: "",
+    nickname_en: "",
     full_name: "",
     nickname: "",
     email: "",
@@ -63,10 +69,15 @@ export default function Participants() {
     website_url: "",
     facebook_url: "",
     instagram_url: "",
+    linkedin_url: "",
     line_id: "",
     business_address: "",
     tags: [] as string[],
+    referral_origin: "central" as "member" | "central" | "external",
+    referred_by_participant_id: null as string | null,
   });
+  
+  const [members, setMembers] = useState<any[]>([]);
 
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
@@ -79,7 +90,24 @@ export default function Participants() {
       return;
     }
     fetchParticipants();
+    fetchMembers();
   }, [effectiveTenantId]);
+
+  const fetchMembers = async () => {
+    if (!effectiveTenantId) return;
+    try {
+      const { data, error } = await supabase
+        .from("participants")
+        .select("participant_id, full_name, first_name_th, last_name_th, nickname_th")
+        .eq("tenant_id", effectiveTenantId)
+        .in("status", ["member", "alumni"])
+        .order("full_name");
+      if (error) throw error;
+      setMembers(data || []);
+    } catch (error) {
+      console.error("Failed to fetch members for referrer list:", error);
+    }
+  };
 
   const fetchParticipants = async () => {
     if (!effectiveTenantId) return;
@@ -102,8 +130,18 @@ export default function Participants() {
   };
 
   const handleAddParticipant = async () => {
-    if (!newParticipant.full_name) {
-      toast.error("กรุณากรอกชื่อ-นามสกุล");
+    if (!newParticipant.first_name_th) {
+      toast.error("กรุณากรอกชื่อ (ไทย)");
+      return;
+    }
+
+    if (!newParticipant.phone) {
+      toast.error("กรุณากรอกเบอร์โทรศัพท์");
+      return;
+    }
+
+    if (newParticipant.referral_origin === "member" && !newParticipant.referred_by_participant_id) {
+      toast.error("กรุณาเลือกผู้แนะนำ");
       return;
     }
 
@@ -115,14 +153,22 @@ export default function Participants() {
       return;
     }
 
+    const fullName = [newParticipant.first_name_th, newParticipant.last_name_th].filter(Boolean).join(" ");
+
     setAdding(true);
     try {
       const { error } = await supabase
         .from("participants")
         .insert({
           tenant_id: effectiveTenantId,
-          full_name: newParticipant.full_name,
-          nickname: newParticipant.nickname || null,
+          full_name: fullName,
+          first_name_th: newParticipant.first_name_th || null,
+          last_name_th: newParticipant.last_name_th || null,
+          nickname_th: newParticipant.nickname_th || null,
+          first_name_en: newParticipant.first_name_en || null,
+          last_name_en: newParticipant.last_name_en || null,
+          nickname_en: newParticipant.nickname_en || null,
+          nickname: newParticipant.nickname_th || null,
           email: newParticipant.email || null,
           phone: newParticipant.phone || null,
           company: newParticipant.company || null,
@@ -136,9 +182,12 @@ export default function Participants() {
           website_url: newParticipant.website_url || null,
           facebook_url: newParticipant.facebook_url || null,
           instagram_url: newParticipant.instagram_url || null,
+          linkedin_url: newParticipant.linkedin_url || null,
           line_id: newParticipant.line_id || null,
           business_address: newParticipant.business_address || null,
           tags: newParticipant.tags.length > 0 ? newParticipant.tags : null,
+          referral_origin: newParticipant.referral_origin,
+          referred_by_participant_id: newParticipant.referral_origin === "member" ? newParticipant.referred_by_participant_id : null,
         });
 
       if (error) throw error;
@@ -146,6 +195,12 @@ export default function Participants() {
       toast.success("เพิ่มสมาชิกสำเร็จ");
       setShowAddDialog(false);
       setNewParticipant({
+        first_name_th: "",
+        last_name_th: "",
+        nickname_th: "",
+        first_name_en: "",
+        last_name_en: "",
+        nickname_en: "",
         full_name: "",
         nickname: "",
         email: "",
@@ -161,11 +216,15 @@ export default function Participants() {
         website_url: "",
         facebook_url: "",
         instagram_url: "",
+        linkedin_url: "",
         line_id: "",
         business_address: "",
         tags: [],
+        referral_origin: "central",
+        referred_by_participant_id: null,
       });
       fetchParticipants();
+      fetchMembers();
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
     } finally {
@@ -179,18 +238,38 @@ export default function Participants() {
   };
 
   const handleUpdateParticipant = async () => {
-    if (!editingParticipant?.full_name) {
-      toast.error("กรุณากรอกชื่อ-นามสกุล");
+    if (!editingParticipant?.first_name_th && !editingParticipant?.full_name) {
+      toast.error("กรุณากรอกชื่อ (ไทย)");
       return;
     }
+
+    if (!editingParticipant?.phone) {
+      toast.error("กรุณากรอกเบอร์โทรศัพท์");
+      return;
+    }
+
+    if (editingParticipant?.referral_origin === "member" && !editingParticipant?.referred_by_participant_id) {
+      toast.error("กรุณาเลือกผู้แนะนำ");
+      return;
+    }
+
+    const fullName = editingParticipant.first_name_th 
+      ? [editingParticipant.first_name_th, editingParticipant.last_name_th].filter(Boolean).join(" ")
+      : editingParticipant.full_name;
 
     setUpdating(true);
     try {
       const { error } = await supabase
         .from("participants")
         .update({
-          full_name: editingParticipant.full_name,
-          nickname: editingParticipant.nickname || null,
+          full_name: fullName,
+          first_name_th: editingParticipant.first_name_th || null,
+          last_name_th: editingParticipant.last_name_th || null,
+          nickname_th: editingParticipant.nickname_th || null,
+          first_name_en: editingParticipant.first_name_en || null,
+          last_name_en: editingParticipant.last_name_en || null,
+          nickname_en: editingParticipant.nickname_en || null,
+          nickname: editingParticipant.nickname_th || editingParticipant.nickname || null,
           email: editingParticipant.email || null,
           phone: editingParticipant.phone || null,
           company: editingParticipant.company || null,
@@ -204,9 +283,12 @@ export default function Participants() {
           website_url: editingParticipant.website_url || null,
           facebook_url: editingParticipant.facebook_url || null,
           instagram_url: editingParticipant.instagram_url || null,
+          linkedin_url: editingParticipant.linkedin_url || null,
           line_id: editingParticipant.line_id || null,
           business_address: editingParticipant.business_address || null,
           tags: editingParticipant.tags?.length > 0 ? editingParticipant.tags : null,
+          referral_origin: editingParticipant.referral_origin || "central",
+          referred_by_participant_id: editingParticipant.referral_origin === "member" ? editingParticipant.referred_by_participant_id : null,
         })
         .eq("participant_id", editingParticipant.participant_id);
 
@@ -216,6 +298,7 @@ export default function Participants() {
       setShowEditDialog(false);
       setEditingParticipant(null);
       fetchParticipants();
+      fetchMembers();
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาด: " + error.message);
     } finally {
@@ -294,29 +377,134 @@ export default function Participants() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                {/* Basic Info Section */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">ชื่อ-นามสกุล *</Label>
-                    <Input
-                      id="full_name"
-                      value={newParticipant.full_name}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, full_name: e.target.value })}
-                      placeholder="จอห์น สมิธ"
-                      data-testid="input-add-fullname"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="nickname">ชื่อเล่น</Label>
-                    <Input
-                      id="nickname"
-                      value={newParticipant.nickname}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, nickname: e.target.value })}
-                      placeholder="จอห์น"
-                      data-testid="input-add-nickname"
-                    />
+                {/* Thai Name Section */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">ชื่อ-นามสกุล (ไทย)</Label>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="first_name_th">ชื่อ *</Label>
+                      <Input
+                        id="first_name_th"
+                        value={newParticipant.first_name_th}
+                        onChange={(e) => setNewParticipant({ ...newParticipant, first_name_th: e.target.value })}
+                        placeholder="สมชาย"
+                        data-testid="input-add-firstname-th"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="last_name_th">นามสกุล</Label>
+                      <Input
+                        id="last_name_th"
+                        value={newParticipant.last_name_th}
+                        onChange={(e) => setNewParticipant({ ...newParticipant, last_name_th: e.target.value })}
+                        placeholder="ใจดี"
+                        data-testid="input-add-lastname-th"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="nickname_th">ชื่อเล่น</Label>
+                      <Input
+                        id="nickname_th"
+                        value={newParticipant.nickname_th}
+                        onChange={(e) => setNewParticipant({ ...newParticipant, nickname_th: e.target.value })}
+                        placeholder="ชาย"
+                        data-testid="input-add-nickname-th"
+                      />
+                    </div>
                   </div>
                 </div>
+
+                {/* English Name Section */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">ชื่อ-นามสกุล (อังกฤษ) - Optional</Label>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="first_name_en">First Name</Label>
+                      <Input
+                        id="first_name_en"
+                        value={newParticipant.first_name_en}
+                        onChange={(e) => setNewParticipant({ ...newParticipant, first_name_en: e.target.value })}
+                        placeholder="Somchai"
+                        data-testid="input-add-firstname-en"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="last_name_en">Last Name</Label>
+                      <Input
+                        id="last_name_en"
+                        value={newParticipant.last_name_en}
+                        onChange={(e) => setNewParticipant({ ...newParticipant, last_name_en: e.target.value })}
+                        placeholder="Jaidee"
+                        data-testid="input-add-lastname-en"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="nickname_en">Nickname</Label>
+                      <Input
+                        id="nickname_en"
+                        value={newParticipant.nickname_en}
+                        onChange={(e) => setNewParticipant({ ...newParticipant, nickname_en: e.target.value })}
+                        placeholder="Chai"
+                        data-testid="input-add-nickname-en"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Referral Section */}
+                <div className="space-y-4 p-4 border rounded-md bg-muted/30">
+                  <Label className="flex items-center gap-2 text-sm font-medium">
+                    <Users className="h-4 w-4" />
+                    แหล่งที่มา / ผู้แนะนำ *
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: "central", label: "ส่วนกลาง" },
+                      { value: "member", label: "สมาชิกแนะนำ" },
+                      { value: "external", label: "ภายนอก" },
+                    ].map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={newParticipant.referral_origin === option.value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setNewParticipant({ 
+                          ...newParticipant, 
+                          referral_origin: option.value as any,
+                          referred_by_participant_id: option.value !== "member" ? null : newParticipant.referred_by_participant_id
+                        })}
+                        data-testid={`button-referral-${option.value}`}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                  {newParticipant.referral_origin === "member" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="referred_by">เลือกผู้แนะนำ *</Label>
+                      <Select
+                        value={newParticipant.referred_by_participant_id || ""}
+                        onValueChange={(value) => setNewParticipant({ ...newParticipant, referred_by_participant_id: value })}
+                      >
+                        <SelectTrigger data-testid="select-referrer">
+                          <SelectValue placeholder="เลือกสมาชิกที่แนะนำ" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {members.map((member) => (
+                            <SelectItem key={member.participant_id} value={member.participant_id}>
+                              {member.full_name || `${member.first_name_th || ""} ${member.last_name_th || ""}`.trim()}
+                              {member.nickname_th && ` (${member.nickname_th})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -357,12 +545,16 @@ export default function Participants() {
                 {/* Contact Info Section */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="phone">เบอร์โทร</Label>
+                    <Label htmlFor="phone">
+                      <Phone className="inline h-4 w-4 mr-2" />
+                      เบอร์โทร *
+                    </Label>
                     <Input
                       id="phone"
                       value={newParticipant.phone}
                       onChange={(e) => setNewParticipant({ ...newParticipant, phone: e.target.value })}
                       placeholder="081-234-5678"
+                      required
                       data-testid="input-add-phone"
                     />
                   </div>
@@ -392,7 +584,29 @@ export default function Participants() {
                       placeholder="@lineid"
                       data-testid="input-add-lineid"
                     />
+                    {!newParticipant.line_id && (
+                      <p className="text-xs text-warning flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        ยังไม่กรอก LINE ID - คนอื่นจะไม่สามารถแชทหาได้
+                      </p>
+                    )}
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedin_url" className="flex items-center gap-2">
+                      <Linkedin className="h-4 w-4" />
+                      LinkedIn URL
+                    </Label>
+                    <Input
+                      id="linkedin_url"
+                      value={newParticipant.linkedin_url}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, linkedin_url: e.target.value })}
+                      placeholder="https://linkedin.com/in/username"
+                      data-testid="input-add-linkedin"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="website_url" className="flex items-center gap-2">
                       <Globe className="h-4 w-4" />
@@ -406,9 +620,6 @@ export default function Participants() {
                       data-testid="input-add-website"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="facebook_url" className="flex items-center gap-2">
                       <Facebook className="h-4 w-4" />
@@ -422,19 +633,20 @@ export default function Participants() {
                       data-testid="input-add-facebook"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="instagram_url" className="flex items-center gap-2">
-                      <Instagram className="h-4 w-4" />
-                      Instagram URL
-                    </Label>
-                    <Input
-                      id="instagram_url"
-                      value={newParticipant.instagram_url}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, instagram_url: e.target.value })}
-                      placeholder="https://instagram.com/username"
-                      data-testid="input-add-instagram"
-                    />
-                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="instagram_url" className="flex items-center gap-2">
+                    <Instagram className="h-4 w-4" />
+                    Instagram URL
+                  </Label>
+                  <Input
+                    id="instagram_url"
+                    value={newParticipant.instagram_url}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, instagram_url: e.target.value })}
+                    placeholder="https://instagram.com/username"
+                    data-testid="input-add-instagram"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -539,29 +751,134 @@ export default function Participants() {
               </DialogHeader>
               {editingParticipant && (
                 <div className="grid gap-4 py-4">
-                  {/* Basic Info Section */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit_full_name">ชื่อ-นามสกุล *</Label>
-                      <Input
-                        id="edit_full_name"
-                        value={editingParticipant.full_name}
-                        onChange={(e) => setEditingParticipant({ ...editingParticipant, full_name: e.target.value })}
-                        placeholder="จอห์น สมิธ"
-                        data-testid="input-edit-fullname"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit_nickname">ชื่อเล่น</Label>
-                      <Input
-                        id="edit_nickname"
-                        value={editingParticipant.nickname || ""}
-                        onChange={(e) => setEditingParticipant({ ...editingParticipant, nickname: e.target.value })}
-                        placeholder="จอห์น"
-                        data-testid="input-edit-nickname"
-                      />
+                  {/* Thai Name Section */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">ชื่อ-นามสกุล (ไทย)</Label>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_first_name_th">ชื่อ *</Label>
+                        <Input
+                          id="edit_first_name_th"
+                          value={editingParticipant.first_name_th || ""}
+                          onChange={(e) => setEditingParticipant({ ...editingParticipant, first_name_th: e.target.value })}
+                          placeholder="สมชาย"
+                          data-testid="input-edit-firstname-th"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_last_name_th">นามสกุล</Label>
+                        <Input
+                          id="edit_last_name_th"
+                          value={editingParticipant.last_name_th || ""}
+                          onChange={(e) => setEditingParticipant({ ...editingParticipant, last_name_th: e.target.value })}
+                          placeholder="ใจดี"
+                          data-testid="input-edit-lastname-th"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_nickname_th">ชื่อเล่น</Label>
+                        <Input
+                          id="edit_nickname_th"
+                          value={editingParticipant.nickname_th || editingParticipant.nickname || ""}
+                          onChange={(e) => setEditingParticipant({ ...editingParticipant, nickname_th: e.target.value })}
+                          placeholder="ชาย"
+                          data-testid="input-edit-nickname-th"
+                        />
+                      </div>
                     </div>
                   </div>
+
+                  {/* English Name Section */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">ชื่อ-นามสกุล (อังกฤษ) - Optional</Label>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_first_name_en">First Name</Label>
+                        <Input
+                          id="edit_first_name_en"
+                          value={editingParticipant.first_name_en || ""}
+                          onChange={(e) => setEditingParticipant({ ...editingParticipant, first_name_en: e.target.value })}
+                          placeholder="Somchai"
+                          data-testid="input-edit-firstname-en"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_last_name_en">Last Name</Label>
+                        <Input
+                          id="edit_last_name_en"
+                          value={editingParticipant.last_name_en || ""}
+                          onChange={(e) => setEditingParticipant({ ...editingParticipant, last_name_en: e.target.value })}
+                          placeholder="Jaidee"
+                          data-testid="input-edit-lastname-en"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_nickname_en">Nickname</Label>
+                        <Input
+                          id="edit_nickname_en"
+                          value={editingParticipant.nickname_en || ""}
+                          onChange={(e) => setEditingParticipant({ ...editingParticipant, nickname_en: e.target.value })}
+                          placeholder="Chai"
+                          data-testid="input-edit-nickname-en"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Referral Section */}
+                  <div className="space-y-4 p-4 border rounded-md bg-muted/30">
+                    <Label className="flex items-center gap-2 text-sm font-medium">
+                      <Users className="h-4 w-4" />
+                      แหล่งที่มา / ผู้แนะนำ *
+                    </Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: "central", label: "ส่วนกลาง" },
+                        { value: "member", label: "สมาชิกแนะนำ" },
+                        { value: "external", label: "ภายนอก" },
+                      ].map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          variant={(editingParticipant.referral_origin || "central") === option.value ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setEditingParticipant({ 
+                            ...editingParticipant, 
+                            referral_origin: option.value,
+                            referred_by_participant_id: option.value !== "member" ? null : editingParticipant.referred_by_participant_id
+                          })}
+                          data-testid={`button-edit-referral-${option.value}`}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                    {(editingParticipant.referral_origin === "member") && (
+                      <div className="space-y-2">
+                        <Label htmlFor="edit_referred_by">เลือกผู้แนะนำ *</Label>
+                        <Select
+                          value={editingParticipant.referred_by_participant_id || ""}
+                          onValueChange={(value) => setEditingParticipant({ ...editingParticipant, referred_by_participant_id: value })}
+                        >
+                          <SelectTrigger data-testid="select-edit-referrer">
+                            <SelectValue placeholder="เลือกสมาชิกที่แนะนำ" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {members.filter(m => m.participant_id !== editingParticipant.participant_id).map((member) => (
+                              <SelectItem key={member.participant_id} value={member.participant_id}>
+                                {member.full_name || `${member.first_name_th || ""} ${member.last_name_th || ""}`.trim()}
+                                {member.nickname_th && ` (${member.nickname_th})`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -602,12 +919,16 @@ export default function Participants() {
                   {/* Contact Info Section */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="edit_phone">เบอร์โทร</Label>
+                      <Label htmlFor="edit_phone">
+                        <Phone className="inline h-4 w-4 mr-2" />
+                        เบอร์โทร *
+                      </Label>
                       <Input
                         id="edit_phone"
                         value={editingParticipant.phone || ""}
                         onChange={(e) => setEditingParticipant({ ...editingParticipant, phone: e.target.value })}
                         placeholder="081-234-5678"
+                        required
                         data-testid="input-edit-phone"
                       />
                     </div>
@@ -637,7 +958,29 @@ export default function Participants() {
                         placeholder="@lineid"
                         data-testid="input-edit-lineid"
                       />
+                      {!editingParticipant.line_id && (
+                        <p className="text-xs text-warning flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          ยังไม่กรอก LINE ID - คนอื่นจะไม่สามารถแชทหาได้
+                        </p>
+                      )}
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_linkedin_url" className="flex items-center gap-2">
+                        <Linkedin className="h-4 w-4" />
+                        LinkedIn URL
+                      </Label>
+                      <Input
+                        id="edit_linkedin_url"
+                        value={editingParticipant.linkedin_url || ""}
+                        onChange={(e) => setEditingParticipant({ ...editingParticipant, linkedin_url: e.target.value })}
+                        placeholder="https://linkedin.com/in/username"
+                        data-testid="input-edit-linkedin"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="edit_website_url" className="flex items-center gap-2">
                         <Globe className="h-4 w-4" />
@@ -651,9 +994,6 @@ export default function Participants() {
                         data-testid="input-edit-website"
                       />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="edit_facebook_url" className="flex items-center gap-2">
                         <Facebook className="h-4 w-4" />
@@ -667,19 +1007,20 @@ export default function Participants() {
                         data-testid="input-edit-facebook"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit_instagram_url" className="flex items-center gap-2">
-                        <Instagram className="h-4 w-4" />
-                        Instagram URL
-                      </Label>
-                      <Input
-                        id="edit_instagram_url"
-                        value={editingParticipant.instagram_url || ""}
-                        onChange={(e) => setEditingParticipant({ ...editingParticipant, instagram_url: e.target.value })}
-                        placeholder="https://instagram.com/username"
-                        data-testid="input-edit-instagram"
-                      />
-                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_instagram_url" className="flex items-center gap-2">
+                      <Instagram className="h-4 w-4" />
+                      Instagram URL
+                    </Label>
+                    <Input
+                      id="edit_instagram_url"
+                      value={editingParticipant.instagram_url || ""}
+                      onChange={(e) => setEditingParticipant({ ...editingParticipant, instagram_url: e.target.value })}
+                      placeholder="https://instagram.com/username"
+                      data-testid="input-edit-instagram"
+                    />
                   </div>
 
                   <div className="space-y-2">

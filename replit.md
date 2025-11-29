@@ -37,6 +37,12 @@ None specified yet.
 - **Business Card Search**: Enhanced multi-field search across various participant data fields with input sanitization and SQL injection prevention.
 - **Participant Deletion**: Comprehensive participant deletion with cleanup of related records and proper handling of multi-tenant scenarios, ensuring data integrity.
 - **Database Management & Health Monitoring**: Includes a health check system for database status and schema sync verification. Supabase Production is the source of truth, with manual migration for safety.
+- **Schema Expansion (Nov 2024)**:
+  - **Separate Name Fields**: Split names into Thai (`first_name_th`, `last_name_th`, `nickname_th`) and English (`first_name_en`, `last_name_en`, `nickname_en`) components for better data structure
+  - **Dual-Field Referral Model**: `referral_origin` enum (`member`, `central`, `external`) + conditional `referred_by_participant_id` FK to track member referrals vs. central/external sources
+  - **LinkedIn Field**: Added `linkedin_url` for professional networking
+  - **Required Phone**: Phone number is now required for participant creation/update
+  - **LINE ID Distinction**: `line_id` (user-entered public @username for contact) is separate from `line_user_id` (system-managed internal ID from LINE Platform for messaging)
 
 ## External Dependencies
 

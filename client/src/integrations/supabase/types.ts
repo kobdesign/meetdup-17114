@@ -321,21 +321,30 @@ export type Database = {
           created_at: string
           email: string | null
           facebook_url: string | null
+          first_name_en: string | null
+          first_name_th: string | null
           full_name: string
           goal: string | null
           instagram_url: string | null
           invited_by: string | null
           joined_date: string | null
+          last_name_en: string | null
+          last_name_th: string | null
           line_id: string | null
           line_user_id: string | null
+          linkedin_url: string | null
           member_type: string | null
           nickname: string | null
+          nickname_en: string | null
+          nickname_th: string | null
           notes: string | null
           onepage_url: string | null
           participant_id: string
           phone: string | null
           photo_url: string | null
           position: string | null
+          referral_origin: Database["public"]["Enums"]["referral_origin"] | null
+          referred_by_participant_id: string | null
           status: Database["public"]["Enums"]["participant_status"]
           tagline: string | null
           tags: string[] | null
@@ -353,21 +362,30 @@ export type Database = {
           created_at?: string
           email?: string | null
           facebook_url?: string | null
+          first_name_en?: string | null
+          first_name_th?: string | null
           full_name: string
           goal?: string | null
           instagram_url?: string | null
           invited_by?: string | null
           joined_date?: string | null
+          last_name_en?: string | null
+          last_name_th?: string | null
           line_id?: string | null
           line_user_id?: string | null
+          linkedin_url?: string | null
           member_type?: string | null
           nickname?: string | null
+          nickname_en?: string | null
+          nickname_th?: string | null
           notes?: string | null
           onepage_url?: string | null
           participant_id?: string
           phone?: string | null
           photo_url?: string | null
           position?: string | null
+          referral_origin?: Database["public"]["Enums"]["referral_origin"] | null
+          referred_by_participant_id?: string | null
           status?: Database["public"]["Enums"]["participant_status"]
           tagline?: string | null
           tags?: string[] | null
@@ -385,21 +403,30 @@ export type Database = {
           created_at?: string
           email?: string | null
           facebook_url?: string | null
+          first_name_en?: string | null
+          first_name_th?: string | null
           full_name?: string
           goal?: string | null
           instagram_url?: string | null
           invited_by?: string | null
           joined_date?: string | null
+          last_name_en?: string | null
+          last_name_th?: string | null
           line_id?: string | null
           line_user_id?: string | null
+          linkedin_url?: string | null
           member_type?: string | null
           nickname?: string | null
+          nickname_en?: string | null
+          nickname_th?: string | null
           notes?: string | null
           onepage_url?: string | null
           participant_id?: string
           phone?: string | null
           photo_url?: string | null
           position?: string | null
+          referral_origin?: Database["public"]["Enums"]["referral_origin"] | null
+          referred_by_participant_id?: string | null
           status?: Database["public"]["Enums"]["participant_status"]
           tagline?: string | null
           tags?: string[] | null
@@ -915,6 +942,7 @@ export type Database = {
         | "alumni"
       payment_method: "promptpay" | "transfer" | "cash"
       payment_status: "pending" | "paid" | "waived" | "failed" | "refunded"
+      referral_origin: "member" | "central" | "external"
       subscription_status: "active" | "canceled" | "past_due"
       tenant_status: "active" | "suspended" | "cancelled"
     }
