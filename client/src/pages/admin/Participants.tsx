@@ -140,9 +140,15 @@ export default function Participants() {
       return;
     }
 
-    if (newParticipant.referral_origin === "member" && !newParticipant.referred_by_participant_id) {
-      toast.error("กรุณาเลือกผู้แนะนำ");
-      return;
+    if (newParticipant.referral_origin === "member") {
+      if (members.length === 0) {
+        toast.error("ไม่มีสมาชิกในระบบ กรุณาเปลี่ยนแหล่งที่มาหรือเพิ่มสมาชิกก่อน");
+        return;
+      }
+      if (!newParticipant.referred_by_participant_id) {
+        toast.error("กรุณาเลือกผู้แนะนำ");
+        return;
+      }
     }
 
     if (!effectiveTenantId) {
@@ -248,9 +254,16 @@ export default function Participants() {
       return;
     }
 
-    if (editingParticipant?.referral_origin === "member" && !editingParticipant?.referred_by_participant_id) {
-      toast.error("กรุณาเลือกผู้แนะนำ");
-      return;
+    if (editingParticipant?.referral_origin === "member") {
+      const availableMembers = members.filter(m => m.participant_id !== editingParticipant.participant_id);
+      if (availableMembers.length === 0) {
+        toast.error("ไม่มีสมาชิกคนอื่นในระบบ กรุณาเปลี่ยนแหล่งที่มาหรือเพิ่มสมาชิกก่อน");
+        return;
+      }
+      if (!editingParticipant?.referred_by_participant_id) {
+        toast.error("กรุณาเลือกผู้แนะนำ");
+        return;
+      }
     }
 
     const fullName = editingParticipant.first_name_th 
@@ -484,22 +497,29 @@ export default function Participants() {
                   {newParticipant.referral_origin === "member" && (
                     <div className="space-y-2">
                       <Label htmlFor="referred_by">เลือกผู้แนะนำ *</Label>
-                      <Select
-                        value={newParticipant.referred_by_participant_id || ""}
-                        onValueChange={(value) => setNewParticipant({ ...newParticipant, referred_by_participant_id: value })}
-                      >
-                        <SelectTrigger data-testid="select-referrer">
-                          <SelectValue placeholder="เลือกสมาชิกที่แนะนำ" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {members.map((member) => (
-                            <SelectItem key={member.participant_id} value={member.participant_id}>
-                              {member.full_name || `${member.first_name_th || ""} ${member.last_name_th || ""}`.trim()}
-                              {member.nickname_th && ` (${member.nickname_th})`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {members.length === 0 ? (
+                        <div className="p-3 border rounded-md bg-muted/50 text-sm text-muted-foreground flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4" />
+                          ยังไม่มีสมาชิกในระบบ กรุณาเพิ่มสมาชิกก่อนเลือกผู้แนะนำ
+                        </div>
+                      ) : (
+                        <Select
+                          value={newParticipant.referred_by_participant_id || ""}
+                          onValueChange={(value) => setNewParticipant({ ...newParticipant, referred_by_participant_id: value })}
+                        >
+                          <SelectTrigger data-testid="select-referrer">
+                            <SelectValue placeholder="เลือกสมาชิกที่แนะนำ" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {members.map((member) => (
+                              <SelectItem key={member.participant_id} value={member.participant_id}>
+                                {member.full_name || `${member.first_name_th || ""} ${member.last_name_th || ""}`.trim()}
+                                {member.nickname_th && ` (${member.nickname_th})`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   )}
                 </div>
@@ -858,22 +878,29 @@ export default function Participants() {
                     {(editingParticipant.referral_origin === "member") && (
                       <div className="space-y-2">
                         <Label htmlFor="edit_referred_by">เลือกผู้แนะนำ *</Label>
-                        <Select
-                          value={editingParticipant.referred_by_participant_id || ""}
-                          onValueChange={(value) => setEditingParticipant({ ...editingParticipant, referred_by_participant_id: value })}
-                        >
-                          <SelectTrigger data-testid="select-edit-referrer">
-                            <SelectValue placeholder="เลือกสมาชิกที่แนะนำ" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {members.filter(m => m.participant_id !== editingParticipant.participant_id).map((member) => (
-                              <SelectItem key={member.participant_id} value={member.participant_id}>
-                                {member.full_name || `${member.first_name_th || ""} ${member.last_name_th || ""}`.trim()}
-                                {member.nickname_th && ` (${member.nickname_th})`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {members.filter(m => m.participant_id !== editingParticipant.participant_id).length === 0 ? (
+                          <div className="p-3 border rounded-md bg-muted/50 text-sm text-muted-foreground flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            ยังไม่มีสมาชิกคนอื่นในระบบ กรุณาเพิ่มสมาชิกก่อนเลือกผู้แนะนำ
+                          </div>
+                        ) : (
+                          <Select
+                            value={editingParticipant.referred_by_participant_id || ""}
+                            onValueChange={(value) => setEditingParticipant({ ...editingParticipant, referred_by_participant_id: value })}
+                          >
+                            <SelectTrigger data-testid="select-edit-referrer">
+                              <SelectValue placeholder="เลือกสมาชิกที่แนะนำ" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {members.filter(m => m.participant_id !== editingParticipant.participant_id).map((member) => (
+                                <SelectItem key={member.participant_id} value={member.participant_id}>
+                                  {member.full_name || `${member.first_name_th || ""} ${member.last_name_th || ""}`.trim()}
+                                  {member.nickname_th && ` (${member.nickname_th})`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     )}
                   </div>
