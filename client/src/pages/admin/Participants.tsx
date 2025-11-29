@@ -70,7 +70,7 @@ export default function Participants() {
     line_id: "",
     business_address: "",
     tags: [] as string[],
-    referral_origin: "central" as "member" | "central" | "external",
+    referral_origin: "member" as "member" | "central" | "external",
     referred_by_participant_id: null as string | null,
   });
   
@@ -213,7 +213,7 @@ export default function Participants() {
         line_id: "",
         business_address: "",
         tags: [],
-        referral_origin: "central",
+        referral_origin: "member",
         referred_by_participant_id: null,
       });
       fetchParticipants();
@@ -279,7 +279,7 @@ export default function Participants() {
           line_id: editingParticipant.line_id || null,
           business_address: editingParticipant.business_address || null,
           tags: editingParticipant.tags?.length > 0 ? editingParticipant.tags : null,
-          referral_origin: editingParticipant.referral_origin || "central",
+          referral_origin: editingParticipant.referral_origin || "member",
           referred_by_participant_id: editingParticipant.referral_origin === "member" ? editingParticipant.referred_by_participant_id : null,
         })
         .eq("participant_id", editingParticipant.participant_id);
@@ -793,7 +793,7 @@ export default function Participants() {
                         <Button
                           key={option.value}
                           type="button"
-                          variant={(editingParticipant.referral_origin || "central") === option.value ? "default" : "outline"}
+                          variant={(editingParticipant.referral_origin || "member") === option.value ? "default" : "outline"}
                           size="sm"
                           onClick={() => setEditingParticipant({ 
                             ...editingParticipant, 
@@ -806,7 +806,7 @@ export default function Participants() {
                         </Button>
                       ))}
                     </div>
-                    {(editingParticipant.referral_origin === "member") && (
+                    {((editingParticipant.referral_origin || "member") === "member") && (
                       <div className="space-y-2">
                         <Label htmlFor="edit_referred_by">เลือกผู้แนะนำ *</Label>
                         {members.filter(m => m.participant_id !== editingParticipant.participant_id).length === 0 ? (
