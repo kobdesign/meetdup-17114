@@ -1,21 +1,29 @@
 /**
  * Get base URL for user-facing URLs (activation links, etc.)
  * Priority:
- * 1. PRODUCTION_DOMAIN env var (custom domain for production)
+ * 1. Development mode: Use REPLIT_DEV_DOMAIN if present (and NOT in deployment)
  * 2. REPLIT_DEPLOYMENT_DOMAIN (Replit autoscale deployment)
- * 3. REPLIT_DEV_DOMAIN (Replit development environment)
+ * 3. PRODUCTION_DOMAIN env var (custom domain for production)
  * 4. NODE_ENV=production -> meetdup.com (production fallback)
  * 5. localhost:5000 (local development fallback)
+ * 
+ * Note: Dev mode is detected when REPLIT_DEV_DOMAIN exists but REPLIT_DEPLOYMENT_DOMAIN does not
  */
 export function getProductionBaseUrl(): string {
-  if (process.env.PRODUCTION_DOMAIN) {
-    return `https://${process.env.PRODUCTION_DOMAIN}`;
+  // In dev mode (has dev domain but NOT deployment domain), use dev URL
+  // This ensures testing via LINE webhook uses the correct dev endpoint
+  const isDevMode = process.env.REPLIT_DEV_DOMAIN && !process.env.REPLIT_DEPLOYMENT_DOMAIN;
+  
+  if (isDevMode) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
   }
+  
+  // In deployment/production mode
   if (process.env.REPLIT_DEPLOYMENT_DOMAIN) {
     return `https://${process.env.REPLIT_DEPLOYMENT_DOMAIN}`;
   }
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  if (process.env.PRODUCTION_DOMAIN) {
+    return `https://${process.env.PRODUCTION_DOMAIN}`;
   }
   // In production mode without other vars, use production domain
   if (process.env.NODE_ENV === "production") {
