@@ -275,6 +275,7 @@ export async function handleCardSearch(
       business_address,
       notes,
       tags,
+      onepage_url,
       status
     `;
 
