@@ -2,6 +2,41 @@ import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { createBusinessCardFlexMessage, BusinessCardData } from "../templates/businessCard";
 
 /**
+ * Get LIFF ID from system settings
+ * Returns null if LIFF is not enabled or not configured
+ */
+async function getLiffId(): Promise<string | null> {
+  try {
+    const { data: settings, error } = await supabaseAdmin
+      .from("system_settings")
+      .select("setting_key, setting_value")
+      .in("setting_key", ["liff_id", "liff_enabled"]);
+
+    if (error || !settings) {
+      console.log("[getLiffId] Failed to fetch LIFF settings:", error);
+      return null;
+    }
+
+    const settingsMap: Record<string, string> = {};
+    for (const s of settings) {
+      settingsMap[s.setting_key] = s.setting_value || "";
+    }
+
+    const liffEnabled = settingsMap.liff_enabled === "true";
+    const liffId = settingsMap.liff_id;
+
+    if (liffEnabled && liffId) {
+      return liffId;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("[getLiffId] Error:", error);
+    return null;
+  }
+}
+
+/**
  * Handle "view_card" postback action
  * Fetches and displays a member's business card via LINE
  */
@@ -92,8 +127,11 @@ export async function handleViewCard(
     // Get base URL from environment (prioritize deployment URL)
     const baseUrl = getBaseUrl();
 
+    // Get LIFF ID for share button
+    const liffId = await getLiffId();
+
     // Create and send Flex Message
-    const flexMessage = createBusinessCardFlexMessage(cardData as BusinessCardData, baseUrl);
+    const flexMessage = createBusinessCardFlexMessage(cardData as BusinessCardData, baseUrl, liffId);
 
     await replyMessage(event.replyToken, flexMessage, accessToken);
 
@@ -307,6 +345,9 @@ export async function handleCardSearch(
 
     const baseUrl = getBaseUrl();
 
+    // Get LIFF ID for share button
+    const liffId = await getLiffId();
+
     // Get tenant info for branding
     const { data: tenantInfo } = await supabaseAdmin
       .from("tenants")
@@ -322,7 +363,7 @@ export async function handleCardSearch(
 
     // If only one result, send single Business Card Flex Message
     if (participantsWithTenant.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl);
+      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl, liffId);
       await replyMessage(event.replyToken, flexMessage, accessToken);
       console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name}`);
       return;
@@ -332,7 +373,7 @@ export async function handleCardSearch(
     const maxBubbles = 12;
     const limitedParticipants = participantsWithTenant.slice(0, maxBubbles);
     const carouselContents = limitedParticipants.map(p => {
-      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl);
+      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl, liffId);
       return flexMessage.contents;
     });
 

@@ -44,6 +44,7 @@ import LiffPositions from "./pages/liff/LiffPositions";
 import LiffPowerTeams from "./pages/liff/LiffPowerTeams";
 import LiffMembersList from "./pages/liff/LiffMembersList";
 import LiffBusinessCard from "./pages/liff/LiffBusinessCard";
+import LiffShareCard from "./pages/liff/LiffShareCard";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -166,6 +167,7 @@ const App = () => (
           <Route path="/liff/search/powerteam" element={<LiffPowerTeams />} />
           <Route path="/liff/search/powerteam/:id" element={<LiffMembersList />} />
           <Route path="/liff/card/:participantId" element={<LiffBusinessCard />} />
+          <Route path="/liff/share/:participantId" element={<LiffShareCard />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

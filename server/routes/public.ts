@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
+import { createBusinessCardFlexMessage, BusinessCardData } from "../services/line/templates/businessCard";
+import { getProductionBaseUrl } from "../utils/getProductionUrl";
 
 const router = Router();
 
@@ -256,6 +258,168 @@ router.get("/member/:participantId", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error in getMember:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * Get Flex Message JSON for sharing via LIFF shareTargetPicker
+ * Returns the same business card format used by LINE bot
+ */
+router.get("/share-flex/:participantId", async (req: Request, res: Response) => {
+  const requestId = Math.random().toString(36).slice(2, 10);
+  const logPrefix = `[share-flex:${requestId}]`;
+  
+  try {
+    const { participantId } = req.params;
+    const tenantId = req.query.tenantId as string | undefined;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (!participantId) {
+      return res.status(400).json({ success: false, error: "Missing participantId" });
+    }
+
+    if (!uuidRegex.test(participantId)) {
+      return res.status(400).json({ success: false, error: "Invalid participantId format" });
+    }
+
+    // Tenant isolation: require tenantId for security
+    if (!tenantId) {
+      return res.status(400).json({ success: false, error: "Missing tenantId - required for tenant isolation" });
+    }
+
+    if (!uuidRegex.test(tenantId)) {
+      return res.status(400).json({ success: false, error: "Invalid tenantId format" });
+    }
+
+    console.log(`${logPrefix} Fetching flex message for participant:`, participantId, "tenant:", tenantId);
+
+    // Build query with tenant isolation
+    const { data: member, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name,
+        nickname,
+        company,
+        position,
+        tagline,
+        photo_url,
+        company_logo_url,
+        phone,
+        email,
+        website_url,
+        facebook_url,
+        instagram_url,
+        linkedin_url,
+        line_id,
+        business_address,
+        tags,
+        onepage_url
+      `)
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId)
+      .in("status", ["member", "visitor"])
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        console.log(`${logPrefix} Member not found`);
+        return res.status(404).json({ success: false, error: "Member not found" });
+      }
+      console.error(`${logPrefix} Database error:`, error);
+      return res.status(500).json({ success: false, error: "Database error" });
+    }
+
+    if (!member) {
+      return res.status(404).json({ success: false, error: "Member not found" });
+    }
+
+    // Generate signed URLs for private storage images
+    let signedPhotoUrl = member.photo_url;
+    let signedCompanyLogoUrl = member.company_logo_url;
+    
+    if (member.photo_url && member.photo_url.includes('supabase')) {
+      try {
+        const photoPath = member.photo_url.split('/storage/v1/object/public/')[1] || 
+                          member.photo_url.split('/storage/v1/object/sign/')[1]?.split('?')[0];
+        if (photoPath) {
+          const bucketAndPath = photoPath.split('/');
+          const bucket = bucketAndPath[0];
+          const path = bucketAndPath.slice(1).join('/');
+          const { data: signedData } = await supabaseAdmin.storage
+            .from(bucket)
+            .createSignedUrl(path, 60 * 60 * 24);
+          if (signedData?.signedUrl) {
+            signedPhotoUrl = signedData.signedUrl;
+          }
+        }
+      } catch (err) {
+        console.error(`${logPrefix} Error generating signed URL for photo:`, err);
+      }
+    }
+
+    if (member.company_logo_url && member.company_logo_url.includes('supabase')) {
+      try {
+        const logoPath = member.company_logo_url.split('/storage/v1/object/public/')[1] || 
+                         member.company_logo_url.split('/storage/v1/object/sign/')[1]?.split('?')[0];
+        if (logoPath) {
+          const bucketAndPath = logoPath.split('/');
+          const bucket = bucketAndPath[0];
+          const path = bucketAndPath.slice(1).join('/');
+          const { data: signedData } = await supabaseAdmin.storage
+            .from(bucket)
+            .createSignedUrl(path, 60 * 60 * 24);
+          if (signedData?.signedUrl) {
+            signedCompanyLogoUrl = signedData.signedUrl;
+          }
+        }
+      } catch (err) {
+        console.error(`${logPrefix} Error generating signed URL for company logo:`, err);
+      }
+    }
+
+    // Prepare business card data
+    const cardData: BusinessCardData = {
+      participant_id: member.participant_id,
+      tenant_id: member.tenant_id,
+      full_name: member.full_name,
+      nickname: member.nickname,
+      position: member.position,
+      company: member.company,
+      tagline: member.tagline,
+      photo_url: signedPhotoUrl,
+      company_logo_url: signedCompanyLogoUrl,
+      email: member.email,
+      phone: member.phone,
+      website_url: member.website_url,
+      facebook_url: member.facebook_url,
+      instagram_url: member.instagram_url,
+      linkedin_url: member.linkedin_url,
+      line_id: member.line_id,
+      business_address: member.business_address,
+      tags: member.tags,
+      onepage_url: member.onepage_url
+    };
+
+    // Use production URL for sharing - consistent with LINE bot
+    const baseUrl = getProductionBaseUrl();
+    
+    // Generate the Flex Message using the same template as LINE bot
+    // Note: No LIFF ID passed for share-flex - this is the card being shared, not the source
+    const flexMessage = createBusinessCardFlexMessage(cardData, baseUrl);
+
+    console.log(`${logPrefix} Generated flex message for:`, member.full_name);
+
+    return res.json({
+      success: true,
+      flexMessage,
+      memberName: member.full_name
+    });
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 

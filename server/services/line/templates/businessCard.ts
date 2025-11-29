@@ -42,7 +42,7 @@ const COLORS = {
   separator: "#E2E8F0",
 };
 
-export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string) {
+export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string, liffId?: string | null) {
   const phoneUri = sanitizePhone(data.phone);
   const emailUri = sanitizeEmail(data.email);
   const websiteUrl = sanitizeUrl(data.website_url);
@@ -500,6 +500,25 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     height: "sm"
   });
 
+  // Share button row - only show if LIFF ID is provided
+  const shareActions: any[] = [];
+  
+  if (liffId) {
+    // Include tenant_id in share URL for tenant isolation
+    const shareUrl = `https://liff.line.me/${liffId}?path=${encodeURIComponent(`/liff/share/${data.participant_id}?tenant=${data.tenant_id}`)}`;
+    shareActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "แชร์ให้เพื่อน",
+        uri: shareUrl
+      },
+      style: "link",
+      height: "sm",
+      color: COLORS.primary
+    });
+  }
+
   const footerContents: any[] = [];
 
   if (primaryActions.length > 0) {
@@ -518,6 +537,18 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       contents: secondaryActions,
       spacing: "sm",
       margin: primaryActions.length > 0 ? "sm" : "none"
+    });
+  }
+
+  // Add share button row if available
+  if (shareActions.length > 0) {
+    footerContents.push({
+      type: "box",
+      layout: "horizontal",
+      contents: shareActions,
+      spacing: "sm",
+      margin: "sm",
+      justifyContent: "center"
     });
   }
 
