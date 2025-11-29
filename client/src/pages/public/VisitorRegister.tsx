@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle, Check, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, CheckCircle, Check, ChevronsUpDown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function VisitorRegister() {
@@ -18,6 +18,7 @@ export default function VisitorRegister() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [profileToken, setProfileToken] = useState<string | null>(null);
   const [meeting, setMeeting] = useState<any>(null);
   const [tenant, setTenant] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
@@ -235,13 +236,18 @@ export default function VisitorRegister() {
 
       console.log("✅ Registration successful:", data);
 
+      // Save profile token for edit profile link
+      if (data.profile_token) {
+        setProfileToken(data.profile_token);
+      }
+
       if (autoCheckin && data.auto_checked_in) {
         toast.success("ลงทะเบียนและเช็คอินสำเร็จ!");
         // Redirect to check-in success screen
         setTimeout(() => {
           navigate(`/checkin/${meetingId}`, { 
             replace: true,
-            state: { skipToSuccess: true }
+            state: { skipToSuccess: true, profileToken: data.profile_token }
           });
         }, 1000);
       } else {
@@ -293,15 +299,25 @@ export default function VisitorRegister() {
               ยินดีต้อนรับสู่ชุมชน Meetdup<br />
               {tenant.tenant_name}
             </p>
-            <Button
-              onClick={() => navigate(`/chapter/${tenant.subdomain}`)}
-              variant="outline"
-              className="mt-4"
-              data-testid="button-back-to-chapter"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              กลับหน้า Chapter
-            </Button>
+            <div className="flex flex-col gap-2 pt-4">
+              {profileToken && (
+                <Button
+                  onClick={() => navigate(`/participant-profile/edit?token=${profileToken}`)}
+                  data-testid="button-edit-profile"
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  แก้ไขโปรไฟล์ของฉัน
+                </Button>
+              )}
+              <Button
+                onClick={() => navigate(`/chapter/${tenant.subdomain}`)}
+                variant="outline"
+                data-testid="button-back-to-chapter"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                กลับหน้า Chapter
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -807,11 +807,16 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       console.log(`${logPrefix} Auto check-in successful`);
     }
 
+    // Generate profile edit token for immediate profile editing
+    const profileToken = generateProfileToken(participant.participant_id, tenant_id);
+    console.log(`${logPrefix} Generated profile token for participant`);
+
     return res.json({
       success: true,
       participant_id: participant.participant_id,
       status: participant.status,
       auto_checked_in: !!auto_checkin,
+      profile_token: profileToken,
       message: auto_checkin 
         ? "Registration and check-in successful" 
         : "Registration successful"
