@@ -1341,14 +1341,16 @@ router.patch("/profile", async (req: Request, res: Response) => {
     }
 
     const { 
-      full_name,
+      full_name, 
+      nickname,
+      // Thai name fields
       first_name_th,
       last_name_th,
       nickname_th,
+      // English name fields
       first_name_en,
       last_name_en,
       nickname_en,
-      nickname,
       position, 
       company, 
       tagline,
@@ -1360,38 +1362,51 @@ router.patch("/profile", async (req: Request, res: Response) => {
       website_url,
       facebook_url,
       instagram_url,
-      line_id,
       linkedin_url,
+      line_id,
       business_address,
-      tags,
+      tags
     } = req.body;
 
-    // Validate required fields
-    if (!full_name || !phone) {
+    // Validate required fields - Thai names and phone are required
+    if (!first_name_th || !last_name_th || !phone) {
       return res.status(400).json({
         success: false,
         error: "Validation error",
-        message: "full_name and phone are required"
+        message: "Thai first name, Thai last name, and phone are required"
       });
     }
+    
+    // Compute full_name from Thai names for backward compatibility
+    const computedFullName = full_name || `${first_name_th} ${last_name_th}`.trim();
 
     console.log(`${logPrefix} Updating profile for participant ${decoded.participant_id}`);
 
     // Normalize phone
     const normalizedPhone = phone.replace(/\D/g, "");
 
-    // Update participant - full Supabase schema columns
+    // Validate tags if provided (must be array of strings)
+    let validatedTags: string[] | null = null;
+    if (tags) {
+      if (Array.isArray(tags)) {
+        validatedTags = tags.filter((t: any) => typeof t === 'string' && t.trim()).map((t: string) => t.trim());
+      }
+    }
+
+    // Update participant
     const { data: updatedParticipant, error: updateError } = await supabaseAdmin
       .from("participants")
       .update({
-        full_name,
+        full_name: computedFullName,
+        nickname: nickname || nickname_th || null,
+        // Thai name fields
         first_name_th: first_name_th || null,
         last_name_th: last_name_th || null,
         nickname_th: nickname_th || null,
+        // English name fields
         first_name_en: first_name_en || null,
         last_name_en: last_name_en || null,
         nickname_en: nickname_en || null,
-        nickname: nickname || null,
         position: position || null,
         company: company || null,
         tagline: tagline || null,
@@ -1403,10 +1418,10 @@ router.patch("/profile", async (req: Request, res: Response) => {
         website_url: website_url || null,
         facebook_url: facebook_url || null,
         instagram_url: instagram_url || null,
-        line_id: line_id || null,
         linkedin_url: linkedin_url || null,
+        line_id: line_id || null,
         business_address: business_address || null,
-        tags: tags || null,
+        tags: validatedTags,
         updated_at: new Date().toISOString(),
       })
       .eq("participant_id", decoded.participant_id)
@@ -1414,27 +1429,25 @@ router.patch("/profile", async (req: Request, res: Response) => {
       .select(`
         participant_id,
         full_name,
+        nickname,
         first_name_th,
         last_name_th,
         nickname_th,
         first_name_en,
         last_name_en,
         nickname_en,
-        nickname,
         email,
         phone,
         position,
         company,
-        company_logo_url,
         tagline,
-        business_type,
         business_type_code,
         goal,
         website_url,
         facebook_url,
         instagram_url,
-        line_id,
         linkedin_url,
+        line_id,
         business_address,
         photo_url,
         tags,
@@ -2028,37 +2041,37 @@ router.get("/profile", async (req: Request, res: Response) => {
 
     console.log(`${logPrefix} Loading profile for participant ${decoded.participant_id}`);
 
-    // Get participant with tenant info - full Supabase schema columns
+    // Get participant with tenant info
     const { data: participant, error } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
         full_name,
+        nickname,
         first_name_th,
         last_name_th,
         nickname_th,
         first_name_en,
         last_name_en,
         nickname_en,
-        nickname,
         email,
         phone,
         position,
         company,
         company_logo_url,
         tagline,
-        business_type,
         business_type_code,
         goal,
         website_url,
         facebook_url,
         instagram_url,
-        line_id,
         linkedin_url,
+        line_id,
         business_address,
         photo_url,
         tags,
         onepage_url,
+        member_type,
         tenant_id,
         tenants!inner (
           tenant_name,
