@@ -5,12 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { MemberSearchSelect } from "@/components/MemberSearchSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle, Check, ChevronsUpDown, User } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ArrowLeft, CheckCircle, User } from "lucide-react";
 
 export default function VisitorRegister() {
   const [searchParams] = useSearchParams();
@@ -23,7 +21,6 @@ export default function VisitorRegister() {
   const [tenant, setTenant] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [selectedReferrer, setSelectedReferrer] = useState<string>("");
-  const [referrerSearchOpen, setReferrerSearchOpen] = useState(false);
   
   // 2-step form state
   const [step, setStep] = useState<"phone" | "form">("phone");
@@ -483,51 +480,13 @@ export default function VisitorRegister() {
             {/* Referral Combobox */}
             <div>
               <Label htmlFor="referrer">ผู้แนะนำ (ถ้ามี)</Label>
-              <Popover open={referrerSearchOpen} onOpenChange={setReferrerSearchOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={referrerSearchOpen}
-                    className="w-full justify-between font-normal"
-                    data-testid="button-select-referrer"
-                  >
-                    {selectedReferrer
-                      ? members.find((m) => m.participant_id === selectedReferrer)?.display_name
-                      : "เลือกสมาชิกที่แนะนำคุณ (ถ้ามี)"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="ค้นหาสมาชิก..." />
-                    <CommandList>
-                      <CommandEmpty>ไม่พบสมาชิก</CommandEmpty>
-                      <CommandGroup>
-                        {members.map((member) => (
-                          <CommandItem
-                            key={member.participant_id}
-                            value={member.display_name}
-                            onSelect={() => {
-                              setSelectedReferrer(member.participant_id === selectedReferrer ? "" : member.participant_id);
-                              setReferrerSearchOpen(false);
-                            }}
-                            data-testid={`option-referrer-${member.participant_id}`}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedReferrer === member.participant_id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {member.display_name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <MemberSearchSelect
+                members={members}
+                value={selectedReferrer}
+                onChange={setSelectedReferrer}
+                placeholder="เลือกสมาชิกที่แนะนำคุณ (ถ้ามี)"
+                data-testid="select-referrer"
+              />
             </div>
 
             <div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Check, ChevronsUpDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -64,11 +64,20 @@ export function MemberSearchSelect({
       member.nickname,
       member.display_name,
     ].filter(Boolean);
-    return parts.join(" ").toLowerCase();
+    return parts.join(" ");
   };
 
-  const selectedMember = members.find((m) => m.participant_id === value);
-  const selectedDisplay = selectedMember ? getDisplayName(selectedMember) : "";
+  const membersWithSearchText = useMemo(() => 
+    members.map(member => ({
+      ...member,
+      searchText: getSearchableText(member),
+      displayName: getDisplayName(member),
+    })), 
+    [members]
+  );
+
+  const selectedMember = membersWithSearchText.find((m) => m.participant_id === value);
+  const selectedDisplay = selectedMember ? selectedMember.displayName : "";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -104,26 +113,19 @@ export function MemberSearchSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command
-          filter={(value, search) => {
-            const member = members.find((m) => m.participant_id === value);
-            if (!member) return 0;
-            const searchable = getSearchableText(member);
-            if (searchable.includes(search.toLowerCase())) return 1;
-            return 0;
-          }}
-        >
+        <Command>
           <CommandInput placeholder="พิมพ์ค้นหา..." />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               <CommandItem
-                value=""
+                value="__none__"
                 onSelect={() => {
                   onChange("");
                   setOpen(false);
                 }}
                 className="text-muted-foreground"
+                data-testid="option-referrer-none"
               >
                 <Check
                   className={cn(
@@ -133,14 +135,15 @@ export function MemberSearchSelect({
                 />
                 -- ไม่ระบุ --
               </CommandItem>
-              {members.map((member) => (
+              {membersWithSearchText.map((member) => (
                 <CommandItem
                   key={member.participant_id}
-                  value={member.participant_id}
-                  onSelect={(currentValue) => {
-                    onChange(currentValue === value ? "" : currentValue);
+                  value={member.searchText}
+                  onSelect={() => {
+                    onChange(member.participant_id);
                     setOpen(false);
                   }}
+                  data-testid={`option-referrer-${member.participant_id}`}
                 >
                   <Check
                     className={cn(
@@ -148,7 +151,7 @@ export function MemberSearchSelect({
                       value === member.participant_id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {getDisplayName(member)}
+                  {member.displayName}
                 </CommandItem>
               ))}
             </CommandGroup>

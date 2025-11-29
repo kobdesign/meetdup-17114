@@ -34,6 +34,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { MemberSearchSelect } from "@/components/MemberSearchSelect";
 import { Separator } from "@/components/ui/separator";
 import TagInput from "@/components/TagInput";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
@@ -462,22 +463,13 @@ export default function Participants() {
                           ยังไม่มีสมาชิกในระบบ กรุณาเพิ่มสมาชิกก่อนเลือกผู้แนะนำ
                         </div>
                       ) : (
-                        <Select
+                        <MemberSearchSelect
+                          members={members}
                           value={newParticipant.referred_by_participant_id || ""}
-                          onValueChange={(value) => setNewParticipant({ ...newParticipant, referred_by_participant_id: value })}
-                        >
-                          <SelectTrigger data-testid="select-referrer">
-                            <SelectValue placeholder="เลือกสมาชิกที่แนะนำ" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {members.map((member) => (
-                              <SelectItem key={member.participant_id} value={member.participant_id}>
-                                {member.full_name_th}
-                                {member.nickname_th && ` (${member.nickname_th})`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          onChange={(value) => setNewParticipant({ ...newParticipant, referred_by_participant_id: value })}
+                          placeholder="เลือกสมาชิกที่แนะนำ"
+                          data-testid="select-referrer"
+                        />
                       )}
                     </div>
                   )}
@@ -823,22 +815,13 @@ export default function Participants() {
                             ยังไม่มีสมาชิกคนอื่นในระบบ กรุณาเพิ่มสมาชิกก่อนเลือกผู้แนะนำ
                           </div>
                         ) : (
-                          <Select
+                          <MemberSearchSelect
+                            members={members.filter(m => m.participant_id !== editingParticipant.participant_id)}
                             value={editingParticipant.referred_by_participant_id || ""}
-                            onValueChange={(value) => setEditingParticipant({ ...editingParticipant, referred_by_participant_id: value })}
-                          >
-                            <SelectTrigger data-testid="select-edit-referrer">
-                              <SelectValue placeholder="เลือกสมาชิกที่แนะนำ" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {members.filter(m => m.participant_id !== editingParticipant.participant_id).map((member) => (
-                                <SelectItem key={member.participant_id} value={member.participant_id}>
-                                  {member.full_name_th}
-                                  {member.nickname_th && ` (${member.nickname_th})`}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            onChange={(value) => setEditingParticipant({ ...editingParticipant, referred_by_participant_id: value })}
+                            placeholder="เลือกสมาชิกที่แนะนำ"
+                            data-testid="select-edit-referrer"
+                          />
                         )}
                       </div>
                     )}
