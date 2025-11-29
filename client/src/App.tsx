@@ -6,6 +6,7 @@ import { queryClient } from "./lib/queryClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { TenantProvider } from "./contexts/TenantContext";
+import { LiffStateHandler } from "./components/LiffStateHandler";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -53,6 +54,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+        <LiffStateHandler>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
@@ -172,7 +174,8 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </BrowserRouter>
+        </LiffStateHandler>
+        </BrowserRouter>
       </TenantProvider>
     </TooltipProvider>
   </QueryClientProvider>
