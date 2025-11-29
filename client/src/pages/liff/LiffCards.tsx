@@ -1,0 +1,55 @@
+import { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+
+export default function LiffCards() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const liffState = searchParams.get("liff.state");
+    
+    console.log("[LiffCards] Received liff.state:", liffState);
+    
+    if (liffState) {
+      try {
+        let decodedState = decodeURIComponent(liffState);
+        console.log("[LiffCards] Decoded once:", decodedState);
+        
+        while (decodedState.includes("liff.state=")) {
+          const nestedMatch = decodedState.match(/[?&]?liff\.state=([^&]+)/);
+          if (nestedMatch) {
+            decodedState = decodeURIComponent(nestedMatch[1]);
+            console.log("[LiffCards] Extracted nested liff.state:", decodedState);
+          } else {
+            break;
+          }
+        }
+        
+        if (decodedState.startsWith("/")) {
+          console.log("[LiffCards] Navigating to:", decodedState);
+          navigate(decodedState, { replace: true });
+          return;
+        }
+      } catch (e) {
+        console.error("[LiffCards] Error parsing liff.state:", e);
+      }
+    }
+    
+    const tenantId = searchParams.get("tenant");
+    if (tenantId) {
+      navigate(`/liff/search?tenant=${tenantId}`, { replace: true });
+    } else {
+      navigate("/", { replace: true });
+    }
+  }, [navigate, searchParams]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+        <p className="text-muted-foreground text-sm">Loading...</p>
+      </div>
+    </div>
+  );
+}
