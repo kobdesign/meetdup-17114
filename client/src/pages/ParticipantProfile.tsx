@@ -22,6 +22,12 @@ interface ParticipantProfile {
   participant_id: string;
   full_name: string;
   nickname: string | null;
+  first_name_th: string | null;
+  last_name_th: string | null;
+  nickname_th: string | null;
+  first_name_en: string | null;
+  last_name_en: string | null;
+  nickname_en: string | null;
   email: string | null;
   phone: string;
   position: string | null;
@@ -33,6 +39,7 @@ interface ParticipantProfile {
   website_url: string | null;
   facebook_url: string | null;
   instagram_url: string | null;
+  linkedin_url: string | null;
   line_id: string | null;
   business_address: string | null;
   photo_url: string | null;
@@ -58,7 +65,15 @@ export default function ParticipantProfile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   
-  // Form fields
+  // Form fields - Thai names (required)
+  const [firstNameTh, setFirstNameTh] = useState("");
+  const [lastNameTh, setLastNameTh] = useState("");
+  const [nicknameTh, setNicknameTh] = useState("");
+  // Form fields - English names (optional)
+  const [firstNameEn, setFirstNameEn] = useState("");
+  const [lastNameEn, setLastNameEn] = useState("");
+  const [nicknameEn, setNicknameEn] = useState("");
+  // Legacy full_name for backward compatibility
   const [fullName, setFullName] = useState("");
   const [nickname, setNickname] = useState("");
   const [position, setPosition] = useState("");
@@ -71,6 +86,7 @@ export default function ParticipantProfile() {
   const [website, setWebsite] = useState("");
   const [facebook, setFacebook] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [linkedin, setLinkedin] = useState("");
   const [lineId, setLineId] = useState("");
   const [businessAddress, setBusinessAddress] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -103,6 +119,15 @@ export default function ParticipantProfile() {
       
       const p = data.participant;
       setProfile(p);
+      // Thai names
+      setFirstNameTh(p.first_name_th || "");
+      setLastNameTh(p.last_name_th || "");
+      setNicknameTh(p.nickname_th || "");
+      // English names
+      setFirstNameEn(p.first_name_en || "");
+      setLastNameEn(p.last_name_en || "");
+      setNicknameEn(p.nickname_en || "");
+      // Legacy fields
       setFullName(p.full_name || "");
       setNickname(p.nickname || "");
       setPosition(p.position || "");
@@ -115,6 +140,7 @@ export default function ParticipantProfile() {
       setWebsite(p.website_url || "");
       setFacebook(p.facebook_url || "");
       setInstagram(p.instagram_url || "");
+      setLinkedin(p.linkedin_url || "");
       setLineId(p.line_id || "");
       setBusinessAddress(p.business_address || "");
       setTags(p.tags || []);
