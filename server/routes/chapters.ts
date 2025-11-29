@@ -617,7 +617,7 @@ router.get("/join-requests", verifySupabaseAuth, async (req: AuthenticatedReques
         try {
           const { data: participant } = await supabaseAdmin
             .from("participants")
-            .select("full_name, company, position, phone, email, photo_url")
+            .select("full_name_th, company, position, phone, email, photo_url")
             .eq("user_id", request.user_id)
             .eq("tenant_id", tenant_id as string)
             .maybeSingle();

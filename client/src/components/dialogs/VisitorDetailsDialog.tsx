@@ -24,10 +24,10 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
   const { selectedTenant } = useTenantContext();
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [members, setMembers] = useState<Array<{ participant_id: string; full_name: string; nickname: string | null }>>([]);
+  const [members, setMembers] = useState<Array<{ participant_id: string; full_name_th: string; nickname: string | null }>>([]);
   const [referrerSearchOpen, setReferrerSearchOpen] = useState(false);
   const [formData, setFormData] = useState({
-    full_name: "",
+    full_name_th: "",
     email: "",
     phone: "",
     company: "",
@@ -50,11 +50,11 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
 
       const { data, error } = await supabase
         .from("participants")
-        .select("participant_id, full_name, nickname")
+        .select("participant_id, full_name_th, nickname")
         .eq("tenant_id", selectedTenant.tenant_id)
         .eq("status", "member")
         .order("nickname", { ascending: true, nullsFirst: false })
-        .order("full_name", { ascending: true });
+        .order("full_name_th", { ascending: true });
 
       if (!error && data) {
         setMembers(data);
@@ -70,7 +70,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
   useEffect(() => {
     if (visitor) {
       setFormData({
-        full_name: visitor.full_name || "",
+        full_name_th: visitor.full_name_th || visitor.full_name || "",
         email: visitor.email || "",
         phone: visitor.phone || "",
         company: visitor.company || "",
@@ -85,7 +85,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
 
   const handleEdit = () => {
     setFormData({
-      full_name: visitor.full_name || "",
+      full_name_th: visitor.full_name_th || visitor.full_name || "",
       email: visitor.email || "",
       phone: visitor.phone || "",
       company: visitor.company || "",
@@ -99,7 +99,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
   const handleCancel = () => {
     setIsEditMode(false);
     setFormData({
-      full_name: visitor.full_name || "",
+      full_name_th: visitor.full_name_th || visitor.full_name || "",
       email: visitor.email || "",
       phone: visitor.phone || "",
       company: visitor.company || "",
@@ -205,18 +205,18 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
             
             <div className="grid gap-4">
               <div className="space-y-2">
-                <Label htmlFor="full_name">ชื่อ-นามสกุล *</Label>
+                <Label htmlFor="full_name_th">ชื่อ-นามสกุล *</Label>
                 {isEditMode ? (
                   <Input
-                    id="full_name"
-                    value={formData.full_name}
-                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    id="full_name_th"
+                    value={formData.full_name_th}
+                    onChange={(e) => setFormData({ ...formData, full_name_th: e.target.value })}
                     data-testid="input-full-name"
                   />
                 ) : (
                   <div className="flex items-center gap-2">
                     <UserCircle className="w-4 h-4 text-muted-foreground" />
-                    <span>{visitor.full_name || "-"}</span>
+                    <span>{visitor.full_name_th || visitor.full_name || "-"}</span>
                   </div>
                 )}
               </div>
@@ -325,6 +325,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
                     >
                       {formData.referred_by_participant_id
                         ? members.find((m) => m.participant_id === formData.referred_by_participant_id)?.nickname ||
+                          members.find((m) => m.participant_id === formData.referred_by_participant_id)?.full_name_th ||
                           members.find((m) => m.participant_id === formData.referred_by_participant_id)?.full_name ||
                           "เลือกผู้แนะนำ"
                         : "เลือกผู้แนะนำ (ไม่บังคับ)"}
@@ -356,7 +357,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
                           {members.map((member) => (
                             <CommandItem
                               key={member.participant_id}
-                              value={`${member.nickname || member.full_name} ${member.participant_id}`}
+                              value={`${member.nickname || member.full_name_th} ${member.participant_id}`}
                               onSelect={() => {
                                 setFormData({ ...formData, referred_by_participant_id: member.participant_id });
                                 setReferrerSearchOpen(false);
@@ -371,10 +372,10 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
                               />
                               {member.nickname ? (
                                 <span>
-                                  {member.nickname} <span className="text-muted-foreground">({member.full_name})</span>
+                                  {member.nickname} <span className="text-muted-foreground">({member.full_name_th})</span>
                                 </span>
                               ) : (
-                                <span>{member.full_name}</span>
+                                <span>{member.full_name_th}</span>
                               )}
                             </CommandItem>
                           ))}
@@ -437,7 +438,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || !formData.full_name || !formData.phone}
+                disabled={isSaving || !formData.full_name_th || !formData.phone}
                 data-testid="button-save"
               >
                 <Save className="w-4 h-4 mr-2" />

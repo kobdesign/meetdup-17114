@@ -64,11 +64,11 @@ export default function MembersManagement() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("participants")
-        .select("participant_id, full_name, phone, email, status, line_user_id")
+        .select("participant_id, full_name_th, phone, email, status, line_user_id")
         .eq("tenant_id", effectiveTenantId!)
         .eq("status", "member")
         .is("user_id", null)
-        .order("full_name");
+        .order("full_name_th");
 
       if (error) throw error;
       return data;
@@ -289,7 +289,7 @@ export default function MembersManagement() {
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="font-semibold">{member.full_name}</p>
+                            <p className="font-semibold">{member.full_name_th || member.full_name}</p>
                             {member.line_user_id && (
                               <Badge variant="outline" className="text-xs">
                                 <MessageCircle className="mr-1 h-3 w-3" />
@@ -358,7 +358,7 @@ export default function MembersManagement() {
               ) : (
                 joinRequests.map((request: any) => {
                   const participant = request.participant;
-                  const displayName = participant?.full_name || request.user_email || "ผู้ใช้";
+                  const displayName = participant?.full_name_th || participant?.full_name || request.user_email || "ผู้ใช้";
                   const initials = displayName
                     .split(' ')
                     .map((n: string) => n[0])

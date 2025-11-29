@@ -40,7 +40,7 @@ export default function VisitorRegistrationDialog({
   const [lookingUp, setLookingUp] = useState(false);
   
   const [formData, setFormData] = useState({
-    full_name: "",
+    full_name_th: "",
     email: "",
     phone: "",
     company: "",
@@ -84,7 +84,7 @@ export default function VisitorRegistrationDialog({
       setSelectedReferrer("");
       setAllowChangeMeeting(false);
       setFormData({
-        full_name: "",
+        full_name_th: "",
         email: "",
         phone: "",
         company: "",
@@ -199,7 +199,7 @@ export default function VisitorRegistrationDialog({
         console.log("Found existing participant:", data.participant);
         setExistingParticipant(data.participant);
         setFormData({
-          full_name: data.participant.full_name || "",
+          full_name_th: data.participant.full_name_th || data.participant.full_name || "",
           email: data.participant.email || "",
           phone: data.participant.phone || formData.phone,
           company: data.participant.company || "",
@@ -214,7 +214,7 @@ export default function VisitorRegistrationDialog({
         console.log("New participant - no existing data");
         setExistingParticipant(null);
         setFormData({
-          full_name: "",
+          full_name_th: "",
           email: "",
           phone: formData.phone, // Keep the phone number they just entered
           company: "",
@@ -241,7 +241,7 @@ export default function VisitorRegistrationDialog({
     e.preventDefault();
 
     // Validate required fields only (meeting is optional now)
-    if (!formData.full_name || !formData.email || !formData.phone) {
+    if (!formData.full_name_th || !formData.email || !formData.phone) {
       toast.error("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
       return;
     }
@@ -251,7 +251,7 @@ export default function VisitorRegistrationDialog({
     try {
       const payload: any = {
         meeting_id: selectedMeetingId,
-        full_name: formData.full_name,
+        full_name_th: formData.full_name_th,
         email: formData.email,
         phone: formData.phone,
         company: formData.company,
@@ -510,11 +510,11 @@ export default function VisitorRegistrationDialog({
           )}
 
           <div>
-            <Label htmlFor="full_name">ชื่อ-นามสกุล *</Label>
+            <Label htmlFor="full_name_th">ชื่อ-นามสกุล *</Label>
             <Input
-              id="full_name"
-              value={formData.full_name}
-              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              id="full_name_th"
+              value={formData.full_name_th}
+              onChange={(e) => setFormData({ ...formData, full_name_th: e.target.value })}
               required
               placeholder="กรอกชื่อ-นามสกุล"
             />

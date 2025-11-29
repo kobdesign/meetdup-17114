@@ -321,15 +321,12 @@ export type Database = {
           created_at: string
           email: string | null
           facebook_url: string | null
-          first_name_en: string | null
-          first_name_th: string | null
-          full_name: string
+          full_name_th: string
+          full_name_en: string | null
           goal: string | null
           instagram_url: string | null
           invited_by: string | null
           joined_date: string | null
-          last_name_en: string | null
-          last_name_th: string | null
           line_id: string | null
           line_user_id: string | null
           linkedin_url: string | null
@@ -362,15 +359,12 @@ export type Database = {
           created_at?: string
           email?: string | null
           facebook_url?: string | null
-          first_name_en?: string | null
-          first_name_th?: string | null
-          full_name: string
+          full_name_th: string
+          full_name_en?: string | null
           goal?: string | null
           instagram_url?: string | null
           invited_by?: string | null
           joined_date?: string | null
-          last_name_en?: string | null
-          last_name_th?: string | null
           line_id?: string | null
           line_user_id?: string | null
           linkedin_url?: string | null
@@ -403,15 +397,12 @@ export type Database = {
           created_at?: string
           email?: string | null
           facebook_url?: string | null
-          first_name_en?: string | null
-          first_name_th?: string | null
-          full_name?: string
+          full_name_th?: string
+          full_name_en?: string | null
           goal?: string | null
           instagram_url?: string | null
           invited_by?: string | null
           joined_date?: string | null
-          last_name_en?: string | null
-          last_name_th?: string | null
           line_id?: string | null
           line_user_id?: string | null
           linkedin_url?: string | null

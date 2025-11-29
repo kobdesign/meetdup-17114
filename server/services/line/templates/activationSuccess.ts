@@ -6,7 +6,7 @@
 
 export interface ActivationSuccessData {
   participant_id: string;
-  full_name: string;
+  full_name_th: string;
   nickname?: string | null;
   chapter_name: string;
   status: string;
@@ -37,7 +37,7 @@ function getStatusLabel(status: string): string {
 export function createActivationSuccessFlexMessage(data: ActivationSuccessData, baseUrl: string) {
   // Use profile edit URL with token instead of public profile view
   const profileEditUrl = `${baseUrl}/participant-profile/edit?token=${data.profile_token}`;
-  const displayName = data.nickname ? `${data.full_name} (${data.nickname})` : data.full_name;
+  const displayName = data.nickname ? `${data.full_name_th} (${data.nickname})` : data.full_name_th;
 
   const bubble = {
     type: "bubble",
@@ -146,7 +146,7 @@ export function createActivationSuccessFlexMessage(data: ActivationSuccessData, 
 
   return {
     type: "flex",
-    altText: `ลงทะเบียนสำเร็จ - ยินดีต้อนรับ ${data.full_name}`,
+    altText: `ลงทะเบียนสำเร็จ - ยินดีต้อนรับ ${data.full_name_th}`,
     contents: bubble
   };
 }

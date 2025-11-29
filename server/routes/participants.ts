@@ -259,7 +259,7 @@ router.get("/lookup-by-phone", async (req: Request, res: Response) => {
     // Lookup participant by phone (using normalized phone)
     const { data: participant, error: lookupError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name, email, phone, status, company, nickname")
+      .select("participant_id, full_name_th, email, phone, status, company, nickname")
       .eq("tenant_id", meeting.tenant_id)
       .eq("phone", normalizedPhone)
       .maybeSingle();
@@ -333,7 +333,7 @@ router.post("/check-in", async (req: Request, res: Response) => {
     // Get participant details
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name, status")
+      .select("participant_id, full_name_th, status")
       .eq("participant_id", participant_id)
       .eq("tenant_id", meeting.tenant_id)
       .single();
@@ -403,7 +403,7 @@ router.post("/check-in", async (req: Request, res: Response) => {
     // Prepare check-in notes for Alumni revisit
     let checkinNotes = null;
     if (participant.status === "alumni") {
-      checkinNotes = `Alumni revisit - ${participant.full_name} กลับมาเยี่ยมชม`;
+      checkinNotes = `Alumni revisit - ${participant.full_name_th} กลับมาเยี่ยมชม`;
       console.log(`${logPrefix} Alumni revisit detected`);
     }
 
@@ -455,7 +455,7 @@ router.post("/check-in", async (req: Request, res: Response) => {
     return res.json({
       success: true,
       participant_id: participant_id,
-      participant_name: participant.full_name,
+      participant_name: participant.full_name_th,
       participant_status: participant.status,
       message: "Check-in successful"
     });
@@ -516,7 +516,7 @@ router.post("/lookup-by-phone", async (req: Request, res: Response) => {
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         email,
         phone,
         company,
@@ -576,7 +576,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
     const { 
       participant_id, // NEW: If provided, UPDATE existing participant instead of INSERT
       meeting_id, 
-      full_name, 
+      full_name_th, 
       email, 
       phone, 
       company, 
@@ -596,10 +596,10 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
     });
 
     // Validate required fields
-    if (!full_name || !email || !phone) {
+    if (!full_name_th || !email || !phone) {
       return res.status(400).json({ 
         error: "Missing required fields",
-        message: "full_name, email, and phone are required"
+        message: "full_name_th, email, and phone are required"
       });
     }
 
@@ -673,7 +673,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       const { data: updatedParticipant, error: updateError } = await supabaseAdmin
         .from("participants")
         .update({
-          full_name,
+          full_name_th,
           email,
           phone: normalizedPhone,
           company: company || null,
@@ -706,7 +706,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
         .from("participants")
         .insert({
           tenant_id,
-          full_name,
+          full_name_th,
           email,
           phone: normalizedPhone,
           company: company || null,
@@ -1030,7 +1030,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
       .select(`
         participant_id,
         tenant_id,
-        full_name,
+        full_name_th,
         email,
         phone,
         company,
@@ -1063,7 +1063,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
     if (referredByIds.length > 0) {
       const { data: referredByParticipants } = await supabaseAdmin
         .from("participants")
-        .select("participant_id, full_name, nickname")
+        .select("participant_id, full_name_th, nickname")
         .in("participant_id", referredByIds);
 
       if (referredByParticipants) {
@@ -1158,7 +1158,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
         ...p,
         upcoming_meeting_date: upcomingMeeting?.meeting_date || null,
         upcoming_meeting_time: upcomingMeeting?.meeting_time || null,
-        referred_by_name: referredBy?.nickname || referredBy?.full_name || null,
+        referred_by_name: referredBy?.nickname || referredBy?.full_name_th || null,
         checkins_count: checkinCounts.get(p.participant_id) || 0
       };
     });
@@ -1203,7 +1203,7 @@ router.get("/:participantId/business-card", async (req: Request, res: Response) 
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         email,
         phone,
         company,
@@ -1272,7 +1272,7 @@ router.get("/:participantId/vcard", async (req: Request, res: Response) => {
     const { data: participant, error } = await supabaseAdmin
       .from("participants")
       .select(`
-        full_name,
+        full_name_th,
         position,
         company,
         email,
@@ -1297,7 +1297,7 @@ router.get("/:participantId/vcard", async (req: Request, res: Response) => {
 
     // Generate vCard content
     const vCardContent = generateVCard(participant as VCardData);
-    const filename = getVCardFilename(participant.full_name);
+    const filename = getVCardFilename(participant.full_name_th);
 
     // Set headers for file download
     res.setHeader("Content-Type", "text/vcard; charset=utf-8");
@@ -1341,7 +1341,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
     }
 
     const { 
-      full_name, 
+      full_name_th, 
       nickname,
       // Thai name fields
       first_name_th,
@@ -1377,8 +1377,8 @@ router.patch("/profile", async (req: Request, res: Response) => {
       });
     }
     
-    // Compute full_name from Thai names for backward compatibility
-    const computedFullName = full_name || `${first_name_th} ${last_name_th}`.trim();
+    // Compute full_name_th from Thai names for backward compatibility
+    const computedFullNameTh = full_name_th || `${first_name_th} ${last_name_th}`.trim();
 
     console.log(`${logPrefix} Updating profile for participant ${decoded.participant_id}`);
 
@@ -1397,7 +1397,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
     const { data: updatedParticipant, error: updateError } = await supabaseAdmin
       .from("participants")
       .update({
-        full_name: computedFullName,
+        full_name_th: computedFullNameTh,
         nickname: nickname || nickname_th || null,
         // Thai name fields
         first_name_th: first_name_th || null,
@@ -1428,7 +1428,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
       .eq("tenant_id", decoded.tenant_id)
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         nickname,
         first_name_th,
         last_name_th,
@@ -1509,7 +1509,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
                 contents: [
                   {
                     type: "text",
-                    text: updatedParticipant.full_name,
+                    text: updatedParticipant.full_name_th,
                     weight: "bold",
                     size: "lg",
                     wrap: true
@@ -1542,7 +1542,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
           const businessCardFlexMessage = createBusinessCardFlexMessage({
             participant_id: updatedParticipant.participant_id,
             tenant_id: decoded.tenant_id,
-            full_name: updatedParticipant.full_name,
+            full_name_th: updatedParticipant.full_name_th,
             nickname: updatedParticipant.nickname,
             position: updatedParticipant.position,
             company: updatedParticipant.company,
@@ -1588,7 +1588,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
 router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { participantId } = req.params;
-    const { full_name, email, phone, company, business_type, status, referred_by_participant_id } = req.body;
+    const { full_name_th, email, phone, company, business_type, status, referred_by_participant_id } = req.body;
     const userId = req.user?.id;
 
     if (!participantId) {
@@ -1640,7 +1640,7 @@ router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedReq
 
     // Prepare update data (only update provided fields)
     const updateData: any = {};
-    if (full_name !== undefined) updateData.full_name = full_name;
+    if (full_name_th !== undefined) updateData.full_name_th = full_name_th;
     if (email !== undefined) updateData.email = email || null;
     if (company !== undefined) updateData.company = company || null;
     if (business_type !== undefined) updateData.business_type = business_type || null;
@@ -1705,7 +1705,7 @@ router.delete("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRe
     // Get participant to verify ownership and get user_id
     const { data: participant, error: fetchError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, tenant_id, user_id, full_name, email")
+      .select("participant_id, tenant_id, user_id, full_name_th, email")
       .eq("participant_id", participantId)
       .single();
 
@@ -1759,7 +1759,7 @@ router.delete("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRe
     }
 
     // Begin deletion process
-    console.log(`${logPrefix} Starting deletion for ${participant.full_name} (user_id: ${participant.user_id || 'none'})`);
+    console.log(`${logPrefix} Starting deletion for ${participant.full_name_th} (user_id: ${participant.user_id || 'none'})`);
 
     // 1. Delete activation_tokens
     const { error: tokenDeleteError } = await supabaseAdmin
@@ -1870,11 +1870,11 @@ router.delete("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRe
       });
     }
 
-    console.log(`${logPrefix} Successfully deleted participant ${participant.full_name}`);
+    console.log(`${logPrefix} Successfully deleted participant ${participant.full_name_th}`);
 
     return res.json({
       success: true,
-      message: `Deleted participant: ${participant.full_name}`
+      message: `Deleted participant: ${participant.full_name_th}`
     });
 
   } catch (error: any) {
@@ -1888,7 +1888,7 @@ router.delete("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRe
 });
 
 // Get members for referral dropdown (public endpoint - used in registration forms)
-// Returns members with nickname and full_name for selection
+// Returns members with nickname and full_name_th for selection
 // Uses meeting_id for implicit tenant authorization (prevent data leaks)
 router.get("/members-for-referral", async (req: Request, res: Response) => {
   try {
@@ -1918,11 +1918,11 @@ router.get("/members-for-referral", async (req: Request, res: Response) => {
     // Query active members only
     const { data: members, error } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name, nickname")
+      .select("participant_id, full_name_th, nickname")
       .eq("tenant_id", meeting.tenant_id)
       .eq("status", "member")
       .order("nickname", { ascending: true, nullsFirst: false })
-      .order("full_name", { ascending: true });
+      .order("full_name_th", { ascending: true });
 
     if (error) {
       console.error("Failed to fetch members:", error);
@@ -1932,12 +1932,12 @@ router.get("/members-for-referral", async (req: Request, res: Response) => {
       });
     }
 
-    // Return members with display_name (nickname or full_name)
+    // Return members with display_name (nickname or full_name_th)
     const membersWithDisplay = (members || []).map(m => ({
       participant_id: m.participant_id,
-      full_name: m.full_name,
+      full_name_th: m.full_name_th,
       nickname: m.nickname,
-      display_name: m.nickname || m.full_name
+      display_name: m.nickname || m.full_name_th
     }));
 
     return res.json({
@@ -2046,7 +2046,7 @@ router.get("/profile", async (req: Request, res: Response) => {
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         nickname,
         first_name_th,
         last_name_th,
@@ -2615,7 +2615,7 @@ router.get("/profile/vcard", async (req: Request, res: Response) => {
     // Get participant data
     const { data: participant, error } = await supabaseAdmin
       .from("participants")
-      .select("full_name, position, company, email, phone, website_url, avatar_url")
+      .select("full_name_th, position, company, email, phone, website_url, avatar_url")
       .eq("participant_id", decoded.participant_id)
       .eq("tenant_id", decoded.tenant_id)
       .single();
@@ -2631,7 +2631,7 @@ router.get("/profile/vcard", async (req: Request, res: Response) => {
 
     // Generate vCard
     const vCardData: VCardData = {
-      full_name: participant.full_name,
+      full_name_th: participant.full_name_th,
       position: participant.position,
       company: participant.company,
       email: participant.email,
@@ -2641,7 +2641,7 @@ router.get("/profile/vcard", async (req: Request, res: Response) => {
     };
 
     const vCardContent = generateVCard(vCardData);
-    const filename = getVCardFilename(participant.full_name);
+    const filename = getVCardFilename(participant.full_name_th);
 
     console.log(`${logPrefix} vCard generated successfully: ${filename}`);
 
@@ -2703,7 +2703,7 @@ router.post("/lookup-by-line-phone", async (req: Request, res: Response) => {
     // Lookup participant by phone within the specified tenant
     const { data: participant, error: lookupError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, tenant_id, full_name, email, phone, company, business_type, goal, notes, status, line_user_id")
+      .select("participant_id, tenant_id, full_name_th, email, phone, company, business_type, goal, notes, status, line_user_id")
       .eq("tenant_id", tenant_id)
       .eq("phone", normalizedPhone)
       .maybeSingle();
@@ -2756,7 +2756,7 @@ router.post("/line-register", async (req: Request, res: Response) => {
       line_display_name,
       line_picture_url,
       phone,
-      full_name,
+      full_name_th,
       email,
       company,
       business_type,
@@ -2782,11 +2782,11 @@ router.post("/line-register", async (req: Request, res: Response) => {
       });
     }
 
-    if (!line_user_id || !phone || !full_name || !email) {
+    if (!line_user_id || !phone || !full_name_th || !email) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
-        message: "line_user_id, phone, full_name, and email are required",
+        message: "line_user_id, phone, full_name_th, and email are required",
       });
     }
 
@@ -2837,7 +2837,7 @@ router.post("/line-register", async (req: Request, res: Response) => {
         .from("participants")
         .update({
           line_user_id,
-          full_name,
+          full_name_th,
           email,
           company: company || null,
           business_type: business_type || null,
@@ -2907,7 +2907,7 @@ router.post("/line-register", async (req: Request, res: Response) => {
           tenant_id,
           line_user_id,
           phone: normalizedPhone,
-          full_name,
+          full_name_th,
           email,
           company: company || null,
           business_type: business_type || null,
@@ -3041,7 +3041,7 @@ router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), a
 
     // Map Excel columns to our schema
     const participants = rawData.map((row: any, index: number) => {
-      const fullName = row['ชื่อ - สกุล'] || row['full_name'] || '';
+      const fullNameTh = row['ชื่อ - สกุล'] || row['full_name_th'] || row['full_name'] || '';
       const nickname = row['ชื่อเล่น'] || row['nickname'] || '';
       const company = row['บริษัทฯ'] || row['company'] || '';
       const businessType = row['ธุรกิจ'] || row['business_type'] || '';
@@ -3053,7 +3053,7 @@ router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), a
       return {
         row_number: index + 2, // +2 because Excel is 1-indexed and has header row
         tenant_id,
-        full_name: fullName.trim(),
+        full_name_th: fullNameTh.trim(),
         nickname: nickname.trim(),
         company: company.trim() || null,
         business_type: businessType.trim() || null,
@@ -3066,7 +3066,7 @@ router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), a
     // Validate required fields
     const validationErrors: string[] = [];
     participants.forEach((p) => {
-      if (!p.full_name) {
+      if (!p.full_name_th) {
         validationErrors.push(`Row ${p.row_number}: Missing name (ชื่อ - สกุล)`);
       }
       if (!p.phone) {
@@ -3117,7 +3117,7 @@ router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), a
     const phonesToCheck = participants.map(p => p.phone).filter(Boolean);
     const { data: existingParticipants, error: checkError } = await supabaseAdmin
       .from("participants")
-      .select("phone, full_name, participant_id")
+      .select("phone, full_name_th, participant_id")
       .eq("tenant_id", tenant_id)
       .in("phone", phonesToCheck);
 
@@ -3138,7 +3138,7 @@ router.post("/import-members", verifySupabaseAuth, uploadExcel.single('file'), a
       if (p.phone && existingPhoneMap.has(p.phone)) {
         const existing = existingPhoneMap.get(p.phone)!;
         conflicts.push(
-          `Row ${p.row_number}: Phone ${p.phone} already exists (${existing.full_name})`
+          `Row ${p.row_number}: Phone ${p.phone} already exists (${existing.full_name_th})`
         );
       }
     });
@@ -3297,7 +3297,7 @@ router.post("/generate-activation-link", verifySupabaseAuth, async (req: Authent
     // Check if participant already has a user account
     const { data: participant } = await supabaseAdmin
       .from("participants")
-      .select("user_id, full_name, phone")
+      .select("user_id, full_name_th, phone")
       .eq("participant_id", participant_id)
       .eq("tenant_id", tenant_id)
       .single();
@@ -3341,7 +3341,7 @@ router.post("/generate-activation-link", verifySupabaseAuth, async (req: Authent
       token: result.token,
       activation_url: activationUrl,
       participant: {
-        full_name: participant.full_name,
+        full_name_th: participant.full_name_th,
         phone: participant.phone
       }
     });
@@ -3426,7 +3426,7 @@ router.get("/check-line-link/:token", async (req: Request, res: Response) => {
         participant_id,
         participants (
           line_user_id,
-          full_name,
+          full_name_th,
           phone
         )
       `)
@@ -3453,7 +3453,7 @@ router.get("/check-line-link/:token", async (req: Request, res: Response) => {
       success: true,
       hasLinkedLine,
       participant: participant ? {
-        full_name: participant.full_name,
+        full_name_th: participant.full_name_th,
         phone: participant.phone
       } : null
     });
@@ -3504,7 +3504,7 @@ router.post("/join-existing", verifySupabaseAuth, async (req: AuthenticatedReque
         used_at,
         participants (
           participant_id,
-          full_name,
+          full_name_th,
           phone,
           email,
           user_id
@@ -3720,7 +3720,7 @@ router.post("/send-activation", verifySupabaseAuth, async (req: AuthenticatedReq
     // Get participant data
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name, phone, line_user_id, user_id")
+      .select("participant_id, full_name_th, phone, line_user_id, user_id")
       .eq("participant_id", participant_id)
       .eq("tenant_id", tenant_id)
       .single();
@@ -3753,7 +3753,7 @@ router.post("/send-activation", verifySupabaseAuth, async (req: AuthenticatedReq
       participantId: participant.participant_id,
       tenantId: tenant_id,
       lineUserId: participant.line_user_id,
-      fullName: participant.full_name,
+      fullName: participant.full_name_th,
       logPrefix
     });
 
@@ -3801,7 +3801,7 @@ router.post("/send-activation-auto", async (req: Request, res: Response) => {
       });
     }
 
-    const { participant_id, tenant_id, line_user_id, full_name } = req.body;
+    const { participant_id, tenant_id, line_user_id, full_name_th } = req.body;
 
     console.log(`${logPrefix} Auto-send activation request`, {
       participant_id,
@@ -3809,10 +3809,10 @@ router.post("/send-activation-auto", async (req: Request, res: Response) => {
       line_user_id: line_user_id ? '***' : undefined
     });
 
-    if (!participant_id || !tenant_id || !line_user_id || !full_name) {
+    if (!participant_id || !tenant_id || !line_user_id || !full_name_th) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields: participant_id, tenant_id, line_user_id, full_name"
+        error: "Missing required fields: participant_id, tenant_id, line_user_id, full_name_th"
       });
     }
 
@@ -3856,7 +3856,7 @@ router.post("/send-activation-auto", async (req: Request, res: Response) => {
       participantId: participant_id,
       tenantId: tenant_id,
       lineUserId: line_user_id,
-      fullName: full_name,
+      fullName: full_name_th,
       logPrefix
     });
 
@@ -3936,7 +3936,7 @@ router.post("/activate", async (req: Request, res: Response) => {
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: participant.full_name,
+        full_name: participant.full_name_th,
         phone: participant.phone
       }
     });
@@ -4055,7 +4055,7 @@ router.post("/activate", async (req: Request, res: Response) => {
           // Create success Flex Message with profile edit button
           const successMessage = createActivationSuccessFlexMessage({
             participant_id: participant.participant_id,
-            full_name: participant.full_name,
+            full_name_th: participant.full_name_th,
             nickname: participant.nickname,
             chapter_name: tenant?.tenant_name || "Chapter",
             status: participant.status || "member",
@@ -4129,7 +4129,7 @@ router.post("/reset-for-testing", verifySupabaseAuth, async (req: AuthenticatedR
     // Find participant by phone - include user_id
     const { data: participant, error: findError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name, phone, line_user_id, user_id, tenant_id")
+      .select("participant_id, full_name_th, phone, line_user_id, user_id, tenant_id")
       .eq("phone", phone)
       .maybeSingle();
 
@@ -4151,7 +4151,7 @@ router.post("/reset-for-testing", verifySupabaseAuth, async (req: AuthenticatedR
 
     console.log(`${logPrefix} Found participant:`, {
       participant_id: participant.participant_id,
-      full_name: participant.full_name,
+      full_name_th: participant.full_name_th,
       has_line: !!participant.line_user_id,
       has_user: !!participant.user_id
     });
@@ -4220,7 +4220,7 @@ router.post("/reset-for-testing", verifySupabaseAuth, async (req: AuthenticatedR
       message: "Participant reset successfully (auth user, roles, and links cleared)",
       participant: {
         participant_id: participant.participant_id,
-        full_name: participant.full_name,
+        full_name_th: participant.full_name_th,
         phone: participant.phone
       }
     });
@@ -4260,7 +4260,7 @@ router.get("/public/:participantId", async (req: Request, res: Response) => {
       .select(`
         participant_id,
         tenant_id,
-        full_name,
+        full_name_th,
         nickname,
         position,
         company,
@@ -4305,7 +4305,7 @@ router.get("/public/:participantId", async (req: Request, res: Response) => {
       .eq("tenant_id", participant.tenant_id)
       .single();
     
-    console.log(`${logPrefix} Found profile for:`, participant.full_name);
+    console.log(`${logPrefix} Found profile for:`, participant.full_name_th);
     
     // Generate signed URLs for private storage assets
     let signedPhotoUrl = participant.photo_url;
@@ -4390,7 +4390,7 @@ router.get("/public/:participantId/vcard", async (req: Request, res: Response) =
     const { data: participant, error } = await supabaseAdmin
       .from("participants")
       .select(`
-        full_name,
+        full_name_th,
         nickname,
         position,
         company,
@@ -4414,7 +4414,7 @@ router.get("/public/:participantId/vcard", async (req: Request, res: Response) =
     
     // Generate vCard
     const vCardData: VCardData = {
-      full_name: participant.full_name,
+      full_name_th: participant.full_name_th,
       position: participant.position || undefined,
       company: participant.company || undefined,
       email: participant.email || undefined,
@@ -4425,13 +4425,13 @@ router.get("/public/:participantId/vcard", async (req: Request, res: Response) =
     };
     
     const vCardContent = generateVCard(vCardData);
-    const filename = getVCardFilename(participant.full_name);
+    const filename = getVCardFilename(participant.full_name_th);
     
     res.setHeader("Content-Type", "text/vcard; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(vCardContent);
     
-    console.log(`${logPrefix} vCard generated for:`, participant.full_name);
+    console.log(`${logPrefix} vCard generated for:`, participant.full_name_th);
     
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);

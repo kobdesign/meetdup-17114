@@ -142,7 +142,7 @@ export default function VisitorRegister() {
         console.log("Found existing participant:", data.participant);
         setExistingParticipant(data.participant);
         setFormData({
-          full_name: data.participant.full_name || "",
+          full_name: data.participant.full_name_th || data.participant.full_name || "",
           email: data.participant.email || "",
           phone: data.participant.phone || formData.phone,
           company: data.participant.company || "",

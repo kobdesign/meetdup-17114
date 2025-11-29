@@ -23,6 +23,7 @@ interface Member {
   participant_id: string;
   tenant_id: string;
   full_name: string;
+  full_name_th?: string;
   nickname: string | null;
   company: string | null;
   position: string | null;
@@ -128,8 +129,8 @@ export default function LiffBusinessCard() {
       } else {
         if (navigator.share) {
           await navigator.share({
-            title: `นามบัตรของ ${member.full_name}`,
-            text: `${member.full_name} - ${member.position || ""} @ ${member.company || ""}`,
+            title: `นามบัตรของ ${member.full_name_th || member.full_name}`,
+            text: `${member.full_name_th || member.full_name} - ${member.position || ""} @ ${member.company || ""}`,
             url: window.location.href
           });
         } else {
@@ -145,8 +146,8 @@ export default function LiffBusinessCard() {
       if (err.message === "LIFF is not configured") {
         if (navigator.share) {
           await navigator.share({
-            title: `นามบัตรของ ${member.full_name}`,
-            text: `${member.full_name} - ${member.position || ""} @ ${member.company || ""}`,
+            title: `นามบัตรของ ${member.full_name_th || member.full_name}`,
+            text: `${member.full_name_th || member.full_name} - ${member.position || ""} @ ${member.company || ""}`,
             url: window.location.href
           });
         } else {
@@ -227,17 +228,17 @@ export default function LiffBusinessCard() {
                 {member.photo_url ? (
                   <img 
                     src={member.photo_url} 
-                    alt={member.full_name}
+                    alt={member.full_name_th || member.full_name}
                     className="w-full h-full object-contain"
                     data-testid="img-member-photo"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-2xl font-bold bg-primary text-primary-foreground">
-                    {getInitials(member.full_name)}
+                    {getInitials(member.full_name_th || member.full_name)}
                   </div>
                 )}
               </div>
-              <h1 className="text-2xl font-bold">{member.full_name}</h1>
+              <h1 className="text-2xl font-bold">{member.full_name_th || member.full_name}</h1>
               {member.nickname && (
                 <p className="text-muted-foreground">({member.nickname})</p>
               )}

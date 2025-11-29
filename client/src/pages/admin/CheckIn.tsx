@@ -76,7 +76,7 @@ export default function CheckIn() {
         .select(`
           *,
           participant:participants!fk_checkins_participant (
-            full_name,
+            full_name_th,
             company,
             status
           )
@@ -278,7 +278,7 @@ export default function CheckIn() {
                           >
                             <div>
                               <div className="font-medium">
-                                {checkin.participant?.full_name || "ไม่ระบุชื่อ"}
+                                {checkin.participant?.full_name_th || checkin.participant?.full_name || "ไม่ระบุชื่อ"}
                               </div>
                               {checkin.participant?.company && (
                                 <div className="text-xs text-muted-foreground">

@@ -90,7 +90,7 @@ export async function handlePhoneLinking(
 
   const { data: participant, error } = await supabaseAdmin
     .from("participants")
-    .select("participant_id, full_name, line_user_id, user_id, status")
+    .select("participant_id, full_name_th, line_user_id, user_id, status")
     .eq("tenant_id", tenantId)
     .eq("phone", normalizedPhone)
     .maybeSingle();
@@ -126,7 +126,7 @@ export async function handlePhoneLinking(
     if (participant.line_user_id === userId) {
       await lineClient.replyMessage(event.replyToken, {
         type: "text",
-        text: `✅ บัญชี LINE ของคุณเชื่อมโยงแล้ว\n\nชื่อ: ${participant.full_name}\nสถานะ: ${getStatusLabel(participant.status)}`
+        text: `✅ บัญชี LINE ของคุณเชื่อมโยงแล้ว\n\nชื่อ: ${participant.full_name_th}\nสถานะ: ${getStatusLabel(participant.status)}`
       });
       return true;
     } else {
@@ -160,7 +160,7 @@ export async function handlePhoneLinking(
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
       text: `✅ เชื่อมโยงสำเร็จ!\n\n` +
-            `ชื่อ: ${participant.full_name}\n` +
+            `ชื่อ: ${participant.full_name_th}\n` +
             `สถานะ: ${getStatusLabel(participant.status)}\n\n` +
             `ตอนนี้คุณสามารถใช้งานผ่าน LINE ได้แล้ว 🎉`
     });
@@ -170,14 +170,14 @@ export async function handlePhoneLinking(
     
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: `✅ เชื่อมโยงสำเร็จ!\n\nชื่อ: ${participant.full_name}\n\nกำลังส่งลิงก์ลงทะเบียนให้คุณ...`
+      text: `✅ เชื่อมโยงสำเร็จ!\n\nชื่อ: ${participant.full_name_th}\n\nกำลังส่งลิงก์ลงทะเบียนให้คุณ...`
     });
 
     const result = await sendActivationLink({
       participantId: participant.participant_id,
       tenantId: tenantId,
       lineUserId: userId,
-      fullName: participant.full_name,
+      fullName: participant.full_name_th,
       logPrefix
     });
 

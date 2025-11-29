@@ -225,7 +225,7 @@ export default function CheckInScanner() {
             </p>
             {participant && (
               <div className="text-sm text-muted-foreground">
-                <p>{participant.full_name}</p>
+                <p>{participant.full_name_th || participant.full_name}</p>
                 {getStatusBadge(participant.status)}
               </div>
             )}
@@ -289,7 +289,7 @@ export default function CheckInScanner() {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span>{participant.full_name}</span>
+                  <span>{participant.full_name_th || participant.full_name}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />

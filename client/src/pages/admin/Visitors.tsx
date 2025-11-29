@@ -169,12 +169,13 @@ export default function Visitors() {
 
     // Apply search filter
     if (searchTerm) {
-      filtered = filtered.filter(v =>
-        v.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.phone?.includes(searchTerm) ||
-        v.company?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter(v => {
+        const displayName = (v.full_name_th || v.full_name || "").toLowerCase();
+        return displayName.includes(searchTerm.toLowerCase()) ||
+          v.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          v.phone?.includes(searchTerm) ||
+          v.company?.toLowerCase().includes(searchTerm.toLowerCase());
+      });
     }
 
     setFilteredVisitors(filtered);
@@ -370,7 +371,7 @@ export default function Visitors() {
                     >
                       <TableCell>
                         <div>
-                          <div className="font-medium">{visitor.full_name}</div>
+                          <div className="font-medium">{visitor.full_name_th || visitor.full_name}</div>
                           {visitor.business_type && (
                             <div className="text-sm text-muted-foreground">
                               {visitor.business_type}

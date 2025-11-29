@@ -79,7 +79,7 @@ export default function MeetingDetails() {
           registration_status,
           participant:participants!fk_meeting_registrations_participant (
             participant_id,
-            full_name,
+            full_name_th,
             email,
             phone,
             company,
@@ -101,7 +101,7 @@ export default function MeetingDetails() {
           notes,
           participant:participants!fk_checkins_participant (
             participant_id,
-            full_name,
+            full_name_th,
             company,
             status,
             email
@@ -441,11 +441,11 @@ export default function MeetingDetails() {
                   >
                     <Avatar>
                       <AvatarFallback className="bg-blue-500 text-white">
-                        {getInitials(reg.participant?.full_name || "")}
+                        {getInitials(reg.participant?.full_name_th || reg.participant?.full_name || "")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{reg.participant?.full_name || "ไม่ระบุชื่อ"}</p>
+                      <p className="font-medium truncate">{reg.participant?.full_name_th || reg.participant?.full_name || "ไม่ระบุชื่อ"}</p>
                       {reg.participant?.company && (
                         <p className="text-sm text-muted-foreground truncate">{reg.participant.company}</p>
                       )}
@@ -483,11 +483,11 @@ export default function MeetingDetails() {
                   >
                     <Avatar>
                       <AvatarFallback className="bg-primary text-primary-foreground">
-                        {getInitials(checkin.participant?.full_name || "")}
+                        {getInitials(checkin.participant?.full_name_th || checkin.participant?.full_name || "")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{checkin.participant?.full_name || "ไม่ระบุชื่อ"}</p>
+                      <p className="font-medium truncate">{checkin.participant?.full_name_th || checkin.participant?.full_name || "ไม่ระบุชื่อ"}</p>
                       {checkin.participant?.company && (
                         <p className="text-sm text-muted-foreground truncate">{checkin.participant.company}</p>
                       )}

@@ -48,14 +48,10 @@ export default function Participants() {
   const [adding, setAdding] = useState(false);
   
   const [newParticipant, setNewParticipant] = useState({
-    first_name_th: "",
-    last_name_th: "",
+    full_name_th: "",
+    full_name_en: "",
     nickname_th: "",
-    first_name_en: "",
-    last_name_en: "",
     nickname_en: "",
-    full_name: "",
-    nickname: "",
     email: "",
     phone: "",
     company: "",
@@ -98,10 +94,10 @@ export default function Participants() {
     try {
       const { data, error } = await supabase
         .from("participants")
-        .select("participant_id, full_name, first_name_th, last_name_th, nickname_th")
+        .select("participant_id, full_name_th, nickname_th")
         .eq("tenant_id", effectiveTenantId)
         .in("status", ["member", "alumni"])
-        .order("full_name");
+        .order("full_name_th");
       if (error) throw error;
       setMembers(data || []);
     } catch (error) {
@@ -130,8 +126,8 @@ export default function Participants() {
   };
 
   const handleAddParticipant = async () => {
-    if (!newParticipant.first_name_th) {
-      toast.error("กรุณากรอกชื่อ (ไทย)");
+    if (!newParticipant.full_name_th) {
+      toast.error("กรุณากรอกชื่อ-นามสกุล (ไทย)");
       return;
     }
 
@@ -159,22 +155,16 @@ export default function Participants() {
       return;
     }
 
-    const fullName = [newParticipant.first_name_th, newParticipant.last_name_th].filter(Boolean).join(" ");
-
     setAdding(true);
     try {
       const { error } = await supabase
         .from("participants")
         .insert({
           tenant_id: effectiveTenantId,
-          full_name: fullName,
-          first_name_th: newParticipant.first_name_th || null,
-          last_name_th: newParticipant.last_name_th || null,
+          full_name_th: newParticipant.full_name_th,
+          full_name_en: newParticipant.full_name_en || null,
           nickname_th: newParticipant.nickname_th || null,
-          first_name_en: newParticipant.first_name_en || null,
-          last_name_en: newParticipant.last_name_en || null,
           nickname_en: newParticipant.nickname_en || null,
-          nickname: newParticipant.nickname_th || null,
           email: newParticipant.email || null,
           phone: newParticipant.phone || null,
           company: newParticipant.company || null,
@@ -201,14 +191,10 @@ export default function Participants() {
       toast.success("เพิ่มสมาชิกสำเร็จ");
       setShowAddDialog(false);
       setNewParticipant({
-        first_name_th: "",
-        last_name_th: "",
+        full_name_th: "",
+        full_name_en: "",
         nickname_th: "",
-        first_name_en: "",
-        last_name_en: "",
         nickname_en: "",
-        full_name: "",
-        nickname: "",
         email: "",
         phone: "",
         company: "",
@@ -244,8 +230,8 @@ export default function Participants() {
   };
 
   const handleUpdateParticipant = async () => {
-    if (!editingParticipant?.first_name_th && !editingParticipant?.full_name) {
-      toast.error("กรุณากรอกชื่อ (ไทย)");
+    if (!editingParticipant?.full_name_th && !editingParticipant?.full_name) {
+      toast.error("กรุณากรอกชื่อ-นามสกุล (ไทย)");
       return;
     }
 
@@ -266,23 +252,15 @@ export default function Participants() {
       }
     }
 
-    const fullName = editingParticipant.first_name_th 
-      ? [editingParticipant.first_name_th, editingParticipant.last_name_th].filter(Boolean).join(" ")
-      : editingParticipant.full_name;
-
     setUpdating(true);
     try {
       const { error } = await supabase
         .from("participants")
         .update({
-          full_name: fullName,
-          first_name_th: editingParticipant.first_name_th || null,
-          last_name_th: editingParticipant.last_name_th || null,
+          full_name_th: editingParticipant.full_name_th || editingParticipant.full_name || null,
+          full_name_en: editingParticipant.full_name_en || null,
           nickname_th: editingParticipant.nickname_th || null,
-          first_name_en: editingParticipant.first_name_en || null,
-          last_name_en: editingParticipant.last_name_en || null,
           nickname_en: editingParticipant.nickname_en || null,
-          nickname: editingParticipant.nickname_th || editingParticipant.nickname || null,
           email: editingParticipant.email || null,
           phone: editingParticipant.phone || null,
           company: editingParticipant.company || null,
@@ -353,11 +331,12 @@ export default function Participants() {
     }
   };
 
-  const filteredParticipants = participants.filter((p) =>
-    p.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredParticipants = participants.filter((p) => {
+    const displayName = (p.full_name_th || p.full_name || "").toLowerCase();
+    return displayName.includes(searchTerm.toLowerCase()) ||
+      p.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.email?.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   if (!effectiveTenantId && isSuperAdmin) {
     return (
@@ -392,30 +371,20 @@ export default function Participants() {
               <div className="grid gap-4 py-4">
                 {/* Thai Name Section */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">ชื่อ-นามสกุล (ไทย)</Label>
-                  <div className="grid grid-cols-3 gap-4">
+                  <Label className="text-sm font-medium text-muted-foreground">ข้อมูลชื่อ (ไทย)</Label>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="first_name_th">ชื่อ *</Label>
+                      <Label htmlFor="full_name_th">ชื่อ-นามสกุล (ไทย) *</Label>
                       <Input
-                        id="first_name_th"
-                        value={newParticipant.first_name_th}
-                        onChange={(e) => setNewParticipant({ ...newParticipant, first_name_th: e.target.value })}
-                        placeholder="สมชาย"
-                        data-testid="input-add-firstname-th"
+                        id="full_name_th"
+                        value={newParticipant.full_name_th}
+                        onChange={(e) => setNewParticipant({ ...newParticipant, full_name_th: e.target.value })}
+                        placeholder="สมชาย ใจดี"
+                        data-testid="input-add-fullname-th"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="last_name_th">นามสกุล</Label>
-                      <Input
-                        id="last_name_th"
-                        value={newParticipant.last_name_th}
-                        onChange={(e) => setNewParticipant({ ...newParticipant, last_name_th: e.target.value })}
-                        placeholder="ใจดี"
-                        data-testid="input-add-lastname-th"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="nickname_th">ชื่อเล่น</Label>
+                      <Label htmlFor="nickname_th">ชื่อเล่น (ไทย)</Label>
                       <Input
                         id="nickname_th"
                         value={newParticipant.nickname_th}
@@ -429,30 +398,20 @@ export default function Participants() {
 
                 {/* English Name Section */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">ชื่อ-นามสกุล (อังกฤษ) - Optional</Label>
-                  <div className="grid grid-cols-3 gap-4">
+                  <Label className="text-sm font-medium text-muted-foreground">ข้อมูลชื่อ (อังกฤษ) - Optional</Label>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="first_name_en">First Name</Label>
+                      <Label htmlFor="full_name_en">ชื่อ-นามสกุล (อังกฤษ)</Label>
                       <Input
-                        id="first_name_en"
-                        value={newParticipant.first_name_en}
-                        onChange={(e) => setNewParticipant({ ...newParticipant, first_name_en: e.target.value })}
-                        placeholder="Somchai"
-                        data-testid="input-add-firstname-en"
+                        id="full_name_en"
+                        value={newParticipant.full_name_en}
+                        onChange={(e) => setNewParticipant({ ...newParticipant, full_name_en: e.target.value })}
+                        placeholder="Somchai Jaidee"
+                        data-testid="input-add-fullname-en"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="last_name_en">Last Name</Label>
-                      <Input
-                        id="last_name_en"
-                        value={newParticipant.last_name_en}
-                        onChange={(e) => setNewParticipant({ ...newParticipant, last_name_en: e.target.value })}
-                        placeholder="Jaidee"
-                        data-testid="input-add-lastname-en"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="nickname_en">Nickname</Label>
+                      <Label htmlFor="nickname_en">ชื่อเล่น (อังกฤษ)</Label>
                       <Input
                         id="nickname_en"
                         value={newParticipant.nickname_en}
@@ -513,7 +472,7 @@ export default function Participants() {
                           <SelectContent>
                             {members.map((member) => (
                               <SelectItem key={member.participant_id} value={member.participant_id}>
-                                {member.full_name || `${member.first_name_th || ""} ${member.last_name_th || ""}`.trim()}
+                                {member.full_name_th}
                                 {member.nickname_th && ` (${member.nickname_th})`}
                               </SelectItem>
                             ))}
@@ -773,33 +732,23 @@ export default function Participants() {
                 <div className="grid gap-4 py-4">
                   {/* Thai Name Section */}
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">ชื่อ-นามสกุล (ไทย)</Label>
-                    <div className="grid grid-cols-3 gap-4">
+                    <Label className="text-sm font-medium text-muted-foreground">ข้อมูลชื่อ (ไทย)</Label>
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit_first_name_th">ชื่อ *</Label>
+                        <Label htmlFor="edit_full_name_th">ชื่อ-นามสกุล (ไทย) *</Label>
                         <Input
-                          id="edit_first_name_th"
-                          value={editingParticipant.first_name_th || ""}
-                          onChange={(e) => setEditingParticipant({ ...editingParticipant, first_name_th: e.target.value })}
-                          placeholder="สมชาย"
-                          data-testid="input-edit-firstname-th"
+                          id="edit_full_name_th"
+                          value={editingParticipant.full_name_th || editingParticipant.full_name || ""}
+                          onChange={(e) => setEditingParticipant({ ...editingParticipant, full_name_th: e.target.value })}
+                          placeholder="สมชาย ใจดี"
+                          data-testid="input-edit-fullname-th"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit_last_name_th">นามสกุล</Label>
-                        <Input
-                          id="edit_last_name_th"
-                          value={editingParticipant.last_name_th || ""}
-                          onChange={(e) => setEditingParticipant({ ...editingParticipant, last_name_th: e.target.value })}
-                          placeholder="ใจดี"
-                          data-testid="input-edit-lastname-th"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit_nickname_th">ชื่อเล่น</Label>
+                        <Label htmlFor="edit_nickname_th">ชื่อเล่น (ไทย)</Label>
                         <Input
                           id="edit_nickname_th"
-                          value={editingParticipant.nickname_th || editingParticipant.nickname || ""}
+                          value={editingParticipant.nickname_th || ""}
                           onChange={(e) => setEditingParticipant({ ...editingParticipant, nickname_th: e.target.value })}
                           placeholder="ชาย"
                           data-testid="input-edit-nickname-th"
@@ -810,30 +759,20 @@ export default function Participants() {
 
                   {/* English Name Section */}
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">ชื่อ-นามสกุล (อังกฤษ) - Optional</Label>
-                    <div className="grid grid-cols-3 gap-4">
+                    <Label className="text-sm font-medium text-muted-foreground">ข้อมูลชื่อ (อังกฤษ) - Optional</Label>
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit_first_name_en">First Name</Label>
+                        <Label htmlFor="edit_full_name_en">ชื่อ-นามสกุล (อังกฤษ)</Label>
                         <Input
-                          id="edit_first_name_en"
-                          value={editingParticipant.first_name_en || ""}
-                          onChange={(e) => setEditingParticipant({ ...editingParticipant, first_name_en: e.target.value })}
-                          placeholder="Somchai"
-                          data-testid="input-edit-firstname-en"
+                          id="edit_full_name_en"
+                          value={editingParticipant.full_name_en || ""}
+                          onChange={(e) => setEditingParticipant({ ...editingParticipant, full_name_en: e.target.value })}
+                          placeholder="Somchai Jaidee"
+                          data-testid="input-edit-fullname-en"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit_last_name_en">Last Name</Label>
-                        <Input
-                          id="edit_last_name_en"
-                          value={editingParticipant.last_name_en || ""}
-                          onChange={(e) => setEditingParticipant({ ...editingParticipant, last_name_en: e.target.value })}
-                          placeholder="Jaidee"
-                          data-testid="input-edit-lastname-en"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit_nickname_en">Nickname</Label>
+                        <Label htmlFor="edit_nickname_en">ชื่อเล่น (อังกฤษ)</Label>
                         <Input
                           id="edit_nickname_en"
                           value={editingParticipant.nickname_en || ""}
@@ -894,7 +833,7 @@ export default function Participants() {
                             <SelectContent>
                               {members.filter(m => m.participant_id !== editingParticipant.participant_id).map((member) => (
                                 <SelectItem key={member.participant_id} value={member.participant_id}>
-                                  {member.full_name || `${member.first_name_th || ""} ${member.last_name_th || ""}`.trim()}
+                                  {member.full_name_th}
                                   {member.nickname_th && ` (${member.nickname_th})`}
                                 </SelectItem>
                               ))}
@@ -1186,10 +1125,10 @@ export default function Participants() {
                       <TableRow key={participant.participant_id}>
                         <TableCell className="font-medium">
                           <div>
-                            <div>{participant.full_name}</div>
-                            {participant.nickname && (
+                            <div>{participant.full_name_th || participant.full_name}</div>
+                            {participant.nickname_th && (
                               <div className="text-sm text-muted-foreground">
-                                ({participant.nickname})
+                                ({participant.nickname_th})
                               </div>
                             )}
                           </div>
@@ -1234,7 +1173,7 @@ export default function Participants() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>ยืนยันการลบสมาชิก</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    คุณต้องการลบ {participant.full_name} ใช่หรือไม่?
+                                    คุณต้องการลบ {participant.full_name_th || participant.full_name} ใช่หรือไม่?
                                     <br />
                                     <span className="text-destructive font-semibold">
                                       การดำเนินการนี้ไม่สามารถย้อนกลับได้

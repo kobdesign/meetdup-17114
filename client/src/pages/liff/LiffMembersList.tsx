@@ -8,6 +8,7 @@ import { ArrowLeft, Building2, Phone, Mail, Loader2 } from "lucide-react";
 interface Member {
   participant_id: string;
   full_name: string;
+  full_name_th?: string;
   nickname: string | null;
   company: string | null;
   position: string | null;
@@ -224,14 +225,14 @@ export default function LiffMembersList() {
             <CardContent className="p-4">
               <div className="flex items-start gap-4">
                 <Avatar className="h-16 w-16">
-                  <AvatarImage src={member.photo_url || undefined} alt={member.full_name} />
+                  <AvatarImage src={member.photo_url || undefined} alt={member.full_name_th || member.full_name} />
                   <AvatarFallback className="text-lg">
-                    {getInitials(member.full_name)}
+                    {getInitials(member.full_name_th || member.full_name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-lg">
-                    {member.full_name}
+                    {member.full_name_th || member.full_name}
                     {member.nickname && (
                       <span className="text-muted-foreground font-normal ml-2">
                         ({member.nickname})

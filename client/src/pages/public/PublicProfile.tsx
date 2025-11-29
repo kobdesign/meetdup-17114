@@ -24,6 +24,7 @@ interface ProfileData {
   participant_id: string;
   tenant_id: string;
   full_name: string;
+  full_name_th?: string;
   nickname?: string;
   position?: string;
   company?: string;
@@ -72,9 +73,10 @@ export default function PublicProfile() {
       setProfile(data.profile);
       
       const p = data.profile;
+      const displayName = p.full_name_th || p.full_name;
       const title = p.company 
-        ? `${p.full_name} - ${p.position || ""} | ${p.company}`.trim()
-        : `${p.full_name}${p.position ? ` - ${p.position}` : ""}`;
+        ? `${displayName} - ${p.position || ""} | ${p.company}`.trim()
+        : `${displayName}${p.position ? ` - ${p.position}` : ""}`;
       document.title = title;
       
     } catch (err) {
@@ -95,12 +97,13 @@ export default function PublicProfile() {
 
   const handleShare = async () => {
     const shareUrl = window.location.href;
-    const shareText = profile ? `${profile.full_name} - ${profile.position || ""} ${profile.company || ""}`.trim() : "Business Card";
+    const displayName = profile ? (profile.full_name_th || profile.full_name) : "";
+    const shareText = profile ? `${displayName} - ${profile.position || ""} ${profile.company || ""}`.trim() : "Business Card";
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: profile?.full_name || "Business Card",
+          title: displayName || "Business Card",
           text: shareText,
           url: shareUrl,
         });
@@ -228,7 +231,7 @@ export default function PublicProfile() {
                     style={{ backgroundColor: brandingColor }}
                     data-testid="fallback-initials"
                   >
-                    {getInitials(profile.full_name)}
+                    {getInitials(profile.full_name_th || profile.full_name)}
                   </div>
                 )}
               </div>
@@ -238,7 +241,7 @@ export default function PublicProfile() {
           {/* Identity Section */}
           <div className="px-6 pb-4 text-center">
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground" data-testid="text-full-name">
-              {profile.full_name}
+              {profile.full_name_th || profile.full_name}
             </h1>
             {profile.nickname && (
               <p className="text-lg text-muted-foreground mt-1" data-testid="text-nickname">

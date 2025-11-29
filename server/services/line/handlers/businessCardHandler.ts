@@ -91,7 +91,7 @@ export async function handleViewCard(
       .select(`
         participant_id,
         tenant_id,
-        full_name,
+        full_name_th,
         nickname,
         position,
         company,
@@ -132,7 +132,7 @@ export async function handleViewCard(
 
     await replyMessage(event.replyToken, flexMessage, accessToken);
 
-    console.log(`${logPrefix} Business card sent successfully for ${cardData.full_name}`);
+    console.log(`${logPrefix} Business card sent successfully for ${cardData.full_name_th}`);
 
   } catch (error: any) {
     console.error(`${logPrefix} Error handling view card:`, error);
@@ -158,19 +158,19 @@ export async function handleMemberSearch(
   console.log(`${logPrefix} Searching for: "${searchTerm}" in tenant: ${tenantId}`);
 
   try {
-    // Search by full_name containing the search term (case-insensitive)
+    // Search by full_name_th containing the search term (case-insensitive)
     const { data: members, error } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         position,
         company,
         status
       `)
       .eq("tenant_id", tenantId)
       .in("status", ["member", "visitor", "prospect"])
-      .ilike("full_name", `%${searchTerm}%`)
+      .ilike("full_name_th", `%${searchTerm}%`)
       .limit(10);
 
     if (error) {
@@ -197,8 +197,8 @@ export async function handleMemberSearch(
         type: "action",
         action: {
           type: "postback",
-          label: member.full_name.substring(0, 20),
-          displayText: `ดูนามบัตร ${member.full_name}`,
+          label: member.full_name_th.substring(0, 20),
+          displayText: `ดูนามบัตร ${member.full_name_th}`,
           data: `action=view_card&participant_id=${member.participant_id}`
         }
       };
@@ -206,7 +206,7 @@ export async function handleMemberSearch(
 
     const resultText = `พบ ${members.length} คน:\n\n${members.map((m: any, i: number) => {
       const subtitle = [m.position, m.company].filter(Boolean).join(" • ");
-      return `${i + 1}. ${m.full_name}${subtitle ? `\n   ${subtitle}` : ""}`;
+      return `${i + 1}. ${m.full_name_th}${subtitle ? `\n   ${subtitle}` : ""}`;
     }).join("\n\n")}`;
 
     await replyMessage(event.replyToken, {
@@ -254,11 +254,11 @@ export async function handleCardSearch(
 
   try {
     // Build comprehensive search query
-    // Search across: full_name, nickname, phone, company, notes, and tags array
+    // Search across: full_name_th, nickname, phone, company, notes, and tags array
     const selectFields = `
       participant_id,
       tenant_id,
-      full_name,
+      full_name_th,
       nickname,
       position,
       company,
@@ -291,7 +291,7 @@ export async function handleCardSearch(
       .select(selectFields)
       .eq("tenant_id", tenantId)
       .in("status", ["member", "visitor"])
-      .or(`full_name.ilike.%${sanitizedTerm}%,nickname.ilike.%${sanitizedTerm}%,phone.ilike.%${sanitizedTerm}%,company.ilike.%${sanitizedTerm}%,notes.ilike.%${sanitizedTerm}%`)
+      .or(`full_name_th.ilike.%${sanitizedTerm}%,nickname.ilike.%${sanitizedTerm}%,phone.ilike.%${sanitizedTerm}%,company.ilike.%${sanitizedTerm}%,notes.ilike.%${sanitizedTerm}%`)
       .limit(10);
 
     // Additionally search in tags array (if query succeeds without tags)
@@ -359,7 +359,7 @@ export async function handleCardSearch(
     if (participantsWithTenant.length === 1) {
       const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl);
       await replyMessage(event.replyToken, flexMessage, accessToken);
-      console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name}`);
+      console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name_th}`);
       return;
     }
 
@@ -414,7 +414,7 @@ export async function handleEditProfileRequest(
     // Find participant by LINE user ID
     const { data: participant, error } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name")
+      .select("participant_id, full_name_th")
       .eq("line_user_id", lineUserId)
       .eq("tenant_id", tenantId)
       .single();
@@ -437,7 +437,7 @@ export async function handleEditProfileRequest(
 
     const profileUrl = `${baseUrl}/participant-profile/edit?token=${token}`;
 
-    console.log(`${logPrefix} Generated profile edit URL for ${participant.full_name}`);
+    console.log(`${logPrefix} Generated profile edit URL for ${participant.full_name_th}`);
 
     // Send message with link
     await replyMessage(event.replyToken, {
@@ -459,7 +459,7 @@ export async function handleEditProfileRequest(
             },
             {
               type: "text",
-              text: `สวัสดีคุณ ${participant.full_name} กรุณากดปุ่มด้านล่างเพื่อแก้ไขข้อมูลของคุณ`,
+              text: `สวัสดีคุณ ${participant.full_name_th} กรุณากดปุ่มด้านล่างเพื่อแก้ไขข้อมูลของคุณ`,
               size: "sm",
               color: "#6B7280",
               wrap: true,
@@ -493,7 +493,7 @@ export async function handleEditProfileRequest(
       }
     }, accessToken);
 
-    console.log(`${logPrefix} Sent profile edit link to ${participant.full_name}`);
+    console.log(`${logPrefix} Sent profile edit link to ${participant.full_name_th}`);
 
   } catch (error: any) {
     console.error(`${logPrefix} Error handling edit profile:`, error);

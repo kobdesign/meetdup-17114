@@ -22,7 +22,7 @@ export async function checkPhoneHasAccount(
     // Find any participant with this phone that has a user_id
     const { data: participants, error } = await supabase
       .from('participants')
-      .select('user_id, full_name, tenant_id, tenants(tenant_name)')
+      .select('user_id, full_name_th, tenant_id, tenants(tenant_name)')
       .eq('phone', normalizedPhone)
       .not('user_id', 'is', null)
       .limit(10); // Get up to 10 to show which chapters they're in
@@ -51,7 +51,7 @@ export async function checkPhoneHasAccount(
     return {
       hasAccount: true,
       userId,
-      userName: firstParticipant.full_name || undefined,
+      userName: firstParticipant.full_name_th || undefined,
       userEmail,
       tenants: tenantNames
     };
@@ -216,7 +216,7 @@ export async function validateActivationToken(
         used_at,
         participants (
           participant_id,
-          full_name,
+          full_name_th,
           nickname,
           phone,
           email,

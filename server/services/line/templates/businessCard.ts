@@ -8,7 +8,7 @@ import { sanitizeUrl, sanitizePhone, sanitizeEmail } from "../urlValidator";
 export interface BusinessCardData {
   participant_id: string;
   tenant_id: string;
-  full_name: string;
+  full_name_th: string;
   nickname?: string | null;
   position?: string | null;
   company?: string | null;
@@ -76,7 +76,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       position: "relative"
     });
   } else {
-    const initials = data.full_name
+    const initials = data.full_name_th
       .split(" ")
       .map(n => n[0])
       .join("")
@@ -111,7 +111,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   const nameSection: any[] = [
     {
       type: "text",
-      text: data.full_name,
+      text: data.full_name_th,
       weight: "bold",
       size: "xl",
       color: COLORS.textDark,
@@ -649,7 +649,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
 
   return {
     type: "flex",
-    altText: `นามบัตร - ${data.full_name}`,
+    altText: `นามบัตร - ${data.full_name_th}`,
     contents: bubble
   };
 }

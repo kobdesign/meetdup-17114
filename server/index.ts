@@ -68,12 +68,12 @@ app.get("/api/test/card-search", async (req, res) => {
     
     console.log(`[test-card-search] Searching for: "${searchTerm}" in tenant: ${tenantId}`);
     
-    // Search by full_name
+    // Search by full_name_th
     const { data: byFullName, error: error1 } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         nickname,
         email,
         phone,
@@ -82,7 +82,7 @@ app.get("/api/test/card-search", async (req, res) => {
         tenants!inner (tenant_name, logo_url)
       `)
       .eq("tenant_id", tenantId)
-      .ilike("full_name", `%${searchTerm}%`)
+      .ilike("full_name_th", `%${searchTerm}%`)
       .limit(10);
 
     // Search by nickname
@@ -90,7 +90,7 @@ app.get("/api/test/card-search", async (req, res) => {
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         nickname,
         email,
         phone,
@@ -171,17 +171,17 @@ app.post("/api/test/line-webhook-simulate", async (req, res) => {
       const { data: byFullName } = await supabaseAdmin
         .from("participants")
         .select(`
-          participant_id, full_name, nickname, email, phone, company, status,
+          participant_id, full_name_th, nickname, email, phone, company, status,
           tenants!inner (tenant_name, logo_url)
         `)
         .eq("tenant_id", tenant_id)
-        .ilike("full_name", `%${searchTerm}%`)
+        .ilike("full_name_th", `%${searchTerm}%`)
         .limit(10);
       
       const { data: byNickname } = await supabaseAdmin
         .from("participants")
         .select(`
-          participant_id, full_name, nickname, email, phone, company, status,
+          participant_id, full_name_th, nickname, email, phone, company, status,
           tenants!inner (tenant_name, logo_url)
         `)
         .eq("tenant_id", tenant_id)

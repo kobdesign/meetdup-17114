@@ -32,7 +32,7 @@ export async function handleResendActivation(
 
   const { data: participant, error } = await supabaseAdmin
     .from("participants")
-    .select("participant_id, tenant_id, full_name, status, user_id, line_user_id")
+    .select("participant_id, tenant_id, full_name_th, status, user_id, line_user_id")
     .eq("tenant_id", tenantId)
     .eq("line_user_id", userId)
     .maybeSingle();
@@ -58,7 +58,7 @@ export async function handleResendActivation(
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
       text: `✅ คุณลงทะเบียนเรียบร้อยแล้ว!\n\n` +
-            `ชื่อ: ${participant.full_name}\n` +
+            `ชื่อ: ${participant.full_name_th}\n` +
             `สถานะ: ${getStatusLabel(participant.status)}\n\n` +
             `ไม่ต้องทำซ้ำนะครับ 😊`
     });
@@ -69,14 +69,14 @@ export async function handleResendActivation(
   
   await lineClient.replyMessage(event.replyToken, {
     type: "text",
-    text: `📤 กำลังส่งลิงก์ลงทะเบียนให้คุณ...\n\nชื่อ: ${participant.full_name}`
+    text: `📤 กำลังส่งลิงก์ลงทะเบียนให้คุณ...\n\nชื่อ: ${participant.full_name_th}`
   });
 
   const result = await sendActivationLink({
     participantId: participant.participant_id,
     tenantId: tenantId,
     lineUserId: userId,
-    fullName: participant.full_name,
+    fullName: participant.full_name_th,
     logPrefix
   });
 

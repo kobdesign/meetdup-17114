@@ -69,7 +69,7 @@ export async function syncUserToParticipants(params: SyncParticipantParams) {
       const { error: updateError } = await supabaseAdmin
         .from("participants")
         .update({
-          full_name,
+          full_name_th: full_name,
           email,
           phone,
           status,
@@ -95,7 +95,7 @@ export async function syncUserToParticipants(params: SyncParticipantParams) {
         .insert({
           user_id,
           tenant_id,
-          full_name,
+          full_name_th: full_name,
           email,
           phone,
           status,

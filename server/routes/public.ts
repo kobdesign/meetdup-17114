@@ -89,7 +89,7 @@ router.get("/members/by-category/:code", async (req: Request, res: Response) => 
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         nickname,
         company,
         position,
@@ -108,7 +108,7 @@ router.get("/members/by-category/:code", async (req: Request, res: Response) => 
       .eq("tenant_id", tenantId)
       .eq("status", "member")
       .eq("business_type_code", code)
-      .order("full_name", { ascending: true });
+      .order("full_name_th", { ascending: true });
 
     if (error) {
       console.error("Error fetching members by category:", error);
@@ -160,7 +160,7 @@ router.get("/member/:participantId", async (req: Request, res: Response) => {
       .select(`
         participant_id,
         tenant_id,
-        full_name,
+        full_name_th,
         nickname,
         company,
         position,
@@ -300,7 +300,7 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
       .select(`
         participant_id,
         tenant_id,
-        full_name,
+        full_name_th,
         nickname,
         company,
         position,
@@ -384,7 +384,7 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
     const cardData: BusinessCardData = {
       participant_id: member.participant_id,
       tenant_id: member.tenant_id,
-      full_name: member.full_name,
+      full_name_th: member.full_name_th,
       nickname: member.nickname,
       position: member.position,
       company: member.company,
@@ -410,12 +410,12 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
     // Note: No LIFF ID passed for share-flex - this is the card being shared, not the source
     const flexMessage = createBusinessCardFlexMessage(cardData, baseUrl);
 
-    console.log(`${logPrefix} Generated flex message for:`, member.full_name);
+    console.log(`${logPrefix} Generated flex message for:`, member.full_name_th);
 
     return res.json({
       success: true,
       flexMessage,
-      memberName: member.full_name
+      memberName: member.full_name_th
     });
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);
@@ -554,7 +554,7 @@ router.get("/members/by-position/:code", async (req: Request, res: Response) => 
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         nickname,
         company,
         position,
@@ -570,7 +570,7 @@ router.get("/members/by-position/:code", async (req: Request, res: Response) => 
       .eq("tenant_id", tenantId)
       .eq("status", "member")
       .eq("bni_position", code)
-      .order("full_name", { ascending: true });
+      .order("full_name_th", { ascending: true });
 
     if (error) {
       console.error("Error fetching members by position:", error);
@@ -705,7 +705,7 @@ router.get("/members/by-powerteam/:id", async (req: Request, res: Response) => {
       .from("participants")
       .select(`
         participant_id,
-        full_name,
+        full_name_th,
         nickname,
         company,
         position,
@@ -720,7 +720,7 @@ router.get("/members/by-powerteam/:id", async (req: Request, res: Response) => {
       .eq("tenant_id", tenantId)
       .eq("status", "member")
       .in("participant_id", participantIds)
-      .order("full_name", { ascending: true });
+      .order("full_name_th", { ascending: true });
 
     if (error) {
       console.error("Error fetching members:", error);

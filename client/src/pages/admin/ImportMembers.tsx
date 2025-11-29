@@ -189,7 +189,7 @@ export default function ImportMembers() {
                     <TableBody>
                       {previewData.map((row: any, index) => (
                         <TableRow key={index}>
-                          <TableCell>{row['ชื่อ - สกุล'] || row['full_name'] || '-'}</TableCell>
+                          <TableCell>{row['ชื่อ - สกุล'] || row['full_name_th'] || row['full_name'] || '-'}</TableCell>
                           <TableCell>{row['ชื่อเล่น'] || row['nickname'] || '-'}</TableCell>
                           <TableCell>{row['บริษัทฯ'] || row['company'] || '-'}</TableCell>
                           <TableCell>{row['ธุรกิจ'] || row['business_type'] || '-'}</TableCell>

@@ -5,7 +5,7 @@
  */
 
 export interface VCardData {
-  full_name: string;
+  full_name_th: string;
   position?: string | null;
   company?: string | null;
   email?: string | null;
@@ -26,13 +26,13 @@ export function generateVCard(data: VCardData): string {
   lines.push("VERSION:3.0");
   
   // Full Name (required)
-  lines.push(`FN:${escapeVCardValue(data.full_name)}`);
+  lines.push(`FN:${escapeVCardValue(data.full_name_th)}`);
   
   // Structured Name (N:LastName;FirstName;MiddleName;Prefix;Suffix)
   // For Thai names, we'll use full name as both first and last
-  const nameParts = data.full_name.split(" ");
+  const nameParts = data.full_name_th.split(" ");
   const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
-  const firstName = nameParts.length > 1 ? nameParts.slice(0, -1).join(" ") : data.full_name;
+  const firstName = nameParts.length > 1 ? nameParts.slice(0, -1).join(" ") : data.full_name_th;
   lines.push(`N:${escapeVCardValue(lastName)};${escapeVCardValue(firstName)};;;`);
   
   // Organization and Title
