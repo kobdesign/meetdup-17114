@@ -4,14 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Mail, Phone, Building2, Briefcase, UserCircle, Calendar, Edit2, Save, X, Check, ChevronsUpDown } from "lucide-react";
+import { MemberSearchSelect } from "@/components/MemberSearchSelect";
+import { Mail, Phone, Building2, Briefcase, UserCircle, Calendar, Edit2, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenantContext } from "@/contexts/TenantContext";
-import { cn } from "@/lib/utils";
 
 interface VisitorDetailsDialogProps {
   visitor: any | null;
@@ -24,8 +22,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
   const { selectedTenant } = useTenantContext();
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [members, setMembers] = useState<Array<{ participant_id: string; full_name_th: string; nickname: string | null }>>([]);
-  const [referrerSearchOpen, setReferrerSearchOpen] = useState(false);
+  const [members, setMembers] = useState<Array<{ participant_id: string; full_name_th: string | null; nickname: string | null; nickname_th: string | null }>>([]);
   const [formData, setFormData] = useState({
     full_name_th: "",
     email: "",
@@ -50,10 +47,10 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
 
       const { data, error } = await supabase
         .from("participants")
-        .select("participant_id, full_name_th, nickname")
+        .select("participant_id, full_name_th, nickname, nickname_th")
         .eq("tenant_id", selectedTenant.tenant_id)
         .eq("status", "member")
-        .order("nickname", { ascending: true, nullsFirst: false })
+        .order("nickname_th", { ascending: true, nullsFirst: false })
         .order("full_name_th", { ascending: true });
 
       if (!error && data) {
@@ -314,76 +311,13 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="referrer">แนะนำโดย (ชื่อเล่นสมาชิก)</Label>
-                <Popover open={referrerSearchOpen} onOpenChange={setReferrerSearchOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={referrerSearchOpen}
-                      className="w-full justify-between"
-                      data-testid="button-select-referrer"
-                    >
-                      {formData.referred_by_participant_id
-                        ? members.find((m) => m.participant_id === formData.referred_by_participant_id)?.nickname ||
-                          members.find((m) => m.participant_id === formData.referred_by_participant_id)?.full_name_th ||
-                          members.find((m) => m.participant_id === formData.referred_by_participant_id)?.full_name ||
-                          "เลือกผู้แนะนำ"
-                        : "เลือกผู้แนะนำ (ไม่บังคับ)"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
-                    <Command>
-                      <CommandInput placeholder="ค้นหาชื่อเล่น..." />
-                      <CommandList>
-                        <CommandEmpty>ไม่พบสมาชิก</CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            value="none"
-                            onSelect={() => {
-                              setFormData({ ...formData, referred_by_participant_id: "" });
-                              setReferrerSearchOpen(false);
-                            }}
-                            data-testid="option-referrer-none"
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                !formData.referred_by_participant_id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            ไม่มีผู้แนะนำ
-                          </CommandItem>
-                          {members.map((member) => (
-                            <CommandItem
-                              key={member.participant_id}
-                              value={`${member.nickname || member.full_name_th} ${member.participant_id}`}
-                              onSelect={() => {
-                                setFormData({ ...formData, referred_by_participant_id: member.participant_id });
-                                setReferrerSearchOpen(false);
-                              }}
-                              data-testid={`option-referrer-${member.participant_id}`}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  formData.referred_by_participant_id === member.participant_id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {member.nickname ? (
-                                <span>
-                                  {member.nickname} <span className="text-muted-foreground">({member.full_name_th})</span>
-                                </span>
-                              ) : (
-                                <span>{member.full_name_th}</span>
-                              )}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                <MemberSearchSelect
+                  members={members}
+                  value={formData.referred_by_participant_id}
+                  onChange={(value) => setFormData({ ...formData, referred_by_participant_id: value })}
+                  placeholder="เลือกผู้แนะนำ (ไม่บังคับ)"
+                  data-testid="select-referrer"
+                />
               </div>
             </div>
           )}
