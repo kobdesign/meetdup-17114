@@ -1343,6 +1343,14 @@ router.patch("/profile", async (req: Request, res: Response) => {
     const { 
       full_name, 
       nickname,
+      // Thai name fields
+      first_name_th,
+      last_name_th,
+      nickname_th,
+      // English name fields
+      first_name_en,
+      last_name_en,
+      nickname_en,
       position, 
       company, 
       tagline,
@@ -1354,19 +1362,23 @@ router.patch("/profile", async (req: Request, res: Response) => {
       website_url,
       facebook_url,
       instagram_url,
+      linkedin_url,
       line_id,
       business_address,
       tags
     } = req.body;
 
-    // Validate required fields
-    if (!full_name || !phone) {
+    // Validate required fields - Thai names and phone are required
+    if (!first_name_th || !last_name_th || !phone) {
       return res.status(400).json({
         success: false,
         error: "Validation error",
-        message: "full_name and phone are required"
+        message: "Thai first name, Thai last name, and phone are required"
       });
     }
+    
+    // Compute full_name from Thai names for backward compatibility
+    const computedFullName = full_name || `${first_name_th} ${last_name_th}`.trim();
 
     console.log(`${logPrefix} Updating profile for participant ${decoded.participant_id}`);
 
@@ -1385,8 +1397,16 @@ router.patch("/profile", async (req: Request, res: Response) => {
     const { data: updatedParticipant, error: updateError } = await supabaseAdmin
       .from("participants")
       .update({
-        full_name,
-        nickname: nickname || null,
+        full_name: computedFullName,
+        nickname: nickname || nickname_th || null,
+        // Thai name fields
+        first_name_th: first_name_th || null,
+        last_name_th: last_name_th || null,
+        nickname_th: nickname_th || null,
+        // English name fields
+        first_name_en: first_name_en || null,
+        last_name_en: last_name_en || null,
+        nickname_en: nickname_en || null,
         position: position || null,
         company: company || null,
         tagline: tagline || null,
@@ -1398,6 +1418,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
         website_url: website_url || null,
         facebook_url: facebook_url || null,
         instagram_url: instagram_url || null,
+        linkedin_url: linkedin_url || null,
         line_id: line_id || null,
         business_address: business_address || null,
         tags: validatedTags,
@@ -1409,6 +1430,12 @@ router.patch("/profile", async (req: Request, res: Response) => {
         participant_id,
         full_name,
         nickname,
+        first_name_th,
+        last_name_th,
+        nickname_th,
+        first_name_en,
+        last_name_en,
+        nickname_en,
         email,
         phone,
         position,
@@ -1419,6 +1446,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
         website_url,
         facebook_url,
         instagram_url,
+        linkedin_url,
         line_id,
         business_address,
         photo_url,
@@ -2020,6 +2048,12 @@ router.get("/profile", async (req: Request, res: Response) => {
         participant_id,
         full_name,
         nickname,
+        first_name_th,
+        last_name_th,
+        nickname_th,
+        first_name_en,
+        last_name_en,
+        nickname_en,
         email,
         phone,
         position,
@@ -2031,6 +2065,7 @@ router.get("/profile", async (req: Request, res: Response) => {
         website_url,
         facebook_url,
         instagram_url,
+        linkedin_url,
         line_id,
         business_address,
         photo_url,
