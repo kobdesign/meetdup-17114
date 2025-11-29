@@ -1342,20 +1342,14 @@ router.patch("/profile", async (req: Request, res: Response) => {
 
     const { 
       full_name_th, 
+      full_name_en,
       nickname,
-      // Thai name fields
-      first_name_th,
-      last_name_th,
       nickname_th,
-      // English name fields
-      first_name_en,
-      last_name_en,
       nickname_en,
       position, 
       company, 
       tagline,
       business_type,
-      business_type_code,
       goal,
       phone, 
       email, 
@@ -1365,53 +1359,35 @@ router.patch("/profile", async (req: Request, res: Response) => {
       linkedin_url,
       line_id,
       business_address,
-      tags
     } = req.body;
 
-    // Validate required fields - Thai names and phone are required
-    if (!first_name_th || !last_name_th || !phone) {
+    // Validate required fields - Thai full name and phone are required
+    if (!full_name_th || !phone) {
       return res.status(400).json({
         success: false,
         error: "Validation error",
-        message: "Thai first name, Thai last name, and phone are required"
+        message: "Thai full name and phone are required"
       });
     }
-    
-    // Compute full_name_th from Thai names for backward compatibility
-    const computedFullNameTh = full_name_th || `${first_name_th} ${last_name_th}`.trim();
 
     console.log(`${logPrefix} Updating profile for participant ${decoded.participant_id}`);
 
     // Normalize phone
     const normalizedPhone = phone.replace(/\D/g, "");
 
-    // Validate tags if provided (must be array of strings)
-    let validatedTags: string[] | null = null;
-    if (tags) {
-      if (Array.isArray(tags)) {
-        validatedTags = tags.filter((t: any) => typeof t === 'string' && t.trim()).map((t: string) => t.trim());
-      }
-    }
-
     // Update participant
     const { data: updatedParticipant, error: updateError } = await supabaseAdmin
       .from("participants")
       .update({
-        full_name_th: computedFullNameTh,
+        full_name_th: full_name_th,
+        full_name_en: full_name_en || null,
         nickname: nickname || nickname_th || null,
-        // Thai name fields
-        first_name_th: first_name_th || null,
-        last_name_th: last_name_th || null,
         nickname_th: nickname_th || null,
-        // English name fields
-        first_name_en: first_name_en || null,
-        last_name_en: last_name_en || null,
         nickname_en: nickname_en || null,
         position: position || null,
         company: company || null,
         tagline: tagline || null,
         business_type: business_type || null,
-        business_type_code: business_type_code || null,
         goal: goal || null,
         phone: normalizedPhone,
         email: email || null,
@@ -1421,7 +1397,6 @@ router.patch("/profile", async (req: Request, res: Response) => {
         linkedin_url: linkedin_url || null,
         line_id: line_id || null,
         business_address: business_address || null,
-        tags: validatedTags,
         updated_at: new Date().toISOString(),
       })
       .eq("participant_id", decoded.participant_id)
@@ -1429,19 +1404,16 @@ router.patch("/profile", async (req: Request, res: Response) => {
       .select(`
         participant_id,
         full_name_th,
+        full_name_en,
         nickname,
-        first_name_th,
-        last_name_th,
         nickname_th,
-        first_name_en,
-        last_name_en,
         nickname_en,
         email,
         phone,
         position,
         company,
         tagline,
-        business_type_code,
+        business_type,
         goal,
         website_url,
         facebook_url,
@@ -1450,8 +1422,6 @@ router.patch("/profile", async (req: Request, res: Response) => {
         line_id,
         business_address,
         photo_url,
-        tags,
-        onepage_url,
         tenant_id,
         line_user_id
       `)
@@ -1556,8 +1526,6 @@ router.patch("/profile", async (req: Request, res: Response) => {
             business_address: updatedParticipant.business_address,
             line_user_id: updatedParticipant.line_user_id,
             line_id: updatedParticipant.line_id,
-            tags: updatedParticipant.tags,
-            onepage_url: updatedParticipant.onepage_url
           }, baseUrl);
 
           await lineClient.pushMessage(updatedParticipant.line_user_id, businessCardFlexMessage);
@@ -2042,25 +2010,22 @@ router.get("/profile", async (req: Request, res: Response) => {
     console.log(`${logPrefix} Loading profile for participant ${decoded.participant_id}`);
 
     // Get participant with tenant info
+    // Note: Using columns that exist after migration (full_name_th, full_name_en, nickname_th, nickname_en)
     const { data: participant, error } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
         full_name_th,
+        full_name_en,
         nickname,
-        first_name_th,
-        last_name_th,
         nickname_th,
-        first_name_en,
-        last_name_en,
         nickname_en,
         email,
         phone,
         position,
         company,
-        company_logo_url,
         tagline,
-        business_type_code,
+        business_type,
         goal,
         website_url,
         facebook_url,
@@ -2069,9 +2034,6 @@ router.get("/profile", async (req: Request, res: Response) => {
         line_id,
         business_address,
         photo_url,
-        tags,
-        onepage_url,
-        member_type,
         tenant_id,
         tenants!inner (
           tenant_name,
