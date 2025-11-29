@@ -286,13 +286,13 @@ export async function handleCardSearch(
       .replace(/['";]/g, ''); // Remove quotes and semicolons
 
     // Search across text fields using ILIKE
-    // For tags, we can't use .cs with user input, so we search each text field separately
+    // Fields: full_name_th, full_name_en, nickname, nickname_en, phone, company, tagline, notes
     const { data: participants, error } = await supabaseAdmin
       .from("participants")
       .select(selectFields)
       .eq("tenant_id", tenantId)
       .in("status", ["member", "visitor"])
-      .or(`full_name_th.ilike.%${sanitizedTerm}%,nickname.ilike.%${sanitizedTerm}%,phone.ilike.%${sanitizedTerm}%,company.ilike.%${sanitizedTerm}%,notes.ilike.%${sanitizedTerm}%`)
+      .or(`full_name_th.ilike.%${sanitizedTerm}%,full_name_en.ilike.%${sanitizedTerm}%,nickname.ilike.%${sanitizedTerm}%,nickname_en.ilike.%${sanitizedTerm}%,phone.ilike.%${sanitizedTerm}%,company.ilike.%${sanitizedTerm}%,tagline.ilike.%${sanitizedTerm}%,notes.ilike.%${sanitizedTerm}%`)
       .limit(10);
 
     // Additionally search in tags array (if query succeeds without tags)
