@@ -1359,6 +1359,9 @@ router.patch("/profile", async (req: Request, res: Response) => {
       linkedin_url,
       line_id,
       business_address,
+      referral_origin,
+      referred_by_participant_id,
+      notes,
     } = req.body;
 
     // Validate required fields - Thai full name and phone are required
@@ -1397,6 +1400,9 @@ router.patch("/profile", async (req: Request, res: Response) => {
         linkedin_url: linkedin_url || null,
         line_id: line_id || null,
         business_address: business_address || null,
+        referral_origin: referral_origin || null,
+        referred_by_participant_id: referral_origin === "member" ? referred_by_participant_id : null,
+        notes: notes || null,
         updated_at: new Date().toISOString(),
       })
       .eq("participant_id", decoded.participant_id)
@@ -1423,7 +1429,10 @@ router.patch("/profile", async (req: Request, res: Response) => {
         business_address,
         photo_url,
         tenant_id,
-        line_user_id
+        line_user_id,
+        referral_origin,
+        referred_by_participant_id,
+        notes
       `)
       .single();
 
@@ -2026,6 +2035,7 @@ router.get("/profile", async (req: Request, res: Response) => {
         company,
         tagline,
         business_type,
+        business_type_code,
         goal,
         website_url,
         facebook_url,
@@ -2034,7 +2044,13 @@ router.get("/profile", async (req: Request, res: Response) => {
         line_id,
         business_address,
         photo_url,
+        company_logo_url,
+        onepage_url,
+        tags,
         tenant_id,
+        referral_origin,
+        referred_by_participant_id,
+        notes,
         tenants!inner (
           tenant_name,
           logo_url
@@ -2053,6 +2069,15 @@ router.get("/profile", async (req: Request, res: Response) => {
       });
     }
 
+    // Get members list for referral selector (same tenant, status = member, exclude self)
+    const { data: members } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th")
+      .eq("tenant_id", decoded.tenant_id)
+      .eq("status", "member")
+      .neq("participant_id", decoded.participant_id)
+      .order("full_name_th", { ascending: true });
+
     // Extract tenant info (Supabase returns it as an object, not array with .single())
     const tenantInfo = Array.isArray(participant.tenants) ? participant.tenants[0] : participant.tenants;
     
@@ -2062,7 +2087,8 @@ router.get("/profile", async (req: Request, res: Response) => {
         ...participant,
         tenant_name: tenantInfo?.tenant_name,
         logo_url: tenantInfo?.logo_url,
-      }
+      },
+      members: members || [],
     });
 
   } catch (error: any) {

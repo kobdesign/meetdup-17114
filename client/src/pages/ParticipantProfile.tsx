@@ -11,23 +11,21 @@ import { toast } from "sonner";
 import { 
   Loader2, User, Building2, Phone, Mail, Globe, Upload, CheckCircle, 
   MapPin, Instagram, Facebook, FileImage, Target, MessageSquare, MessageCircle,
-  Linkedin, AlertCircle
+  Linkedin, AlertCircle, Users, StickyNote
 } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
 import TagInput from "@/components/TagInput";
 import { getBusinessTypeLabel } from "@/lib/business-types";
 import ImageCropper from "@/components/ImageCropper";
+import { MemberSearchSelect, MemberOption } from "@/components/MemberSearchSelect";
 
 interface ParticipantProfile {
   participant_id: string;
-  full_name: string;
+  full_name_th: string | null;
+  full_name_en: string | null;
   nickname: string | null;
-  first_name_th: string | null;
-  last_name_th: string | null;
   nickname_th: string | null;
-  first_name_en: string | null;
-  last_name_en: string | null;
   nickname_en: string | null;
   email: string | null;
   phone: string;
@@ -50,6 +48,9 @@ interface ParticipantProfile {
   tenant_id: string;
   tenant_name?: string;
   logo_url?: string;
+  referral_origin: "member" | "central" | "external" | null;
+  referred_by_participant_id: string | null;
+  notes: string | null;
 }
 
 export default function ParticipantProfile() {
@@ -67,16 +68,12 @@ export default function ParticipantProfile() {
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   
   // Form fields - Thai names (required)
-  const [firstNameTh, setFirstNameTh] = useState("");
-  const [lastNameTh, setLastNameTh] = useState("");
+  const [fullNameTh, setFullNameTh] = useState("");
   const [nicknameTh, setNicknameTh] = useState("");
   // Form fields - English names (optional)
-  const [firstNameEn, setFirstNameEn] = useState("");
-  const [lastNameEn, setLastNameEn] = useState("");
+  const [fullNameEn, setFullNameEn] = useState("");
   const [nicknameEn, setNicknameEn] = useState("");
-  // Legacy full_name for backward compatibility
-  const [fullName, setFullName] = useState("");
-  const [nickname, setNickname] = useState("");
+  // Other fields
   const [position, setPosition] = useState("");
   const [company, setCompany] = useState("");
   const [tagline, setTagline] = useState("");
@@ -93,6 +90,11 @@ export default function ParticipantProfile() {
   const [tags, setTags] = useState<string[]>([]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [onepageUrl, setOnepageUrl] = useState<string | null>(null);
+  // Referral fields
+  const [referralOrigin, setReferralOrigin] = useState<"member" | "central" | "external">("member");
+  const [referredByParticipantId, setReferredByParticipantId] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [members, setMembers] = useState<MemberOption[]>([]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -121,16 +123,12 @@ export default function ParticipantProfile() {
       const p = data.participant;
       setProfile(p);
       // Thai names
-      setFirstNameTh(p.first_name_th || "");
-      setLastNameTh(p.last_name_th || "");
+      setFullNameTh(p.full_name_th || "");
       setNicknameTh(p.nickname_th || "");
       // English names
-      setFirstNameEn(p.first_name_en || "");
-      setLastNameEn(p.last_name_en || "");
+      setFullNameEn(p.full_name_en || "");
       setNicknameEn(p.nickname_en || "");
-      // Legacy fields
-      setFullName(p.full_name || "");
-      setNickname(p.nickname || "");
+      // Other fields
       setPosition(p.position || "");
       setCompany(p.company || "");
       setTagline(p.tagline || "");
@@ -148,6 +146,14 @@ export default function ParticipantProfile() {
       setAvatarPreview(p.photo_url);
       setOnepageUrl(p.onepage_url);
       setCompanyLogoUrl(p.company_logo_url);
+      // Referral fields
+      setReferralOrigin(p.referral_origin || "member");
+      setReferredByParticipantId(p.referred_by_participant_id || null);
+      setNotes(p.notes || "");
+      // Load members list for referral selector (from profile response)
+      if (data.members) {
+        setMembers(data.members);
+      }
       
     } catch (error: any) {
       console.error("Error loading profile:", error);
@@ -362,11 +368,6 @@ export default function ParticipantProfile() {
     setSaving(true);
 
     try {
-      // Build full_name from Thai names if available, otherwise use legacy
-      const computedFullName = firstNameTh && lastNameTh 
-        ? `${firstNameTh} ${lastNameTh}` 
-        : fullName;
-      
       const response = await fetch(`/api/participants/profile?token=${token}`, {
         method: "PATCH",
         headers: {
@@ -374,16 +375,12 @@ export default function ParticipantProfile() {
         },
         body: JSON.stringify({
           // Thai names
-          first_name_th: firstNameTh || null,
-          last_name_th: lastNameTh || null,
+          full_name_th: fullNameTh,
           nickname_th: nicknameTh || null,
           // English names
-          first_name_en: firstNameEn || null,
-          last_name_en: lastNameEn || null,
+          full_name_en: fullNameEn || null,
           nickname_en: nicknameEn || null,
-          // Legacy full_name for backward compatibility
-          full_name: computedFullName,
-          nickname: nicknameTh || nickname || null,
+          // Other fields
           position: position || null,
           company: company || null,
           tagline: tagline || null,
@@ -399,6 +396,10 @@ export default function ParticipantProfile() {
           line_id: lineId || null,
           business_address: businessAddress || null,
           tags: tags.length > 0 ? tags : null,
+          // Referral fields
+          referral_origin: referralOrigin,
+          referred_by_participant_id: referralOrigin === "member" ? referredByParticipantId : null,
+          notes: notes || null,
         }),
       });
 
@@ -420,15 +421,12 @@ export default function ParticipantProfile() {
   };
 
   const getInitials = () => {
-    if (firstNameTh && lastNameTh) {
-      return `${firstNameTh[0]}${lastNameTh[0]}`.toUpperCase();
-    }
-    if (fullName) {
-      const parts = fullName.split(" ");
+    if (fullNameTh) {
+      const parts = fullNameTh.split(" ");
       if (parts.length >= 2) {
         return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
       }
-      return fullName.substring(0, 2).toUpperCase();
+      return fullNameTh.substring(0, 2).toUpperCase();
     }
     return "?";
   };
@@ -672,29 +670,17 @@ export default function ParticipantProfile() {
                     <User className="h-4 w-4" />
                     ชื่อ-นามสกุล (ภาษาไทย) *
                   </h3>
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="first-name-th">ชื่อ *</Label>
+                      <Label htmlFor="full-name-th">ชื่อ-นามสกุล *</Label>
                       <Input
-                        id="first-name-th"
+                        id="full-name-th"
                         type="text"
-                        placeholder="สมชาย"
-                        value={firstNameTh}
-                        onChange={(e) => setFirstNameTh(e.target.value)}
+                        placeholder="สมชาย ใจดี"
+                        value={fullNameTh}
+                        onChange={(e) => setFullNameTh(e.target.value)}
                         required
-                        data-testid="input-first-name-th"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="last-name-th">นามสกุล *</Label>
-                      <Input
-                        id="last-name-th"
-                        type="text"
-                        placeholder="ใจดี"
-                        value={lastNameTh}
-                        onChange={(e) => setLastNameTh(e.target.value)}
-                        required
-                        data-testid="input-last-name-th"
+                        data-testid="input-full-name-th"
                       />
                     </div>
                     <div className="space-y-2">
@@ -716,27 +702,16 @@ export default function ParticipantProfile() {
                   <h3 className="text-sm font-medium mb-3 text-muted-foreground">
                     ชื่อ-นามสกุล (ภาษาอังกฤษ) - ไม่บังคับ
                   </h3>
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="first-name-en">First Name</Label>
+                      <Label htmlFor="full-name-en">Full Name</Label>
                       <Input
-                        id="first-name-en"
+                        id="full-name-en"
                         type="text"
-                        placeholder="Somchai"
-                        value={firstNameEn}
-                        onChange={(e) => setFirstNameEn(e.target.value)}
-                        data-testid="input-first-name-en"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="last-name-en">Last Name</Label>
-                      <Input
-                        id="last-name-en"
-                        type="text"
-                        placeholder="Jaidee"
-                        value={lastNameEn}
-                        onChange={(e) => setLastNameEn(e.target.value)}
-                        data-testid="input-last-name-en"
+                        placeholder="Somchai Jaidee"
+                        value={fullNameEn}
+                        onChange={(e) => setFullNameEn(e.target.value)}
+                        data-testid="input-full-name-en"
                       />
                     </div>
                     <div className="space-y-2">
@@ -974,11 +949,75 @@ export default function ParticipantProfile() {
 
                 <Separator />
 
+                {/* Referral Section */}
+                <div className="space-y-4 p-4 border rounded-md bg-muted/30">
+                  <Label className="flex items-center gap-2 text-sm font-medium">
+                    <Users className="h-4 w-4" />
+                    แหล่งที่มา / ผู้แนะนำ
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: "central", label: "ส่วนกลาง" },
+                      { value: "member", label: "สมาชิกแนะนำ" },
+                      { value: "external", label: "ภายนอก" },
+                    ].map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={referralOrigin === option.value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setReferralOrigin(option.value as "member" | "central" | "external");
+                          if (option.value !== "member") {
+                            setReferredByParticipantId(null);
+                          }
+                        }}
+                        data-testid={`button-referral-${option.value}`}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                  {referralOrigin === "member" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="referred-by">ผู้แนะนำ</Label>
+                      <MemberSearchSelect
+                        members={members}
+                        value={referredByParticipantId || ""}
+                        onChange={(value) => setReferredByParticipantId(value || null)}
+                        placeholder="เลือกสมาชิกผู้แนะนำ..."
+                        data-testid="select-referred-by"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Notes Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="notes" className="flex items-center gap-2">
+                    <StickyNote className="h-4 w-4" />
+                    หมายเหตุ
+                  </Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="บันทึกเพิ่มเติม..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                    data-testid="input-notes"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    ข้อมูลนี้จะถูกเก็บเป็นบันทึกส่วนตัว
+                  </p>
+                </div>
+
+                <Separator />
+
                 {/* Submit */}
                 <div className="pt-2">
                   <Button 
                     type="submit" 
-                    disabled={saving || !firstNameTh || !lastNameTh || !phone}
+                    disabled={saving || !fullNameTh || !phone}
                     className="w-full"
                     data-testid="button-save-profile"
                   >
