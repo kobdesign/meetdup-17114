@@ -253,14 +253,26 @@ export async function validateActivationToken(
       return { success: false, error: 'This activation link has expired' };
     }
 
-    const participant = Array.isArray(tokenData.participants) 
+    const rawParticipant = Array.isArray(tokenData.participants) 
       ? tokenData.participants[0] 
       : tokenData.participants;
+
+    // Guard: participant must exist for a valid token
+    if (!rawParticipant) {
+      console.error('[validateActivationToken] Token exists but participant not found');
+      return { success: false, error: 'Participant not found for this activation link' };
+    }
+
+    // Map full_name_th to full_name for frontend compatibility
+    const participant = {
+      ...rawParticipant,
+      full_name: rawParticipant.full_name_th || (rawParticipant as any).full_name || rawParticipant.nickname || '',
+    };
 
     const tenantName = (tokenData.tenants as any)?.tenant_name || '';
 
     // Check if THIS participant already has a user account
-    if (participant?.user_id) {
+    if (participant.user_id) {
       return { 
         success: false, 
         error: 'This account has already been activated' 
