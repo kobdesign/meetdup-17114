@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Loader2, Share2, CheckCircle2, XCircle, AlertCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLiff } from "@/hooks/useLiff";
@@ -7,9 +7,7 @@ import { useLiff } from "@/hooks/useLiff";
 type ShareStatus = "loading" | "ready" | "sharing" | "success" | "cancelled" | "error" | "not-in-liff" | "missing-tenant";
 
 export default function LiffShareCard() {
-  const { participantId } = useParams<{ participantId: string }>();
-  const [searchParams] = useSearchParams();
-  const tenantId = searchParams.get("tenant");
+  const { tenantId, participantId } = useParams<{ tenantId: string; participantId: string }>();
   
   const { isLiffReady, isInLiff, shareTargetPicker, closeWindow, liffError } = useLiff();
   

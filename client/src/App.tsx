@@ -171,7 +171,7 @@ const App = () => (
           <Route path="/liff/search/powerteam" element={<LiffPowerTeams />} />
           <Route path="/liff/search/powerteam/:id" element={<LiffMembersList />} />
           <Route path="/liff/card/:participantId" element={<LiffBusinessCard />} />
-          <Route path="/liff/share/:participantId" element={<LiffShareCard />} />
+          <Route path="/liff/share/:tenantId/:participantId" element={<LiffShareCard />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

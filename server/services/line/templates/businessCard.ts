@@ -506,8 +506,9 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   if (liffId) {
     // Include tenant_id in share URL for tenant isolation
     // LIFF URL format: https://liff.line.me/{liffId}?liff.state={encodedPath}
-    // The liff.state parameter tells LIFF SDK where to navigate after initialization
-    const sharePath = `/liff/share/${data.participant_id}?tenant=${data.tenant_id}`;
+    // Use path parameters instead of query string to avoid nested ? characters
+    // which can cause LINE to return 400 Bad Request
+    const sharePath = `/liff/share/${data.tenant_id}/${data.participant_id}`;
     const shareUrl = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(sharePath)}`;
     shareActions.push({
       type: "button",
