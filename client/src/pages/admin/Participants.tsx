@@ -38,7 +38,7 @@ import { MemberSearchSelect } from "@/components/MemberSearchSelect";
 import { Separator } from "@/components/ui/separator";
 import TagInput from "@/components/TagInput";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
-import { getBusinessTypeLabel } from "@/lib/business-types";
+import { getBusinessCategoryLabel } from "@/lib/business-categories";
 
 export default function Participants() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
@@ -643,7 +643,7 @@ export default function Participants() {
                   onChange={(value) => setNewParticipant({ 
                     ...newParticipant, 
                     business_type_code: value,
-                    business_type: value ? getBusinessTypeLabel(value) : ""
+                    business_type: value ? getBusinessCategoryLabel(value) : ""
                   })}
                 />
 
@@ -995,7 +995,7 @@ export default function Participants() {
                     onChange={(value) => setEditingParticipant({ 
                       ...editingParticipant, 
                       business_type_code: value,
-                      business_type: value ? getBusinessTypeLabel(value) : null
+                      business_type: value ? getBusinessCategoryLabel(value) : null
                     })}
                   />
 

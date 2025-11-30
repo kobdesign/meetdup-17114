@@ -16,7 +16,7 @@ import {
 import imageCompression from "browser-image-compression";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
 import TagInput from "@/components/TagInput";
-import { getBusinessTypeLabel } from "@/lib/business-types";
+import { getBusinessCategoryLabel } from "@/lib/business-categories";
 import ImageCropper from "@/components/ImageCropper";
 import { MemberSearchSelect, MemberOption } from "@/components/MemberSearchSelect";
 
@@ -384,7 +384,7 @@ export default function ParticipantProfile() {
           position: position || null,
           company: company || null,
           tagline: tagline || null,
-          business_type: businessTypeCode ? getBusinessTypeLabel(businessTypeCode) : null,
+          business_type: businessTypeCode ? getBusinessCategoryLabel(businessTypeCode) : null,
           business_type_code: businessTypeCode,
           goal: goal || null,
           phone,
