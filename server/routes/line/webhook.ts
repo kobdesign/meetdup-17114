@@ -162,13 +162,16 @@ async function processEvent(
     }
     
     // Priority 3: Card search commands (must check BEFORE member search)
-    // Support: "card กบ", "นามบัตร john", "ค้นหานามบัตร" (empty triggers prompt)
-    if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ") || textLower === "ค้นหานามบัตร") {
+    // Support: "card กบ", "นามบัตร john", "ค้นหา กบ", "ค้นหานามบัตร" (empty triggers prompt)
+    if (textLower.startsWith("card ") || textLower.startsWith("นามบัตร ") || 
+        textLower.startsWith("ค้นหา ") || textLower === "ค้นหานามบัตร") {
       let searchTerm = "";
       if (textLower.startsWith("card ")) {
         searchTerm = text.substring(5).trim();
       } else if (textLower.startsWith("นามบัตร ")) {
         searchTerm = text.substring(8).trim();
+      } else if (textLower.startsWith("ค้นหา ")) {
+        searchTerm = text.substring(6).trim();
       }
       // If "ค้นหานามบัตร" with no term, searchTerm remains empty → triggers prompt
       
