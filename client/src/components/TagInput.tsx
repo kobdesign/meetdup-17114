@@ -16,10 +16,12 @@ export default function TagInput({
   value = [],
   onChange,
   placeholder = "พิมพ์แล้วกด Enter",
-  maxTags = 10,
+  maxTags,
   disabled = false,
 }: TagInputProps) {
   const [inputValue, setInputValue] = useState("");
+  const hasLimit = maxTags !== undefined && maxTags > 0;
+  const canAddMore = !hasLimit || value.length < maxTags;
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {
@@ -32,7 +34,7 @@ export default function TagInput({
 
   const addTag = () => {
     const trimmed = inputValue.trim();
-    if (trimmed && !value.includes(trimmed) && value.length < maxTags) {
+    if (trimmed && !value.includes(trimmed) && canAddMore) {
       onChange([...value, trimmed]);
       setInputValue("");
     }
@@ -70,7 +72,7 @@ export default function TagInput({
             )}
           </Badge>
         ))}
-        {value.length < maxTags && !disabled && (
+        {canAddMore && !disabled && (
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -85,7 +87,7 @@ export default function TagInput({
       </div>
       
       <p className="text-xs text-muted-foreground">
-        ใส่ keywords ที่เกี่ยวกับธุรกิจของคุณ เช่น IT, ซอฟต์แวร์, Startup (สูงสุด {maxTags} รายการ)
+        ใส่ keywords ที่เกี่ยวกับธุรกิจของคุณ เช่น IT, ซอฟต์แวร์, Startup
       </p>
     </div>
   );

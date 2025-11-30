@@ -836,7 +836,6 @@ export default function ParticipantProfile() {
                     <TagInput
                       value={tags}
                       onChange={setTags}
-                      maxTags={10}
                     />
                   </div>
                 </div>

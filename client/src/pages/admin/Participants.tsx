@@ -651,7 +651,6 @@ export default function Participants() {
                   value={newParticipant.tags}
                   onChange={(tags) => setNewParticipant({ ...newParticipant, tags })}
                   placeholder="พิมพ์แล้วกด Enter เช่น Marketing, Finance"
-                  maxTags={10}
                 />
 
                 <Separator />
@@ -1003,7 +1002,6 @@ export default function Participants() {
                     value={editingParticipant.tags || []}
                     onChange={(tags) => setEditingParticipant({ ...editingParticipant, tags })}
                     placeholder="พิมพ์แล้วกด Enter เช่น Marketing, Finance"
-                    maxTags={10}
                   />
 
                   <Separator />

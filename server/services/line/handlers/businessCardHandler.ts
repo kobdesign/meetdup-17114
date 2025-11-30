@@ -306,14 +306,15 @@ export async function handleCardSearch(
         }
       }
 
-      // Also search in tags array for this keyword (if still under limit)
+      // Also search in tags array for this keyword (partial + case insensitive)
       if (participants.length < 10) {
+        // Use array_to_string to convert tags array to text for partial matching
         const { data: tagMatches } = await supabaseAdmin
           .from("participants")
           .select(selectFields)
           .eq("tenant_id", tenantId)
           .in("status", ["member", "visitor"])
-          .contains("tags", [keyword])
+          .filter("tags::text", "ilike", `%${keyword}%`)
           .limit(10 - participants.length);
 
         if (tagMatches && tagMatches.length > 0) {
