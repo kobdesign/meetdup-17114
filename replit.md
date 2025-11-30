@@ -49,6 +49,7 @@ None specified yet.
   - **Unified Selector**: BusinessTypeSelector component now uses single dropdown instead of hierarchical 3-level selection
   - **LIFF Search Alignment**: Category search in LIFF now works correctly as admin and LIFF use same 2-digit codes
   - **LIFF Category Push**: Users can tap a category in LIFF to receive business cards pushed directly to LINE chat. Secured with LIFF access token verification via LINE OAuth2 API.
+  - **LIFF URL Format**: Bot sends proper LIFF URL (`https://liff.line.me/{LIFF_ID}/...`) to ensure pages open in LIFF context with access token available. Falls back to web URL if LIFF not configured.
   - **Migration Required**: Run `server/migrations/20241130_clear_old_business_type_codes.sql` on Supabase production to clear legacy hierarchical codes before deployment
 
 ## External Dependencies
