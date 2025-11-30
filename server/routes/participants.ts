@@ -1350,6 +1350,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
       company, 
       tagline,
       business_type,
+      business_type_code,
       goal,
       phone, 
       email, 
@@ -1359,6 +1360,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
       linkedin_url,
       line_id,
       business_address,
+      tags,
       referral_origin,
       referred_by_participant_id,
       notes,
@@ -1378,6 +1380,14 @@ router.patch("/profile", async (req: Request, res: Response) => {
     // Normalize phone
     const normalizedPhone = phone.replace(/\D/g, "");
 
+    console.log(`${logPrefix} Received data:`, { 
+      business_type, 
+      business_type_code, 
+      tags,
+      full_name_th,
+      phone: normalizedPhone
+    });
+
     // Update participant
     const { data: updatedParticipant, error: updateError } = await supabaseAdmin
       .from("participants")
@@ -1391,6 +1401,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
         company: company || null,
         tagline: tagline || null,
         business_type: business_type || null,
+        business_type_code: business_type_code || null,
         goal: goal || null,
         phone: normalizedPhone,
         email: email || null,
@@ -1400,6 +1411,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
         linkedin_url: linkedin_url || null,
         line_id: line_id || null,
         business_address: business_address || null,
+        tags: tags || null,
         referral_origin: referral_origin || null,
         referred_by_participant_id: referral_origin === "member" ? referred_by_participant_id : null,
         notes: notes || null,
@@ -1420,6 +1432,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
         company,
         tagline,
         business_type,
+        business_type_code,
         goal,
         website_url,
         facebook_url,
@@ -1427,6 +1440,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
         linkedin_url,
         line_id,
         business_address,
+        tags,
         photo_url,
         tenant_id,
         line_user_id,
