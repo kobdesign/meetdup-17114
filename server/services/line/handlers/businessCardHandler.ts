@@ -533,7 +533,9 @@ function getBaseUrl(): string {
 }
 
 /**
- * Handle category search command - redirect directly to LIFF category search page
+ * Handle category search command - redirect directly to category search page
+ * Uses direct web URL to avoid LIFF OAuth 400 errors
+ * Business card push is handled via server-side API instead of LIFF sendMessages
  */
 export async function handleCategorySearch(
   event: any,
@@ -543,22 +545,12 @@ export async function handleCategorySearch(
 ): Promise<void> {
   try {
     const baseUrl = getBaseUrl();
-    const liffId = await getLiffId();
     
-    // Use proper LIFF URL format if LIFF is configured
-    // This ensures the page opens in LIFF context with access token available
-    // Note: LIFF Endpoint URL must be set to production domain in LINE Developer Console
-    // and that domain must be whitelisted in LINE Login settings
-    let categoryUrl: string;
-    if (liffId) {
-      // Use simple query params - LINE will convert these to liff.state automatically
-      categoryUrl = `https://liff.line.me/${liffId}?tenant=${tenantId}&view=categories`;
-      console.log(`${logPrefix} Using LIFF URL with ID: ${liffId}`);
-    } else {
-      // Fallback to direct web URL if LIFF not configured
-      categoryUrl = `${baseUrl}/liff/search/category?tenant=${tenantId}`;
-      console.log(`${logPrefix} LIFF not configured, using web URL`);
-    }
+    // Use direct web URL to avoid LIFF OAuth authentication issues
+    // The category page will work without LIFF authentication
+    // When users tap a category, business cards are pushed via server-side API
+    const categoryUrl = `${baseUrl}/liff/search/category?tenant=${tenantId}`;
+    console.log(`${logPrefix} Using direct web URL for category search`)
     
     console.log(`${logPrefix} Sending direct category search link`);
     
