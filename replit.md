@@ -48,6 +48,7 @@ None specified yet.
   - **25 Simple Categories**: Uses standardized 2-digit codes (01-25) matching Supabase `business_categories` table. Examples: 01=อสังหาริมทรัพย์, 02=ไอที และ เทคโนโลยี, 14=กฎหมาย
   - **Unified Selector**: BusinessTypeSelector component now uses single dropdown instead of hierarchical 3-level selection
   - **LIFF Search Alignment**: Category search in LIFF now works correctly as admin and LIFF use same 2-digit codes
+  - **LIFF Category Push**: Users can tap a category in LIFF to receive business cards pushed directly to LINE chat. Secured with LIFF access token verification via LINE OAuth2 API.
   - **Migration Required**: Run `server/migrations/20241130_clear_old_business_type_codes.sql` on Supabase production to clear legacy hierarchical codes before deployment
 
 ## External Dependencies
