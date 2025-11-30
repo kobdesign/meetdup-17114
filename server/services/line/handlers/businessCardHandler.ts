@@ -581,14 +581,13 @@ export async function handleCategorySearch(
     
     // Use proper LIFF URL format if LIFF is configured
     // This ensures the page opens in LIFF context with access token available
+    // Note: LIFF Endpoint URL must be set to production domain in LINE Developer Console
+    // and that domain must be whitelisted in LINE Login settings
     let categoryUrl: string;
     if (liffId) {
-      // Use liff.state to pass navigation info - this survives LINE authorization flow
-      // Format: liff.state=/liff/search/category?tenant=xxx (URL encoded)
-      const targetPath = `/liff/search/category?tenant=${tenantId}`;
-      const encodedState = encodeURIComponent(targetPath);
-      categoryUrl = `https://liff.line.me/${liffId}?liff.state=${encodedState}`;
-      console.log(`${logPrefix} Using LIFF URL with ID: ${liffId}, state: ${targetPath}`);
+      // Use simple query params - LINE will convert these to liff.state automatically
+      categoryUrl = `https://liff.line.me/${liffId}?tenant=${tenantId}&view=categories`;
+      console.log(`${logPrefix} Using LIFF URL with ID: ${liffId}`);
     } else {
       // Fallback to direct web URL if LIFF not configured
       categoryUrl = `${baseUrl}/liff/search/category?tenant=${tenantId}`;
