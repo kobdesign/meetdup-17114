@@ -10,8 +10,26 @@ export default function LiffCards() {
     // Log all received parameters for debugging
     console.log("[LiffCards] All params:", Object.fromEntries(searchParams.entries()));
     
+    // Helper function to parse tenant and view from various formats
+    const parseParams = (str: string): { tenant?: string; view?: string } => {
+      const params: { tenant?: string; view?: string } = {};
+      
+      // Remove leading ? or & if present
+      const cleanStr = str.replace(/^[?&]/, '');
+      
+      // Parse as query string
+      const urlParams = new URLSearchParams(cleanStr);
+      params.tenant = urlParams.get('tenant') || undefined;
+      params.view = urlParams.get('view') || undefined;
+      
+      return params;
+    };
+    
     const liffState = searchParams.get("liff.state");
     console.log("[LiffCards] Received liff.state:", liffState);
+    
+    let tenantParam = searchParams.get("tenant");
+    let viewParam = searchParams.get("view");
     
     if (liffState) {
       try {
@@ -46,15 +64,25 @@ export default function LiffCards() {
           navigate(decodedState, { replace: true });
           return;
         }
+        
+        // Parse liff.state as query params (LINE converts ?tenant=x&view=y to liff.state)
+        const parsedFromState = parseParams(decodedState);
+        console.log("[LiffCards] Parsed from liff.state:", parsedFromState);
+        
+        if (parsedFromState.tenant && !tenantParam) {
+          tenantParam = parsedFromState.tenant;
+        }
+        if (parsedFromState.view && !viewParam) {
+          viewParam = parsedFromState.view;
+        }
       } catch (e) {
         console.error("[LiffCards] Error parsing liff.state:", e);
       }
     }
     
-    // Default: go to search page with tenant if available
-    const tenantParam = searchParams.get("tenant");
-    const viewParam = searchParams.get("view");
+    console.log("[LiffCards] Final params - tenant:", tenantParam, "view:", viewParam);
     
+    // Navigate based on tenant and view
     if (tenantParam) {
       // Handle view parameter for direct navigation
       if (viewParam === "categories" || viewParam === "category") {
