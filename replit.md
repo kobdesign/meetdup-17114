@@ -44,6 +44,11 @@ None specified yet.
   - **Required Phone**: Phone number is now required for participant creation/update
   - **LINE ID Distinction**: `line_id` (user-entered public @username for contact) is separate from `line_user_id` (system-managed internal ID from LINE Platform for messaging)
   - **Migration Status**: SQL migration script ready at `supabase/migrations/20241129_rename_name_columns.sql` - execute manually in Supabase dashboard to complete the migration
+- **Business Category System (Nov 2024)**:
+  - **25 Simple Categories**: Uses standardized 2-digit codes (01-25) matching Supabase `business_categories` table. Examples: 01=อสังหาริมทรัพย์, 02=ไอที และ เทคโนโลยี, 14=กฎหมาย
+  - **Unified Selector**: BusinessTypeSelector component now uses single dropdown instead of hierarchical 3-level selection
+  - **LIFF Search Alignment**: Category search in LIFF now works correctly as admin and LIFF use same 2-digit codes
+  - **Migration Required**: Run `server/migrations/20241130_clear_old_business_type_codes.sql` on Supabase production to clear legacy hierarchical codes before deployment
 
 ## External Dependencies
 
