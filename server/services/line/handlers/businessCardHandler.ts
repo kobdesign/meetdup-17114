@@ -533,9 +533,8 @@ function getBaseUrl(): string {
 }
 
 /**
- * Handle category search command - redirect directly to category search page
- * Uses direct web URL to avoid LIFF OAuth 400 errors
- * Business card push is handled via server-side API instead of LIFF sendMessages
+ * Handle category search command - show categories with member counts
+ * Uses postback flow for category selection instead of LIFF to avoid OAuth issues
  */
 export async function handleCategorySearch(
   event: any,
@@ -544,68 +543,182 @@ export async function handleCategorySearch(
   logPrefix: string
 ): Promise<void> {
   try {
-    const baseUrl = getBaseUrl();
+    console.log(`${logPrefix} Fetching categories with member counts`);
     
-    // Use direct web URL to avoid LIFF OAuth authentication issues
-    // The category page will work without LIFF authentication
-    // When users tap a category, business cards are pushed via server-side API
-    const categoryUrl = `${baseUrl}/liff/search/category?tenant=${tenantId}`;
-    console.log(`${logPrefix} Using direct web URL for category search`)
+    // Get categories with member counts for this tenant
+    const { data: categoriesWithCounts, error: catError } = await supabaseAdmin
+      .from("participants")
+      .select("business_type_code")
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .not("business_type_code", "is", null);
     
-    console.log(`${logPrefix} Sending direct category search link`);
+    if (catError) {
+      console.error(`${logPrefix} Error fetching categories:`, catError);
+      throw new Error("Failed to fetch categories");
+    }
     
-    // Simple Flex with single button for direct access
-    const flexMessage = {
-      type: "flex",
-      altText: "ค้นหาตามประเภทธุรกิจ",
-      contents: {
-        type: "bubble",
-        size: "kilo",
-        body: {
-          type: "box",
-          layout: "vertical",
-          contents: [
-            {
-              type: "text",
-              text: "ค้นหาสมาชิก",
-              weight: "bold",
-              size: "lg",
-              color: "#1DB446"
-            },
-            {
-              type: "text",
-              text: "กดปุ่มด้านล่างเพื่อค้นหาตามประเภทธุรกิจ",
-              size: "sm",
-              color: "#666666",
-              margin: "md",
-              wrap: true
-            }
-          ]
-        },
-        footer: {
-          type: "box",
-          layout: "vertical",
-          contents: [
-            {
-              type: "button",
-              action: {
-                type: "uri",
-                label: "เปิดหน้าค้นหา",
-                uri: categoryUrl
-              },
-              style: "primary",
-              color: "#1DB446"
-            }
-          ]
-        }
+    // Count members per category
+    const categoryCounts: Record<string, number> = {};
+    for (const p of categoriesWithCounts || []) {
+      if (p.business_type_code) {
+        categoryCounts[p.business_type_code] = (categoryCounts[p.business_type_code] || 0) + 1;
+      }
+    }
+    
+    // Get category names
+    const categoryCodesWithMembers = Object.keys(categoryCounts);
+    if (categoryCodesWithMembers.length === 0) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ยังไม่มีสมาชิกที่ลงทะเบียนประเภทธุรกิจ"
+      }, accessToken);
+      return;
+    }
+    
+    const { data: categories } = await supabaseAdmin
+      .from("business_categories")
+      .select("category_code, name_th")
+      .in("category_code", categoryCodesWithMembers)
+      .order("category_code");
+    
+    // Build Quick Reply items (max 13)
+    const quickReplyItems = (categories || []).slice(0, 13).map(cat => ({
+      type: "action",
+      action: {
+        type: "postback",
+        label: `${cat.name_th} (${categoryCounts[cat.category_code]})`.substring(0, 20),
+        data: `action=search_category&category=${cat.category_code}`,
+        displayText: `ค้นหา: ${cat.name_th}`
+      }
+    }));
+    
+    const message = {
+      type: "text",
+      text: "เลือกประเภทธุรกิจที่ต้องการค้นหา:",
+      quickReply: {
+        items: quickReplyItems
       }
     };
     
-    await replyMessage(event.replyToken, flexMessage, accessToken);
-    console.log(`${logPrefix} Category search link sent successfully`);
+    await replyMessage(event.replyToken, message, accessToken);
+    console.log(`${logPrefix} Sent category quick reply with ${quickReplyItems.length} options`);
     
   } catch (error: any) {
     console.error(`${logPrefix} Error handling category search:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    }, accessToken);
+  }
+}
+
+/**
+ * Handle category selection postback - push business cards to user
+ */
+export async function handleCategorySelection(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  categoryCode: string,
+  logPrefix: string
+): Promise<void> {
+  try {
+    const lineUserId = event.source.userId;
+    console.log(`${logPrefix} Category selection:`, { categoryCode, lineUserId });
+    
+    // Get category name
+    const { data: category } = await supabaseAdmin
+      .from("business_categories")
+      .select("name_th")
+      .eq("category_code", categoryCode)
+      .single();
+    
+    const categoryName = category?.name_th || `หมวดหมู่ ${categoryCode}`;
+    
+    // Search for members by category
+    const { data: members, error: searchError } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name_th,
+        nickname_th,
+        position,
+        company,
+        tagline,
+        photo_url,
+        company_logo_url,
+        email,
+        phone,
+        website_url,
+        facebook_url,
+        instagram_url,
+        linkedin_url,
+        line_id,
+        business_address,
+        tags,
+        onepage_url
+      `)
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .eq("business_type_code", categoryCode)
+      .order("full_name_th", { ascending: true })
+      .limit(12);
+    
+    if (searchError) {
+      console.error(`${logPrefix} Search error:`, searchError);
+      throw new Error("Database search error");
+    }
+    
+    if (!members || members.length === 0) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `ไม่พบสมาชิกในหมวดหมู่ "${categoryName}"`
+      }, accessToken);
+      return;
+    }
+    
+    // Get tenant info for branding
+    const { data: tenantInfo } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, logo_url")
+      .eq("tenant_id", tenantId)
+      .single();
+    
+    // Add tenant info to members for flex message
+    const membersWithTenant = members.map(m => ({
+      ...m,
+      tenants: tenantInfo
+    }));
+    
+    const baseUrl = getBaseUrl();
+    
+    // Build flex message(s)
+    if (membersWithTenant.length === 1) {
+      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl);
+      await replyMessage(event.replyToken, flexMessage, accessToken);
+    } else {
+      // Multiple members - send carousel
+      const carouselContents = membersWithTenant.map(m => {
+        const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl);
+        return flexMessage.contents;
+      });
+      
+      await replyMessage(event.replyToken, {
+        type: "flex",
+        altText: `พบ ${membersWithTenant.length} สมาชิกในหมวดหมู่ "${categoryName}"`,
+        contents: {
+          type: "carousel",
+          contents: carouselContents
+        }
+      }, accessToken);
+    }
+    
+    console.log(`${logPrefix} Sent ${members.length} business cards for category ${categoryCode}`);
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error handling category selection:`, error);
     await replyMessage(event.replyToken, {
       type: "text",
       text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
