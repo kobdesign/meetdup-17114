@@ -427,31 +427,17 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
 
 router.get("/liff-config", async (req: Request, res: Response) => {
   try {
-    const { data: settings, error } = await supabaseAdmin
-      .from("system_settings")
-      .select("setting_key, setting_value")
-      .in("setting_key", ["liff_id", "liff_enabled"]);
-
-    if (error) {
-      console.error("Error fetching LIFF config:", error);
-      return res.json({ liff_id: null, liff_enabled: false });
-    }
-
-    const settingsMap: Record<string, string> = {};
-    for (const s of settings || []) {
-      settingsMap[s.setting_key] = s.setting_value || "";
-    }
-
-    const liffEnabled = settingsMap.liff_enabled === "true";
-    const liffId = settingsMap.liff_id || null;
+    const { getLiffConfig } = await import("../utils/liffConfig");
+    const config = await getLiffConfig();
 
     return res.json({
-      liff_id: liffEnabled && liffId ? liffId : null,
-      liff_enabled: liffEnabled
+      liff_id: config.liffId,
+      liff_enabled: config.liffEnabled,
+      environment: config.environment
     });
   } catch (error: any) {
     console.error("Error in getLiffConfig:", error);
-    return res.json({ liff_id: null, liff_enabled: false });
+    return res.json({ liff_id: null, liff_enabled: false, environment: "unknown" });
   }
 });
 

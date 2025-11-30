@@ -50,8 +50,19 @@ None specified yet.
   - **LIFF Search Alignment**: Category search in LIFF now works correctly as admin and LIFF use same 2-digit codes
   - **LIFF Category Push**: Users can tap a category in LIFF to receive business cards pushed directly to LINE chat. Secured with LIFF access token verification via LINE OAuth2 API.
   - **LIFF URL Format**: Bot sends proper LIFF URL (`https://liff.line.me/{LIFF_ID}?tenant=xxx&view=categories`) to ensure pages open in LIFF context with access token available. Falls back to web URL if LIFF not configured.
-  - **LIFF Configuration Required**: LIFF Endpoint URL in LINE Developer Console must point to production domain (e.g., `https://meetdup.com/liff/cards`) and that domain must be whitelisted in LINE Login settings.
   - **Migration Required**: Run `server/migrations/20241130_clear_old_business_type_codes.sql` on Supabase production to clear legacy hierarchical codes before deployment
+- **LIFF Dev/Prod Environment Separation (Nov 2024)**:
+  - **Dual LIFF Architecture**: Separate LIFF apps for development and production testing
+  - **Configuration**:
+    - **Development**: Uses `LIFF_ID_DEV` environment variable (secret). Create a separate LIFF app in LINE Developer Console pointing to Replit dev URL.
+    - **Production**: Uses `liff_id` from `system_settings` table. LIFF app points to `https://meetdup.com/liff/cards`.
+  - **Environment Detection**: Uses `REPLIT_DEPLOYMENT === "1"` to distinguish production from development.
+  - **LINE Developer Console Setup**:
+    - Create 2 LIFF apps in the same LINE channel:
+      1. **Dev LIFF**: Endpoint URL = Replit dev URL (e.g., `https://xxx.replit.dev/liff/cards`)
+      2. **Prod LIFF**: Endpoint URL = `https://meetdup.com/liff/cards`
+    - Whitelist each domain in LINE Login settings (Callback URL + Trusted domains)
+  - **Helper**: `server/utils/liffConfig.ts` - centralized LIFF ID resolution
 
 ## External Dependencies
 
