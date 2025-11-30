@@ -53,8 +53,22 @@ export default function LiffCards() {
     
     // Default: go to search page with tenant if available
     const tenantParam = searchParams.get("tenant");
+    const viewParam = searchParams.get("view");
+    
     if (tenantParam) {
-      navigate(`/liff/search?tenant=${tenantParam}`, { replace: true });
+      // Handle view parameter for direct navigation
+      if (viewParam === "categories" || viewParam === "category") {
+        console.log("[LiffCards] Redirecting to categories view");
+        navigate(`/liff/search/category?tenant=${tenantParam}`, { replace: true });
+      } else if (viewParam === "powerteam") {
+        console.log("[LiffCards] Redirecting to powerteam view");
+        navigate(`/liff/search/powerteam?tenant=${tenantParam}`, { replace: true });
+      } else if (viewParam === "position") {
+        console.log("[LiffCards] Redirecting to position view");
+        navigate(`/liff/search/position?tenant=${tenantParam}`, { replace: true });
+      } else {
+        navigate(`/liff/search?tenant=${tenantParam}`, { replace: true });
+      }
     } else {
       navigate("/", { replace: true });
     }
