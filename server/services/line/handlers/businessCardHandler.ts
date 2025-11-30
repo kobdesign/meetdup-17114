@@ -92,7 +92,7 @@ export async function handleViewCard(
         participant_id,
         tenant_id,
         full_name_th,
-        nickname,
+        nickname_th,
         position,
         company,
         tagline,
@@ -259,7 +259,7 @@ export async function handleCardSearch(
       participant_id,
       tenant_id,
       full_name_th,
-      nickname,
+      nickname_th,
       position,
       company,
       tagline,
@@ -279,44 +279,95 @@ export async function handleCardSearch(
       status
     `;
 
-    // Sanitize search term: escape % and _ for ILIKE, remove SQL-dangerous chars
-    const sanitizedTerm = searchTerm
-      .replace(/%/g, '\\%')
-      .replace(/_/g, '\\_')
-      .replace(/['";]/g, ''); // Remove quotes and semicolons
+    // Split search term into keywords and sanitize each
+    // Supports multi-keyword OR search: "card กบ it" finds matches for "กบ" OR "it"
+    const keywords = searchTerm
+      .split(/\s+/)
+      .filter(k => k.trim().length > 0)
+      .map(k => k
+        .replace(/%/g, '\\%')
+        .replace(/_/g, '\\_')
+        .replace(/['";]/g, '') // Remove quotes and semicolons
+      )
+      .filter(k => k.length > 0);
 
-    // Search across text fields using ILIKE
-    // Fields: full_name_th, full_name_en, nickname, nickname_en, phone, company, tagline, notes
-    const { data: participants, error } = await supabaseAdmin
-      .from("participants")
-      .select(selectFields)
-      .eq("tenant_id", tenantId)
-      .in("status", ["member", "visitor"])
-      .or(`full_name_th.ilike.%${sanitizedTerm}%,full_name_en.ilike.%${sanitizedTerm}%,nickname.ilike.%${sanitizedTerm}%,nickname_en.ilike.%${sanitizedTerm}%,phone.ilike.%${sanitizedTerm}%,company.ilike.%${sanitizedTerm}%,tagline.ilike.%${sanitizedTerm}%,notes.ilike.%${sanitizedTerm}%`)
-      .limit(10);
+    if (keywords.length === 0) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `🔍 กรุณาพิมพ์คำค้นหา เช่น: "กบ" หรือ "Microsoft"`
+      }, accessToken);
+      return;
+    }
 
-    // Additionally search in tags array (if query succeeds without tags)
-    if (!error && participants && participants.length < 10) {
-      // Search for participants with matching tags
-      const { data: tagMatches } = await supabaseAdmin
+    // Search fields: full_name_th, full_name_en, nickname_th, nickname_en, phone, company, tagline, notes
+    const searchFields = ['full_name_th', 'full_name_en', 'nickname_th', 'nickname_en', 'phone', 'company', 'tagline', 'notes'];
+    
+    console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
+
+    // Search each keyword separately and merge results (to avoid complex OR syntax issues)
+    let participants: any[] = [];
+    const participantIds = new Set<string>();
+    let searchError: any = null;
+
+    for (const keyword of keywords) {
+      if (participants.length >= 10) break;
+      
+      // Build OR conditions for this keyword across all fields
+      const orConditions = searchFields.map(field => `${field}.ilike.%${keyword}%`).join(',');
+      
+      const { data: keywordMatches, error } = await supabaseAdmin
         .from("participants")
         .select(selectFields)
         .eq("tenant_id", tenantId)
         .in("status", ["member", "visitor"])
-        .contains("tags", [sanitizedTerm])
+        .or(orConditions)
         .limit(10);
 
-      // Merge and deduplicate results
-      if (tagMatches && tagMatches.length > 0) {
-        const participantIds = new Set(participants.map(p => p.participant_id));
-        for (const tagMatch of tagMatches) {
-          if (!participantIds.has(tagMatch.participant_id)) {
-            participants.push(tagMatch);
-            participantIds.add(tagMatch.participant_id);
+      if (error) {
+        searchError = error;
+        console.error(`${logPrefix} Search error for keyword "${keyword}":`, error);
+        continue;
+      }
+
+      // Merge and deduplicate results (cap at 10)
+      if (keywordMatches && keywordMatches.length > 0) {
+        for (const match of keywordMatches) {
+          if (participants.length >= 10) break;
+          if (!participantIds.has(match.participant_id)) {
+            participants.push(match);
+            participantIds.add(match.participant_id);
+          }
+        }
+      }
+
+      // Also search in tags array for this keyword (if still under limit)
+      if (participants.length < 10) {
+        const { data: tagMatches } = await supabaseAdmin
+          .from("participants")
+          .select(selectFields)
+          .eq("tenant_id", tenantId)
+          .in("status", ["member", "visitor"])
+          .contains("tags", [keyword])
+          .limit(10 - participants.length);
+
+        if (tagMatches && tagMatches.length > 0) {
+          for (const tagMatch of tagMatches) {
+            if (participants.length >= 10) break;
+            if (!participantIds.has(tagMatch.participant_id)) {
+              participants.push(tagMatch);
+              participantIds.add(tagMatch.participant_id);
+            }
           }
         }
       }
     }
+
+    // Ensure hard cap of 10 results
+    if (participants.length > 10) {
+      participants = participants.slice(0, 10);
+    }
+
+    const error = participants.length === 0 ? searchError : null;
 
     console.log(`${logPrefix} Comprehensive search results:`, { 
       count: participants?.length || 0,

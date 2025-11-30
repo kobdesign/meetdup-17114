@@ -9,7 +9,7 @@ export interface BusinessCardData {
   participant_id: string;
   tenant_id: string;
   full_name_th: string;
-  nickname?: string | null;
+  nickname_th?: string | null;
   position?: string | null;
   company?: string | null;
   tagline?: string | null;
@@ -119,10 +119,10 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     }
   ];
 
-  if (data.nickname) {
+  if (data.nickname_th) {
     nameSection.push({
       type: "text",
-      text: `"${data.nickname}"`,
+      text: `"${data.nickname_th}"`,
       size: "md",
       color: COLORS.accent,
       weight: "bold",
