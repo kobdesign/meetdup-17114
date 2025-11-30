@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { createBusinessCardFlexMessage, BusinessCardData } from "../services/line/templates/businessCard";
 import { getProductionBaseUrl } from "../utils/getProductionUrl";
+import { getLineCredentials } from "../services/line/credentials";
+import { LineClient } from "../services/line/lineClient";
 
 const router = Router();
 
@@ -734,6 +736,218 @@ router.get("/members/by-powerteam/:id", async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("Error in getMembersByPowerTeam:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * Verify LIFF access token and get user profile
+ * Returns verified userId if valid, null otherwise
+ */
+interface TokenVerifyResponse {
+  expires_in: number;
+  client_id?: string;
+  scope?: string;
+}
+
+interface LineProfile {
+  userId: string;
+  displayName: string;
+  pictureUrl?: string;
+  statusMessage?: string;
+}
+
+async function verifyLiffToken(accessToken: string): Promise<{ userId: string } | null> {
+  try {
+    // Verify token with LINE API
+    const verifyRes = await fetch("https://api.line.me/oauth2/v2.1/verify?access_token=" + accessToken);
+    if (!verifyRes.ok) {
+      console.log("[LIFF-Verify] Token verification failed:", verifyRes.status);
+      return null;
+    }
+    
+    const verifyData = await verifyRes.json() as TokenVerifyResponse;
+    if (verifyData.expires_in <= 0) {
+      console.log("[LIFF-Verify] Token expired");
+      return null;
+    }
+    
+    // Get user profile using the verified token
+    const profileRes = await fetch("https://api.line.me/v2/profile", {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`
+      }
+    });
+    
+    if (!profileRes.ok) {
+      console.log("[LIFF-Verify] Profile fetch failed:", profileRes.status);
+      return null;
+    }
+    
+    const profile = await profileRes.json() as LineProfile;
+    return { userId: profile.userId };
+  } catch (error) {
+    console.error("[LIFF-Verify] Error:", error);
+    return null;
+  }
+}
+
+/**
+ * LIFF Category Search - Push business cards to LINE chat
+ * Called from LIFF when user selects a category
+ * Requires LIFF access token for authentication
+ */
+router.post("/liff/search-by-category", async (req: Request, res: Response) => {
+  const logPrefix = "[LIFF-CategorySearch]";
+  
+  try {
+    const { accessToken, tenantId, categoryCode } = req.body;
+
+    // Validate inputs
+    if (!accessToken || !tenantId || !categoryCode) {
+      return res.status(400).json({ 
+        error: "Missing required parameters",
+        details: "accessToken, tenantId, and categoryCode are required" 
+      });
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      return res.status(400).json({ error: "Invalid tenantId format" });
+    }
+
+    if (!/^[0-9]{2}$/.test(categoryCode)) {
+      return res.status(400).json({ error: "Invalid category code format" });
+    }
+
+    // Verify LIFF token and get authenticated user ID
+    const verifiedUser = await verifyLiffToken(accessToken);
+    if (!verifiedUser) {
+      return res.status(401).json({ error: "Invalid or expired LIFF token" });
+    }
+
+    const lineUserId = verifiedUser.userId;
+    console.log(`${logPrefix} Verified request:`, { lineUserId, tenantId, categoryCode });
+
+    // Get LINE credentials for this tenant
+    const credentials = await getLineCredentials(tenantId);
+    if (!credentials) {
+      console.error(`${logPrefix} No LINE credentials for tenant: ${tenantId}`);
+      return res.status(400).json({ error: "LINE integration not configured for this chapter" });
+    }
+
+    // Get category name for display
+    const { data: category } = await supabaseAdmin
+      .from("business_categories")
+      .select("name_th")
+      .eq("category_code", categoryCode)
+      .single();
+
+    const categoryName = category?.name_th || `หมวดหมู่ ${categoryCode}`;
+
+    // Search for members by category
+    const { data: members, error: searchError } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name_th,
+        nickname_th,
+        position,
+        company,
+        tagline,
+        photo_url,
+        company_logo_url,
+        email,
+        phone,
+        website_url,
+        facebook_url,
+        instagram_url,
+        linkedin_url,
+        line_id,
+        business_address,
+        tags,
+        onepage_url
+      `)
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .eq("business_type_code", categoryCode)
+      .order("full_name_th", { ascending: true })
+      .limit(12); // LINE carousel max is 12 bubbles
+
+    if (searchError) {
+      console.error(`${logPrefix} Search error:`, searchError);
+      return res.status(500).json({ error: "Database search error" });
+    }
+
+    if (!members || members.length === 0) {
+      // Push a text message saying no members found
+      const lineClient = new LineClient(credentials.channelAccessToken);
+      await lineClient.pushMessage(lineUserId, {
+        type: "text",
+        text: `ไม่พบสมาชิกในหมวดหมู่ "${categoryName}"`
+      });
+      
+      return res.json({ 
+        success: true, 
+        message: "No members found",
+        count: 0 
+      });
+    }
+
+    // Get tenant info for branding
+    const { data: tenantInfo } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, logo_url")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    // Add tenant info to members for flex message
+    const membersWithTenant = members.map(m => ({
+      ...m,
+      tenants: tenantInfo
+    }));
+
+    const baseUrl = getProductionBaseUrl();
+    const lineClient = new LineClient(credentials.channelAccessToken);
+
+    // If only one member, send single card
+    if (membersWithTenant.length === 1) {
+      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl);
+      await lineClient.pushMessage(lineUserId, flexMessage);
+      
+      console.log(`${logPrefix} Sent single card for category ${categoryCode}`);
+      return res.json({ 
+        success: true, 
+        count: 1,
+        message: `Sent 1 business card for ${categoryName}` 
+      });
+    }
+
+    // Multiple members - send carousel
+    const carouselContents = membersWithTenant.map(m => {
+      const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl);
+      return flexMessage.contents;
+    });
+
+    await lineClient.pushMessage(lineUserId, {
+      type: "flex",
+      altText: `พบ ${membersWithTenant.length} สมาชิกในหมวดหมู่ "${categoryName}"`,
+      contents: {
+        type: "carousel",
+        contents: carouselContents
+      }
+    });
+
+    console.log(`${logPrefix} Sent carousel with ${membersWithTenant.length} cards for category ${categoryCode}`);
+    
+    return res.json({ 
+      success: true, 
+      count: membersWithTenant.length,
+      message: `Sent ${membersWithTenant.length} business cards for ${categoryName}` 
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
