@@ -5,7 +5,7 @@ import { generateVCard, getVCardFilename, VCardData } from "../services/line/vca
 import { generateProfileToken, verifyProfileToken } from "../utils/profileToken";
 import { LineClient } from "../services/line/lineClient";
 import { getLineCredentials } from "../services/line/credentials";
-import { createBusinessCardFlexMessage } from "../services/line/templates/businessCard";
+import { createBusinessCardFlexMessage, BusinessCardData } from "../services/line/templates/businessCard";
 import { createActivationSuccessFlexMessage } from "../services/line/templates/activationSuccess";
 import { getProductionBaseUrl } from "../utils/getProductionUrl";
 import multer from "multer";
@@ -1531,26 +1531,67 @@ router.patch("/profile", async (req: Request, res: Response) => {
           await lineClient.pushMessage(updatedParticipant.line_user_id, successFlexMessage);
           console.log(`${logPrefix} Sent LINE success notification to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
 
-          // Create and send business card Flex Message using the new template
-          const businessCardFlexMessage = createBusinessCardFlexMessage({
-            participant_id: updatedParticipant.participant_id,
-            tenant_id: decoded.tenant_id,
-            full_name_th: updatedParticipant.full_name_th,
-            nickname: updatedParticipant.nickname,
-            position: updatedParticipant.position,
-            company: updatedParticipant.company,
-            tagline: updatedParticipant.tagline,
-            photo_url: updatedParticipant.photo_url,
-            email: updatedParticipant.email,
-            phone: updatedParticipant.phone,
-            website_url: updatedParticipant.website_url,
-            facebook_url: updatedParticipant.facebook_url,
-            instagram_url: updatedParticipant.instagram_url,
-            business_address: updatedParticipant.business_address,
-            line_user_id: updatedParticipant.line_user_id,
-            line_id: updatedParticipant.line_id,
-          }, baseUrl);
+          // Fetch complete participant data for business card (same query as card command)
+          const { data: cardData, error: cardError } = await supabaseAdmin
+            .from("participants")
+            .select(`
+              participant_id,
+              tenant_id,
+              full_name_th,
+              nickname_th,
+              position,
+              company,
+              tagline,
+              photo_url,
+              company_logo_url,
+              email,
+              phone,
+              website_url,
+              facebook_url,
+              instagram_url,
+              linkedin_url,
+              business_address,
+              line_user_id,
+              line_id,
+              tags,
+              onepage_url
+            `)
+            .eq("participant_id", updatedParticipant.participant_id)
+            .eq("tenant_id", decoded.tenant_id)
+            .single();
 
+          // Use fresh data if available, otherwise fall back to update response
+          let businessCardData: BusinessCardData;
+          
+          if (cardError || !cardData) {
+            console.warn(`${logPrefix} Fresh query failed, using update response:`, cardError?.message);
+            // Fallback: construct from updatedParticipant (may have fewer fields)
+            businessCardData = {
+              participant_id: updatedParticipant.participant_id,
+              tenant_id: decoded.tenant_id,
+              full_name_th: updatedParticipant.full_name_th,
+              nickname_th: updatedParticipant.nickname_th || updatedParticipant.nickname || null,
+              position: updatedParticipant.position,
+              company: updatedParticipant.company,
+              tagline: updatedParticipant.tagline,
+              photo_url: updatedParticipant.photo_url,
+              email: updatedParticipant.email,
+              phone: updatedParticipant.phone,
+              website_url: updatedParticipant.website_url,
+              facebook_url: updatedParticipant.facebook_url,
+              instagram_url: updatedParticipant.instagram_url,
+              linkedin_url: updatedParticipant.linkedin_url,
+              business_address: updatedParticipant.business_address,
+              line_user_id: updatedParticipant.line_user_id,
+              line_id: updatedParticipant.line_id,
+              tags: updatedParticipant.tags,
+            };
+          } else {
+            businessCardData = cardData as BusinessCardData;
+          }
+
+          // Create and send business card Flex Message
+          const businessCardFlexMessage = createBusinessCardFlexMessage(businessCardData, baseUrl);
           await lineClient.pushMessage(updatedParticipant.line_user_id, businessCardFlexMessage);
           console.log(`${logPrefix} Sent business card to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
         }
