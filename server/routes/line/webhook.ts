@@ -147,6 +147,13 @@ async function processEvent(
       }
     }
     
+    // Priority 0: Group menu command - show Quick Reply menu for group chats
+    if (textLower === "เมนู" || textLower === "เมนูในกลุ่ม" || textLower === "menu") {
+      console.log(`${logPrefix} Command: GROUP_MENU`);
+      await sendGroupMenu(event, accessToken);
+      return;
+    }
+    
     // Priority 1: Phone linking command
     if (textLower === "ลงทะเบียน" || textLower === "link" || textLower === "register") {
       console.log(`${logPrefix} Command: PHONE_LINKING`);
@@ -248,6 +255,77 @@ async function processEvent(
 
   if (event.type === "unfollow") {
     console.log(`${logPrefix} User unfollowed: ${event.source.userId}`);
+  }
+}
+
+/**
+ * Send group menu with Quick Reply options
+ */
+async function sendGroupMenu(event: any, accessToken: string): Promise<void> {
+  const message = {
+    type: "text",
+    text: "เลือกเมนูที่ต้องการ:",
+    quickReply: {
+      items: [
+        {
+          type: "action",
+          action: {
+            type: "message",
+            label: "ค้นหาประเภทธุรกิจ",
+            text: "ค้นหาประเภทธุรกิจ"
+          }
+        },
+        {
+          type: "action",
+          action: {
+            type: "message",
+            label: "ค้นหานามบัตร",
+            text: "ค้นหานามบัตร"
+          }
+        },
+        {
+          type: "action",
+          action: {
+            type: "message",
+            label: "ลงทะเบียน",
+            text: "ลงทะเบียน"
+          }
+        },
+        {
+          type: "action",
+          action: {
+            type: "message",
+            label: "ขอลิงก์ใหม่",
+            text: "ขอลิงก์ใหม่"
+          }
+        },
+        {
+          type: "action",
+          action: {
+            type: "message",
+            label: "แก้ไขโปรไฟล์",
+            text: "แก้ไขโปรไฟล์"
+          }
+        }
+      ]
+    }
+  };
+
+  const response = await fetch("https://api.line.me/v2/bot/message/reply", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({
+      replyToken: event.replyToken,
+      messages: [message]
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("[GroupMenu] Failed to send menu:", error);
   }
 }
 
