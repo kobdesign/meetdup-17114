@@ -148,7 +148,7 @@ async function processEvent(
     }
     
     // Priority 0: Group menu command - show Quick Reply menu for group chats
-    if (textLower === "เมนู" || textLower === "เมนูในกลุ่ม" || textLower === "menu") {
+    if (textLower === "เมนู" || textLower === "เมนูในกลุ่ม" || textLower === "menu" || textLower === "world") {
       console.log(`${logPrefix} Command: GROUP_MENU`);
       await sendGroupMenu(event, accessToken);
       return;
