@@ -577,9 +577,20 @@ export async function handleCategorySearch(
 ): Promise<void> {
   try {
     const baseUrl = getBaseUrl();
+    const liffId = await getLiffId();
     
-    // Direct URL to category search LIFF page
-    const categoryUrl = `${baseUrl}/liff/search/category?tenant=${tenantId}`;
+    // Use proper LIFF URL format if LIFF is configured
+    // This ensures the page opens in LIFF context with access token available
+    let categoryUrl: string;
+    if (liffId) {
+      // LIFF URL format: https://liff.line.me/{LIFF_ID}/path?query
+      categoryUrl = `https://liff.line.me/${liffId}/liff/search/category?tenant=${tenantId}`;
+      console.log(`${logPrefix} Using LIFF URL with ID: ${liffId}`);
+    } else {
+      // Fallback to direct web URL if LIFF not configured
+      categoryUrl = `${baseUrl}/liff/search/category?tenant=${tenantId}`;
+      console.log(`${logPrefix} LIFF not configured, using web URL`);
+    }
     
     console.log(`${logPrefix} Sending direct category search link`);
     
