@@ -47,21 +47,14 @@ None specified yet.
 - **Business Category System (Nov 2024)**:
   - **25 Simple Categories**: Uses standardized 2-digit codes (01-25) matching Supabase `business_categories` table. Examples: 01=อสังหาริมทรัพย์, 02=ไอที และ เทคโนโลยี, 14=กฎหมาย
   - **Unified Selector**: BusinessTypeSelector component now uses single dropdown instead of hierarchical 3-level selection
-  - **LIFF Search Alignment**: Category search in LIFF now works correctly as admin and LIFF use same 2-digit codes
-  - **LIFF Category Push**: Users can tap a category in LIFF to receive business cards pushed directly to LINE chat. Secured with LIFF access token verification via LINE OAuth2 API.
-  - **LIFF URL Format**: Bot sends proper LIFF URL (`https://liff.line.me/{LIFF_ID}?tenant=xxx&view=categories`) to ensure pages open in LIFF context with access token available. Falls back to web URL if LIFF not configured.
+  - **Category Search via Quick Reply (Nov 2024)**: Bot-driven category selection using Quick Reply + Postback instead of LIFF. Avoids LINE OAuth 400 errors with ephemeral dev URLs.
+    - User sends "ค้นหาประเภทธุรกิจ" → Bot replies with Quick Reply showing categories with member counts
+    - User taps category → Bot sends business card Flex Message(s) directly
+    - Handlers: `handleCategorySearch()` and `handleCategorySelection()` in `businessCardHandler.ts`
   - **Migration Required**: Run `server/migrations/20241130_clear_old_business_type_codes.sql` on Supabase production to clear legacy hierarchical codes before deployment
-- **LIFF Dev/Prod Environment Separation (Nov 2024)**:
-  - **Dual LIFF Architecture**: Separate LIFF apps for development and production testing
-  - **Configuration**:
-    - **Development**: Uses `LIFF_ID_DEV` environment variable (secret). Create a separate LIFF app in LINE Developer Console pointing to Replit dev URL.
-    - **Production**: Uses `liff_id` from `system_settings` table. LIFF app points to `https://meetdup.com/liff/cards`.
-  - **Environment Detection**: Uses `REPLIT_DEPLOYMENT === "1"` to distinguish production from development.
-  - **LINE Developer Console Setup**:
-    - Create 2 LIFF apps in the same LINE channel:
-      1. **Dev LIFF**: Endpoint URL = Replit dev URL (e.g., `https://xxx.replit.dev/liff/cards`)
-      2. **Prod LIFF**: Endpoint URL = `https://meetdup.com/liff/cards`
-    - Whitelist each domain in LINE Login settings (Callback URL + Trusted domains)
+- **LIFF Configuration (Nov 2024)**:
+  - **Production LIFF**: Uses `liff_id` from `system_settings` table for stable domain (meetdup.com)
+  - **Development Note**: LIFF OAuth requires stable domains; Replit dev URLs cause 400 errors. Use Quick Reply flow for development testing.
   - **Helper**: `server/utils/liffConfig.ts` - centralized LIFF ID resolution
 
 ## External Dependencies
