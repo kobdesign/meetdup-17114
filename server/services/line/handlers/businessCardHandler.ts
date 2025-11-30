@@ -308,21 +308,26 @@ export async function handleCardSearch(
 
       // Also search in tags array for this keyword (partial + case insensitive)
       if (participants.length < 10) {
-        // Use array_to_string to convert tags array to text for partial matching
-        const { data: tagMatches } = await supabaseAdmin
+        // Fetch participants with tags and filter in memory for partial matching
+        const { data: tagCandidates } = await supabaseAdmin
           .from("participants")
           .select(selectFields)
           .eq("tenant_id", tenantId)
           .in("status", ["member", "visitor"])
-          .filter("tags::text", "ilike", `%${keyword}%`)
-          .limit(10 - participants.length);
+          .not("tags", "is", null)
+          .limit(50); // Fetch more to filter
 
-        if (tagMatches && tagMatches.length > 0) {
-          for (const tagMatch of tagMatches) {
+        if (tagCandidates && tagCandidates.length > 0) {
+          const keywordLower = keyword.toLowerCase();
+          for (const candidate of tagCandidates) {
             if (participants.length >= 10) break;
-            if (!participantIds.has(tagMatch.participant_id)) {
-              participants.push(tagMatch);
-              participantIds.add(tagMatch.participant_id);
+            if (participantIds.has(candidate.participant_id)) continue;
+            
+            // Check if any tag contains the keyword (partial + case insensitive)
+            const tags = candidate.tags as string[] | null;
+            if (tags && tags.some(tag => tag.toLowerCase().includes(keywordLower))) {
+              participants.push(candidate);
+              participantIds.add(candidate.participant_id);
             }
           }
         }
