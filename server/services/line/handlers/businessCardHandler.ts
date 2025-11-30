@@ -308,26 +308,34 @@ export async function handleCardSearch(
 
       // Also search in tags array for this keyword (partial + case insensitive)
       if (participants.length < 10) {
-        // Fetch participants with tags and filter in memory for partial matching
+        // Fetch ALL participants with non-empty tags for proper partial matching
         const { data: tagCandidates } = await supabaseAdmin
           .from("participants")
           .select(selectFields)
           .eq("tenant_id", tenantId)
           .in("status", ["member", "visitor"])
           .not("tags", "is", null)
-          .limit(50); // Fetch more to filter
+          .order("full_name_th", { ascending: true });
 
         if (tagCandidates && tagCandidates.length > 0) {
           const keywordLower = keyword.toLowerCase();
+          console.log(`${logPrefix} Tag search: checking ${tagCandidates.length} participants for keyword "${keyword}"`);
+          
           for (const candidate of tagCandidates) {
             if (participants.length >= 10) break;
             if (participantIds.has(candidate.participant_id)) continue;
             
             // Check if any tag contains the keyword (partial + case insensitive)
             const tags = candidate.tags as string[] | null;
-            if (tags && tags.some(tag => tag.toLowerCase().includes(keywordLower))) {
-              participants.push(candidate);
-              participantIds.add(candidate.participant_id);
+            if (tags && tags.length > 0) {
+              const hasMatch = tags.some(tag => 
+                tag && tag.toLowerCase().includes(keywordLower)
+              );
+              if (hasMatch) {
+                console.log(`${logPrefix} Tag match found: ${candidate.full_name_th} has tags: [${tags.join(', ')}]`);
+                participants.push(candidate);
+                participantIds.add(candidate.participant_id);
+              }
             }
           }
         }
