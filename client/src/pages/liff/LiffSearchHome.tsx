@@ -21,24 +21,28 @@ export default function LiffSearchHome() {
   const searchParams = new URLSearchParams(location.search);
   const tenantId = searchParams.get("tenant");
   const tabParam = searchParams.get("tab");
+  const viewParam = searchParams.get("view"); // Support for LIFF URL query parameter
 
-  // Auto-redirect based on tab parameter
+  // Auto-redirect based on tab or view parameter
   useEffect(() => {
     if (!tenantId) return;
     
-    if (tabParam === "category") {
+    // Support both 'tab' and 'view' parameters for backward compatibility
+    const targetView = tabParam || viewParam;
+    
+    if (targetView === "category" || targetView === "categories") {
       navigate(`/liff/search/category?tenant=${tenantId}`, { replace: true });
       return;
     }
-    if (tabParam === "powerteam") {
+    if (targetView === "powerteam") {
       navigate(`/liff/search/powerteam?tenant=${tenantId}`, { replace: true });
       return;
     }
-    if (tabParam === "position") {
+    if (targetView === "position") {
       navigate(`/liff/search/position?tenant=${tenantId}`, { replace: true });
       return;
     }
-  }, [tenantId, tabParam, navigate]);
+  }, [tenantId, tabParam, viewParam, navigate]);
 
   useEffect(() => {
     if (!tenantId) {
@@ -48,7 +52,7 @@ export default function LiffSearchHome() {
     }
 
     // Skip fetching if we're redirecting
-    if (tabParam) return;
+    if (tabParam || viewParam) return;
 
     fetch(`/api/public/tenant/${tenantId}`)
       .then(res => res.json())
@@ -64,7 +68,7 @@ export default function LiffSearchHome() {
         setError("Failed to load chapter");
       })
       .finally(() => setLoading(false));
-  }, [tenantId, tabParam]);
+  }, [tenantId, tabParam, viewParam]);
 
   const handleBack = () => {
     if (window.history.length > 1) {

@@ -583,8 +583,9 @@ export async function handleCategorySearch(
     // This ensures the page opens in LIFF context with access token available
     let categoryUrl: string;
     if (liffId) {
-      // LIFF URL format: https://liff.line.me/{LIFF_ID}/path?query
-      categoryUrl = `https://liff.line.me/${liffId}/liff/search/category?tenant=${tenantId}`;
+      // LIFF URL with query parameters - more compatible with various LIFF endpoint configurations
+      // The endpoint URL handles routing based on the 'view' parameter
+      categoryUrl = `https://liff.line.me/${liffId}?tenant=${tenantId}&view=categories`;
       console.log(`${logPrefix} Using LIFF URL with ID: ${liffId}`);
     } else {
       // Fallback to direct web URL if LIFF not configured
