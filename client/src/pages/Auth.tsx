@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Mail, CheckCircle2 } from "lucide-react";
+import { Loader2, Mail, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -17,7 +17,10 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [activeTab, setActiveTab] = useState("signin");
   const [showEmailSent, setShowEmailSent] = useState(false);
+  const [showEmailExists, setShowEmailExists] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
@@ -54,6 +57,48 @@ export default function Auth() {
   }, []);
 
   const checkUserRole = async (userId: string, redirectPath?: string | null) => {
+    // Sync user metadata (full_name, phone) to profiles table - only update fields with values
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata) {
+        const { full_name, phone } = user.user_metadata;
+        
+        // Only sync if we have new data to add
+        if (full_name || phone) {
+          // Build update object with only non-null values to avoid overwriting existing data
+          const updateData: Record<string, string> = {
+            updated_at: new Date().toISOString(),
+          };
+          if (full_name) updateData.full_name = full_name;
+          if (phone) updateData.phone = phone;
+          
+          console.log("[Auth] Syncing user metadata to profiles:", updateData);
+          
+          // First check if profile exists
+          const { data: existingProfile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("id", userId)
+            .single();
+          
+          if (existingProfile) {
+            // Update only the fields we have
+            await supabase
+              .from("profiles")
+              .update(updateData)
+              .eq("id", userId);
+          } else {
+            // Create new profile with available data
+            await supabase
+              .from("profiles")
+              .insert({ id: userId, ...updateData });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[Auth] Failed to sync profile metadata:", err);
+    }
+
     // If there's a redirect path (e.g., /invite/:token), use it
     if (redirectPath) {
       console.log("[Auth] Redirecting to:", redirectPath);
@@ -84,18 +129,37 @@ export default function Auth() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setShowEmailExists(false);
+
+    // Validate phone
+    const normalizedPhone = phone.replace(/\D/g, "");
+    if (normalizedPhone.length < 9 || normalizedPhone.length > 10) {
+      toast.error("กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (9-10 หลัก)");
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: fullName },
+          data: { 
+            full_name: fullName,
+            phone: normalizedPhone,
+          },
           emailRedirectTo: `${window.location.origin}/auth`,
         },
       });
 
       if (error) throw error;
+
+      // Check if email already exists (Supabase returns user with empty identities)
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        console.log("[Auth] Email already exists, prompting to login");
+        setShowEmailExists(true);
+        return;
+      }
 
       if (data.user) {
         setShowEmailSent(true);
@@ -178,10 +242,10 @@ export default function Auth() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">เข้าสู่ระบบ</TabsTrigger>
-              <TabsTrigger value="signup">ลงทะเบียน</TabsTrigger>
+              <TabsTrigger value="signin" data-testid="tab-signin">เข้าสู่ระบบ</TabsTrigger>
+              <TabsTrigger value="signup" data-testid="tab-signup">ลงทะเบียน</TabsTrigger>
             </TabsList>
             
             <TabsContent value="signin">
@@ -281,7 +345,47 @@ export default function Auth() {
             </TabsContent>
             
             <TabsContent value="signup">
-              {showEmailSent ? (
+              {showEmailExists ? (
+                <div className="space-y-4 py-4">
+                  <Alert className="border-amber-500/20 bg-amber-500/5">
+                    <AlertCircle className="h-5 w-5 text-amber-600" />
+                    <AlertDescription className="mt-2 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <div>
+                          <p className="font-semibold text-foreground">อีเมลนี้มีบัญชีอยู่แล้ว</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            อีเมล <span className="font-medium text-foreground">{email}</span> ลงทะเบียนไว้แล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านเดิม
+                          </p>
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowEmailExists(false)}
+                      data-testid="button-back-to-signup"
+                    >
+                      ลองใหม่
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="flex-1"
+                      onClick={() => {
+                        setShowEmailExists(false);
+                        setActiveTab("signin");
+                      }}
+                      data-testid="button-go-to-signin"
+                    >
+                      เข้าสู่ระบบ
+                    </Button>
+                  </div>
+                </div>
+              ) : showEmailSent ? (
                 <div className="space-y-4 py-4">
                   <Alert className="border-primary/20 bg-primary/5">
                     <Mail className="h-5 w-5 text-primary" />
@@ -309,6 +413,7 @@ export default function Auth() {
                       className="flex-1"
                       onClick={handleResendEmail}
                       disabled={loading}
+                      data-testid="button-resend-email"
                     >
                       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       ส่งอีเมลใหม่
@@ -318,6 +423,7 @@ export default function Auth() {
                       variant="default"
                       className="flex-1"
                       onClick={() => setShowEmailSent(false)}
+                      data-testid="button-back-from-email-sent"
                     >
                       ย้อนกลับ
                     </Button>
@@ -334,7 +440,23 @@ export default function Auth() {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
+                      data-testid="input-fullname"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">เบอร์โทรศัพท์</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="0812345678"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                      data-testid="input-phone"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      ใช้สำหรับเชื่อมต่อกับ LINE Official Account
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">อีเมล</Label>
@@ -345,6 +467,7 @@ export default function Auth() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
+                      data-testid="input-signup-email"
                     />
                   </div>
                   <div className="space-y-2">
@@ -357,9 +480,10 @@ export default function Auth() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       minLength={6}
+                      data-testid="input-signup-password"
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <Button type="submit" className="w-full" disabled={loading} data-testid="button-signup">
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     ลงทะเบียน
                   </Button>
