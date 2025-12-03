@@ -57,10 +57,15 @@ export default function AcceptInvite() {
       if (data.tenant_id) {
         console.log("[AcceptInvite] Auto-switching to new chapter:", data.tenant_id);
         setSelectedChapter(data.tenant_id);
+        
+        // Navigate to complete-profile page with tenant_id
+        console.log("[AcceptInvite] Navigating to complete-profile page");
+        navigate(`/complete-profile?tenant_id=${data.tenant_id}`);
+      } else {
+        // Fallback to admin if no tenant_id
+        console.log("[AcceptInvite] No tenant_id, navigating to /admin");
+        navigate("/admin");
       }
-      
-      console.log("[AcceptInvite] Cache refreshed, navigating to /admin");
-      navigate("/admin");
     },
     onError: (error: any) => {
       setError(error.message || "เกิดข้อผิดพลาด");

@@ -38,6 +38,7 @@ import PublicProfile from "./pages/public/PublicProfile";
 import ParticipantProfile from "./pages/ParticipantProfile";
 import Activate from "./pages/Activate";
 import LineActivate from "./pages/LineActivate";
+import CompleteProfile from "./pages/CompleteProfile";
 import NotFound from "./pages/NotFound";
 import LiffSearchHome from "./pages/liff/LiffSearchHome";
 import LiffCategories from "./pages/liff/LiffCategories";
@@ -78,9 +79,10 @@ const App = () => (
           {/* <Route path="/line-register" element={<LineRegister />} /> */}
           <Route path="/participant-profile/edit" element={<ParticipantProfile />} />
           
-          {/* Member Activation */}
+          {/* Member Activation & Profile Completion */}
           <Route path="/activate/:token" element={<Activate />} />
           <Route path="/line-activate" element={<LineActivate />} />
+          <Route path="/complete-profile" element={<CompleteProfile />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={

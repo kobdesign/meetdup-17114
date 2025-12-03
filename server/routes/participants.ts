@@ -1314,6 +1314,143 @@ router.get("/:participantId/vcard", async (req: Request, res: Response) => {
   }
 });
 
+// Complete profile after accepting invite (session-based auth)
+router.post("/complete-profile", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[complete-profile:${requestId}]`;
+
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized"
+      });
+    }
+
+    const { tenant_id, full_name_th, phone, position, company } = req.body;
+
+    if (!tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing tenant_id"
+      });
+    }
+
+    if (!full_name_th || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Name and phone are required"
+      });
+    }
+
+    // Normalize phone
+    const normalizedPhone = phone.replace(/\D/g, "");
+    
+    if (normalizedPhone.length < 9 || normalizedPhone.length > 10) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid phone number format"
+      });
+    }
+
+    console.log(`${logPrefix} Completing profile for user ${userId} in tenant ${tenant_id}`);
+
+    // Check if participant exists for this user and tenant
+    const { data: existingParticipant, error: fetchError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, phone")
+      .eq("user_id", userId)
+      .eq("tenant_id", tenant_id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error(`${logPrefix} Error fetching participant:`, fetchError);
+      return res.status(500).json({
+        success: false,
+        error: "Database error"
+      });
+    }
+
+    if (existingParticipant) {
+      // Update existing participant
+      const { error: updateError } = await supabaseAdmin
+        .from("participants")
+        .update({
+          full_name_th: full_name_th.trim(),
+          phone: normalizedPhone,
+          position: position?.trim() || null,
+          company: company?.trim() || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("participant_id", existingParticipant.participant_id);
+
+      if (updateError) {
+        console.error(`${logPrefix} Error updating participant:`, updateError);
+        return res.status(500).json({
+          success: false,
+          error: "Failed to update profile"
+        });
+      }
+
+      console.log(`${logPrefix} Updated existing participant ${existingParticipant.participant_id}`);
+    } else {
+      // Create new participant record
+      const { data: newParticipant, error: insertError } = await supabaseAdmin
+        .from("participants")
+        .insert({
+          user_id: userId,
+          tenant_id: tenant_id,
+          full_name_th: full_name_th.trim(),
+          phone: normalizedPhone,
+          position: position?.trim() || null,
+          company: company?.trim() || null,
+          status: "member",
+          joined_date: new Date().toISOString().split('T')[0]
+        })
+        .select("participant_id")
+        .single();
+
+      if (insertError) {
+        console.error(`${logPrefix} Error creating participant:`, insertError);
+        return res.status(500).json({
+          success: false,
+          error: "Failed to create profile"
+        });
+      }
+
+      console.log(`${logPrefix} Created new participant ${newParticipant.participant_id}`);
+    }
+
+    // Also update the profiles table with phone (for fallback lookup)
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .upsert({
+        id: userId,
+        full_name: full_name_th.trim(),
+        phone: normalizedPhone,
+        updated_at: new Date().toISOString()
+      });
+
+    if (profileError) {
+      console.warn(`${logPrefix} Failed to update profiles table:`, profileError);
+      // Not critical, continue
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile completed successfully"
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Unexpected error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Internal server error"
+    });
+  }
+});
+
 // Update participant profile (token-based auth) - MUST be before /:participantId to avoid route conflict
 router.patch("/profile", async (req: Request, res: Response) => {
   const requestId = crypto.randomUUID();
