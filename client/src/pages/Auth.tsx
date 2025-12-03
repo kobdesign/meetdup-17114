@@ -162,8 +162,17 @@ export default function Auth() {
       }
 
       if (data.user) {
-        setShowEmailSent(true);
-        toast.success("กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี");
+        // Check if Supabase returned a session (auto-confirmed, no email verification needed)
+        if (data.session) {
+          console.log("[Auth] User auto-confirmed, proceeding with login");
+          toast.success("ลงทะเบียนสำเร็จ!");
+          const redirectPath = getRedirectPath();
+          await checkUserRole(data.user.id, redirectPath);
+        } else {
+          // Email verification is required
+          setShowEmailSent(true);
+          toast.success("กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี");
+        }
       }
     } catch (error: any) {
       toast.error(error.message);
