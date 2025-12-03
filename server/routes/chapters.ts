@@ -617,7 +617,7 @@ router.get("/join-requests", verifySupabaseAuth, async (req: AuthenticatedReques
         try {
           const { data: participant } = await supabaseAdmin
             .from("participants")
-            .select("full_name_th, company, position, phone, email, photo_url")
+            .select("full_name_th, nickname_th, company, position, phone, email, photo_url")
             .eq("user_id", request.user_id)
             .eq("tenant_id", tenant_id as string)
             .maybeSingle();
@@ -627,10 +627,27 @@ router.get("/join-requests", verifySupabaseAuth, async (req: AuthenticatedReques
           console.error(`Error fetching participant for user ${request.user_id}:`, participantError);
         }
 
+        // Get profile data as fallback if no participant
+        let profileData = null;
+        if (!participantData?.full_name_th) {
+          try {
+            const { data: profile } = await supabaseAdmin
+              .from("profiles")
+              .select("full_name, avatar_url, phone")
+              .eq("id", request.user_id)
+              .maybeSingle();
+            
+            profileData = profile;
+          } catch (profileError) {
+            console.error(`Error fetching profile for user ${request.user_id}:`, profileError);
+          }
+        }
+
         return {
           ...request,
           user_email: userEmail,
           participant: participantData,
+          profile: profileData,
         };
       })
     );

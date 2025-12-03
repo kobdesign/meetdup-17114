@@ -358,13 +358,19 @@ export default function MembersManagement() {
               ) : (
                 joinRequests.map((request: any) => {
                   const participant = request.participant;
-                  const displayName = participant?.full_name_th || participant?.full_name || request.user_email || "ผู้ใช้";
-                  const initials = displayName
-                    .split(' ')
-                    .map((n: string) => n[0])
-                    .join('')
-                    .toUpperCase()
-                    .slice(0, 2);
+                  const profile = request.profile;
+                  
+                  // Build display name with fallbacks: participant name → profile name → email
+                  const fullName = participant?.full_name_th || profile?.full_name;
+                  const nickname = participant?.nickname_th;
+                  const hasRealName = !!fullName;
+                  const displayName = fullName || request.user_email || "ผู้ใช้ใหม่";
+                  
+                  // Get avatar from participant or profile
+                  const avatarUrl = participant?.photo_url || profile?.avatar_url;
+                  
+                  // Get phone from participant or profile
+                  const phoneNumber = participant?.phone || profile?.phone;
 
                   return (
                     <Card key={request.request_id} data-testid={`request-card-${request.request_id}`}>
@@ -372,7 +378,7 @@ export default function MembersManagement() {
                         <div className="flex gap-4">
                           {/* Avatar */}
                           <Avatar className="h-12 w-12">
-                            <AvatarImage src={participant?.photo_url || undefined} alt={displayName} />
+                            <AvatarImage src={avatarUrl || undefined} alt={displayName} />
                             <AvatarFallback>
                               <User className="h-5 w-5" />
                             </AvatarFallback>
@@ -380,9 +386,21 @@ export default function MembersManagement() {
 
                           {/* Content */}
                           <div className="flex-1 min-w-0">
-                            {/* Name */}
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="font-semibold text-lg">{displayName}</p>
+                            {/* Name with nickname */}
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <p className="font-semibold text-lg">
+                                {displayName}
+                                {nickname && fullName && nickname !== fullName && (
+                                  <span className="text-muted-foreground font-normal ml-1">
+                                    ({nickname})
+                                  </span>
+                                )}
+                              </p>
+                              {!hasRealName && (
+                                <Badge variant="outline" className="text-xs">
+                                  ยังไม่มีข้อมูลชื่อ
+                                </Badge>
+                              )}
                               {request.status !== "pending" && (
                                 <Badge variant={request.status === "approved" ? "default" : "destructive"} className="text-xs">
                                   {request.status === "approved" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว"}
@@ -404,25 +422,32 @@ export default function MembersManagement() {
 
                             {/* Contact Info */}
                             <div className="space-y-1">
-                              {participant?.phone && (
+                              {phoneNumber && (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <Phone className="h-4 w-4 flex-shrink-0" />
-                                  <span>{participant.phone}</span>
+                                  <span>{phoneNumber}</span>
                                 </div>
                               )}
-                              {(participant?.email || request.user_email) && (
+                              {request.user_email && (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <AtSign className="h-4 w-4 flex-shrink-0" />
-                                  <span className="truncate">{participant?.email || request.user_email}</span>
+                                  <span className="truncate">{request.user_email}</span>
                                 </div>
                               )}
                             </div>
 
-                            {/* Message */}
+                            {/* Message - show prominently */}
                             {request.message && (
                               <div className="mt-3 p-3 bg-muted rounded-md">
                                 <p className="text-sm italic">"{request.message}"</p>
                               </div>
+                            )}
+                            
+                            {/* Hint when no name available */}
+                            {!hasRealName && !request.message && (
+                              <p className="text-xs text-muted-foreground mt-2 italic">
+                                ผู้ใช้ยังไม่ได้กรอกข้อมูลโปรไฟล์
+                              </p>
                             )}
 
                             {/* Request Date */}
