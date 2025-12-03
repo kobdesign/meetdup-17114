@@ -154,6 +154,12 @@ export default function Auth() {
 
       if (error) throw error;
 
+      console.log("[Auth] SignUp response:", { 
+        user: data.user?.id, 
+        session: !!data.session,
+        identities: data.user?.identities?.length 
+      });
+
       // Check if email already exists (Supabase returns user with empty identities)
       if (data.user && data.user.identities && data.user.identities.length === 0) {
         console.log("[Auth] Email already exists, prompting to login");
@@ -169,9 +175,25 @@ export default function Auth() {
           const redirectPath = getRedirectPath();
           await checkUserRole(data.user.id, redirectPath);
         } else {
-          // Email verification is required
-          setShowEmailSent(true);
-          toast.success("กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี");
+          // Email verification is required - but user can still login immediately in Supabase
+          // So let's try to sign them in right away
+          console.log("[Auth] No session returned, attempting immediate sign in");
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (signInData?.session) {
+            console.log("[Auth] Immediate sign in successful");
+            toast.success("ลงทะเบียนสำเร็จ!");
+            const redirectPath = getRedirectPath();
+            await checkUserRole(signInData.user.id, redirectPath);
+          } else {
+            // Only show email verification if sign in also fails
+            console.log("[Auth] Sign in failed, showing email verification:", signInError?.message);
+            setShowEmailSent(true);
+            toast.success("กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี");
+          }
         }
       }
     } catch (error: any) {
