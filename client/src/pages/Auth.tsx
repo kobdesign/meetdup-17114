@@ -19,7 +19,6 @@ export default function Auth() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [activeTab, setActiveTab] = useState("signin");
-  const [showEmailSent, setShowEmailSent] = useState(false);
   const [showEmailExists, setShowEmailExists] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
@@ -148,7 +147,6 @@ export default function Auth() {
             full_name: fullName,
             phone: normalizedPhone,
           },
-          emailRedirectTo: `${window.location.origin}/auth`,
         },
       });
 
@@ -167,52 +165,31 @@ export default function Auth() {
         return;
       }
 
-      if (data.user) {
-        // Check if Supabase returned a session (auto-confirmed, no email verification needed)
-        if (data.session) {
-          console.log("[Auth] User auto-confirmed, proceeding with login");
+      if (data.user && data.session) {
+        // User is auto-confirmed, proceed directly
+        console.log("[Auth] Registration successful, proceeding with login");
+        toast.success("ลงทะเบียนสำเร็จ!");
+        const redirectPath = getRedirectPath();
+        await checkUserRole(data.user.id, redirectPath);
+      } else if (data.user) {
+        // Fallback: try immediate sign in (for edge cases)
+        console.log("[Auth] No session returned, attempting immediate sign in");
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        
+        if (signInData?.session) {
+          console.log("[Auth] Immediate sign in successful");
           toast.success("ลงทะเบียนสำเร็จ!");
           const redirectPath = getRedirectPath();
-          await checkUserRole(data.user.id, redirectPath);
+          await checkUserRole(signInData.user.id, redirectPath);
         } else {
-          // Email verification is required - but user can still login immediately in Supabase
-          // So let's try to sign them in right away
-          console.log("[Auth] No session returned, attempting immediate sign in");
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          
-          if (signInData?.session) {
-            console.log("[Auth] Immediate sign in successful");
-            toast.success("ลงทะเบียนสำเร็จ!");
-            const redirectPath = getRedirectPath();
-            await checkUserRole(signInData.user.id, redirectPath);
-          } else {
-            // Only show email verification if sign in also fails
-            console.log("[Auth] Sign in failed, showing email verification:", signInError?.message);
-            setShowEmailSent(true);
-            toast.success("กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี");
-          }
+          // This shouldn't happen if email confirmation is disabled
+          console.error("[Auth] Sign in failed:", signInError?.message);
+          toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
         }
       }
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendEmail = async () => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-      });
-      
-      if (error) throw error;
-      toast.success("ส่งอีเมลยืนยันใหม่แล้ว");
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -416,50 +393,6 @@ export default function Auth() {
                     </Button>
                   </div>
                 </div>
-              ) : showEmailSent ? (
-                <div className="space-y-4 py-4">
-                  <Alert className="border-primary/20 bg-primary/5">
-                    <Mail className="h-5 w-5 text-primary" />
-                    <AlertDescription className="mt-2 space-y-2">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-foreground">ส่งอีเมลยืนยันแล้ว!</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            เราได้ส่งลิงก์ยืนยันไปที่ <span className="font-medium text-foreground">{email}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-sm text-muted-foreground pl-7">
-                        <p>กรุณาตรวจสอบกล่องจดหมายของคุณและคลิกลิงก์ยืนยันเพื่อเปิดใช้งานบัญชี</p>
-                        <p className="mt-2">ไม่ได้รับอีเมล?</p>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={handleResendEmail}
-                      disabled={loading}
-                      data-testid="button-resend-email"
-                    >
-                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      ส่งอีเมลใหม่
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="default"
-                      className="flex-1"
-                      onClick={() => setShowEmailSent(false)}
-                      data-testid="button-back-from-email-sent"
-                    >
-                      ย้อนกลับ
-                    </Button>
-                  </div>
-                </div>
               ) : (
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
@@ -518,9 +451,6 @@ export default function Auth() {
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     ลงทะเบียน
                   </Button>
-                  <p className="text-xs text-muted-foreground text-center">
-                    เมื่อลงทะเบียน คุณจะได้รับอีเมลยืนยันบัญชี
-                  </p>
                 </form>
               )}
             </TabsContent>
