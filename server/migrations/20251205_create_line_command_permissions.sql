@@ -11,7 +11,7 @@ END $$;
 -- Create line_command_permissions table
 CREATE TABLE IF NOT EXISTS line_command_permissions (
     id SERIAL PRIMARY KEY,
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     command_key VARCHAR(100) NOT NULL,
     command_name VARCHAR(200) NOT NULL,
     command_description TEXT,
@@ -68,8 +68,8 @@ DO $$
 DECLARE
     tenant_record RECORD;
 BEGIN
-    FOR tenant_record IN SELECT id FROM tenants LOOP
-        PERFORM seed_default_command_permissions(tenant_record.id);
+    FOR tenant_record IN SELECT tenant_id FROM tenants LOOP
+        PERFORM seed_default_command_permissions(tenant_record.tenant_id);
     END LOOP;
 END $$;
 
@@ -77,7 +77,7 @@ END $$;
 CREATE OR REPLACE FUNCTION trigger_seed_command_permissions()
 RETURNS TRIGGER AS $$
 BEGIN
-    PERFORM seed_default_command_permissions(NEW.id);
+    PERFORM seed_default_command_permissions(NEW.tenant_id);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
