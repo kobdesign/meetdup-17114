@@ -56,6 +56,16 @@ None specified yet.
   - **Production LIFF**: Uses `liff_id` from `system_settings` table for stable domain (meetdup.com)
   - **Development Note**: LIFF OAuth requires stable domains; Replit dev URLs cause 400 errors. Use Quick Reply flow for development testing.
   - **Helper**: `server/utils/liffConfig.ts` - centralized LIFF ID resolution
+- **Goals & Achievements System (Dec 2024)**:
+  - **Purpose**: Chapters can set and track goals (visitors, members, check-ins, referrals) with auto-calculated progress from real data
+  - **Database Tables**: `goal_templates` (predefined templates), `chapter_goals` (chapter-specific goals)
+  - **Metric Types**: `weekly_visitors`, `monthly_visitors`, `total_members`, `weekly_checkins`, `monthly_checkins`, `weekly_referrals`, `monthly_referrals`
+  - **Progress Calculation**: Auto-calculated from `participants` and `checkins` tables based on date range
+  - **LINE Notification**: Sends Flex Message congratulations to Chapter Admins when goal is achieved
+  - **Duplicate Prevention**: Uses `line_notified_at` timestamp to prevent duplicate notifications
+  - **Security**: All endpoints enforce tenant access verification via `checkTenantAccess()`
+  - **UI**: Badge-style achievement cards at `/admin/goals` with progress bars, icons, and status indicators
+  - **Migration**: Run `server/migrations/20251205_create_chapter_goals.sql` on Supabase (already executed on dev)
 
 ## External Dependencies
 

@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
-import { AuthenticatedRequest, verifySupabaseAuth } from "../utils/auth";
+import { AuthenticatedRequest, verifySupabaseAuth, checkTenantAccess } from "../utils/auth";
 import { sendGoalAchievementNotification, checkAndNotifyAchievedGoals } from "../services/goals/achievementNotification";
 
 const router = Router();
@@ -59,9 +59,19 @@ router.get("/templates", verifySupabaseAuth, async (req: AuthenticatedRequest, r
 router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { tenant_id, status } = req.query;
+    const userId = req.user?.id;
 
     if (!tenant_id) {
       return res.status(400).json({ error: "tenant_id is required" });
+    }
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, tenant_id as string);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied to this chapter" });
     }
 
     let query = supabaseAdmin
@@ -102,8 +112,17 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
     const { tenant_id, template_id, metric_type, name, description, icon, target_value, start_date, end_date } = req.body;
     const userId = req.user?.id;
 
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     if (!tenant_id || !metric_type || !name || !target_value || !start_date || !end_date) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied to this chapter" });
     }
 
     const currentValue = await calculateGoalProgress(tenant_id, metric_type, start_date, end_date);
@@ -155,9 +174,30 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
 router.patch("/:goalId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { goalId } = req.params;
+    const userId = req.user?.id;
     const updates = req.body;
 
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { data: existingGoal, error: fetchError } = await supabaseAdmin
+      .from("chapter_goals")
+      .select("tenant_id")
+      .eq("goal_id", goalId)
+      .single();
+
+    if (fetchError || !existingGoal) {
+      return res.status(404).json({ error: "Goal not found" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, existingGoal.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied to this goal" });
+    }
+
     delete updates.goal_id;
+    delete updates.tenant_id;
     delete updates.created_at;
     delete updates.current_value;
 
@@ -181,6 +221,26 @@ router.patch("/:goalId", verifySupabaseAuth, async (req: AuthenticatedRequest, r
 router.delete("/:goalId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { goalId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { data: existingGoal, error: fetchError } = await supabaseAdmin
+      .from("chapter_goals")
+      .select("tenant_id")
+      .eq("goal_id", goalId)
+      .single();
+
+    if (fetchError || !existingGoal) {
+      return res.status(404).json({ error: "Goal not found" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, existingGoal.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied to this goal" });
+    }
 
     const { error } = await supabaseAdmin
       .from("chapter_goals")
@@ -200,6 +260,11 @@ router.delete("/:goalId", verifySupabaseAuth, async (req: AuthenticatedRequest, 
 router.post("/:goalId/recalculate", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { goalId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     const { data: goal, error: fetchError } = await supabaseAdmin
       .from("chapter_goals")
@@ -209,6 +274,11 @@ router.post("/:goalId/recalculate", verifySupabaseAuth, async (req: Authenticate
 
     if (fetchError || !goal) {
       return res.status(404).json({ error: "Goal not found" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, goal.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied to this goal" });
     }
 
     const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date);
@@ -260,9 +330,19 @@ router.post("/:goalId/recalculate", verifySupabaseAuth, async (req: Authenticate
 router.post("/recalculate-all", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { tenant_id } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     if (!tenant_id) {
       return res.status(400).json({ error: "tenant_id is required" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied to this chapter" });
     }
 
     const { data: goals, error: fetchError } = await supabaseAdmin
