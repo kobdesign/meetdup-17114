@@ -39,7 +39,8 @@ import {
   Trophy,
   Loader2,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
@@ -53,6 +54,15 @@ interface GoalTemplate {
   description_th: string | null;
   icon: string;
   default_target: number;
+}
+
+interface MeetingInfo {
+  meeting_id: string;
+  meeting_date: string;
+  meeting_time: string | null;
+  theme: string | null;
+  venue_name: string | null;
+  venue_address: string | null;
 }
 
 interface ChapterGoal {
@@ -69,6 +79,7 @@ interface ChapterGoal {
   start_date: string;
   end_date: string;
   meeting_id: string | null;
+  meeting?: MeetingInfo | null;
   status: 'active' | 'achieved' | 'expired' | 'cancelled';
   achieved_at: string | null;
   created_at: string;
@@ -585,13 +596,33 @@ export default function ChapterGoals() {
                       </span>
                       <span>{goal.progress_percent}%</span>
                     </div>
-                    {goal.meeting_id && (
-                      <div className="text-xs">
-                        <Badge variant="outline" className="text-xs">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          Meeting Goal
-                        </Badge>
+                    {goal.meeting_id && goal.meeting && (
+                      <div className="p-2 bg-muted/50 rounded-md space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs font-medium">
+                          <Calendar className="h-3 w-3 text-primary" />
+                          <span>
+                            {format(new Date(goal.meeting.meeting_date), "EEEE d MMMM yyyy", { locale: th })}
+                            {goal.meeting.meeting_time && ` เวลา ${goal.meeting.meeting_time.slice(0, 5)} น.`}
+                          </span>
+                        </div>
+                        {goal.meeting.theme && (
+                          <div className="text-xs text-muted-foreground pl-4">
+                            {goal.meeting.theme}
+                          </div>
+                        )}
+                        {goal.meeting.venue_name && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            <span>{goal.meeting.venue_name}</span>
+                          </div>
+                        )}
                       </div>
+                    )}
+                    {goal.meeting_id && !goal.meeting && (
+                      <Badge variant="outline" className="text-xs">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Meeting Goal
+                      </Badge>
                     )}
                   </CardContent>
                 </Card>

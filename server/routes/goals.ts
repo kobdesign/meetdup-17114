@@ -18,6 +18,15 @@ interface GoalTemplate {
   sort_order: number;
 }
 
+interface MeetingInfo {
+  meeting_id: string;
+  meeting_date: string;
+  meeting_time: string | null;
+  theme: string | null;
+  venue_name: string | null;
+  venue_address: string | null;
+}
+
 interface ChapterGoal {
   goal_id: string;
   tenant_id: string;
@@ -31,6 +40,7 @@ interface ChapterGoal {
   start_date: string;
   end_date: string;
   meeting_id: string | null;
+  meeting?: MeetingInfo | null;
   status: 'active' | 'achieved' | 'expired' | 'cancelled';
   achieved_at: string | null;
   line_notified_at: string | null;
@@ -77,7 +87,17 @@ router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Respo
 
     let query = supabaseAdmin
       .from("chapter_goals")
-      .select("*")
+      .select(`
+        *,
+        meeting:meetings(
+          meeting_id,
+          meeting_date,
+          meeting_time,
+          theme,
+          venue_name,
+          venue_address
+        )
+      `)
       .eq("tenant_id", tenant_id as string)
       .order("created_at", { ascending: false });
 
