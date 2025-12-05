@@ -17,7 +17,16 @@ async function checkVisitorGoalsAchievement(tenantId: string, meetingId?: string
   try {
     const { data: activeGoals, error } = await supabaseAdmin
       .from("chapter_goals")
-      .select("*")
+      .select(`
+        *,
+        meeting:meetings(
+          meeting_id,
+          meeting_date,
+          meeting_time,
+          theme,
+          venue
+        )
+      `)
       .eq("tenant_id", tenantId)
       .eq("status", "active")
       .in("metric_type", ["weekly_visitors", "monthly_visitors", "meeting_visitors"]);
@@ -33,7 +42,6 @@ async function checkVisitorGoalsAchievement(tenantId: string, meetingId?: string
       const endDateWithTime = goal.end_date + "T23:59:59.999Z";
 
       if (goal.metric_type === "meeting_visitors" && goal.meeting_id) {
-        // For meeting-based goals, count all registrations for that meeting
         const { data } = await supabaseAdmin
           .from("meeting_registrations")
           .select(`
@@ -61,6 +69,12 @@ async function checkVisitorGoalsAchievement(tenantId: string, meetingId?: string
 
       if (isAchieved && !goal.line_notified_at) {
         console.log(`[GoalTrigger] Goal "${goal.name}" achieved! (${currentValue}/${goal.target_value})`);
+        console.log(`[GoalTrigger] Meeting info:`, goal.meeting ? {
+          date: goal.meeting.meeting_date,
+          time: goal.meeting.meeting_time,
+          theme: goal.meeting.theme,
+          venue: goal.meeting.venue
+        } : 'No meeting');
         
         await supabaseAdmin
           .from("chapter_goals")
