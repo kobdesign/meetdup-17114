@@ -27,6 +27,7 @@ import LineConfigPage from "./pages/admin/LineConfigPage";
 import RichMenuPage from "./pages/admin/RichMenuPage";
 import MembersManagement from "./pages/admin/MembersManagement";
 import ImportMembers from "./pages/admin/ImportMembers";
+import ChapterGoals from "./pages/admin/ChapterGoals";
 import Tenants from "./pages/super-admin/Tenants";
 import LiffSettings from "./pages/admin/LiffSettings";
 import ChapterProfile from "./pages/public/ChapterProfile";
@@ -148,6 +149,11 @@ const App = () => (
           <Route path="/admin/import-members" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <ImportMembers />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/goals" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <ChapterGoals />
             </ProtectedRoute>
           } />
           

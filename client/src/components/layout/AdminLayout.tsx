@@ -29,7 +29,8 @@ import {
   MessageSquare,
   LayoutGrid,
   Upload,
-  Smartphone
+  Smartphone,
+  Trophy
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -96,6 +97,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       { icon: <UserPlus className="h-4 w-4" />, label: "Visitor Pipeline", href: "/admin/visitors" },
       { icon: <UserPlus className="h-4 w-4" />, label: "จัดการสมาชิก", href: "/admin/members-management" },
       { icon: <Upload className="h-4 w-4" />, label: "นำเข้าสมาชิก", href: "/admin/import-members" },
+      { icon: <Trophy className="h-4 w-4" />, label: "เป้าหมาย", href: "/admin/goals" },
       { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
       { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
       { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/admin/line-config" },
