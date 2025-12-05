@@ -2,6 +2,14 @@ import { supabaseAdmin } from "../../utils/supabaseClient";
 import { getLineCredentials } from "../line/credentials";
 import { LineClient } from "../line/lineClient";
 
+interface MeetingInfo {
+  meeting_id: string;
+  meeting_date: string;
+  meeting_time: string | null;
+  theme: string | null;
+  venue: string | null;
+}
+
 interface ChapterGoal {
   goal_id: string;
   tenant_id: string;
@@ -11,6 +19,8 @@ interface ChapterGoal {
   target_value: number;
   current_value: number;
   metric_type: string;
+  meeting_id?: string | null;
+  meeting?: MeetingInfo | null;
 }
 
 interface AdminWithLine {
@@ -116,14 +126,163 @@ function getMetricLabel(metricType: string): string {
     "weekly_checkins": "Check-in สัปดาห์นี้",
     "monthly_checkins": "Check-in เดือนนี้",
     "weekly_referrals": "Referral สัปดาห์นี้",
-    "monthly_referrals": "Referral เดือนนี้"
+    "monthly_referrals": "Referral เดือนนี้",
+    "meeting_visitors": "Visitor ประจำ Meeting",
+    "meeting_checkins": "Check-in ประจำ Meeting"
   };
   return labels[metricType] || metricType;
+}
+
+function formatThaiDate(dateString: string): string {
+  const date = new Date(dateString);
+  const thaiMonths = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+  ];
+  const thaiDays = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+  
+  const day = date.getDate();
+  const month = thaiMonths[date.getMonth()];
+  const year = date.getFullYear() + 543;
+  const dayOfWeek = thaiDays[date.getDay()];
+  
+  return `${dayOfWeek} ${day} ${month} ${year}`;
 }
 
 export function buildAchievementFlexMessage(goal: ChapterGoal, chapterName: string) {
   const iconEmoji = getIconEmoji(goal.icon);
   const metricLabel = getMetricLabel(goal.metric_type);
+  const isMeetingGoal = goal.metric_type === "meeting_visitors" || goal.metric_type === "meeting_checkins";
+  
+  const bodyContents: any[] = [
+    {
+      type: "text",
+      text: `${iconEmoji} ${goal.name}`,
+      weight: "bold",
+      size: "lg",
+      align: "center",
+      wrap: true
+    },
+    {
+      type: "text",
+      text: metricLabel,
+      size: "sm",
+      color: "#888888",
+      align: "center",
+      margin: "sm"
+    }
+  ];
+
+  if (isMeetingGoal && goal.meeting) {
+    const meetingDate = formatThaiDate(goal.meeting.meeting_date);
+    const meetingTime = goal.meeting.meeting_time ? goal.meeting.meeting_time.slice(0, 5) + " น." : "";
+    
+    bodyContents.push({
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `📅 ${meetingDate}${meetingTime ? ` ${meetingTime}` : ""}`,
+          size: "sm",
+          color: "#1a73e8",
+          align: "center",
+          weight: "bold"
+        },
+        ...(goal.meeting.theme ? [{
+          type: "text",
+          text: goal.meeting.theme,
+          size: "xs",
+          color: "#666666",
+          align: "center",
+          margin: "xs"
+        }] : []),
+        ...(goal.meeting.venue ? [{
+          type: "text",
+          text: `📍 ${goal.meeting.venue}`,
+          size: "xs",
+          color: "#666666",
+          align: "center",
+          margin: "xs"
+        }] : [])
+      ],
+      margin: "md",
+      paddingAll: "sm",
+      backgroundColor: "#E3F2FD",
+      cornerRadius: "md"
+    });
+  }
+
+  bodyContents.push(
+    {
+      type: "separator",
+      margin: "lg"
+    },
+    {
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "text",
+          text: "เป้าหมาย:",
+          size: "md",
+          color: "#555555",
+          flex: 1
+        },
+        {
+          type: "text",
+          text: `${goal.target_value}`,
+          size: "md",
+          weight: "bold",
+          color: "#27AE60",
+          align: "end",
+          flex: 1
+        }
+      ],
+      margin: "lg"
+    },
+    {
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "text",
+          text: "ผลลัพธ์:",
+          size: "md",
+          color: "#555555",
+          flex: 1
+        },
+        {
+          type: "text",
+          text: `${goal.current_value}`,
+          size: "md",
+          weight: "bold",
+          color: "#27AE60",
+          align: "end",
+          flex: 1
+        }
+      ],
+      margin: "md"
+    },
+    {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "✅ สำเร็จ!",
+          weight: "bold",
+          size: "xl",
+          color: "#27AE60",
+          align: "center"
+        }
+      ],
+      margin: "xl",
+      paddingAll: "md",
+      backgroundColor: "#E8F8F5",
+      cornerRadius: "md"
+    }
+  );
 
   return {
     type: "flex",
@@ -174,92 +333,7 @@ export function buildAchievementFlexMessage(goal: ChapterGoal, chapterName: stri
           {
             type: "box",
             layout: "vertical",
-            contents: [
-              {
-                type: "text",
-                text: `${iconEmoji} ${goal.name}`,
-                weight: "bold",
-                size: "lg",
-                align: "center",
-                wrap: true
-              },
-              {
-                type: "text",
-                text: metricLabel,
-                size: "sm",
-                color: "#888888",
-                align: "center",
-                margin: "sm"
-              },
-              {
-                type: "separator",
-                margin: "lg"
-              },
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "เป้าหมาย:",
-                    size: "md",
-                    color: "#555555",
-                    flex: 1
-                  },
-                  {
-                    type: "text",
-                    text: `${goal.target_value}`,
-                    size: "md",
-                    weight: "bold",
-                    color: "#27AE60",
-                    align: "end",
-                    flex: 1
-                  }
-                ],
-                margin: "lg"
-              },
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "ผลลัพธ์:",
-                    size: "md",
-                    color: "#555555",
-                    flex: 1
-                  },
-                  {
-                    type: "text",
-                    text: `${goal.current_value}`,
-                    size: "md",
-                    weight: "bold",
-                    color: "#27AE60",
-                    align: "end",
-                    flex: 1
-                  }
-                ],
-                margin: "md"
-              },
-              {
-                type: "box",
-                layout: "vertical",
-                contents: [
-                  {
-                    type: "text",
-                    text: "✅ สำเร็จ!",
-                    weight: "bold",
-                    size: "xl",
-                    color: "#27AE60",
-                    align: "center"
-                  }
-                ],
-                margin: "xl",
-                paddingAll: "md",
-                backgroundColor: "#E8F8F5",
-                cornerRadius: "md"
-              }
-            ],
+            contents: bodyContents,
             paddingAll: "20px"
           }
         ]
