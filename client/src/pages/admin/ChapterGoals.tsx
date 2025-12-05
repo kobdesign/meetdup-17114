@@ -61,7 +61,8 @@ interface MeetingInfo {
   meeting_date: string;
   meeting_time: string | null;
   theme: string | null;
-  venue: string | null;
+  venue_name: string | null;
+  venue_address: string | null;
 }
 
 interface ChapterGoal {
@@ -609,10 +610,10 @@ export default function ChapterGoals() {
                             {goal.meeting.theme}
                           </div>
                         )}
-                        {goal.meeting.venue && (
+                        {goal.meeting.venue_name && (
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <MapPin className="h-3 w-3" />
-                            <span>{goal.meeting.venue}</span>
+                            <span>{goal.meeting.venue_name}</span>
                           </div>
                         )}
                       </div>
