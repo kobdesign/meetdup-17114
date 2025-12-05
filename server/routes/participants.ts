@@ -8,9 +8,61 @@ import { getLineCredentials } from "../services/line/credentials";
 import { createBusinessCardFlexMessage, BusinessCardData } from "../services/line/templates/businessCard";
 import { createActivationSuccessFlexMessage } from "../services/line/templates/activationSuccess";
 import { getProductionBaseUrl } from "../utils/getProductionUrl";
+import { sendGoalAchievementNotification } from "../services/goals/achievementNotification";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
+
+async function checkVisitorGoalsAchievement(tenantId: string): Promise<void> {
+  try {
+    const { data: activeGoals, error } = await supabaseAdmin
+      .from("chapter_goals")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active")
+      .in("metric_type", ["weekly_visitors", "monthly_visitors"]);
+
+    if (error || !activeGoals || activeGoals.length === 0) return;
+
+    for (const goal of activeGoals) {
+      const endDateWithTime = goal.end_date + "T23:59:59.999Z";
+      const { count } = await supabaseAdmin
+        .from("participants")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .in("status", ["visitor", "prospect"])
+        .gte("created_at", goal.start_date)
+        .lte("created_at", endDateWithTime);
+
+      const currentValue = count || 0;
+      const isAchieved = currentValue >= goal.target_value;
+
+      if (isAchieved && !goal.line_notified_at) {
+        console.log(`[GoalTrigger] Goal "${goal.name}" achieved! (${currentValue}/${goal.target_value})`);
+        
+        await supabaseAdmin
+          .from("chapter_goals")
+          .update({
+            current_value: currentValue,
+            status: "achieved",
+            achieved_at: new Date().toISOString()
+          })
+          .eq("goal_id", goal.goal_id);
+
+        sendGoalAchievementNotification({
+          ...goal,
+          current_value: currentValue
+        }).then(result => {
+          console.log(`[GoalTrigger] Notification sent:`, result);
+        }).catch(err => {
+          console.error(`[GoalTrigger] Failed to send notification:`, err);
+        });
+      }
+    }
+  } catch (err) {
+    console.error(`[GoalTrigger] Error checking goals:`, err);
+  }
+}
 
 const router = Router();
 
@@ -810,6 +862,11 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
     // Generate profile edit token for immediate profile editing
     const profileToken = generateProfileToken(participant.participant_id, tenant_id);
     console.log(`${logPrefix} Generated profile token for participant`);
+
+    // Check if any visitor goals are achieved after new registration
+    checkVisitorGoalsAchievement(tenant_id).catch(err => {
+      console.error(`${logPrefix} Error checking visitor goals:`, err);
+    });
 
     return res.json({
       success: true,
