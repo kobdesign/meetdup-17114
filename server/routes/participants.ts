@@ -33,17 +33,15 @@ async function checkVisitorGoalsAchievement(tenantId: string, meetingId?: string
       const endDateWithTime = goal.end_date + "T23:59:59.999Z";
 
       if (goal.metric_type === "meeting_visitors" && goal.meeting_id) {
+        // For meeting-based goals, count all registrations for that meeting
         const { data } = await supabaseAdmin
           .from("meeting_registrations")
           .select(`
             registration_id,
-            registered_at,
             participant:participants!inner(participant_id, status)
           `)
           .eq("meeting_id", goal.meeting_id)
-          .in("registration_status", ["registered", "attended"])
-          .gte("registered_at", goal.start_date)
-          .lte("registered_at", endDateWithTime);
+          .in("registration_status", ["registered", "attended"]);
 
         currentValue = data?.filter((r: any) => 
           r.participant?.status === 'visitor' || r.participant?.status === 'prospect'

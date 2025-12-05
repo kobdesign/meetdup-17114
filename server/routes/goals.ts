@@ -470,6 +470,8 @@ async function calculateGoalProgress(
         }
         console.log(`[GoalProgress] Calculating meeting_visitors for meeting ${meetingId}`);
         
+        // For meeting-based goals, we count all registrations for that meeting
+        // regardless of date range, since the meeting itself defines the scope
         const { data, error } = await supabaseAdmin
           .from("meeting_registrations")
           .select(`
@@ -478,20 +480,20 @@ async function calculateGoalProgress(
             participant:participants!inner(participant_id, status)
           `)
           .eq("meeting_id", meetingId)
-          .in("registration_status", ["registered", "attended"])
-          .gte("registered_at", startDate)
-          .lte("registered_at", endDate + "T23:59:59.999Z");
+          .in("registration_status", ["registered", "attended"]);
 
         if (error) {
           console.error(`[GoalProgress] Error:`, error);
           throw error;
         }
         
+        console.log(`[GoalProgress] Raw registrations found:`, data?.length || 0);
+        
         const visitorCount = data?.filter((r: any) => 
           r.participant?.status === 'visitor' || r.participant?.status === 'prospect'
         ).length || 0;
         
-        console.log(`[GoalProgress] Found ${visitorCount} visitors/prospects for meeting (within date range)`);
+        console.log(`[GoalProgress] Found ${visitorCount} visitors/prospects for meeting`);
         return visitorCount;
       }
 
@@ -502,13 +504,13 @@ async function calculateGoalProgress(
         }
         console.log(`[GoalProgress] Calculating meeting_checkins for meeting ${meetingId}`);
         
+        // For meeting-based goals, we count all checkins for that meeting
+        // regardless of date range, since the meeting itself defines the scope
         const { count, error } = await supabaseAdmin
           .from("checkins")
           .select("*", { count: "exact", head: true })
           .eq("meeting_id", meetingId)
-          .eq("status", "approved")
-          .gte("checkin_time", startDate)
-          .lte("checkin_time", endDate + "T23:59:59.999Z");
+          .eq("status", "approved");
 
         if (error) {
           console.error(`[GoalProgress] Error:`, error);
