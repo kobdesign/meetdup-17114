@@ -214,9 +214,21 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
 
     let notificationResult = null;
     if (isAlreadyAchieved && data) {
+      let meetingData = null;
+      if (meeting_id) {
+        const { data: meetingInfo } = await supabaseAdmin
+          .from("meetings")
+          .select("meeting_id, meeting_date, meeting_time, theme, venue")
+          .eq("meeting_id", meeting_id)
+          .single();
+        meetingData = meetingInfo;
+        console.log(`[Goals] Fetched meeting info for notification:`, meetingData);
+      }
+      
       notificationResult = await sendGoalAchievementNotification({
         ...data,
-        current_value: currentValue
+        current_value: currentValue,
+        meeting: meetingData
       });
       console.log(`[Goals] New goal already achieved, notification result:`, notificationResult);
     }

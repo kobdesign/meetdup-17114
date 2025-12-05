@@ -154,6 +154,10 @@ export function buildAchievementFlexMessage(goal: ChapterGoal, chapterName: stri
   const metricLabel = getMetricLabel(goal.metric_type);
   const isMeetingGoal = goal.metric_type === "meeting_visitors" || goal.metric_type === "meeting_checkins";
   
+  console.log(`[BuildFlexMessage] Goal: ${goal.name}, metric: ${goal.metric_type}, isMeetingGoal: ${isMeetingGoal}`);
+  console.log(`[BuildFlexMessage] Meeting data:`, goal.meeting);
+  console.log(`[BuildFlexMessage] Meeting ID:`, goal.meeting_id);
+  
   const bodyContents: any[] = [
     {
       type: "text",
