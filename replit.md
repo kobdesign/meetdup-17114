@@ -66,6 +66,16 @@ None specified yet.
   - **Security**: All endpoints enforce tenant access verification via `checkTenantAccess()`
   - **UI**: Badge-style achievement cards at `/admin/goals` with progress bars, icons, and status indicators
   - **Migration**: Run `server/migrations/20251205_create_chapter_goals.sql` on Supabase (already executed on dev)
+- **Daily Progress Summary (Dec 2024)**:
+  - **Purpose**: Sends summary of active goals progress to Chapter Admins via LINE
+  - **Trigger Methods**:
+    - Manual: "ส่งสรุป LINE" button in Admin Goals page (POST `/api/goals/send-summary`)
+    - LINE Bot: Send "สรุปเป้าหมาย" command (supports Thai particles: ค่ะ, ครับ, นะ, คะ)
+  - **Flex Message Format**: Badge-style progress summary with Thai date formatting, progress bars, and meeting details
+  - **Admin Verification**: Dual-check via cached admins list and Supabase fallback for robustness
+  - **Settings**: Stored in `system_settings` table (`goals.daily_summary_enabled`, `goals.daily_summary_time`)
+  - **Edge Case Handling**: Null-safe date formatting, division-by-zero guards for progress calculation
+  - **Handler**: `server/services/line/handlers/goalsSummaryHandler.ts`
 
 ## External Dependencies
 
