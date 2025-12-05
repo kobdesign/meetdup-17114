@@ -91,6 +91,42 @@ router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Respo
     const goalsWithProgress = await Promise.all(
       (data || []).map(async (goal: ChapterGoal) => {
         const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date);
+        const isAchieved = currentValue >= goal.target_value;
+        const wasNotAchieved = goal.status === "active";
+        const shouldUpdateStatus = isAchieved && wasNotAchieved;
+        
+        if (shouldUpdateStatus) {
+          const updates: any = {
+            current_value: currentValue,
+            status: "achieved",
+            achieved_at: new Date().toISOString()
+          };
+          
+          await supabaseAdmin
+            .from("chapter_goals")
+            .update(updates)
+            .eq("goal_id", goal.goal_id);
+          
+          if (!goal.line_notified_at) {
+            sendGoalAchievementNotification({
+              ...goal,
+              current_value: currentValue
+            }).then(result => {
+              console.log(`[Goals] Auto-achievement notification for ${goal.name}:`, result);
+            }).catch(err => {
+              console.error(`[Goals] Failed to send achievement notification:`, err);
+            });
+          }
+          
+          return {
+            ...goal,
+            current_value: currentValue,
+            status: "achieved",
+            achieved_at: new Date().toISOString(),
+            progress_percent: 100
+          };
+        }
+        
         return {
           ...goal,
           current_value: currentValue,
