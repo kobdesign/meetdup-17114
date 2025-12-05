@@ -396,7 +396,7 @@ export default function Authorization() {
     const variants: Record<string, { variant: any; label: string }> = {
       super_admin: { variant: "destructive", label: "Super Admin" },
       chapter_admin: { variant: "default", label: "Chapter Admin" },
-      chapter_member: { variant: "secondary", label: "Chapter Member" },
+      member: { variant: "secondary", label: "Member" },
     };
 
     const config = variants[role] || { variant: "secondary", label: role };
@@ -454,7 +454,7 @@ export default function Authorization() {
                     <SelectContent>
                       <SelectItem value="super_admin">Super Admin</SelectItem>
                       <SelectItem value="chapter_admin">Chapter Admin</SelectItem>
-                      <SelectItem value="chapter_member">Chapter Member</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -506,7 +506,7 @@ export default function Authorization() {
               <SelectItem value="all">ทุกบทบาท</SelectItem>
               <SelectItem value="super_admin">Super Admin</SelectItem>
               <SelectItem value="chapter_admin">Chapter Admin</SelectItem>
-              <SelectItem value="chapter_member">Chapter Member</SelectItem>
+              <SelectItem value="member">Member</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -656,7 +656,7 @@ export default function Authorization() {
                   <SelectContent>
                     <SelectItem value="super_admin">Super Admin</SelectItem>
                     <SelectItem value="chapter_admin">Chapter Admin</SelectItem>
-                    <SelectItem value="chapter_member">Chapter Member</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
