@@ -102,6 +102,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
       { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/admin/line-config" },
       { icon: <LayoutGrid className="h-4 w-4" />, label: "LINE Rich Menu", href: "/admin/rich-menu" },
+      { icon: <Shield className="h-4 w-4" />, label: "สิทธิ์คำสั่ง LINE", href: "/admin/line-command-access" },
       { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
     ];
 

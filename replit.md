@@ -76,6 +76,16 @@ None specified yet.
   - **Settings**: Stored in `system_settings` table (`goals.daily_summary_enabled`, `goals.daily_summary_time`)
   - **Edge Case Handling**: Null-safe date formatting, division-by-zero guards for progress calculation
   - **Handler**: `server/services/line/handlers/goalsSummaryHandler.ts`
+- **LINE Command Authorization System (Dec 2024)**:
+  - **Purpose**: Flexible access control for LINE bot commands per chapter
+  - **Access Levels**: `public` (anyone), `member` (linked members only), `admin` (chapter admins)
+  - **Group Chat Support**: Commands can be enabled/disabled for group chats
+  - **Database**: `line_command_permissions` table with tenant isolation and RLS
+  - **Caching**: 5-minute TTL for permission lookups to reduce database calls
+  - **Admin UI**: `/admin/line-command-access` page for managing command permissions
+  - **Commands Supported**: `goals_summary`, `business_card_search`, `category_search`, `checkin`, `link_phone`
+  - **Security**: Zod validation for API requests, member status verified as 'member' only (not visitor)
+  - **Migration**: Run `server/migrations/20251205_create_line_command_permissions.sql` on Supabase
 
 ## External Dependencies
 

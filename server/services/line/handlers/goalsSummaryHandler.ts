@@ -1,33 +1,10 @@
 import { LineClient } from "../lineClient";
 import { supabaseAdmin } from "../../../utils/supabaseClient";
-import { getChapterAdminsWithLine } from "../../goals/achievementNotification";
 import { buildProgressSummaryFlexMessage, getActiveGoalsForTenant } from "../../goals/progressSummary";
-
-async function checkIsAdmin(tenantId: string, lineUserId: string): Promise<boolean> {
-  const adminsWithLine = await getChapterAdminsWithLine(tenantId);
-  if (adminsWithLine.some(admin => admin.line_user_id === lineUserId)) {
-    return true;
-  }
-  
-  const { data: participant } = await supabaseAdmin
-    .from("participants")
-    .select("participant_id, user_id")
-    .eq("tenant_id", tenantId)
-    .eq("line_user_id", lineUserId)
-    .single();
-  
-  if (!participant?.user_id) return false;
-  
-  const { data: userRole } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", participant.user_id)
-    .eq("tenant_id", tenantId)
-    .in("role", ["chapter_admin", "super_admin"])
-    .single();
-  
-  return !!userRole;
-}
+import { 
+  checkCommandAuthorization, 
+  getAuthorizationErrorMessage 
+} from "../commandAuthorization";
 
 export async function handleGoalsSummaryRequest(
   event: any,
@@ -38,6 +15,7 @@ export async function handleGoalsSummaryRequest(
   const lineClient = new LineClient(accessToken);
   const userId = event.source.userId;
   const replyToken = event.replyToken;
+  const isGroupChat = event.source.type === 'group' || event.source.type === 'room';
 
   if (!userId) {
     console.log(`${logPrefix} No userId found for goals summary request`);
@@ -45,16 +23,24 @@ export async function handleGoalsSummaryRequest(
   }
 
   try {
-    const isAdmin = await checkIsAdmin(tenantId, userId);
+    const authResult = await checkCommandAuthorization(
+      tenantId,
+      'goals_summary',
+      userId,
+      isGroupChat
+    );
 
-    if (!isAdmin) {
+    if (!authResult.authorized) {
+      const errorMessage = getAuthorizationErrorMessage(authResult.reason || 'unauthorized');
       await lineClient.replyMessage(replyToken, {
         type: "text",
-        text: "คำสั่งนี้สำหรับ Admin เท่านั้น"
+        text: errorMessage
       });
-      console.log(`${logPrefix} Non-admin user requested goals summary: ${userId}`);
+      console.log(`${logPrefix} Unauthorized goals summary request: ${userId}, reason: ${authResult.reason}`);
       return;
     }
+
+    console.log(`${logPrefix} Authorized goals summary request from ${authResult.accessLevel}: ${userId}`);
 
     const { data: tenant } = await supabaseAdmin
       .from("tenants")
