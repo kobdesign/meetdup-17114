@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { AuthenticatedRequest, verifySupabaseAuth } from "../utils/auth";
+import { sendGoalAchievementNotification, checkAndNotifyAchievedGoals } from "../services/goals/achievementNotification";
 
 const router = Router();
 
@@ -106,6 +107,7 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
     }
 
     const currentValue = await calculateGoalProgress(tenant_id, metric_type, start_date, end_date);
+    const isAlreadyAchieved = currentValue >= target_value;
 
     const { data, error } = await supabaseAdmin
       .from("chapter_goals")
@@ -120,8 +122,8 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
         current_value: currentValue,
         start_date,
         end_date,
-        status: currentValue >= target_value ? "achieved" : "active",
-        achieved_at: currentValue >= target_value ? new Date().toISOString() : null,
+        status: isAlreadyAchieved ? "achieved" : "active",
+        achieved_at: isAlreadyAchieved ? new Date().toISOString() : null,
         created_by: userId
       })
       .select()
@@ -129,7 +131,20 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
 
     if (error) throw error;
 
-    res.json(data);
+    let notificationResult = null;
+    if (isAlreadyAchieved && data) {
+      notificationResult = await sendGoalAchievementNotification({
+        ...data,
+        current_value: currentValue
+      });
+      console.log(`[Goals] New goal already achieved, notification result:`, notificationResult);
+    }
+
+    res.json({
+      ...data,
+      progress_percent: Math.min(100, Math.round((currentValue / target_value) * 100)),
+      notification_sent: notificationResult?.success || false
+    });
   } catch (error: any) {
     console.error("Error creating goal:", error);
     res.status(500).json({ error: error.message || "Failed to create goal" });
@@ -199,6 +214,7 @@ router.post("/:goalId/recalculate", verifySupabaseAuth, async (req: Authenticate
     const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date);
     const isAchieved = currentValue >= goal.target_value;
     const wasNotAchieved = goal.status !== "achieved";
+    const shouldNotify = isAchieved && wasNotAchieved && !goal.line_notified_at;
 
     const updates: any = {
       current_value: currentValue,
@@ -218,10 +234,21 @@ router.post("/:goalId/recalculate", verifySupabaseAuth, async (req: Authenticate
 
     if (error) throw error;
 
+    let notificationResult = null;
+    if (shouldNotify && data) {
+      notificationResult = await sendGoalAchievementNotification({
+        ...data,
+        current_value: currentValue
+      });
+      console.log(`[Goals] Achievement notification result:`, notificationResult);
+    }
+
     res.json({
       ...data,
       progress_percent: Math.min(100, Math.round((currentValue / goal.target_value) * 100)),
-      newly_achieved: isAchieved && wasNotAchieved
+      newly_achieved: isAchieved && wasNotAchieved,
+      notification_sent: notificationResult?.success || false,
+      notification_count: notificationResult?.notifiedCount || 0
     });
   } catch (error: any) {
     console.error("Error recalculating goal:", error);
@@ -247,12 +274,14 @@ router.post("/recalculate-all", verifySupabaseAuth, async (req: AuthenticatedReq
     if (fetchError) throw fetchError;
 
     const results = [];
-    const newlyAchieved = [];
+    const newlyAchievedGoals = [];
+    let notificationsSent = 0;
 
     for (const goal of goals || []) {
       const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date);
       const isAchieved = currentValue >= goal.target_value;
       const wasNotAchieved = goal.status !== "achieved";
+      const shouldNotify = isAchieved && wasNotAchieved && !goal.line_notified_at;
 
       const updates: any = {
         current_value: currentValue,
@@ -261,7 +290,6 @@ router.post("/recalculate-all", verifySupabaseAuth, async (req: AuthenticatedReq
       if (isAchieved && wasNotAchieved) {
         updates.status = "achieved";
         updates.achieved_at = new Date().toISOString();
-        newlyAchieved.push(goal);
       }
 
       const { data } = await supabaseAdmin
@@ -276,12 +304,24 @@ router.post("/recalculate-all", verifySupabaseAuth, async (req: AuthenticatedReq
           ...data,
           progress_percent: Math.min(100, Math.round((currentValue / goal.target_value) * 100))
         });
+
+        if (shouldNotify) {
+          newlyAchievedGoals.push({ ...data, current_value: currentValue });
+        }
+      }
+    }
+
+    for (const achievedGoal of newlyAchievedGoals) {
+      const result = await sendGoalAchievementNotification(achievedGoal);
+      if (result.success) {
+        notificationsSent += result.notifiedCount;
       }
     }
 
     res.json({
       updated: results.length,
-      newly_achieved: newlyAchieved.length,
+      newly_achieved: newlyAchievedGoals.length,
+      notifications_sent: notificationsSent,
       goals: results
     });
   } catch (error: any) {
