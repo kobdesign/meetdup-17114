@@ -30,6 +30,7 @@ interface ChapterGoal {
   current_value: number;
   start_date: string;
   end_date: string;
+  meeting_id: string | null;
   status: 'active' | 'achieved' | 'expired' | 'cancelled';
   achieved_at: string | null;
   line_notified_at: string | null;
@@ -90,7 +91,7 @@ router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Respo
 
     const goalsWithProgress = await Promise.all(
       (data || []).map(async (goal: ChapterGoal) => {
-        const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date);
+        const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date, goal.meeting_id);
         const isAchieved = currentValue >= goal.target_value;
         const wasNotAchieved = goal.status === "active";
         const shouldUpdateStatus = isAchieved && wasNotAchieved;
@@ -145,11 +146,17 @@ router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Respo
 // Create a new chapter goal
 router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { tenant_id, template_id, metric_type, name, description, icon, target_value, start_date, end_date } = req.body;
+    const { tenant_id, template_id, metric_type, name, description, icon, target_value, start_date, end_date, meeting_id } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const isMeetingBased = metric_type === 'meeting_visitors' || metric_type === 'meeting_checkins';
+    
+    if (isMeetingBased && !meeting_id) {
+      return res.status(400).json({ error: "meeting_id is required for meeting-based goals" });
     }
 
     if (!tenant_id || !metric_type || !name || !target_value || !start_date || !end_date) {
@@ -161,7 +168,7 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
       return res.status(403).json({ error: "Access denied to this chapter" });
     }
 
-    const currentValue = await calculateGoalProgress(tenant_id, metric_type, start_date, end_date);
+    const currentValue = await calculateGoalProgress(tenant_id, metric_type, start_date, end_date, meeting_id || null);
     const isAlreadyAchieved = currentValue >= target_value;
 
     const { data, error } = await supabaseAdmin
@@ -177,6 +184,7 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
         current_value: currentValue,
         start_date,
         end_date,
+        meeting_id: meeting_id || null,
         status: isAlreadyAchieved ? "achieved" : "active",
         achieved_at: isAlreadyAchieved ? new Date().toISOString() : null,
         created_by: userId
@@ -317,7 +325,7 @@ router.post("/:goalId/recalculate", verifySupabaseAuth, async (req: Authenticate
       return res.status(403).json({ error: "Access denied to this goal" });
     }
 
-    const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date);
+    const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date, goal.meeting_id);
     const isAchieved = currentValue >= goal.target_value;
     const wasNotAchieved = goal.status !== "achieved";
     const shouldNotify = isAchieved && wasNotAchieved && !goal.line_notified_at;
@@ -394,7 +402,7 @@ router.post("/recalculate-all", verifySupabaseAuth, async (req: AuthenticatedReq
     let notificationsSent = 0;
 
     for (const goal of goals || []) {
-      const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date);
+      const currentValue = await calculateGoalProgress(goal.tenant_id, goal.metric_type, goal.start_date, goal.end_date, goal.meeting_id);
       const isAchieved = currentValue >= goal.target_value;
       const wasNotAchieved = goal.status !== "achieved";
       const shouldNotify = isAchieved && wasNotAchieved && !goal.line_notified_at;
@@ -450,10 +458,67 @@ async function calculateGoalProgress(
   tenantId: string,
   metricType: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  meetingId: string | null = null
 ): Promise<number> {
   try {
     switch (metricType) {
+      case "meeting_visitors": {
+        if (!meetingId) {
+          console.error("[GoalProgress] meeting_visitors requires meeting_id");
+          return 0;
+        }
+        console.log(`[GoalProgress] Calculating meeting_visitors for meeting ${meetingId}`);
+        
+        const { data, error } = await supabaseAdmin
+          .from("meeting_registrations")
+          .select(`
+            registration_id,
+            created_at,
+            participant:participants!inner(participant_id, status)
+          `)
+          .eq("meeting_id", meetingId)
+          .in("registration_status", ["registered", "attended"])
+          .gte("created_at", startDate)
+          .lte("created_at", endDate + "T23:59:59.999Z");
+
+        if (error) {
+          console.error(`[GoalProgress] Error:`, error);
+          throw error;
+        }
+        
+        const visitorCount = data?.filter((r: any) => 
+          r.participant?.status === 'visitor' || r.participant?.status === 'prospect'
+        ).length || 0;
+        
+        console.log(`[GoalProgress] Found ${visitorCount} visitors/prospects for meeting (within date range)`);
+        return visitorCount;
+      }
+
+      case "meeting_checkins": {
+        if (!meetingId) {
+          console.error("[GoalProgress] meeting_checkins requires meeting_id");
+          return 0;
+        }
+        console.log(`[GoalProgress] Calculating meeting_checkins for meeting ${meetingId}`);
+        
+        const { count, error } = await supabaseAdmin
+          .from("checkins")
+          .select("*", { count: "exact", head: true })
+          .eq("meeting_id", meetingId)
+          .eq("status", "approved")
+          .gte("checkin_time", startDate)
+          .lte("checkin_time", endDate + "T23:59:59.999Z");
+
+        if (error) {
+          console.error(`[GoalProgress] Error:`, error);
+          throw error;
+        }
+        
+        console.log(`[GoalProgress] Found ${count} checkins for meeting`);
+        return count || 0;
+      }
+
       case "weekly_visitors":
       case "monthly_visitors": {
         const endDateWithTime = endDate + "T23:59:59.999Z";

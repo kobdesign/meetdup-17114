@@ -13,28 +13,52 @@ import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 
-async function checkVisitorGoalsAchievement(tenantId: string): Promise<void> {
+async function checkVisitorGoalsAchievement(tenantId: string, meetingId?: string): Promise<void> {
   try {
     const { data: activeGoals, error } = await supabaseAdmin
       .from("chapter_goals")
       .select("*")
       .eq("tenant_id", tenantId)
       .eq("status", "active")
-      .in("metric_type", ["weekly_visitors", "monthly_visitors"]);
+      .in("metric_type", ["weekly_visitors", "monthly_visitors", "meeting_visitors"]);
 
     if (error || !activeGoals || activeGoals.length === 0) return;
 
     for (const goal of activeGoals) {
-      const endDateWithTime = goal.end_date + "T23:59:59.999Z";
-      const { count } = await supabaseAdmin
-        .from("participants")
-        .select("*", { count: "exact", head: true })
-        .eq("tenant_id", tenantId)
-        .in("status", ["visitor", "prospect"])
-        .gte("created_at", goal.start_date)
-        .lte("created_at", endDateWithTime);
+      if (goal.metric_type === "meeting_visitors" && goal.meeting_id !== meetingId) {
+        continue;
+      }
 
-      const currentValue = count || 0;
+      let currentValue = 0;
+      const endDateWithTime = goal.end_date + "T23:59:59.999Z";
+
+      if (goal.metric_type === "meeting_visitors" && goal.meeting_id) {
+        const { data } = await supabaseAdmin
+          .from("meeting_registrations")
+          .select(`
+            registration_id,
+            created_at,
+            participant:participants!inner(participant_id, status)
+          `)
+          .eq("meeting_id", goal.meeting_id)
+          .in("registration_status", ["registered", "attended"])
+          .gte("created_at", goal.start_date)
+          .lte("created_at", endDateWithTime);
+
+        currentValue = data?.filter((r: any) => 
+          r.participant?.status === 'visitor' || r.participant?.status === 'prospect'
+        ).length || 0;
+      } else {
+        const { count } = await supabaseAdmin
+          .from("participants")
+          .select("*", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .in("status", ["visitor", "prospect"])
+          .gte("created_at", goal.start_date)
+          .lte("created_at", endDateWithTime);
+        currentValue = count || 0;
+      }
+
       const isAchieved = currentValue >= goal.target_value;
 
       if (isAchieved && !goal.line_notified_at) {
@@ -864,7 +888,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
     console.log(`${logPrefix} Generated profile token for participant`);
 
     // Check if any visitor goals are achieved after new registration
-    checkVisitorGoalsAchievement(tenant_id).catch(err => {
+    checkVisitorGoalsAchievement(tenant_id, meeting_id).catch(err => {
       console.error(`${logPrefix} Error checking visitor goals:`, err);
     });
 

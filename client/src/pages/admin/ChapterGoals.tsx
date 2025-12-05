@@ -68,9 +68,17 @@ interface ChapterGoal {
   progress_percent: number;
   start_date: string;
   end_date: string;
+  meeting_id: string | null;
   status: 'active' | 'achieved' | 'expired' | 'cancelled';
   achieved_at: string | null;
   created_at: string;
+}
+
+interface Meeting {
+  meeting_id: string;
+  meeting_date: string;
+  theme: string | null;
+  venue: string | null;
 }
 
 const iconMap: Record<string, any> = {
@@ -117,6 +125,9 @@ export default function ChapterGoals() {
   const [customName, setCustomName] = useState("");
   const [customDescription, setCustomDescription] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [meetingsLoading, setMeetingsLoading] = useState(false);
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery({
     queryKey: ["/api/goals/templates"],
@@ -197,11 +208,41 @@ export default function ChapterGoals() {
     }
   });
 
+  const fetchMeetings = async () => {
+    if (!tenantId) return;
+    setMeetingsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("meetings")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .gte("meeting_date", new Date().toISOString().split("T")[0])
+        .order("meeting_date", { ascending: true })
+        .limit(20);
+      
+      if (error) throw error;
+      setMeetings((data as Meeting[]) || []);
+    } catch (error) {
+      console.error("Failed to fetch meetings:", error);
+    } finally {
+      setMeetingsLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setSelectedTemplate(null);
     setTargetValue("");
     setCustomName("");
     setCustomDescription("");
+    setSelectedMeetingId("");
+  };
+
+  const handleDialogOpen = (open: boolean) => {
+    setShowAddDialog(open);
+    if (open) {
+      resetForm();
+      setMeetings([]);
+    }
   };
 
   const handleTemplateSelect = (templateId: string) => {
@@ -211,8 +252,23 @@ export default function ChapterGoals() {
       setTargetValue(template.default_target.toString());
       setCustomName(template.name_th);
       setCustomDescription(template.description_th || "");
+      setSelectedMeetingId("");
+      
+      if (template.metric_type === "meeting_visitors" || template.metric_type === "meeting_checkins") {
+        fetchMeetings();
+      }
     }
   };
+
+  const isMeetingBased = selectedTemplate?.metric_type === "meeting_visitors" || 
+                         selectedTemplate?.metric_type === "meeting_checkins";
+  
+  const selectedMeeting = meetings.find(m => m.meeting_id === selectedMeetingId);
+  
+  const canSubmit = selectedTemplate && 
+                    targetValue && 
+                    !createGoalMutation.isPending && 
+                    (!isMeetingBased || (selectedMeetingId && !meetingsLoading && meetings.length > 0));
 
   const handleCreateGoal = () => {
     if (!selectedTemplate || !targetValue || !customName) {
@@ -220,7 +276,22 @@ export default function ChapterGoals() {
       return;
     }
 
-    const dateRange = getDateRangeForMetric(selectedTemplate.metric_type);
+    if (isMeetingBased && !selectedMeetingId) {
+      toast.error("กรุณาเลือก Meeting");
+      return;
+    }
+
+    let startDate: string;
+    let endDate: string;
+
+    if (isMeetingBased && selectedMeeting) {
+      startDate = selectedMeeting.meeting_date;
+      endDate = selectedMeeting.meeting_date;
+    } else {
+      const dateRange = getDateRangeForMetric(selectedTemplate.metric_type);
+      startDate = format(dateRange.start, "yyyy-MM-dd");
+      endDate = format(dateRange.end, "yyyy-MM-dd");
+    }
 
     createGoalMutation.mutate({
       tenant_id: tenantId,
@@ -230,8 +301,9 @@ export default function ChapterGoals() {
       description: customDescription,
       icon: selectedTemplate.icon,
       target_value: parseInt(targetValue),
-      start_date: format(dateRange.start, "yyyy-MM-dd"),
-      end_date: format(dateRange.end, "yyyy-MM-dd")
+      start_date: startDate,
+      end_date: endDate,
+      meeting_id: isMeetingBased ? selectedMeetingId : null
     });
   };
 
@@ -268,7 +340,7 @@ export default function ChapterGoals() {
             )}
             อัพเดท Progress
           </Button>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <Dialog open={showAddDialog} onOpenChange={handleDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-goal">
                 <Plus className="h-4 w-4 mr-2" />
@@ -310,6 +382,47 @@ export default function ChapterGoals() {
 
                 {selectedTemplate && (
                   <>
+                    {isMeetingBased && (
+                      <div className="space-y-2">
+                        <Label>เลือก Meeting</Label>
+                        {meetingsLoading ? (
+                          <div className="flex items-center gap-2 p-3 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>กำลังโหลด meetings...</span>
+                          </div>
+                        ) : meetings.length === 0 ? (
+                          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+                            ไม่พบ Meeting ที่กำลังจะมาถึง - กรุณาสร้าง Meeting ก่อนตั้งเป้าหมายประเภทนี้
+                          </div>
+                        ) : (
+                          <Select 
+                            value={selectedMeetingId} 
+                            onValueChange={setSelectedMeetingId}
+                          >
+                            <SelectTrigger data-testid="select-meeting">
+                              <SelectValue placeholder="เลือก Meeting..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {meetings.map((meeting) => (
+                                <SelectItem 
+                                  key={meeting.meeting_id} 
+                                  value={meeting.meeting_id}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4" />
+                                    <span>
+                                      {format(new Date(meeting.meeting_date), "d MMM yyyy", { locale: th })}
+                                      {meeting.theme && ` - ${meeting.theme}`}
+                                    </span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    )}
+
                     <div className="space-y-2">
                       <Label>ชื่อเป้าหมาย</Label>
                       <Input
@@ -344,20 +457,25 @@ export default function ChapterGoals() {
 
                     <div className="p-3 bg-muted rounded-md text-sm">
                       <p className="text-muted-foreground">
-                        ช่วงเวลา: {selectedTemplate.metric_type.startsWith("weekly") ? "รายสัปดาห์" : 
-                                  selectedTemplate.metric_type.startsWith("monthly") ? "รายเดือน" : "ไม่จำกัด"}
+                        {isMeetingBased && selectedMeeting
+                          ? `Meeting: ${format(new Date(selectedMeeting.meeting_date), "d MMMM yyyy", { locale: th })}`
+                          : selectedTemplate.metric_type.startsWith("weekly") 
+                            ? "ช่วงเวลา: รายสัปดาห์" 
+                            : selectedTemplate.metric_type.startsWith("monthly") 
+                              ? "ช่วงเวลา: รายเดือน" 
+                              : "ช่วงเวลา: ไม่จำกัด"}
                       </p>
                     </div>
                   </>
                 )}
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                <Button variant="outline" onClick={() => handleDialogOpen(false)}>
                   ยกเลิก
                 </Button>
                 <Button 
                   onClick={handleCreateGoal}
-                  disabled={!selectedTemplate || !targetValue || createGoalMutation.isPending}
+                  disabled={!canSubmit}
                   data-testid="button-confirm-create-goal"
                 >
                   {createGoalMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -460,10 +578,21 @@ export default function ChapterGoals() {
                     />
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>
-                        {format(new Date(goal.start_date), "d MMM", { locale: th })} - {format(new Date(goal.end_date), "d MMM yyyy", { locale: th })}
+                        {goal.meeting_id 
+                          ? format(new Date(goal.start_date), "d MMM yyyy", { locale: th })
+                          : `${format(new Date(goal.start_date), "d MMM", { locale: th })} - ${format(new Date(goal.end_date), "d MMM yyyy", { locale: th })}`
+                        }
                       </span>
                       <span>{goal.progress_percent}%</span>
                     </div>
+                    {goal.meeting_id && (
+                      <div className="text-xs">
+                        <Badge variant="outline" className="text-xs">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Meeting Goal
+                        </Badge>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
