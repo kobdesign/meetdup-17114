@@ -22,6 +22,7 @@ interface AdminWithLine {
 export async function getChapterAdminsWithLine(tenantId: string): Promise<AdminWithLine[]> {
   console.log(`[GoalNotification] Looking for admins in tenant: ${tenantId}`);
   
+  // Step 1: Find admins for this tenant
   const { data: adminRoles, error: rolesError } = await supabaseAdmin
     .from("user_roles")
     .select("user_id, role")
@@ -42,34 +43,53 @@ export async function getChapterAdminsWithLine(tenantId: string): Promise<AdminW
 
   const userIds = adminRoles.map(r => r.user_id);
 
+  // Step 2: Look for LINE user ID from ANY tenant (not just current one)
+  // Admin might be a member in another chapter but manage this chapter
   const { data: participants, error: participantsError } = await supabaseAdmin
     .from("participants")
-    .select("user_id, line_user_id, full_name_th")
-    .eq("tenant_id", tenantId)
-    .in("user_id", userIds);
+    .select("user_id, line_user_id, full_name_th, tenant_id")
+    .in("user_id", userIds)
+    .not("line_user_id", "is", null);
 
   if (participantsError) {
     console.error(`[GoalNotification] Error fetching participants:`, participantsError);
     return [];
   }
 
-  console.log(`[GoalNotification] Found ${participants?.length || 0} participant records for admins`);
+  console.log(`[GoalNotification] Found ${participants?.length || 0} participant records with LINE for admins (across all tenants)`);
   
   if (participants) {
     for (const p of participants) {
-      console.log(`[GoalNotification] Admin participant: ${p.full_name_th || 'N/A'}, user_id: ${p.user_id}, line_user_id: ${p.line_user_id ? 'SET' : 'NOT SET'}`);
+      const isSameTenant = p.tenant_id === tenantId;
+      console.log(`[GoalNotification] Admin participant: ${p.full_name_th || 'N/A'}, user_id: ${p.user_id}, line_user_id: SET, same_tenant: ${isSameTenant}`);
     }
   }
 
-  const adminsWithLine = (participants || [])
-    .filter(p => p.line_user_id)
-    .map(p => ({
-      user_id: p.user_id,
-      line_user_id: p.line_user_id!,
-      full_name_th: p.full_name_th
-    }));
+  // Step 3: Build map of user_id -> line_user_id (take first one found)
+  const lineUserMap = new Map<string, { line_user_id: string; full_name_th: string | null }>();
+  for (const p of participants || []) {
+    if (p.line_user_id && !lineUserMap.has(p.user_id)) {
+      lineUserMap.set(p.user_id, {
+        line_user_id: p.line_user_id,
+        full_name_th: p.full_name_th
+      });
+    }
+  }
 
-  console.log(`[GoalNotification] ${adminsWithLine.length} admins have LINE linked`);
+  // Step 4: Build result array
+  const adminsWithLine: AdminWithLine[] = [];
+  for (const admin of adminRoles) {
+    const lineInfo = lineUserMap.get(admin.user_id);
+    if (lineInfo) {
+      adminsWithLine.push({
+        user_id: admin.user_id,
+        line_user_id: lineInfo.line_user_id,
+        full_name_th: lineInfo.full_name_th
+      });
+    }
+  }
+
+  console.log(`[GoalNotification] ${adminsWithLine.length} admins have LINE linked (from any tenant)`);
   
   return adminsWithLine;
 }
