@@ -20,15 +20,25 @@ interface AdminWithLine {
 }
 
 export async function getChapterAdminsWithLine(tenantId: string): Promise<AdminWithLine[]> {
+  console.log(`[GoalNotification] Looking for admins in tenant: ${tenantId}`);
+  
   const { data: adminRoles, error: rolesError } = await supabaseAdmin
     .from("user_roles")
-    .select("user_id")
+    .select("user_id, role")
     .eq("tenant_id", tenantId)
     .in("role", ["chapter_admin", "super_admin"]);
 
-  if (rolesError || !adminRoles || adminRoles.length === 0) {
+  if (rolesError) {
+    console.error(`[GoalNotification] Error fetching admin roles:`, rolesError);
     return [];
   }
+
+  if (!adminRoles || adminRoles.length === 0) {
+    console.log(`[GoalNotification] No admins found for tenant ${tenantId}`);
+    return [];
+  }
+
+  console.log(`[GoalNotification] Found ${adminRoles.length} admins:`, adminRoles.map(r => ({ user_id: r.user_id, role: r.role })));
 
   const userIds = adminRoles.map(r => r.user_id);
 
@@ -36,20 +46,32 @@ export async function getChapterAdminsWithLine(tenantId: string): Promise<AdminW
     .from("participants")
     .select("user_id, line_user_id, full_name_th")
     .eq("tenant_id", tenantId)
-    .in("user_id", userIds)
-    .not("line_user_id", "is", null);
+    .in("user_id", userIds);
 
-  if (participantsError || !participants) {
+  if (participantsError) {
+    console.error(`[GoalNotification] Error fetching participants:`, participantsError);
     return [];
   }
 
-  return participants
+  console.log(`[GoalNotification] Found ${participants?.length || 0} participant records for admins`);
+  
+  if (participants) {
+    for (const p of participants) {
+      console.log(`[GoalNotification] Admin participant: ${p.full_name_th || 'N/A'}, user_id: ${p.user_id}, line_user_id: ${p.line_user_id ? 'SET' : 'NOT SET'}`);
+    }
+  }
+
+  const adminsWithLine = (participants || [])
     .filter(p => p.line_user_id)
     .map(p => ({
       user_id: p.user_id,
       line_user_id: p.line_user_id!,
       full_name_th: p.full_name_th
     }));
+
+  console.log(`[GoalNotification] ${adminsWithLine.length} admins have LINE linked`);
+  
+  return adminsWithLine;
 }
 
 function getIconEmoji(icon: string): string {
