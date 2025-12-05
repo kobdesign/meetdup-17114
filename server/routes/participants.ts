@@ -37,13 +37,13 @@ async function checkVisitorGoalsAchievement(tenantId: string, meetingId?: string
           .from("meeting_registrations")
           .select(`
             registration_id,
-            created_at,
+            registered_at,
             participant:participants!inner(participant_id, status)
           `)
           .eq("meeting_id", goal.meeting_id)
           .in("registration_status", ["registered", "attended"])
-          .gte("created_at", goal.start_date)
-          .lte("created_at", endDateWithTime);
+          .gte("registered_at", goal.start_date)
+          .lte("registered_at", endDateWithTime);
 
         currentValue = data?.filter((r: any) => 
           r.participant?.status === 'visitor' || r.participant?.status === 'prospect'

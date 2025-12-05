@@ -474,13 +474,13 @@ async function calculateGoalProgress(
           .from("meeting_registrations")
           .select(`
             registration_id,
-            created_at,
+            registered_at,
             participant:participants!inner(participant_id, status)
           `)
           .eq("meeting_id", meetingId)
           .in("registration_status", ["registered", "attended"])
-          .gte("created_at", startDate)
-          .lte("created_at", endDate + "T23:59:59.999Z");
+          .gte("registered_at", startDate)
+          .lte("registered_at", endDate + "T23:59:59.999Z");
 
         if (error) {
           console.error(`[GoalProgress] Error:`, error);
