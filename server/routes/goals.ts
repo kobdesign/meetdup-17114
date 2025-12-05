@@ -456,15 +456,28 @@ async function calculateGoalProgress(
     switch (metricType) {
       case "weekly_visitors":
       case "monthly_visitors": {
-        const { count, error } = await supabaseAdmin
+        const endDateWithTime = endDate + "T23:59:59.999Z";
+        console.log(`[GoalProgress] Calculating ${metricType} for tenant ${tenantId}`);
+        console.log(`[GoalProgress] Date range: ${startDate} to ${endDateWithTime}`);
+        
+        const { count, error, data } = await supabaseAdmin
           .from("participants")
-          .select("*", { count: "exact", head: true })
+          .select("participant_id, status, created_at", { count: "exact" })
           .eq("tenant_id", tenantId)
           .in("status", ["visitor", "prospect"])
           .gte("created_at", startDate)
-          .lte("created_at", endDate + "T23:59:59.999Z");
+          .lte("created_at", endDateWithTime);
 
-        if (error) throw error;
+        console.log(`[GoalProgress] Found ${count} participants:`, data?.map(p => ({
+          id: p.participant_id.slice(0, 8),
+          status: p.status,
+          created_at: p.created_at
+        })));
+        
+        if (error) {
+          console.error(`[GoalProgress] Error:`, error);
+          throw error;
+        }
         return count || 0;
       }
 
