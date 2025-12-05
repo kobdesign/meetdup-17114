@@ -23,8 +23,7 @@ interface MeetingInfo {
   meeting_date: string;
   meeting_time: string | null;
   theme: string | null;
-  venue_name: string | null;
-  venue_address: string | null;
+  venue: string | null;
 }
 
 interface ChapterGoal {
@@ -94,8 +93,7 @@ router.get("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Respo
           meeting_date,
           meeting_time,
           theme,
-          venue_name,
-          venue_address
+          venue
         )
       `)
       .eq("tenant_id", tenant_id as string)
