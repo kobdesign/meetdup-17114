@@ -6,6 +6,7 @@ import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from 
 import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch, handleCategorySelection } from "../../services/line/handlers/businessCardHandler";
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
+import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSummaryHandler";
 
 const router = Router();
 
@@ -212,6 +213,15 @@ async function processEvent(
         textLower === "อัพเดทโปรไฟล์" || textLower === "แก้ไขข้อมูล") {
       console.log(`${logPrefix} Command: EDIT_PROFILE`);
       await handleEditProfileRequest(event, tenantId, accessToken);
+      return;
+    }
+    
+    // Priority 7: Goals summary command - show progress summary to admins
+    // Support variations: "สรุปเป้าหมาย", "เป้าหมาย", "goals", "progress", with optional Thai particles
+    const goalsSummaryPattern = /^(สรุปเป้าหมาย|เป้าหมาย|goals|goal\s*summary|progress)(ค่ะ|ครับ|นะ|คะ)?$/i;
+    if (goalsSummaryPattern.test(textLower.trim())) {
+      console.log(`${logPrefix} Command: GOALS_SUMMARY`);
+      await handleGoalsSummaryRequest(event, tenantId, accessToken, logPrefix);
       return;
     }
 

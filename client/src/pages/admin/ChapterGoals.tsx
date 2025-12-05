@@ -40,7 +40,8 @@ import {
   Loader2,
   Trash2,
   RefreshCw,
-  MapPin
+  MapPin,
+  Send
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
@@ -218,6 +219,26 @@ export default function ChapterGoals() {
     }
   });
 
+  const sendSummaryMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+      return apiRequest("/api/goals/send-summary", "POST", { tenant_id: tenantId }, {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+    },
+    onSuccess: (data: any) => {
+      if (data.success) {
+        toast.success(data.message || "ส่งสรุปเป้าหมายทาง LINE แล้ว");
+      } else {
+        toast.error(data.error || data.message || "ไม่สามารถส่งได้");
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "เกิดข้อผิดพลาด");
+    }
+  });
+
   const fetchMeetings = async () => {
     if (!tenantId) return;
     setMeetingsLoading(true);
@@ -349,6 +370,20 @@ export default function ChapterGoals() {
               <RefreshCw className="h-4 w-4 mr-2" />
             )}
             อัพเดท Progress
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => sendSummaryMutation.mutate()}
+            disabled={sendSummaryMutation.isPending}
+            data-testid="button-send-summary"
+          >
+            {sendSummaryMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Send className="h-4 w-4 mr-2" />
+            )}
+            ส่งสรุป LINE
           </Button>
           <Dialog open={showAddDialog} onOpenChange={handleDialogOpen}>
             <DialogTrigger asChild>

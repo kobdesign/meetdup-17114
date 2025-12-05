@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { AuthenticatedRequest, verifySupabaseAuth, checkTenantAccess } from "../utils/auth";
 import { sendGoalAchievementNotification, checkAndNotifyAchievedGoals } from "../services/goals/achievementNotification";
+import { sendGoalsProgressSummary } from "../services/goals/progressSummary";
 
 const router = Router();
 
@@ -633,5 +634,143 @@ async function calculateGoalProgress(
     return 0;
   }
 }
+
+// Send progress summary notification to admins
+router.post("/send-summary", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { tenant_id } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!tenant_id) {
+      return res.status(400).json({ error: "tenant_id is required" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied to this chapter" });
+    }
+
+    console.log(`[Goals] Sending progress summary for tenant: ${tenant_id}`);
+    
+    const result = await sendGoalsProgressSummary(tenant_id, { isTest: true });
+    
+    console.log(`[Goals] Progress summary result:`, result);
+
+    res.json({
+      success: result.success,
+      message: result.success 
+        ? `ส่งสรุปเป้าหมายแล้ว (${result.goalsCount} เป้าหมาย, ${result.notifiedCount} คน)`
+        : result.error || "Failed to send summary",
+      ...result
+    });
+  } catch (error: any) {
+    console.error("Error sending progress summary:", error);
+    res.status(500).json({ error: error.message || "Failed to send progress summary" });
+  }
+});
+
+// Get/Set daily summary settings
+router.get("/summary-settings", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { tenant_id } = req.query;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!tenant_id) {
+      return res.status(400).json({ error: "tenant_id is required" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, tenant_id as string);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const { data: settings } = await supabaseAdmin
+      .from("system_settings")
+      .select("setting_key, setting_value")
+      .eq("tenant_id", tenant_id)
+      .in("setting_key", [
+        "goals.daily_summary_enabled",
+        "goals.daily_summary_time",
+        "goals.last_summary_sent_at"
+      ]);
+
+    const settingsMap: Record<string, string> = {};
+    for (const s of settings || []) {
+      settingsMap[s.setting_key] = s.setting_value;
+    }
+
+    res.json({
+      enabled: settingsMap["goals.daily_summary_enabled"] === "true",
+      time: settingsMap["goals.daily_summary_time"] || "18:00",
+      lastSentAt: settingsMap["goals.last_summary_sent_at"] || null
+    });
+  } catch (error: any) {
+    console.error("Error fetching summary settings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/summary-settings", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { tenant_id, enabled, time } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!tenant_id) {
+      return res.status(400).json({ error: "tenant_id is required" });
+    }
+
+    const hasAccess = await checkTenantAccess(userId, tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const updates = [];
+    
+    if (typeof enabled === "boolean") {
+      updates.push({
+        tenant_id,
+        setting_key: "goals.daily_summary_enabled",
+        setting_value: String(enabled)
+      });
+    }
+
+    if (time) {
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(time)) {
+        return res.status(400).json({ error: "Invalid time format. Use HH:mm" });
+      }
+      updates.push({
+        tenant_id,
+        setting_key: "goals.daily_summary_time",
+        setting_value: time
+      });
+    }
+
+    if (updates.length > 0) {
+      const { error } = await supabaseAdmin
+        .from("system_settings")
+        .upsert(updates, { onConflict: "tenant_id,setting_key" });
+
+      if (error) throw error;
+    }
+
+    res.json({ success: true, message: "Settings updated" });
+  } catch (error: any) {
+    console.error("Error updating summary settings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 export default router;
