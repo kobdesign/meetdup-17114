@@ -473,7 +473,10 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   const secondaryActions: any[] = [];
 
   const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
-  const shareUrl = `${baseUrl}/liff/share/${data.tenant_id}/${data.participant_id}`;
+  
+  // LIFF share URL must always use production domain (LIFF only works with registered domains)
+  const liffBaseUrl = "https://meetdup.com";
+  const shareUrl = `${liffBaseUrl}/liff/share/${data.tenant_id}/${data.participant_id}`;
 
   // Always show One Page button if onepage_url exists (no website fallback)
   if (onepageUrl) {
