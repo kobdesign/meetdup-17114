@@ -98,3 +98,34 @@ export async function getShareEnabled(): Promise<boolean> {
     return true;
   }
 }
+
+/**
+ * Default share service URL - fallback if not configured
+ */
+const DEFAULT_SHARE_SERVICE_URL = "https://line-share-flex-api.lovable.app";
+
+/**
+ * Get share service URL from system_settings
+ * This is the external LINE Share Target Picker service URL
+ * Configurable by Super Admin to allow changing the service without code changes
+ */
+export async function getShareServiceUrl(): Promise<string> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("system_settings")
+      .select("setting_value")
+      .eq("setting_key", "liff_share_service_url")
+      .single();
+
+    if (error || !data || !data.setting_value) {
+      console.log("[LIFF Config] Using default share service URL");
+      return DEFAULT_SHARE_SERVICE_URL;
+    }
+
+    console.log("[LIFF Config] Using configured share service URL:", data.setting_value);
+    return data.setting_value;
+  } catch (error) {
+    console.error("[LIFF Config] Error getting share service URL:", error);
+    return DEFAULT_SHARE_SERVICE_URL;
+  }
+}

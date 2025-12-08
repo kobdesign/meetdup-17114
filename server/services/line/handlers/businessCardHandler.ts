@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { createBusinessCardFlexMessage, BusinessCardData } from "../templates/businessCard";
-import { getLiffId, getShareEnabled } from "../../../utils/liffConfig";
+import { getLiffId, getShareEnabled, getShareServiceUrl } from "../../../utils/liffConfig";
 
 /**
  * Handle "view_card" postback action
@@ -93,11 +93,12 @@ export async function handleViewCard(
     // Get base URL from environment (prioritize deployment URL)
     const baseUrl = getBaseUrl();
 
-    // Get share button setting
+    // Get share button setting and service URL
     const shareEnabled = await getShareEnabled();
+    const shareServiceUrl = await getShareServiceUrl();
 
     // Create and send Flex Message
-    const flexMessage = createBusinessCardFlexMessage(cardData as BusinessCardData, baseUrl, { shareEnabled });
+    const flexMessage = createBusinessCardFlexMessage(cardData as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
 
     await replyMessage(event.replyToken, flexMessage, accessToken);
 
@@ -390,12 +391,13 @@ export async function handleCardSearch(
       tenants: tenantInfo
     }));
 
-    // Get share button setting
+    // Get share button setting and service URL
     const shareEnabled = await getShareEnabled();
+    const shareServiceUrl = await getShareServiceUrl();
 
     // If only one result, send single Business Card Flex Message
     if (participantsWithTenant.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled });
+      const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
       await replyMessage(event.replyToken, flexMessage, accessToken);
       console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name_th}`);
       return;
@@ -405,7 +407,7 @@ export async function handleCardSearch(
     const maxBubbles = 12;
     const limitedParticipants = participantsWithTenant.slice(0, maxBubbles);
     const carouselContents = limitedParticipants.map(p => {
-      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl, { shareEnabled });
+      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
       return flexMessage.contents;
     });
 
@@ -714,15 +716,16 @@ export async function handleCategorySelection(
     
     const baseUrl = getBaseUrl();
     const shareEnabled = await getShareEnabled();
+    const shareServiceUrl = await getShareServiceUrl();
     
     // Build flex message(s)
     if (membersWithTenant.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled });
+      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
       await replyMessage(event.replyToken, flexMessage, accessToken);
     } else {
       // Multiple members - send carousel
       const carouselContents = membersWithTenant.map(m => {
-        const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl, { shareEnabled });
+        const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
         return flexMessage.contents;
       });
       

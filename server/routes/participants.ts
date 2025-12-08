@@ -9,7 +9,7 @@ import { createBusinessCardFlexMessage, BusinessCardData } from "../services/lin
 import { createActivationSuccessFlexMessage } from "../services/line/templates/activationSuccess";
 import { getProductionBaseUrl } from "../utils/getProductionUrl";
 import { sendGoalAchievementNotification } from "../services/goals/achievementNotification";
-import { getShareEnabled } from "../utils/liffConfig";
+import { getShareEnabled, getShareServiceUrl } from "../utils/liffConfig";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -1823,7 +1823,8 @@ router.patch("/profile", async (req: Request, res: Response) => {
 
           // Create and send business card Flex Message
           const shareEnabled = await getShareEnabled();
-          const businessCardFlexMessage = createBusinessCardFlexMessage(businessCardData, baseUrl, { shareEnabled });
+          const shareServiceUrl = await getShareServiceUrl();
+          const businessCardFlexMessage = createBusinessCardFlexMessage(businessCardData, baseUrl, { shareEnabled, shareServiceUrl });
           await lineClient.pushMessage(updatedParticipant.line_user_id, businessCardFlexMessage);
           console.log(`${logPrefix} Sent business card to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
         }

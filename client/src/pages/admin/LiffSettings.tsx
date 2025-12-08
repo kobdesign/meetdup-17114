@@ -15,6 +15,7 @@ interface LiffSettings {
   liff_channel_id: string;
   liff_enabled: boolean;
   liff_share_enabled: boolean;
+  liff_share_service_url: string;
 }
 
 export default function LiffSettings() {
@@ -26,7 +27,8 @@ export default function LiffSettings() {
     liff_id: "",
     liff_channel_id: "",
     liff_enabled: false,
-    liff_share_enabled: true
+    liff_share_enabled: true,
+    liff_share_service_url: ""
   });
 
   useEffect(() => {
@@ -213,6 +215,20 @@ export default function LiffSettings() {
             />
             <p className="text-xs text-muted-foreground">
               The channel ID associated with your LIFF app
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="liff-share-service-url">Share Service URL (Optional)</Label>
+            <Input
+              id="liff-share-service-url"
+              placeholder="https://line-share-flex-api.lovable.app"
+              value={settings.liff_share_service_url}
+              onChange={(e) => setSettings({ ...settings, liff_share_service_url: e.target.value })}
+              data-testid="input-liff-share-service-url"
+            />
+            <p className="text-xs text-muted-foreground">
+              URL of the external LINE Share Target Picker service. Leave empty to use default.
             </p>
           </div>
 

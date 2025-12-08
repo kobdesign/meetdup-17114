@@ -4,7 +4,7 @@ import { createBusinessCardFlexMessage, BusinessCardData } from "../services/lin
 import { getProductionBaseUrl } from "../utils/getProductionUrl";
 import { getLineCredentials } from "../services/line/credentials";
 import { LineClient } from "../services/line/lineClient";
-import { getShareEnabled } from "../utils/liffConfig";
+import { getShareEnabled, getShareServiceUrl } from "../utils/liffConfig";
 
 const router = Router();
 
@@ -409,6 +409,7 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
     // Use production URL for sharing - consistent with LINE bot
     const baseUrl = getProductionBaseUrl();
     const shareEnabled = await getShareEnabled();
+    const shareServiceUrl = await getShareServiceUrl();
     
     // Check if raw format requested (for external share service)
     const format = req.query.format as string;
@@ -416,7 +417,8 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
     // Generate the Flex Message using the same template as LINE bot
     // For raw format, disable share button to prevent recursive sharing
     const flexMessage = createBusinessCardFlexMessage(cardData, baseUrl, { 
-      shareEnabled: format === 'raw' ? false : shareEnabled 
+      shareEnabled: format === 'raw' ? false : shareEnabled,
+      shareServiceUrl
     });
 
     console.log(`${logPrefix} Generated flex message for:`, member.full_name_th, format === 'raw' ? '(raw format)' : '');
@@ -442,17 +444,19 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
 
 router.get("/liff-config", async (req: Request, res: Response) => {
   try {
-    const { getLiffConfig } = await import("../utils/liffConfig");
+    const { getLiffConfig, getShareServiceUrl } = await import("../utils/liffConfig");
     const config = await getLiffConfig();
+    const shareServiceUrl = await getShareServiceUrl();
 
     return res.json({
       liff_id: config.liffId,
       liff_enabled: config.liffEnabled,
-      environment: config.environment
+      environment: config.environment,
+      share_service_url: shareServiceUrl
     });
   } catch (error: any) {
     console.error("Error in getLiffConfig:", error);
-    return res.json({ liff_id: null, liff_enabled: false, environment: "unknown" });
+    return res.json({ liff_id: null, liff_enabled: false, environment: "unknown", share_service_url: "https://line-share-flex-api.lovable.app" });
   }
 });
 
@@ -910,11 +914,12 @@ router.post("/liff/search-by-category", async (req: Request, res: Response) => {
 
     const baseUrl = getProductionBaseUrl();
     const shareEnabled = await getShareEnabled();
+    const shareServiceUrl = await getShareServiceUrl();
     const lineClient = new LineClient(credentials.channelAccessToken);
 
     // If only one member, send single card
     if (membersWithTenant.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled });
+      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
       await lineClient.pushMessage(lineUserId, flexMessage);
       
       console.log(`${logPrefix} Sent single card for category ${categoryCode}`);
@@ -927,7 +932,7 @@ router.post("/liff/search-by-category", async (req: Request, res: Response) => {
 
     // Multiple members - send carousel
     const carouselContents = membersWithTenant.map(m => {
-      const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl, { shareEnabled });
+      const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
       return flexMessage.contents;
     });
 

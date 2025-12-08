@@ -44,6 +44,7 @@ const COLORS = {
 
 export interface BusinessCardOptions {
   shareEnabled?: boolean;
+  shareServiceUrl?: string;
 }
 
 export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string, options?: BusinessCardOptions) {
@@ -479,12 +480,14 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
 
   const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
   
-  // External Share Service URL - uses line-share-flex-api.lovable.app
+  // External Share Service URL - configurable by Super Admin
+  // Default: https://line-share-flex-api.lovable.app
   // This service handles LIFF shareTargetPicker without needing our own LIFF implementation
-  // Format: https://line-share-flex-api.lovable.app/share?messages={encodedJsonUrl}
+  // Format: {shareServiceUrl}/share?messages={encodedJsonUrl}
   // The JSON URL points to our share-flex endpoint with format=raw for direct JSON response
+  const shareServiceUrl = options?.shareServiceUrl || "https://line-share-flex-api.lovable.app";
   const flexJsonUrl = `${baseUrl}/api/public/share-flex/${data.participant_id}?tenantId=${data.tenant_id}&format=raw`;
-  const shareUrl = `https://line-share-flex-api.lovable.app/share?messages=${encodeURIComponent(flexJsonUrl)}`;
+  const shareUrl = `${shareServiceUrl}/share?messages=${encodeURIComponent(flexJsonUrl)}`;
 
   // Always show One Page button if onepage_url exists (no website fallback)
   if (onepageUrl) {
