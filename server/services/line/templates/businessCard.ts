@@ -473,6 +473,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   const secondaryActions: any[] = [];
 
   const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
+  const shareUrl = `${baseUrl}/liff/share/${data.tenant_id}/${data.participant_id}`;
 
   // Always show One Page button if onepage_url exists (no website fallback)
   if (onepageUrl) {
@@ -495,6 +496,18 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       type: "uri",
       label: "Profile",
       uri: publicProfileUrl
+    },
+    style: "secondary",
+    height: "sm"
+  });
+
+  // Share button - opens LIFF to share this card
+  secondaryActions.push({
+    type: "button",
+    action: {
+      type: "uri",
+      label: "แชร์",
+      uri: shareUrl
     },
     style: "secondary",
     height: "sm"
