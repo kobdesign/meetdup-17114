@@ -474,10 +474,12 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
 
   const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
   
-  // LIFF share URL must always use production domain (LIFF only works with registered domains)
-  // Use query parameters instead of path parameters to match LIFF endpoint registration
-  const liffBaseUrl = "https://meetdup.com";
-  const shareUrl = `${liffBaseUrl}/liff/share?tenantId=${data.tenant_id}&participantId=${data.participant_id}`;
+  // LIFF share URL uses LIFF URI with liff.state parameter
+  // LIFF ID: 2008514122-46EJngRL, Endpoint: https://meetdup.com/liff/cards
+  // State format: share:{tenantId}:{participantId} - handled by LiffStateHandler
+  const liffId = "2008514122-46EJngRL";
+  const liffState = `share:${data.tenant_id}:${data.participant_id}`;
+  const shareUrl = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(liffState)}`;
 
   // Always show One Page button if onepage_url exists (no website fallback)
   if (onepageUrl) {

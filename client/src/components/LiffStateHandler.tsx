@@ -22,13 +22,14 @@ function extractFinalPath(liffState: string): string | null {
     }
     
     // Handle colon-separated format: share:tenant:participant
-    // Convert to path format: /liff/share/tenant/participant
+    // Convert to query params format: /liff/share?tenantId=X&participantId=Y
+    // (LIFF requires static endpoint path, so we use query params)
     if (decoded.startsWith("share:")) {
       const parts = decoded.split(":");
       if (parts.length === 3) {
-        const [action, tenantId, participantId] = parts;
-        const path = `/liff/${action}/${tenantId}/${participantId}`;
-        console.log("[LiffStateHandler] Converted share format to path:", path);
+        const [, tenantId, participantId] = parts;
+        const path = `/liff/share?tenantId=${encodeURIComponent(tenantId)}&participantId=${encodeURIComponent(participantId)}`;
+        console.log("[LiffStateHandler] Converted share format to query params:", path);
         return path;
       }
     }
