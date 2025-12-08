@@ -50,7 +50,6 @@ import LiffMembersList from "./pages/liff/LiffMembersList";
 import LiffBusinessCard from "./pages/liff/LiffBusinessCard";
 import LiffShareCard from "./pages/liff/LiffShareCard";
 import LiffCards from "./pages/liff/LiffCards";
-import LiffCardsRedirect from "./pages/liff/LiffCardsRedirect";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -178,7 +177,7 @@ const App = () => (
           
           {/* LIFF Routes (Public - for LINE in-app browser) */}
           <Route path="/liff/cards" element={<LiffCards />} />
-          <Route path="/liff/cards/*" element={<LiffCardsRedirect />} />
+          <Route path="/liff/cards/*" element={<LiffCards />} />
           <Route path="/liff/search" element={<LiffSearchHome />} />
           <Route path="/liff/search/category" element={<LiffCategories />} />
           <Route path="/liff/search/category/:code" element={<LiffMembersList />} />

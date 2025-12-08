@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams, useLocation, useParams } from "react-router-dom";
 import { Loader2, Share2, CheckCircle2, XCircle, AlertCircle, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLiff } from "@/hooks/useLiff";
@@ -13,8 +13,9 @@ interface ShareState {
 
 export default function LiffCards() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const params = useParams();
   const [searchParams] = useSearchParams();
-  const hasProcessed = useRef(false);
   
   const [mode, setMode] = useState<"routing" | "share">("routing");
   const [shareState, setShareState] = useState<ShareState | null>(null);
@@ -28,12 +29,46 @@ export default function LiffCards() {
   const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
-    if (hasProcessed.current) {
-      console.log("[LiffCards] Already processed, skipping");
+    const pathState = params["*"];
+    const liffState = searchParams.get("liff.state");
+    
+    console.log("[LiffCards] pathname:", location.pathname);
+    console.log("[LiffCards] pathState (splat):", pathState);
+    console.log("[LiffCards] liff.state query:", liffState);
+    
+    if (pathState && !liffState) {
+      let cleanState = pathState;
+      try {
+        cleanState = decodeURIComponent(pathState);
+      } catch (e) {}
+      
+      while (cleanState.includes("liff.state=") || cleanState.includes("liff.state%3D")) {
+        try {
+          cleanState = decodeURIComponent(cleanState);
+        } catch (e) {
+          break;
+        }
+        const match = cleanState.match(/liff\.state=([^&]+)/);
+        if (match) {
+          cleanState = decodeURIComponent(match[1]);
+        } else {
+          break;
+        }
+      }
+      
+      console.log("[LiffCards] Cleaned path state:", cleanState);
+      
+      const canonicalUrl = `/liff/cards?liff.state=${encodeURIComponent(cleanState)}`;
+      console.log("[LiffCards] Redirecting to canonical:", canonicalUrl);
+      navigate(canonicalUrl, { replace: true });
       return;
     }
     
-    console.log("[LiffCards] All params:", Object.fromEntries(searchParams.entries()));
+    if (!liffState) {
+      console.log("[LiffCards] No state found, redirecting to home");
+      navigate("/", { replace: true });
+      return;
+    }
     
     const parseParams = (str: string): { tenant?: string; view?: string } => {
       const params: { tenant?: string; view?: string } = {};
@@ -44,84 +79,69 @@ export default function LiffCards() {
       return params;
     };
     
-    const liffState = searchParams.get("liff.state");
-    console.log("[LiffCards] Received liff.state:", liffState);
-    
     let tenantParam = searchParams.get("tenant");
     let viewParam = searchParams.get("view");
     
-    if (liffState) {
-      try {
-        let decodedState = decodeURIComponent(liffState);
-        console.log("[LiffCards] Decoded once:", decodedState);
-        
-        while (decodedState.includes("liff.state=")) {
-          const nestedMatch = decodedState.match(/[?&]?liff\.state=([^&]+)/);
-          if (nestedMatch) {
-            decodedState = decodeURIComponent(nestedMatch[1]);
-            console.log("[LiffCards] Extracted nested liff.state:", decodedState);
-          } else {
-            break;
-          }
+    try {
+      let decodedState = decodeURIComponent(liffState);
+      console.log("[LiffCards] Decoded liff.state:", decodedState);
+      
+      while (decodedState.includes("liff.state=")) {
+        const nestedMatch = decodedState.match(/[?&]?liff\.state=([^&]+)/);
+        if (nestedMatch) {
+          decodedState = decodeURIComponent(nestedMatch[1]);
+          console.log("[LiffCards] Extracted nested:", decodedState);
+        } else {
+          break;
         }
-        
-        if (decodedState.startsWith("share:")) {
-          const parts = decodedState.split(":");
-          console.log("[LiffCards] Share parts:", parts, "length:", parts.length);
-          if (parts.length >= 3) {
-            const tenantId = parts[1];
-            const participantId = parts.slice(2).join(":");
-            console.log("[LiffCards] Share action detected - rendering inline:", { tenantId, participantId });
-            hasProcessed.current = true;
-            setShareState({ tenantId, participantId });
-            setMode("share");
-            return;
-          }
-        }
-        
-        if (decodedState.startsWith("/")) {
-          console.log("[LiffCards] Navigating to path:", decodedState);
-          hasProcessed.current = true;
-          navigate(decodedState, { replace: true });
+      }
+      
+      if (decodedState.startsWith("share:")) {
+        const parts = decodedState.split(":");
+        console.log("[LiffCards] Share parts:", parts);
+        if (parts.length >= 3) {
+          const tenantId = parts[1];
+          const participantId = parts.slice(2).join(":");
+          console.log("[LiffCards] Share mode activated:", { tenantId, participantId });
+          setShareState({ tenantId, participantId });
+          setMode("share");
           return;
         }
-        
-        const parsedFromState = parseParams(decodedState);
-        console.log("[LiffCards] Parsed from liff.state:", parsedFromState);
-        
-        if (parsedFromState.tenant && !tenantParam) {
-          tenantParam = parsedFromState.tenant;
-        }
-        if (parsedFromState.view && !viewParam) {
-          viewParam = parsedFromState.view;
-        }
-      } catch (e) {
-        console.error("[LiffCards] Error parsing liff.state:", e);
       }
+      
+      if (decodedState.startsWith("/")) {
+        console.log("[LiffCards] Navigating to path:", decodedState);
+        navigate(decodedState, { replace: true });
+        return;
+      }
+      
+      const parsedFromState = parseParams(decodedState);
+      if (parsedFromState.tenant && !tenantParam) {
+        tenantParam = parsedFromState.tenant;
+      }
+      if (parsedFromState.view && !viewParam) {
+        viewParam = parsedFromState.view;
+      }
+    } catch (e) {
+      console.error("[LiffCards] Error parsing liff.state:", e);
     }
     
     console.log("[LiffCards] Final params - tenant:", tenantParam, "view:", viewParam);
     
-    hasProcessed.current = true;
-    
     if (tenantParam) {
       if (viewParam === "categories" || viewParam === "category") {
-        console.log("[LiffCards] Redirecting to categories view");
         navigate(`/liff/search/category?tenant=${tenantParam}`, { replace: true });
       } else if (viewParam === "powerteam") {
-        console.log("[LiffCards] Redirecting to powerteam view");
         navigate(`/liff/search/powerteam?tenant=${tenantParam}`, { replace: true });
       } else if (viewParam === "position") {
-        console.log("[LiffCards] Redirecting to position view");
         navigate(`/liff/search/position?tenant=${tenantParam}`, { replace: true });
       } else {
         navigate(`/liff/search?tenant=${tenantParam}`, { replace: true });
       }
     } else {
-      console.log("[LiffCards] No tenant param, redirecting to home");
       navigate("/", { replace: true });
     }
-  }, [navigate, searchParams]);
+  }, [navigate, searchParams, params, location.pathname]);
 
   useEffect(() => {
     if (mode !== "share" || !shareState) return;
