@@ -89,20 +89,25 @@ None specified yet.
 - **LIFF Business Card Share System (Dec 2024)**:
   - **Purpose**: Allow members to share their business card as Flex Message via LINE Share Target Picker
   - **Requirements**: LIFF SDK v2.x, LINE App >= 10.3.0, max 5 bubbles per share
-  - **Flow**: User clicks share button → LIFF URI opens → LiffStateHandler routes → Share Target Picker → Success/Cancel
+  - **LIFF Key Concepts**:
+    - **LIFF URI**: `https://liff.line.me/{liffId}` - What users click to open LIFF (LINE controls this)
+    - **LIFF Endpoint URL**: `https://meetdup.com/liff/cards` - Registered in LINE Console (must be EXACT match for OAuth)
+    - LINE OAuth validates redirect URL BEFORE JavaScript runs - different paths cause 400 error
+  - **Architecture** (LINE OAuth Compliant):
+    - Share button URL: `https://liff.line.me/2008514122-46EJngRL?liff.state=share:{tenantId}:{participantId}`
+    - LINE OAuth → redirects to registered endpoint `/liff/cards` with liff.state preserved
+    - `/liff/cards` page parses liff.state and renders share UI **INLINE** (no navigation to different path)
+    - Share Target Picker executes → Success/Cancel
   - **Files**:
+    - `client/src/pages/liff/LiffCards.tsx` - Main LIFF page that handles both search AND share inline
     - `client/src/hooks/useLiff.ts` - LIFF hook with init, login, shareTargetPicker, closeWindow
-    - `client/src/pages/liff/LiffShareCard.tsx` - Share card UI with query param handling
-    - `client/src/components/LiffStateHandler.tsx` - Routes LIFF state to correct page
+    - `client/src/components/LiffStateHandler.tsx` - Passes through share: states (no redirect)
     - `server/routes/public.ts` - GET `/api/public/share-flex/:participantId` endpoint
     - `server/services/line/templates/businessCard.ts` - Flex Message template with conditional share button
   - **LIFF Configuration**:
     - LIFF ID: `2008514122-46EJngRL`
     - LIFF URI: `https://liff.line.me/2008514122-46EJngRL`
-    - Endpoint: `https://meetdup.com/liff/cards`
-  - **URL Format**: Uses LIFF state parameter (not path params due to LINE OAuth requirements)
-    - Share URL in Flex Message: `https://liff.line.me/2008514122-46EJngRL?liff.state=share:{tenantId}:{participantId}`
-    - LiffStateHandler converts state to: `/liff/share?tenantId=X&participantId=Y`
+    - Endpoint URL: `https://meetdup.com/liff/cards` (MUST be exact match)
   - **Share Button Toggle (Dec 2024)**:
     - Super Admin can enable/disable share button globally via LIFF Settings page
     - Setting: `liff_share_enabled` in `system_settings` table (defaults to true)

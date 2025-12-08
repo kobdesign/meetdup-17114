@@ -16,22 +16,17 @@ function extractFinalPath(liffState: string): string | null {
       }
     }
     
-    // Handle path format: /liff/share/tenant/participant
+    // Handle path format: /liff/xxx
     if (decoded.startsWith("/")) {
       return decoded;
     }
     
-    // Handle colon-separated format: share:tenant:participant
-    // Convert to query params format: /liff/share?tenantId=X&participantId=Y
-    // (LIFF requires static endpoint path, so we use query params)
+    // IMPORTANT: share: format is handled INLINE by /liff/cards
+    // Do NOT redirect - LINE OAuth only allows exact endpoint match
+    // /liff/cards will parse liff.state and render share UI directly
     if (decoded.startsWith("share:")) {
-      const parts = decoded.split(":");
-      if (parts.length === 3) {
-        const [, tenantId, participantId] = parts;
-        const path = `/liff/share?tenantId=${encodeURIComponent(tenantId)}&participantId=${encodeURIComponent(participantId)}`;
-        console.log("[LiffStateHandler] Converted share format to query params:", path);
-        return path;
-      }
+      console.log("[LiffStateHandler] Share format detected - letting /liff/cards handle inline");
+      return null; // Return null so we don't redirect
     }
     
     return null;
