@@ -6,6 +6,11 @@ interface LiffConfig {
   liff_enabled: boolean;
 }
 
+interface ShareResult {
+  success: boolean;
+  cancelled: boolean;
+}
+
 interface UseLiffReturn {
   isLiffReady: boolean;
   isInLiff: boolean;
@@ -19,7 +24,7 @@ interface UseLiffReturn {
     pictureUrl?: string;
   } | null;
   login: () => void;
-  shareTargetPicker: (messages: any[]) => Promise<void>;
+  shareTargetPicker: (messages: any[]) => Promise<ShareResult>;
   closeWindow: () => void;
 }
 
@@ -100,7 +105,7 @@ export function useLiff(): UseLiffReturn {
     liff.login({ redirectUri: window.location.href });
   }, [liffConfig]);
 
-  const shareTargetPicker = useCallback(async (messages: any[]) => {
+  const shareTargetPicker = useCallback(async (messages: any[]): Promise<{ success: boolean; cancelled: boolean }> => {
     if (!liffConfig?.liff_enabled || !liffConfig?.liff_id) {
       console.log("[LIFF] Share not available - LIFF not configured");
       throw new Error("LIFF is not configured");
@@ -111,16 +116,36 @@ export function useLiff(): UseLiffReturn {
       throw new Error("Share feature is not available in this context");
     }
 
+    // Validate messages (max 5 bubbles per LINE API spec)
+    if (!messages || messages.length === 0) {
+      throw new Error("No messages to share");
+    }
+    
+    if (messages.length > 5) {
+      console.warn("[LIFF] More than 5 messages provided, only first 5 will be sent");
+      messages = messages.slice(0, 5);
+    }
+
     try {
       const result = await liff.shareTargetPicker(messages);
       
       if (result) {
-        console.log("[LIFF] Share successful");
+        // User selected targets and shared successfully
+        console.log("[LIFF] Share successful", result);
+        return { success: true, cancelled: false };
       } else {
+        // User cancelled the share (closed picker without selecting)
         console.log("[LIFF] Share cancelled by user");
+        throw new Error("Share cancelled by user");
       }
     } catch (error: any) {
       console.error("[LIFF] Share error:", error);
+      
+      // Enhance error message for common cases
+      if (error.code === "FORBIDDEN") {
+        throw new Error("Share permission denied. Please check LINE app permissions.");
+      }
+      
       throw error;
     }
   }, [liffConfig]);

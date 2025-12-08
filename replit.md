@@ -86,6 +86,20 @@ None specified yet.
   - **Commands Supported**: `goals_summary`, `business_card_search`, `category_search`, `checkin`, `link_phone`
   - **Security**: Zod validation for API requests, member status verified as 'member' only (not visitor)
   - **Migration**: Run `server/migrations/20251205_create_line_command_permissions.sql` on Supabase
+- **LIFF Business Card Share System (Dec 2024)**:
+  - **Purpose**: Allow members to share their business card as Flex Message via LINE Share Target Picker
+  - **Requirements**: LIFF SDK v2.x, LINE App >= 10.3.0, max 5 bubbles per share
+  - **Flow**: User opens share link → LIFF init → Login check → Fetch Flex Message → Share Target Picker → Success/Cancel
+  - **Files**:
+    - `client/src/hooks/useLiff.ts` - LIFF hook with init, login, shareTargetPicker, closeWindow
+    - `client/src/pages/liff/LiffShareCard.tsx` - Share card UI with status handling
+    - `server/routes/public.ts` - GET `/api/public/share-flex/:participantId` endpoint
+    - `server/services/line/templates/businessCard.ts` - Flex Message template generator
+  - **URL Format**: `/liff/share/{tenantId}/{participantId}`
+  - **LIFF State Format**: `share:{tenantId}:{participantId}` (for Rich Menu integration)
+  - **Error Handling**: login needed, not-in-liff, cancelled, network error states
+  - **Security**: UUID validation, tenant isolation, URL sanitization
+  - **Documentation**: Full technical docs at `docs/LIFF_BUSINESS_CARD_SHARE.md`
 
 ## External Dependencies
 
