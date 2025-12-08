@@ -197,21 +197,35 @@ export default function Auth() {
     }
   };
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail) {
+      toast.error("กรุณากรอกอีเมล");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(forgotPasswordEmail)) {
+      toast.error("กรุณากรอกอีเมลให้ถูกต้อง");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      console.log("[Auth] Sending password reset email to:", forgotPasswordEmail);
       const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) throw error;
       
+      console.log("[Auth] Password reset email sent successfully");
       setResetEmailSent(true);
       toast.success("ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว");
     } catch (error: any) {
-      toast.error(error.message);
+      console.error("[Auth] Password reset error:", error);
+      toast.error(error.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
     } finally {
       setLoading(false);
     }
@@ -306,7 +320,7 @@ export default function Auth() {
                             </AlertDescription>
                           </Alert>
                         ) : (
-                          <form onSubmit={handleForgotPassword} className="space-y-4">
+                          <div className="space-y-4">
                             <div className="space-y-2">
                               <Label htmlFor="forgot-email">อีเมล</Label>
                               <Input
@@ -315,7 +329,7 @@ export default function Auth() {
                                 placeholder="your@email.com"
                                 value={forgotPasswordEmail}
                                 onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                                required
+                                data-testid="input-forgot-email"
                               />
                             </div>
                             <div className="flex gap-2">
@@ -324,15 +338,22 @@ export default function Auth() {
                                 variant="outline"
                                 className="flex-1"
                                 onClick={() => setShowForgotPasswordDialog(false)}
+                                data-testid="button-cancel-forgot"
                               >
                                 ยกเลิก
                               </Button>
-                              <Button type="submit" className="flex-1" disabled={loading}>
+                              <Button 
+                                type="button" 
+                                className="flex-1" 
+                                disabled={loading || !forgotPasswordEmail}
+                                onClick={handleForgotPassword}
+                                data-testid="button-send-reset-link"
+                              >
                                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 ส่งลิงก์
                               </Button>
                             </div>
-                          </form>
+                          </div>
                         )}
                       </DialogContent>
                     </Dialog>
