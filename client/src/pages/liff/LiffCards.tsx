@@ -36,7 +36,24 @@ export default function LiffCards() {
     console.log("[LiffCards] pathState (splat):", pathState);
     console.log("[LiffCards] liff.state query:", liffState);
     
-    if (pathState && !liffState) {
+    const parseParams = (str: string): { tenant?: string; view?: string } => {
+      const params: { tenant?: string; view?: string } = {};
+      const cleanStr = str.replace(/^[?&]/, '');
+      const urlParams = new URLSearchParams(cleanStr);
+      params.tenant = urlParams.get('tenant') || undefined;
+      params.view = urlParams.get('view') || undefined;
+      return params;
+    };
+    
+    const handleShareRedirect = (tenantId: string, participantId: string) => {
+      const baseUrl = window.location.origin;
+      const flexJsonUrl = `${baseUrl}/api/public/share-flex/${participantId}?tenantId=${tenantId}&format=raw`;
+      const externalShareUrl = `https://line-share-flex-api.lovable.app/share?messages=${encodeURIComponent(flexJsonUrl)}`;
+      console.log("[LiffCards] Redirecting to external share service:", externalShareUrl);
+      window.location.href = externalShareUrl;
+    };
+    
+    if (pathState) {
       let cleanState = pathState;
       try {
         cleanState = decodeURIComponent(pathState);
@@ -58,10 +75,15 @@ export default function LiffCards() {
       
       console.log("[LiffCards] Cleaned path state:", cleanState);
       
-      const canonicalUrl = `/liff/cards?liff.state=${encodeURIComponent(cleanState)}`;
-      console.log("[LiffCards] Redirecting to canonical:", canonicalUrl);
-      navigate(canonicalUrl, { replace: true });
-      return;
+      if (cleanState.startsWith("share:")) {
+        const parts = cleanState.split(":");
+        if (parts.length >= 3) {
+          const tenantId = parts[1];
+          const participantId = parts.slice(2).join(":");
+          handleShareRedirect(tenantId, participantId);
+          return;
+        }
+      }
     }
     
     if (!liffState) {
@@ -69,15 +91,6 @@ export default function LiffCards() {
       navigate("/", { replace: true });
       return;
     }
-    
-    const parseParams = (str: string): { tenant?: string; view?: string } => {
-      const params: { tenant?: string; view?: string } = {};
-      const cleanStr = str.replace(/^[?&]/, '');
-      const urlParams = new URLSearchParams(cleanStr);
-      params.tenant = urlParams.get('tenant') || undefined;
-      params.view = urlParams.get('view') || undefined;
-      return params;
-    };
     
     let tenantParam = searchParams.get("tenant");
     let viewParam = searchParams.get("view");
@@ -102,9 +115,7 @@ export default function LiffCards() {
         if (parts.length >= 3) {
           const tenantId = parts[1];
           const participantId = parts.slice(2).join(":");
-          console.log("[LiffCards] Share mode activated:", { tenantId, participantId });
-          setShareState({ tenantId, participantId });
-          setMode("share");
+          handleShareRedirect(tenantId, participantId);
           return;
         }
       }

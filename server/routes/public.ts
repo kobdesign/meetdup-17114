@@ -410,11 +410,24 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
     const baseUrl = getProductionBaseUrl();
     const shareEnabled = await getShareEnabled();
     
+    // Check if raw format requested (for external share service)
+    const format = req.query.format as string;
+    
     // Generate the Flex Message using the same template as LINE bot
-    // Note: No LIFF ID passed for share-flex - this is the card being shared, not the source
-    const flexMessage = createBusinessCardFlexMessage(cardData, baseUrl, { shareEnabled });
+    // For raw format, disable share button to prevent recursive sharing
+    const flexMessage = createBusinessCardFlexMessage(cardData, baseUrl, { 
+      shareEnabled: format === 'raw' ? false : shareEnabled 
+    });
 
-    console.log(`${logPrefix} Generated flex message for:`, member.full_name_th);
+    console.log(`${logPrefix} Generated flex message for:`, member.full_name_th, format === 'raw' ? '(raw format)' : '');
+
+    // Return raw format for external share service (CORS enabled)
+    if (format === 'raw') {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type');
+      return res.json(flexMessage);
+    }
 
     return res.json({
       success: true,

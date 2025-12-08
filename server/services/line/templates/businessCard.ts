@@ -479,12 +479,12 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
 
   const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
   
-  // LIFF share URL uses LIFF URI with liff.state parameter
-  // LIFF ID: 2008514122-46EJngRL, Endpoint: https://meetdup.com/liff/cards
-  // State format: share:{tenantId}:{participantId} - handled by LiffStateHandler
-  const liffId = "2008514122-46EJngRL";
-  const liffState = `share:${data.tenant_id}:${data.participant_id}`;
-  const shareUrl = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(liffState)}`;
+  // External Share Service URL - uses line-share-flex-api.lovable.app
+  // This service handles LIFF shareTargetPicker without needing our own LIFF implementation
+  // Format: https://line-share-flex-api.lovable.app/share?messages={encodedJsonUrl}
+  // The JSON URL points to our share-flex endpoint with format=raw for direct JSON response
+  const flexJsonUrl = `${baseUrl}/api/public/share-flex/${data.participant_id}?tenantId=${data.tenant_id}&format=raw`;
+  const shareUrl = `https://line-share-flex-api.lovable.app/share?messages=${encodeURIComponent(flexJsonUrl)}`;
 
   // Always show One Page button if onepage_url exists (no website fallback)
   if (onepageUrl) {
