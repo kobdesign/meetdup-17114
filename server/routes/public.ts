@@ -424,11 +424,14 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
     console.log(`${logPrefix} Generated flex message for:`, member.full_name_th, format === 'raw' ? '(raw format)' : '');
 
     // Return raw format for external share service (CORS enabled)
+    // LINE shareTargetPicker expects an array of messages
     if (format === 'raw') {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type');
-      return res.json(flexMessage);
+      res.header('Content-Type', 'application/json; charset=utf-8');
+      // Wrap in array as LINE expects messages array format
+      return res.send(JSON.stringify([flexMessage]));
     }
 
     return res.json({
