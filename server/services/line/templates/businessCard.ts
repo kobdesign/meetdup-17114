@@ -475,8 +475,9 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
   
   // LIFF share URL must always use production domain (LIFF only works with registered domains)
+  // Use query parameters instead of path parameters to match LIFF endpoint registration
   const liffBaseUrl = "https://meetdup.com";
-  const shareUrl = `${liffBaseUrl}/liff/share/${data.tenant_id}/${data.participant_id}`;
+  const shareUrl = `${liffBaseUrl}/liff/share?tenantId=${data.tenant_id}&participantId=${data.participant_id}`;
 
   // Always show One Page button if onepage_url exists (no website fallback)
   if (onepageUrl) {
@@ -499,18 +500,6 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       type: "uri",
       label: "Profile",
       uri: publicProfileUrl
-    },
-    style: "secondary",
-    height: "sm"
-  });
-
-  // Share button - opens LIFF to share this card
-  secondaryActions.push({
-    type: "button",
-    action: {
-      type: "uri",
-      label: "แชร์",
-      uri: shareUrl
     },
     style: "secondary",
     height: "sm"
@@ -596,6 +585,24 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       justifyContent: "center"
     });
   }
+
+  // Share button - separate row at bottom for better visibility
+  footerContents.push({
+    type: "separator",
+    margin: "md",
+    color: COLORS.separator
+  });
+  footerContents.push({
+    type: "button",
+    action: {
+      type: "uri",
+      label: "แชร์นามบัตรนี้",
+      uri: shareUrl
+    },
+    style: "secondary",
+    height: "sm",
+    margin: "md"
+  });
 
   const bubble: any = {
     type: "bubble",
