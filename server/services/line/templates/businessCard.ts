@@ -485,7 +485,9 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   // This service handles LIFF shareTargetPicker without needing our own LIFF implementation
   // Format: {shareServiceUrl}/share?messages={encodedJsonUrl}
   // The JSON URL points to our share-flex endpoint with format=raw for direct JSON response
-  const shareServiceUrl = options?.shareServiceUrl || "https://line-share-flex-api.lovable.app";
+  const rawShareServiceUrl = options?.shareServiceUrl || "https://line-share-flex-api.lovable.app";
+  // Remove trailing slash to prevent double slashes in URL
+  const shareServiceUrl = rawShareServiceUrl.replace(/\/+$/, "");
   const flexJsonUrl = `${baseUrl}/api/public/share-flex/${data.participant_id}?tenantId=${data.tenant_id}&format=raw`;
   const shareUrl = `${shareServiceUrl}/share?messages=${encodeURIComponent(flexJsonUrl)}`;
 

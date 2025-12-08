@@ -105,9 +105,17 @@ export async function getShareEnabled(): Promise<boolean> {
 const DEFAULT_SHARE_SERVICE_URL = "https://line-share-flex-api.lovable.app";
 
 /**
+ * Normalize URL by removing trailing slashes
+ */
+function normalizeUrl(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
+/**
  * Get share service URL from system_settings
  * This is the external LINE Share Target Picker service URL
  * Configurable by Super Admin to allow changing the service without code changes
+ * Returns URL without trailing slash to prevent double slashes when constructing paths
  */
 export async function getShareServiceUrl(): Promise<string> {
   try {
@@ -122,8 +130,10 @@ export async function getShareServiceUrl(): Promise<string> {
       return DEFAULT_SHARE_SERVICE_URL;
     }
 
-    console.log("[LIFF Config] Using configured share service URL:", data.setting_value);
-    return data.setting_value;
+    // Normalize URL to remove trailing slashes
+    const normalizedUrl = normalizeUrl(data.setting_value);
+    console.log("[LIFF Config] Using configured share service URL:", normalizedUrl);
+    return normalizedUrl;
   } catch (error) {
     console.error("[LIFF Config] Error getting share service URL:", error);
     return DEFAULT_SHARE_SERVICE_URL;
