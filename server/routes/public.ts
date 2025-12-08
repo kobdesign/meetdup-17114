@@ -415,9 +415,9 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
     const format = req.query.format as string;
     
     // Generate the Flex Message using the same template as LINE bot
-    // For raw format, disable share button to prevent recursive sharing
+    // Share button is now enabled on shared cards so recipients can share further
     const flexMessage = createBusinessCardFlexMessage(cardData, baseUrl, { 
-      shareEnabled: format === 'raw' ? false : shareEnabled,
+      shareEnabled,
       shareServiceUrl
     });
 
