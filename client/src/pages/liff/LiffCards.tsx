@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, Share2, CheckCircle2, XCircle, AlertCircle, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ interface ShareState {
 export default function LiffCards() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const hasProcessed = useRef(false);
   
   const [mode, setMode] = useState<"routing" | "share">("routing");
   const [shareState, setShareState] = useState<ShareState | null>(null);
@@ -27,6 +28,11 @@ export default function LiffCards() {
   const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
+    if (hasProcessed.current) {
+      console.log("[LiffCards] Already processed, skipping");
+      return;
+    }
+    
     console.log("[LiffCards] All params:", Object.fromEntries(searchParams.entries()));
     
     const parseParams = (str: string): { tenant?: string; view?: string } => {
@@ -61,9 +67,12 @@ export default function LiffCards() {
         
         if (decodedState.startsWith("share:")) {
           const parts = decodedState.split(":");
-          if (parts.length === 3) {
-            const [, tenantId, participantId] = parts;
+          console.log("[LiffCards] Share parts:", parts, "length:", parts.length);
+          if (parts.length >= 3) {
+            const tenantId = parts[1];
+            const participantId = parts.slice(2).join(":");
             console.log("[LiffCards] Share action detected - rendering inline:", { tenantId, participantId });
+            hasProcessed.current = true;
             setShareState({ tenantId, participantId });
             setMode("share");
             return;
@@ -72,6 +81,7 @@ export default function LiffCards() {
         
         if (decodedState.startsWith("/")) {
           console.log("[LiffCards] Navigating to path:", decodedState);
+          hasProcessed.current = true;
           navigate(decodedState, { replace: true });
           return;
         }
@@ -92,6 +102,8 @@ export default function LiffCards() {
     
     console.log("[LiffCards] Final params - tenant:", tenantParam, "view:", viewParam);
     
+    hasProcessed.current = true;
+    
     if (tenantParam) {
       if (viewParam === "categories" || viewParam === "category") {
         console.log("[LiffCards] Redirecting to categories view");
@@ -106,6 +118,7 @@ export default function LiffCards() {
         navigate(`/liff/search?tenant=${tenantParam}`, { replace: true });
       }
     } else {
+      console.log("[LiffCards] No tenant param, redirecting to home");
       navigate("/", { replace: true });
     }
   }, [navigate, searchParams]);
