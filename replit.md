@@ -100,6 +100,7 @@ None specified yet.
     - Share Target Picker executes → Success/Cancel
   - **Files**:
     - `client/src/pages/liff/LiffCards.tsx` - Main LIFF page that handles both search AND share inline
+    - `client/src/pages/liff/LiffCardsRedirect.tsx` - Fallback: redirects path-based state to query param format
     - `client/src/hooks/useLiff.ts` - LIFF hook with init, login, shareTargetPicker, closeWindow
     - `client/src/components/LiffStateHandler.tsx` - Passes through share: states (no redirect)
     - `server/routes/public.ts` - GET `/api/public/share-flex/:participantId` endpoint
@@ -108,6 +109,10 @@ None specified yet.
     - LIFF ID: `2008514122-46EJngRL`
     - LIFF URI: `https://liff.line.me/2008514122-46EJngRL`
     - Endpoint URL: `https://meetdup.com/liff/cards` (MUST be exact match)
+  - **URL Normalization (Dec 2024)**:
+    - Route `/liff/cards/*` catches path-based states (e.g., `/liff/cards/share:tenant:participant`)
+    - `LiffCardsRedirect.tsx` normalizes to canonical format: `/liff/cards?liff.state=share:tenant:participant`
+    - Prevents 404 errors when users access URL directly instead of through LIFF URI
   - **Share Button Toggle (Dec 2024)**:
     - Super Admin can enable/disable share button globally via LIFF Settings page
     - Setting: `liff_share_enabled` in `system_settings` table (defaults to true)
