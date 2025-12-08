@@ -75,3 +75,26 @@ export async function getLiffId(): Promise<string | null> {
   const config = await getLiffConfig();
   return config.liffId;
 }
+
+/**
+ * Get share button enabled setting from system_settings
+ * Defaults to true if not set
+ */
+export async function getShareEnabled(): Promise<boolean> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("system_settings")
+      .select("setting_value")
+      .eq("setting_key", "liff_share_enabled")
+      .single();
+
+    if (error || !data) {
+      return true;
+    }
+
+    return data.setting_value !== "false";
+  } catch (error) {
+    console.error("[LIFF Config] Error getting share enabled:", error);
+    return true;
+  }
+}

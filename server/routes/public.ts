@@ -4,6 +4,7 @@ import { createBusinessCardFlexMessage, BusinessCardData } from "../services/lin
 import { getProductionBaseUrl } from "../utils/getProductionUrl";
 import { getLineCredentials } from "../services/line/credentials";
 import { LineClient } from "../services/line/lineClient";
+import { getShareEnabled } from "../utils/liffConfig";
 
 const router = Router();
 
@@ -407,10 +408,11 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
 
     // Use production URL for sharing - consistent with LINE bot
     const baseUrl = getProductionBaseUrl();
+    const shareEnabled = await getShareEnabled();
     
     // Generate the Flex Message using the same template as LINE bot
     // Note: No LIFF ID passed for share-flex - this is the card being shared, not the source
-    const flexMessage = createBusinessCardFlexMessage(cardData, baseUrl);
+    const flexMessage = createBusinessCardFlexMessage(cardData, baseUrl, { shareEnabled });
 
     console.log(`${logPrefix} Generated flex message for:`, member.full_name_th);
 
@@ -894,11 +896,12 @@ router.post("/liff/search-by-category", async (req: Request, res: Response) => {
     }));
 
     const baseUrl = getProductionBaseUrl();
+    const shareEnabled = await getShareEnabled();
     const lineClient = new LineClient(credentials.channelAccessToken);
 
     // If only one member, send single card
     if (membersWithTenant.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl);
+      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled });
       await lineClient.pushMessage(lineUserId, flexMessage);
       
       console.log(`${logPrefix} Sent single card for category ${categoryCode}`);
@@ -911,7 +914,7 @@ router.post("/liff/search-by-category", async (req: Request, res: Response) => {
 
     // Multiple members - send carousel
     const carouselContents = membersWithTenant.map(m => {
-      const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl);
+      const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl, { shareEnabled });
       return flexMessage.contents;
     });
 

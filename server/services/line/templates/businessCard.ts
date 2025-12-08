@@ -42,7 +42,12 @@ const COLORS = {
   separator: "#E2E8F0",
 };
 
-export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string) {
+export interface BusinessCardOptions {
+  shareEnabled?: boolean;
+}
+
+export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string, options?: BusinessCardOptions) {
+  const shareEnabled = options?.shareEnabled ?? true;
   const phoneUri = sanitizePhone(data.phone);
   const emailUri = sanitizeEmail(data.email);
   const websiteUrl = sanitizeUrl(data.website_url);
@@ -588,23 +593,25 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     });
   }
 
-  // Share button - separate row at bottom for better visibility
-  footerContents.push({
-    type: "separator",
-    margin: "md",
-    color: COLORS.separator
-  });
-  footerContents.push({
-    type: "button",
-    action: {
-      type: "uri",
-      label: "แชร์นามบัตรนี้",
-      uri: shareUrl
-    },
-    style: "secondary",
-    height: "sm",
-    margin: "md"
-  });
+  // Share button - separate row at bottom for better visibility (only if enabled)
+  if (shareEnabled) {
+    footerContents.push({
+      type: "separator",
+      margin: "md",
+      color: COLORS.separator
+    });
+    footerContents.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "แชร์นามบัตรนี้",
+        uri: shareUrl
+      },
+      style: "secondary",
+      height: "sm",
+      margin: "md"
+    });
+  }
 
   const bubble: any = {
     type: "bubble",

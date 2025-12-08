@@ -14,6 +14,7 @@ interface LiffSettings {
   liff_id: string;
   liff_channel_id: string;
   liff_enabled: boolean;
+  liff_share_enabled: boolean;
 }
 
 export default function LiffSettings() {
@@ -24,7 +25,8 @@ export default function LiffSettings() {
   const [settings, setSettings] = useState<LiffSettings>({
     liff_id: "",
     liff_channel_id: "",
-    liff_enabled: false
+    liff_enabled: false,
+    liff_share_enabled: true
   });
 
   useEffect(() => {
@@ -168,6 +170,21 @@ export default function LiffSettings() {
               checked={settings.liff_enabled}
               onCheckedChange={(checked) => setSettings({ ...settings, liff_enabled: checked })}
               data-testid="switch-liff-enabled"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="liff-share-enabled">Enable Share Button</Label>
+              <p className="text-sm text-muted-foreground">
+                Show share button on business cards to let members share via LINE
+              </p>
+            </div>
+            <Switch
+              id="liff-share-enabled"
+              checked={settings.liff_share_enabled}
+              onCheckedChange={(checked) => setSettings({ ...settings, liff_share_enabled: checked })}
+              data-testid="switch-liff-share-enabled"
             />
           </div>
 

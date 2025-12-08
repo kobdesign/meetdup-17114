@@ -89,17 +89,27 @@ None specified yet.
 - **LIFF Business Card Share System (Dec 2024)**:
   - **Purpose**: Allow members to share their business card as Flex Message via LINE Share Target Picker
   - **Requirements**: LIFF SDK v2.x, LINE App >= 10.3.0, max 5 bubbles per share
-  - **Flow**: User opens share link → LIFF init → Login check → Fetch Flex Message → Share Target Picker → Success/Cancel
+  - **Flow**: User clicks share button → LIFF URI opens → LiffStateHandler routes → Share Target Picker → Success/Cancel
   - **Files**:
     - `client/src/hooks/useLiff.ts` - LIFF hook with init, login, shareTargetPicker, closeWindow
-    - `client/src/pages/liff/LiffShareCard.tsx` - Share card UI with status handling
+    - `client/src/pages/liff/LiffShareCard.tsx` - Share card UI with query param handling
+    - `client/src/components/LiffStateHandler.tsx` - Routes LIFF state to correct page
     - `server/routes/public.ts` - GET `/api/public/share-flex/:participantId` endpoint
-    - `server/services/line/templates/businessCard.ts` - Flex Message template generator
-  - **URL Format**: `/liff/share/{tenantId}/{participantId}`
-  - **LIFF State Format**: `share:{tenantId}:{participantId}` (for Rich Menu integration)
+    - `server/services/line/templates/businessCard.ts` - Flex Message template with conditional share button
+  - **LIFF Configuration**:
+    - LIFF ID: `2008514122-46EJngRL`
+    - LIFF URI: `https://liff.line.me/2008514122-46EJngRL`
+    - Endpoint: `https://meetdup.com/liff/cards`
+  - **URL Format**: Uses LIFF state parameter (not path params due to LINE OAuth requirements)
+    - Share URL in Flex Message: `https://liff.line.me/2008514122-46EJngRL?liff.state=share:{tenantId}:{participantId}`
+    - LiffStateHandler converts state to: `/liff/share?tenantId=X&participantId=Y`
+  - **Share Button Toggle (Dec 2024)**:
+    - Super Admin can enable/disable share button globally via LIFF Settings page
+    - Setting: `liff_share_enabled` in `system_settings` table (defaults to true)
+    - API: GET/PUT `/api/admin/system-settings/liff`
+    - Helper: `getShareEnabled()` in `server/utils/liffConfig.ts`
   - **Error Handling**: login needed, not-in-liff, cancelled, network error states
   - **Security**: UUID validation, tenant isolation, URL sanitization
-  - **Documentation**: Full technical docs at `docs/LIFF_BUSINESS_CARD_SHARE.md`
 
 ## External Dependencies
 
