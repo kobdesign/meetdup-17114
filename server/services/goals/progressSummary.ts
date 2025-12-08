@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../../utils/supabaseClient";
 import { getLineCredentials } from "../line/credentials";
 import { LineClient } from "../line/lineClient";
 import { getChapterAdminsWithLine } from "./achievementNotification";
+import { calculateGoalProgressValue } from "./progressCalculator";
 
 interface MeetingInfo {
   meeting_id: string;
@@ -249,12 +250,35 @@ export async function getActiveGoalsForTenant(tenantId: string): Promise<GoalSum
     return [];
   }
 
-  return goals.map((goal: any) => {
+  const progressPromises = goals.map(goal => 
+    calculateGoalProgressValue(
+      tenantId,
+      goal.metric_type,
+      goal.start_date,
+      goal.end_date,
+      goal.meeting_id
+    )
+  );
+  
+  const currentValues = await Promise.all(progressPromises);
+  
+  const results: GoalSummary[] = goals.map((goal, index) => {
     const targetValue = goal.target_value || 0;
-    const currentValue = goal.current_value || 0;
+    const currentValue = currentValues[index];
     const progressPercent = targetValue > 0 
       ? Math.min(100, Math.round((currentValue / targetValue) * 100))
       : 0;
+    
+    console.log(`[ProgressSummary] Goal "${goal.name}": ${currentValue}/${targetValue} (${progressPercent}%)`);
+    
+    let meetingInfo: MeetingInfo | null = null;
+    if (goal.meeting) {
+      if (Array.isArray(goal.meeting) && goal.meeting.length > 0) {
+        meetingInfo = goal.meeting[0];
+      } else if (!Array.isArray(goal.meeting)) {
+        meetingInfo = goal.meeting as unknown as MeetingInfo;
+      }
+    }
     
     return {
       goal_id: goal.goal_id,
@@ -265,9 +289,11 @@ export async function getActiveGoalsForTenant(tenantId: string): Promise<GoalSum
       current_value: currentValue,
       progress_percent: progressPercent,
       end_date: goal.end_date,
-      meeting: goal.meeting
+      meeting: meetingInfo
     };
   });
+  
+  return results;
 }
 
 export async function sendGoalsProgressSummary(
