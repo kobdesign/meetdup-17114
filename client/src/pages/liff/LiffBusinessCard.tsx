@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { SiFacebook, SiInstagram, SiLine } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
-import { useLiff, generateFlexMessage } from "@/hooks/useLiff";
+import { useLiff } from "@/hooks/useLiff";
 
 interface Member {
   participant_id: string;
@@ -113,55 +113,65 @@ export default function LiffBusinessCard() {
     }
   };
 
+  const handleWebShare = async () => {
+    if (!member) return;
+    
+    const title = `นามบัตรของ ${member.full_name_th || member.full_name}`;
+    const text = `${member.full_name_th || member.full_name} - ${member.position || ""} @ ${member.company || ""}`;
+    
+    if (navigator.share) {
+      await navigator.share({ title, text, url: window.location.href });
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      toast({
+        title: "คัดลอก URL แล้ว",
+        description: "สามารถนำไปแชร์ได้เลย"
+      });
+    }
+  };
+
   const handleShare = async () => {
     if (!member) return;
     
     setSharing(true);
     try {
       if (isInLiff && isLiffReady) {
-        const flexMessage = generateFlexMessage(member, category);
-        await shareTargetPicker([flexMessage]);
+        const response = await fetch(`/api/public/share-flex/${member.participant_id}?tenant=${member.tenant_id}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch flex message: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.flexMessage) {
+          throw new Error("No flex message returned");
+        }
+        
+        await shareTargetPicker([data.flexMessage]);
         
         toast({
           title: "แชร์สำเร็จ",
           description: "ส่งนามบัตรเรียบร้อยแล้ว"
         });
       } else {
-        if (navigator.share) {
-          await navigator.share({
-            title: `นามบัตรของ ${member.full_name_th || member.full_name}`,
-            text: `${member.full_name_th || member.full_name} - ${member.position || ""} @ ${member.company || ""}`,
-            url: window.location.href
-          });
-        } else {
-          await navigator.clipboard.writeText(window.location.href);
-          toast({
-            title: "คัดลอก URL แล้ว",
-            description: "สามารถนำไปแชร์ได้เลย"
-          });
-        }
+        await handleWebShare();
       }
     } catch (err: any) {
       console.error("Share error:", err);
-      if (err.message === "LIFF is not configured") {
-        if (navigator.share) {
-          await navigator.share({
-            title: `นามบัตรของ ${member.full_name_th || member.full_name}`,
-            text: `${member.full_name_th || member.full_name} - ${member.position || ""} @ ${member.company || ""}`,
-            url: window.location.href
-          });
-        } else {
-          await navigator.clipboard.writeText(window.location.href);
-          toast({
-            title: "คัดลอก URL แล้ว",
-            description: "สามารถนำไปแชร์ได้เลย"
-          });
-        }
+      
+      if (err.message?.includes("cancelled")) {
+        toast({
+          title: "ยกเลิกการแชร์",
+          description: "คุณได้ยกเลิกการแชร์นามบัตร"
+        });
+      } else if (err.message === "LIFF is not configured" || err.message?.includes("not available")) {
+        await handleWebShare();
       } else {
         toast({
           variant: "destructive",
           title: "เกิดข้อผิดพลาด",
-          description: "ไม่สามารถแชร์ได้"
+          description: "ไม่สามารถแชร์ได้ กรุณาลองใหม่อีกครั้ง"
         });
       }
     } finally {
