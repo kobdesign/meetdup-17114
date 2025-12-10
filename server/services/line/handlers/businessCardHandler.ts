@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { createBusinessCardFlexMessage, BusinessCardData } from "../templates/businessCard";
 import { getLiffId, getShareEnabled, getShareServiceUrl } from "../../../utils/liffConfig";
+import { logLineWebhookError, logLineReplyError } from "../../../utils/errorLogger";
 
 /**
  * Handle "view_card" postback action
@@ -751,27 +752,51 @@ export async function handleCategorySelection(
 }
 
 /**
- * Send LINE reply message
+ * Send LINE reply message with enhanced error logging
  */
 async function replyMessage(
   replyToken: string,
   message: any,
-  accessToken: string
+  accessToken: string,
+  tenantId?: string
 ): Promise<void> {
-  const response = await fetch("https://api.line.me/v2/bot/message/reply", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${accessToken}`
-    },
-    body: JSON.stringify({
+  const logPrefix = "[LineReply]";
+  
+  try {
+    const body = JSON.stringify({
       replyToken,
       messages: [message]
-    })
-  });
+    });
+    
+    console.log(`${logPrefix} Sending message type: ${message?.type || 'unknown'}`);
+    
+    const response = await fetch("https://api.line.me/v2/bot/message/reply", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`
+      },
+      body
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`LINE API error: ${error}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      const errorMessage = `LINE API error (${response.status}): ${errorText}`;
+      console.error(`${logPrefix} ${errorMessage}`);
+      console.error(`${logPrefix} Message body size: ${body.length} bytes`);
+      console.error(`${logPrefix} Message type: ${message?.type}, altText: ${message?.altText?.substring(0, 50)}`);
+      
+      // Log to database for production debugging
+      if (tenantId) {
+        await logLineReplyError(tenantId, replyToken, message?.type || 'unknown', new Error(errorMessage));
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    console.log(`${logPrefix} Message sent successfully`);
+  } catch (error: any) {
+    console.error(`${logPrefix} Failed to send message:`, error?.message || error);
+    throw error;
   }
 }
