@@ -3,12 +3,25 @@ import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, Briefcase, Award, Search, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Users, Briefcase, Award, Search, Loader2, Phone, Mail, ExternalLink } from "lucide-react";
 
 interface Tenant {
   tenant_id: string;
   tenant_name: string;
   logo_url: string | null;
+}
+
+interface SearchResult {
+  participant_id: string;
+  full_name_th: string;
+  nickname_th: string | null;
+  position: string | null;
+  company: string | null;
+  phone: string | null;
+  email: string | null;
+  photo_url: string | null;
+  tagline: string | null;
 }
 
 export default function LiffSearchHome() {
@@ -17,11 +30,18 @@ export default function LiffSearchHome() {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Text search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   const searchParams = new URLSearchParams(location.search);
   const tenantId = searchParams.get("tenant");
   const tabParam = searchParams.get("tab");
   const viewParam = searchParams.get("view"); // Support for LIFF URL query parameter
+  const initialQuery = searchParams.get("q"); // Pre-filled search query from "View More" button
 
   // Auto-redirect based on tab or view parameter
   useEffect(() => {
@@ -43,6 +63,58 @@ export default function LiffSearchHome() {
       return;
     }
   }, [tenantId, tabParam, viewParam, navigate]);
+  
+  // Auto-search when initialQuery is provided (from "View More" button)
+  useEffect(() => {
+    if (initialQuery && tenantId) {
+      setSearchQuery(initialQuery);
+      performSearch(initialQuery);
+    }
+  }, [initialQuery, tenantId]);
+  
+  // Search function
+  const performSearch = async (query: string) => {
+    if (!query.trim() || !tenantId) return;
+    
+    setIsSearching(true);
+    setShowSearchResults(true);
+    
+    try {
+      const response = await fetch("/api/public/liff/search-members", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          query: query.trim()
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setSearchResults(data.participants || []);
+      } else {
+        console.error("Search error:", data.error);
+        setSearchResults([]);
+      }
+    } catch (err) {
+      console.error("Search failed:", err);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    performSearch(searchQuery);
+  };
+  
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowSearchResults(false);
+  };
 
   useEffect(() => {
     if (!tenantId) {
@@ -158,15 +230,135 @@ export default function LiffSearchHome() {
           </div>
         </div>
 
-        <p className="text-primary-foreground/80">
-          ค้นหาสมาชิกจากเมนู
-        </p>
-        <p className="text-sm text-primary-foreground/60">
-          หรือสามารถพิมพ์ Keywords เช่นชื่อเล่นได้เลย
-        </p>
+        {/* Text Search Form */}
+        <form onSubmit={handleSearchSubmit} className="mt-4">
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="พิมพ์ชื่อ, ชื่อเล่น, บริษัท..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/50"
+              data-testid="input-search"
+            />
+            <Button 
+              type="submit" 
+              variant="secondary"
+              disabled={isSearching || !searchQuery.trim()}
+              data-testid="button-search"
+            >
+              {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+        </form>
       </div>
 
-      <div className="p-4 grid grid-cols-1 gap-4">
+      {/* Search Results */}
+      {showSearchResults && (
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-foreground">
+              {isSearching ? "กำลังค้นหา..." : `ผลการค้นหา "${searchQuery}" (${searchResults.length} คน)`}
+            </h2>
+            <Button variant="ghost" size="sm" onClick={handleClearSearch} data-testid="button-clear-search">
+              ล้างผลลัพธ์
+            </Button>
+          </div>
+          
+          {isSearching ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : searchResults.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                ไม่พบสมาชิกที่ตรงกับคำค้นหา
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {searchResults.map((member) => (
+                <Card 
+                  key={member.participant_id} 
+                  className="overflow-hidden hover-elevate cursor-pointer"
+                  onClick={() => navigate(`/p/${member.participant_id}`)}
+                  data-testid={`card-member-${member.participant_id}`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      {member.photo_url ? (
+                        <img 
+                          src={member.photo_url} 
+                          alt={member.full_name_th}
+                          className="h-14 w-14 rounded-full object-cover border-2 border-primary/20"
+                        />
+                      ) : (
+                        <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center border-2 border-primary/20">
+                          <span className="text-lg font-bold text-muted-foreground">
+                            {member.full_name_th?.charAt(0)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground truncate">
+                          {member.full_name_th}
+                          {member.nickname_th && (
+                            <span className="text-primary ml-2">"{member.nickname_th}"</span>
+                          )}
+                        </p>
+                        {(member.position || member.company) && (
+                          <p className="text-sm text-muted-foreground truncate">
+                            {[member.position, member.company].filter(Boolean).join(" | ")}
+                          </p>
+                        )}
+                        {member.tagline && (
+                          <p className="text-xs text-muted-foreground italic mt-1 line-clamp-2">
+                            "{member.tagline}"
+                          </p>
+                        )}
+                        <div className="flex items-center gap-3 mt-2">
+                          {member.phone && (
+                            <a 
+                              href={`tel:${member.phone}`} 
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1 text-xs text-primary"
+                              data-testid={`link-phone-${member.participant_id}`}
+                            >
+                              <Phone className="h-3 w-3" />
+                              โทร
+                            </a>
+                          )}
+                          {member.email && (
+                            <a 
+                              href={`mailto:${member.email}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1 text-xs text-primary"
+                              data-testid={`link-email-${member.participant_id}`}
+                            >
+                              <Mail className="h-3 w-3" />
+                              Email
+                            </a>
+                          )}
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <ExternalLink className="h-3 w-3" />
+                            ดูโปรไฟล์
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Category Search Options */}
+      {!showSearchResults && (
+        <div className="p-4">
+          <p className="text-sm text-muted-foreground mb-4">หรือค้นหาจากหมวดหมู่</p>
+          <div className="grid grid-cols-1 gap-4">
         {searchOptions.map((option) => (
           <Card 
             key={option.id}

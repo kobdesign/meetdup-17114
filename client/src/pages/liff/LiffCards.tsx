@@ -86,6 +86,16 @@ export default function LiffCards() {
       }
     }
     
+    // Check for direct search params (from "View More" button)
+    const directSearch = searchParams.get("search");
+    const directTenantId = searchParams.get("tenantId");
+    
+    if (directSearch && directTenantId) {
+      console.log("[LiffCards] Direct search mode - search:", directSearch, "tenantId:", directTenantId);
+      navigate(`/liff/search?tenant=${directTenantId}&q=${encodeURIComponent(directSearch)}`, { replace: true });
+      return;
+    }
+    
     if (!liffState) {
       console.log("[LiffCards] No state found, redirecting to home");
       navigate("/", { replace: true });
