@@ -30,7 +30,8 @@ import {
   LayoutGrid,
   Upload,
   Smartphone,
-  Trophy
+  Trophy,
+  Briefcase
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -121,6 +122,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },
     { icon: <Shield className="h-4 w-4" />, label: "จัดการสิทธิ์", href: "/admin/authorization" },
     { icon: <Smartphone className="h-4 w-4" />, label: "LIFF Settings", href: "/super-admin/liff-settings" },
+    { icon: <Briefcase className="h-4 w-4" />, label: "จัดการหมวดหมู่ธุรกิจ", href: "/super-admin/business-categories" },
   ];
 
   return (
