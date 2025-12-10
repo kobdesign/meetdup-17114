@@ -58,8 +58,8 @@ export async function handleViewCard(
       .select(`
         participant_id,
         tenant_id,
-        full_name_th,
-        nickname_th,
+        full_name,
+        nickname,
         position,
         company,
         tagline,
@@ -103,7 +103,7 @@ export async function handleViewCard(
 
     await replyMessage(event.replyToken, flexMessage, accessToken);
 
-    console.log(`${logPrefix} Business card sent successfully for ${cardData.full_name_th}`);
+    console.log(`${logPrefix} Business card sent successfully for ${cardData.full_name}`);
 
   } catch (error: any) {
     console.error(`${logPrefix} Error handling view card:`, error);
@@ -129,19 +129,19 @@ export async function handleMemberSearch(
   console.log(`${logPrefix} Searching for: "${searchTerm}" in tenant: ${tenantId}`);
 
   try {
-    // Search by full_name_th containing the search term (case-insensitive)
+    // Search by full_name containing the search term (case-insensitive)
     const { data: members, error } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
-        full_name_th,
+        full_name,
         position,
         company,
         status
       `)
       .eq("tenant_id", tenantId)
       .in("status", ["member", "visitor", "prospect"])
-      .ilike("full_name_th", `%${searchTerm}%`)
+      .ilike("full_name", `%${searchTerm}%`)
       .limit(10);
 
     if (error) {
@@ -168,8 +168,8 @@ export async function handleMemberSearch(
         type: "action",
         action: {
           type: "postback",
-          label: member.full_name_th.substring(0, 20),
-          displayText: `ดูนามบัตร ${member.full_name_th}`,
+          label: member.full_name.substring(0, 20),
+          displayText: `ดูนามบัตร ${member.full_name}`,
           data: `action=view_card&participant_id=${member.participant_id}`
         }
       };
@@ -177,7 +177,7 @@ export async function handleMemberSearch(
 
     const resultText = `พบ ${members.length} คน:\n\n${members.map((m: any, i: number) => {
       const subtitle = [m.position, m.company].filter(Boolean).join(" • ");
-      return `${i + 1}. ${m.full_name_th}${subtitle ? `\n   ${subtitle}` : ""}`;
+      return `${i + 1}. ${m.full_name}${subtitle ? `\n   ${subtitle}` : ""}`;
     }).join("\n\n")}`;
 
     await replyMessage(event.replyToken, {
@@ -225,28 +225,25 @@ export async function handleCardSearch(
 
   try {
     // Build comprehensive search query
-    // Search across: full_name_th, nickname, phone, company, notes, and tags array
+    // Search across: full_name (legacy column), nickname, phone, company, notes
+    // Note: Production uses 'full_name' and 'nickname' (not full_name/nickname)
     const selectFields = `
       participant_id,
       tenant_id,
-      full_name_th,
-      nickname_th,
+      full_name,
+      nickname,
       position,
       company,
       tagline,
       photo_url,
-      company_logo_url,
       email,
       phone,
       website_url,
       facebook_url,
       instagram_url,
-      linkedin_url,
       line_id,
       business_address,
       notes,
-      tags,
-      onepage_url,
       status
     `;
 
@@ -270,8 +267,9 @@ export async function handleCardSearch(
       return;
     }
 
-    // Search fields: full_name_th, full_name_en, nickname_th, nickname_en, phone, company, tagline, notes
-    const searchFields = ['full_name_th', 'full_name_en', 'nickname_th', 'nickname_en', 'phone', 'company', 'tagline', 'notes'];
+    // Search fields: full_name, nickname, phone, company, tagline, notes
+    // Note: Production uses 'full_name' and 'nickname' columns (legacy schema)
+    const searchFields = ['full_name', 'nickname', 'phone', 'company', 'tagline', 'notes'];
     
     console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
 
@@ -310,41 +308,7 @@ export async function handleCardSearch(
           }
         }
       }
-
-      // Also search in tags array for this keyword (partial + case insensitive)
-      if (participants.length < 10) {
-        // Fetch ALL participants with non-empty tags for proper partial matching
-        const { data: tagCandidates } = await supabaseAdmin
-          .from("participants")
-          .select(selectFields)
-          .eq("tenant_id", tenantId)
-          .in("status", ["member", "visitor"])
-          .not("tags", "is", null)
-          .order("full_name_th", { ascending: true });
-
-        if (tagCandidates && tagCandidates.length > 0) {
-          const keywordLower = keyword.toLowerCase();
-          console.log(`${logPrefix} Tag search: checking ${tagCandidates.length} participants for keyword "${keyword}"`);
-          
-          for (const candidate of tagCandidates) {
-            if (participants.length >= 10) break;
-            if (participantIds.has(candidate.participant_id)) continue;
-            
-            // Check if any tag contains the keyword (partial + case insensitive)
-            const tags = candidate.tags as string[] | null;
-            if (tags && tags.length > 0) {
-              const hasMatch = tags.some(tag => 
-                tag && tag.toLowerCase().includes(keywordLower)
-              );
-              if (hasMatch) {
-                console.log(`${logPrefix} Tag match found: ${candidate.full_name_th} has tags: [${tags.join(', ')}]`);
-                participants.push(candidate);
-                participantIds.add(candidate.participant_id);
-              }
-            }
-          }
-        }
-      }
+      // Note: tag search removed - 'tags' column doesn't exist in Production schema
     }
 
     // Ensure hard cap of 10 results
@@ -400,7 +364,7 @@ export async function handleCardSearch(
     if (participantsWithTenant.length === 1) {
       const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
       await replyMessage(event.replyToken, flexMessage, accessToken);
-      console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name_th}`);
+      console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name}`);
       return;
     }
 
@@ -455,7 +419,7 @@ export async function handleEditProfileRequest(
     // Find participant by LINE user ID
     const { data: participant, error } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name_th")
+      .select("participant_id, full_name")
       .eq("line_user_id", lineUserId)
       .eq("tenant_id", tenantId)
       .single();
@@ -478,7 +442,7 @@ export async function handleEditProfileRequest(
 
     const profileUrl = `${baseUrl}/participant-profile/edit?token=${token}`;
 
-    console.log(`${logPrefix} Generated profile edit URL for ${participant.full_name_th}`);
+    console.log(`${logPrefix} Generated profile edit URL for ${participant.full_name}`);
 
     // Send message with link
     await replyMessage(event.replyToken, {
@@ -500,7 +464,7 @@ export async function handleEditProfileRequest(
             },
             {
               type: "text",
-              text: `สวัสดีคุณ ${participant.full_name_th} กรุณากดปุ่มด้านล่างเพื่อแก้ไขข้อมูลของคุณ`,
+              text: `สวัสดีคุณ ${participant.full_name} กรุณากดปุ่มด้านล่างเพื่อแก้ไขข้อมูลของคุณ`,
               size: "sm",
               color: "#6B7280",
               wrap: true,
@@ -534,7 +498,7 @@ export async function handleEditProfileRequest(
       }
     }, accessToken);
 
-    console.log(`${logPrefix} Sent profile edit link to ${participant.full_name_th}`);
+    console.log(`${logPrefix} Sent profile edit link to ${participant.full_name}`);
 
   } catch (error: any) {
     console.error(`${logPrefix} Error handling edit profile:`, error);
@@ -665,8 +629,8 @@ export async function handleCategorySelection(
       .select(`
         participant_id,
         tenant_id,
-        full_name_th,
-        nickname_th,
+        full_name,
+        nickname,
         position,
         company,
         tagline,
@@ -686,7 +650,7 @@ export async function handleCategorySelection(
       .eq("tenant_id", tenantId)
       .eq("status", "member")
       .eq("business_type_code", categoryCode)
-      .order("full_name_th", { ascending: true })
+      .order("full_name", { ascending: true })
       .limit(12);
     
     if (searchError) {
