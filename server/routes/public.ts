@@ -963,15 +963,13 @@ router.post("/liff/search-by-category", async (req: Request, res: Response) => {
 });
 
 // LIFF Text Search - search members by name, nickname, company, category, tags, etc.
-// Uses same logic as LINE bot search for consistency
+// Uses shared search service for consistency with LINE bot
 router.post("/liff/search-members", async (req: Request, res: Response) => {
   const logPrefix = "[LIFF-SearchMembers]";
-  const MAX_RESULTS = 50; // Higher limit for LIFF (LINE bot uses 10)
   
   try {
     const { tenant_id, query } = req.body;
 
-    // Validate inputs
     if (!tenant_id || !query) {
       return res.status(400).json({ 
         success: false,
@@ -989,171 +987,24 @@ router.post("/liff/search-members", async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: "Search query too short" });
     }
 
-    console.log(`${logPrefix} Searching for "${searchTerm}" in tenant ${tenant_id}`);
-
-    // Split search term into keywords (same as LINE bot search)
-    const keywords = searchTerm
-      .split(/\s+/)
-      .filter((k: string) => k.trim().length > 0)
-      .map((k: string) => k
-        .replace(/%/g, '\\%')
-        .replace(/_/g, '\\_')
-        .replace(/['";]/g, '')
-      )
-      .filter((k: string) => k.length > 0);
-
-    if (keywords.length === 0) {
-      return res.status(400).json({ success: false, error: "Invalid search query" });
-    }
-
-    // Search fields - same as LINE bot search
-    const searchFields = ['full_name_th', 'full_name_en', 'nickname_th', 'nickname_en', 'phone', 'company', 'tagline', 'notes'];
-    const selectFields = `
-      participant_id,
-      full_name_th,
-      full_name_en,
-      nickname_th,
-      nickname_en,
-      position,
-      company,
-      phone,
-      email,
-      photo_url,
-      tagline,
-      line_id,
-      onepage_url,
-      business_type_code,
-      tags,
-      notes,
-      status
-    `;
+    const { searchParticipants } = await import("../services/search/participantSearch");
     
-    console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
+    const result = await searchParticipants({
+      tenantId: tenant_id,
+      searchTerm,
+      limit: 50,
+      enableCategoryMatching: true,
+      logPrefix
+    });
 
-    // Find category codes that match the search term (bonus feature for LIFF)
-    const { data: matchingCategories } = await supabaseAdmin
-      .from("business_categories")
-      .select("category_code")
-      .or(`name_th.ilike.%${searchTerm}%,name_en.ilike.%${searchTerm}%`);
-    
-    const matchingCategoryCodes = (matchingCategories || []).map(c => c.category_code);
-    if (matchingCategoryCodes.length > 0) {
-      console.log(`${logPrefix} Found ${matchingCategoryCodes.length} matching categories: [${matchingCategoryCodes.join(', ')}]`);
-    }
-
-    // Collect results with deduplication (same pattern as LINE bot)
-    let participants: any[] = [];
-    const participantIds = new Set<string>();
-
-    // Search each keyword separately and merge results (same as LINE bot)
-    for (const keyword of keywords) {
-      if (participants.length >= MAX_RESULTS) break;
-
-      // Build OR conditions for this keyword across all fields
-      const orConditions = searchFields.map(field => `${field}.ilike.%${keyword}%`).join(',');
-
-      const { data: keywordMatches, error } = await supabaseAdmin
-        .from("participants")
-        .select(selectFields)
-        .eq("tenant_id", tenant_id)
-        .in("status", ["member", "visitor"])
-        .or(orConditions)
-        .limit(MAX_RESULTS);
-
-      if (error) {
-        console.error(`${logPrefix} Search error for keyword "${keyword}":`, error);
-        continue;
-      }
-
-      // Merge and deduplicate results (same as LINE bot)
-      const matches = keywordMatches as any[] | null;
-      if (matches && matches.length > 0) {
-        console.log(`${logPrefix} Found ${matches.length} matches for "${keyword}"`);
-        for (const match of matches) {
-          if (participants.length >= MAX_RESULTS) break;
-          if (!participantIds.has(match.participant_id)) {
-            participants.push(match);
-            participantIds.add(match.participant_id);
-          }
-        }
-      }
-
-      // Also search in tags array for this keyword (partial + case insensitive) - same as LINE bot
-      if (participants.length < MAX_RESULTS) {
-        const { data: tagCandidates } = await supabaseAdmin
-          .from("participants")
-          .select(selectFields)
-          .eq("tenant_id", tenant_id)
-          .in("status", ["member", "visitor"])
-          .not("tags", "is", null)
-          .limit(100);
-
-        const candidates = tagCandidates as any[] | null;
-        if (candidates && candidates.length > 0) {
-          const keywordLower = keyword.toLowerCase();
-          
-          for (const candidate of candidates) {
-            if (participants.length >= MAX_RESULTS) break;
-            if (participantIds.has(candidate.participant_id)) continue;
-
-            // Check if any tag contains the keyword (partial + case insensitive)
-            const tags = candidate.tags as string[] | null;
-            if (tags && tags.length > 0) {
-              const hasMatch = tags.some(tag => 
-                tag && tag.toLowerCase().includes(keywordLower)
-              );
-              if (hasMatch) {
-                console.log(`${logPrefix} Tag match found: ${candidate.full_name_th} has matching tag for "${keyword}"`);
-                participants.push(candidate);
-                participantIds.add(candidate.participant_id);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Also search by category code if matching categories found (LIFF bonus feature)
-    if (matchingCategoryCodes.length > 0 && participants.length < MAX_RESULTS) {
-      for (const categoryCode of matchingCategoryCodes) {
-        if (participants.length >= MAX_RESULTS) break;
-
-        const { data: categoryMatches } = await supabaseAdmin
-          .from("participants")
-          .select(selectFields)
-          .eq("tenant_id", tenant_id)
-          .in("status", ["member", "visitor"])
-          .eq("business_type_code", categoryCode)
-          .limit(MAX_RESULTS);
-
-        const matches = categoryMatches as any[] | null;
-        if (matches && matches.length > 0) {
-          console.log(`${logPrefix} Found ${matches.length} matches for category ${categoryCode}`);
-          for (const match of matches) {
-            if (participants.length >= MAX_RESULTS) break;
-            if (!participantIds.has(match.participant_id)) {
-              participants.push(match);
-              participantIds.add(match.participant_id);
-            }
-          }
-        }
-      }
-    }
-
-    // Ensure hard cap
-    if (participants.length > MAX_RESULTS) {
-      participants = participants.slice(0, MAX_RESULTS);
-    }
-
-    // Sort by name
-    participants.sort((a, b) => (a.full_name_th || '').localeCompare(b.full_name_th || ''));
-
-    console.log(`${logPrefix} Found ${participants.length} total members matching "${searchTerm}"`);
+    const sortedParticipants = [...result.participants].sort((a, b) => 
+      (a.full_name_th || '').localeCompare(b.full_name_th || '')
+    );
 
     return res.json({ 
       success: true, 
-      participants: participants,
-      count: participants.length
+      participants: sortedParticipants,
+      count: result.count
     });
 
   } catch (error: any) {
