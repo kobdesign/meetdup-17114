@@ -346,11 +346,15 @@ export async function handleCardSearch(
     // Add "View More" bubble if there are more results
     if (needsViewMore) {
       const displayedCount = cardsToShow;
-      // Use hasMore from search result to determine if there's a next page
+      // hasNextPage is true if:
+      // 1. searchResult.hasMore = true (more results in database beyond what we fetched)
+      // 2. OR totalCount > cardsToShow (we have more fetched results than we're displaying)
+      const hasNextPage = hasMoreResults || totalCount > cardsToShow;
+      console.log(`${logPrefix} View more bubble: displayedCount=${displayedCount}, totalCount=${totalCount}, hasMoreResults=${hasMoreResults}, hasNextPage=${hasNextPage}`);
       carouselContents.push(
         createViewMoreBubble(totalCount - displayedCount, searchResult.totalFound, searchTerm, tenantId, baseUrl, {
           currentPage: 1,
-          hasNextPage: hasMoreResults
+          hasNextPage
         })
       );
     }
