@@ -1002,7 +1002,8 @@ router.post("/liff/search-members", async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: "Invalid search query" });
     }
 
-    const allQueriesTimedOut = result.timedOutQueries.length >= result.totalQueries;
+    const allQueriesTimedOut = result.executedQueries > 0 && 
+      result.timedOutQueries.length >= result.executedQueries;
     if (result.participants.length === 0 && allQueriesTimedOut) {
       return res.status(503).json({ 
         success: false, 

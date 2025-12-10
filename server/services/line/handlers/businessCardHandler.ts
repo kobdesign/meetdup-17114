@@ -242,6 +242,7 @@ export async function handleCardSearch(
       searchTerm,
       limit: 10,
       tagScanLimit: 50,
+      enableCategoryMatching: true,
       logPrefix
     });
 
@@ -254,7 +255,8 @@ export async function handleCardSearch(
     }
 
     let participants = searchResult.participants;
-    const allQueriesTimedOut = searchResult.timedOutQueries.length >= searchResult.totalQueries;
+    const allQueriesTimedOut = searchResult.executedQueries > 0 && 
+      searchResult.timedOutQueries.length >= searchResult.executedQueries;
     const error = participants.length === 0 && allQueriesTimedOut
       ? { message: "Search timeout" }
       : null;

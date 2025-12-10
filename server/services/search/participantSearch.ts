@@ -16,7 +16,7 @@ export interface SearchResult {
   matchingCategoryCodes: string[];
   count: number;
   timedOutQueries: string[];
-  totalQueries: number;
+  executedQueries: number;
   emptyQuery: boolean;
 }
 
@@ -147,7 +147,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     matchingCategoryCodes: [],
     count: 0,
     timedOutQueries: [],
-    totalQueries: 0,
+    executedQueries: 0,
     emptyQuery: false
   };
 
@@ -166,8 +166,6 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
   }
 
   console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
-  
-  result.totalQueries = keywords.length * 2;
 
   let matchingCategoryCodes: string[] = [];
   if (enableCategoryMatching) {
@@ -207,6 +205,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
       logPrefix
     );
 
+    result.executedQueries++;
     const queryTime = Date.now() - queryStart;
     console.log(`${logPrefix} Query completed in ${queryTime}ms, found: ${(keywordMatches as any[])?.length || 0} matches`);
 
@@ -249,6 +248,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
         logPrefix
       );
 
+      result.executedQueries++;
       const tagQueryTime = Date.now() - tagQueryStart;
       const candidates = tagCandidates as ParticipantSearchResult[] | null;
       console.log(`${logPrefix} Tag query completed in ${tagQueryTime}ms, found: ${candidates?.length || 0} candidates`);
