@@ -16,7 +16,7 @@ import {
 import imageCompression from "browser-image-compression";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
 import TagInput from "@/components/TagInput";
-import { getBusinessCategoryLabel } from "@/lib/business-categories";
+import { useBusinessCategories } from "@/hooks/useBusinessCategories";
 import ImageCropper from "@/components/ImageCropper";
 import { MemberSearchSelect, MemberOption } from "@/components/MemberSearchSelect";
 
@@ -61,6 +61,7 @@ export default function ParticipantProfile() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [profile, setProfile] = useState<ParticipantProfile | null>(null);
   const [token, setToken] = useState<string>("");
+  const { getCategoryLabel } = useBusinessCategories();
   
   const [cropperOpen, setCropperOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -384,7 +385,7 @@ export default function ParticipantProfile() {
           position: position || null,
           company: company || null,
           tagline: tagline || null,
-          business_type: businessTypeCode ? getBusinessCategoryLabel(businessTypeCode) : null,
+          business_type: businessTypeCode ? getCategoryLabel(businessTypeCode) : null,
           business_type_code: businessTypeCode,
           goal: goal || null,
           phone,

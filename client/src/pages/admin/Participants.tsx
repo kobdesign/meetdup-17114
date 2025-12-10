@@ -38,10 +38,11 @@ import { MemberSearchSelect } from "@/components/MemberSearchSelect";
 import { Separator } from "@/components/ui/separator";
 import TagInput from "@/components/TagInput";
 import BusinessTypeSelector from "@/components/BusinessTypeSelector";
-import { getBusinessCategoryLabel } from "@/lib/business-categories";
+import { useBusinessCategories } from "@/hooks/useBusinessCategories";
 
 export default function Participants() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
+  const { getCategoryLabel } = useBusinessCategories();
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -643,7 +644,7 @@ export default function Participants() {
                   onChange={(value) => setNewParticipant({ 
                     ...newParticipant, 
                     business_type_code: value,
-                    business_type: value ? getBusinessCategoryLabel(value) : ""
+                    business_type: value ? getCategoryLabel(value) : ""
                   })}
                 />
 
@@ -994,7 +995,7 @@ export default function Participants() {
                     onChange={(value) => setEditingParticipant({ 
                       ...editingParticipant, 
                       business_type_code: value,
-                      business_type: value ? getBusinessCategoryLabel(value) : null
+                      business_type: value ? getCategoryLabel(value) : null
                     })}
                   />
 
