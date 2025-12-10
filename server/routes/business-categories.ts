@@ -112,10 +112,27 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
       return res.status(409).json({ error: "Category code already exists" });
     }
 
+    const newSortOrder = parsed.data.sort_order || 0;
+    const { data: conflicting } = await supabaseAdmin
+      .from("business_categories")
+      .select("category_code, sort_order")
+      .gte("sort_order", newSortOrder)
+      .order("sort_order", { ascending: false });
+
+    if (conflicting && conflicting.length > 0) {
+      for (const cat of conflicting) {
+        await supabaseAdmin
+          .from("business_categories")
+          .update({ sort_order: cat.sort_order + 1 })
+          .eq("category_code", cat.category_code);
+      }
+    }
+
     const { data: category, error } = await supabaseAdmin
       .from("business_categories")
       .insert({
         ...parsed.data,
+        sort_order: newSortOrder,
         created_at: new Date().toISOString()
       })
       .select()
@@ -215,6 +232,45 @@ router.delete("/:code", verifySupabaseAuth, async (req: AuthenticatedRequest, re
     }
 
     return res.json({ success: true, message: "Category deleted" });
+  } catch (error: any) {
+    console.error("[BusinessCategories] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.put("/reorder", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const isSuperAdmin = await checkSuperAdminAccess(req.user.id);
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: "Super admin access required" });
+    }
+
+    const { updates } = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: "Invalid updates array" });
+    }
+
+    for (const update of updates) {
+      if (!update.category_code || typeof update.sort_order !== "number") {
+        return res.status(400).json({ error: "Each update must have category_code and sort_order" });
+      }
+
+      const { error } = await supabaseAdmin
+        .from("business_categories")
+        .update({ sort_order: update.sort_order })
+        .eq("category_code", update.category_code);
+
+      if (error) {
+        console.error("[BusinessCategories] Error updating sort order:", error);
+        return res.status(500).json({ error: "Failed to update sort order" });
+      }
+    }
+
+    return res.json({ success: true, message: "Reorder complete" });
   } catch (error: any) {
     console.error("[BusinessCategories] Error:", error);
     return res.status(500).json({ error: "Internal server error" });
