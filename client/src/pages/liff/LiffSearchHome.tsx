@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Users, Briefcase, Award, Search, Loader2, Phone, Mail, ExternalLink } from "lucide-react";
+import { ArrowLeft, Users, Briefcase, Award, Search, Loader2, Phone, Mail, ExternalLink, Share2 } from "lucide-react";
 
 interface Tenant {
   tenant_id: string;
@@ -150,6 +150,16 @@ export default function LiffSearchHome() {
         (window as any).liff.closeWindow();
       }
     }
+  };
+
+  // Pre-compute baseUrl for share links (safe for SSR/test contexts)
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  
+  // Helper function to generate share URL
+  const getShareUrl = (participantId: string) => {
+    if (!baseUrl || !tenantId) return "";
+    const flexJsonUrl = `${baseUrl}/api/public/share-flex/${participantId}?tenantId=${tenantId}&format=raw`;
+    return `https://line-share-flex-api.lovable.app/share?messages=${encodeURIComponent(flexJsonUrl)}`;
   };
 
   const searchOptions = [
@@ -316,7 +326,7 @@ export default function LiffSearchHome() {
                             "{member.tagline}"
                           </p>
                         )}
-                        <div className="flex items-center gap-3 mt-2">
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
                           {member.phone && (
                             <a 
                               href={`tel:${member.phone}`} 
@@ -343,6 +353,19 @@ export default function LiffSearchHome() {
                             <ExternalLink className="h-3 w-3" />
                             ดูโปรไฟล์
                           </span>
+                          {getShareUrl(member.participant_id) && (
+                            <a
+                              href={getShareUrl(member.participant_id)}
+                              onClick={(e) => e.stopPropagation()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-green-600"
+                              data-testid={`link-share-${member.participant_id}`}
+                            >
+                              <Share2 className="h-3 w-3" />
+                              แชร์
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>
