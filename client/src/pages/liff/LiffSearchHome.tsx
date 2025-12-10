@@ -359,31 +359,33 @@ export default function LiffSearchHome() {
         <div className="p-4">
           <p className="text-sm text-muted-foreground mb-4">หรือค้นหาจากหมวดหมู่</p>
           <div className="grid grid-cols-1 gap-4">
-        {searchOptions.map((option) => (
-          <Card 
-            key={option.id}
-            className={`overflow-hidden hover-elevate cursor-pointer ${option.disabled ? "opacity-50" : ""}`}
-            onClick={() => !option.disabled && navigate(option.path)}
-            data-testid={`card-search-${option.id}`}
-          >
-            <CardContent className="p-0">
-              <div className="flex items-center gap-4 p-4">
-                <div className="h-16 w-16 bg-muted rounded-md flex items-center justify-center">
-                  <option.icon className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">{option.subtitle}</p>
-                  <p className="text-lg font-semibold">{option.title}</p>
-                  {option.disabled && (
-                    <p className="text-xs text-muted-foreground">เร็วๆ นี้</p>
-                  )}
-                </div>
-                <Search className="h-5 w-5 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            {searchOptions.map((option) => (
+              <Card 
+                key={option.id}
+                className={`overflow-hidden hover-elevate cursor-pointer ${option.disabled ? "opacity-50" : ""}`}
+                onClick={() => !option.disabled && navigate(option.path)}
+                data-testid={`card-search-${option.id}`}
+              >
+                <CardContent className="p-0">
+                  <div className="flex items-center gap-4 p-4">
+                    <div className="h-16 w-16 bg-muted rounded-md flex items-center justify-center">
+                      <option.icon className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground">{option.subtitle}</p>
+                      <p className="text-lg font-semibold">{option.title}</p>
+                      {option.disabled && (
+                        <p className="text-xs text-muted-foreground">เร็วๆ นี้</p>
+                      )}
+                    </div>
+                    <Search className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4">
         <p className="text-center text-sm text-muted-foreground">

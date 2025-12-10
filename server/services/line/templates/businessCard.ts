@@ -130,6 +130,7 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
   const shareEnabled = options?.shareEnabled ?? true;
   const phoneUri = sanitizePhone(data.phone);
   const emailUri = sanitizeEmail(data.email);
+  const onepageUrl = sanitizeUrl(data.onepage_url);
   
   // External Share Service URL
   const rawShareServiceUrl = options?.shareServiceUrl || "https://line-share-flex-api.lovable.app";
@@ -254,7 +255,7 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
     });
   }
 
-  // Contact info
+  // Contact info with badge style (like Full Card)
   const contactItems: any[] = [];
 
   if (data.phone) {
@@ -263,11 +264,23 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
       layout: "horizontal",
       contents: [
         {
-          type: "text",
-          text: "TEL",
-          size: "xxs",
-          color: COLORS.textLight,
-          flex: 0
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "TEL",
+              size: "xxs",
+              color: COLORS.bgWhite,
+              align: "center"
+            }
+          ],
+          backgroundColor: COLORS.primary,
+          width: "32px",
+          height: "16px",
+          cornerRadius: "3px",
+          justifyContent: "center",
+          alignItems: "center"
         },
         {
           type: "text",
@@ -288,16 +301,28 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
       layout: "horizontal",
       contents: [
         {
-          type: "text",
-          text: "EMAIL",
-          size: "xxs",
-          color: COLORS.textLight,
-          flex: 0
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "EMAIL",
+              size: "xxs",
+              color: COLORS.bgWhite,
+              align: "center"
+            }
+          ],
+          backgroundColor: COLORS.primary,
+          width: "32px",
+          height: "16px",
+          cornerRadius: "3px",
+          justifyContent: "center",
+          alignItems: "center"
         },
         {
           type: "text",
           text: data.email,
-          size: "xs",
+          size: "xxs",
           color: COLORS.textDark,
           margin: "sm",
           flex: 1,
@@ -315,11 +340,23 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
       layout: "horizontal",
       contents: [
         {
-          type: "text",
-          text: "LINE",
-          size: "xxs",
-          color: COLORS.textLight,
-          flex: 0
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "LINE",
+              size: "xxs",
+              color: COLORS.bgWhite,
+              align: "center"
+            }
+          ],
+          backgroundColor: "#06C755",
+          width: "32px",
+          height: "16px",
+          cornerRadius: "3px",
+          justifyContent: "center",
+          alignItems: "center"
         },
         {
           type: "text",
@@ -339,7 +376,7 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
       type: "box",
       layout: "vertical",
       contents: contactItems,
-      spacing: "xs",
+      spacing: "sm",
       margin: bodyContents.length > 0 ? "md" : "none"
     });
   }
@@ -398,9 +435,26 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
     });
   }
 
+  // Secondary actions row: OnePage + Share
+  const secondaryActions: any[] = [];
+
+  // OnePage button (if available)
+  if (onepageUrl) {
+    secondaryActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "One Page",
+        uri: onepageUrl
+      },
+      style: "secondary",
+      height: "sm"
+    });
+  }
+
   // Share button (if enabled)
   if (shareEnabled) {
-    footerContents.push({
+    secondaryActions.push({
       type: "button",
       action: {
         type: "uri",
@@ -408,7 +462,16 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
         uri: shareUrl
       },
       style: "secondary",
-      height: "sm",
+      height: "sm"
+    });
+  }
+
+  if (secondaryActions.length > 0) {
+    footerContents.push({
+      type: "box",
+      layout: "horizontal",
+      contents: secondaryActions,
+      spacing: "sm",
       margin: primaryActions.length > 0 ? "sm" : "none"
     });
   }

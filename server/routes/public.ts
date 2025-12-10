@@ -962,4 +962,76 @@ router.post("/liff/search-by-category", async (req: Request, res: Response) => {
   }
 });
 
+// LIFF Text Search - search members by name, nickname, company, etc.
+router.post("/liff/search-members", async (req: Request, res: Response) => {
+  const logPrefix = "[LIFF-SearchMembers]";
+  
+  try {
+    const { tenant_id, query } = req.body;
+
+    // Validate inputs
+    if (!tenant_id || !query) {
+      return res.status(400).json({ 
+        success: false,
+        error: "Missing required parameters",
+        details: "tenant_id and query are required" 
+      });
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenant_id)) {
+      return res.status(400).json({ success: false, error: "Invalid tenant_id format" });
+    }
+
+    const searchTerm = query.trim();
+    if (searchTerm.length < 1) {
+      return res.status(400).json({ success: false, error: "Search query too short" });
+    }
+
+    console.log(`${logPrefix} Searching for "${searchTerm}" in tenant ${tenant_id}`);
+
+    // Search across multiple fields
+    const searchPattern = `%${searchTerm}%`;
+    
+    const { data: participants, error: searchError } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name_th,
+        full_name_en,
+        nickname_th,
+        nickname_en,
+        position,
+        company,
+        phone,
+        email,
+        photo_url,
+        tagline,
+        line_id,
+        onepage_url
+      `)
+      .eq("tenant_id", tenant_id)
+      .eq("status", "member")
+      .or(`full_name_th.ilike.${searchPattern},full_name_en.ilike.${searchPattern},nickname_th.ilike.${searchPattern},nickname_en.ilike.${searchPattern},company.ilike.${searchPattern},position.ilike.${searchPattern},tagline.ilike.${searchPattern}`)
+      .order("full_name_th", { ascending: true })
+      .limit(50);
+
+    if (searchError) {
+      console.error(`${logPrefix} Database error:`, searchError);
+      return res.status(500).json({ success: false, error: "Database error" });
+    }
+
+    console.log(`${logPrefix} Found ${participants?.length || 0} members matching "${searchTerm}"`);
+
+    return res.json({ 
+      success: true, 
+      participants: participants || [],
+      count: participants?.length || 0
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 export default router;
