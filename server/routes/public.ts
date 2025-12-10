@@ -962,7 +962,7 @@ router.post("/liff/search-by-category", async (req: Request, res: Response) => {
   }
 });
 
-// LIFF Text Search - search members by name, nickname, company, etc.
+// LIFF Text Search - search members by name, nickname, company, category, etc.
 router.post("/liff/search-members", async (req: Request, res: Response) => {
   const logPrefix = "[LIFF-SearchMembers]";
   
@@ -989,9 +989,27 @@ router.post("/liff/search-members", async (req: Request, res: Response) => {
 
     console.log(`${logPrefix} Searching for "${searchTerm}" in tenant ${tenant_id}`);
 
-    // Search across multiple fields
+    // First, find category codes that match the search term
+    const { data: matchingCategories } = await supabaseAdmin
+      .from("business_categories")
+      .select("category_code")
+      .or(`name_th.ilike.%${searchTerm}%,name_en.ilike.%${searchTerm}%`);
+    
+    const matchingCategoryCodes = (matchingCategories || []).map(c => c.category_code);
+    console.log(`${logPrefix} Found ${matchingCategoryCodes.length} matching categories`);
+
+    // Search across multiple fields including business_type_code for category matches
     const searchPattern = `%${searchTerm}%`;
     
+    // Build query with OR conditions
+    let orConditions = `full_name_th.ilike.${searchPattern},full_name_en.ilike.${searchPattern},nickname_th.ilike.${searchPattern},nickname_en.ilike.${searchPattern},company.ilike.${searchPattern},position.ilike.${searchPattern},tagline.ilike.${searchPattern}`;
+    
+    // Add category code matches if any
+    if (matchingCategoryCodes.length > 0) {
+      const categoryConditions = matchingCategoryCodes.map(code => `business_type_code.eq.${code}`).join(",");
+      orConditions += `,${categoryConditions}`;
+    }
+
     const { data: participants, error: searchError } = await supabaseAdmin
       .from("participants")
       .select(`
@@ -1007,11 +1025,12 @@ router.post("/liff/search-members", async (req: Request, res: Response) => {
         photo_url,
         tagline,
         line_id,
-        onepage_url
+        onepage_url,
+        business_type_code
       `)
       .eq("tenant_id", tenant_id)
       .eq("status", "member")
-      .or(`full_name_th.ilike.${searchPattern},full_name_en.ilike.${searchPattern},nickname_th.ilike.${searchPattern},nickname_en.ilike.${searchPattern},company.ilike.${searchPattern},position.ilike.${searchPattern},tagline.ilike.${searchPattern}`)
+      .or(orConditions)
       .order("full_name_th", { ascending: true })
       .limit(50);
 
