@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
-import { createBusinessCardFlexMessage, createMediumBusinessCardBubble, createViewMoreBubble, BusinessCardData } from "../templates/businessCard";
+import { createBusinessCardFlexMessage, createMediumBusinessCardBubble, createViewMoreBubble, buildPaginatedCarousel, BusinessCardData } from "../templates/businessCard";
 import { getLiffId, getShareEnabled, getShareServiceUrl } from "../../../utils/liffConfig";
 import { logLineWebhookError, logLineReplyError } from "../../../utils/errorLogger";
 
@@ -842,67 +842,32 @@ export async function handleCategorySelection(
     const shareEnabled = await getShareEnabled();
     const shareServiceUrl = await getShareServiceUrl();
     
-    // Limit to 6 cards per carousel to stay under LINE 50KB limit
-    const maxCardsPerPage = 6;
-    const displayMembers = membersWithTenant.slice(0, maxCardsPerPage);
-    const hasMore = membersWithTenant.length > maxCardsPerPage;
-    
-    // Build flex message(s) using medium cards for smaller size
-    if (displayMembers.length === 1) {
-      const bubble = createMediumBusinessCardBubble(displayMembers[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
+    // Build flex message using shared pagination function
+    if (membersWithTenant.length === 1) {
+      const bubble = createMediumBusinessCardBubble(membersWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
       await replyMessage(event.replyToken, {
         type: "flex",
-        altText: `นามบัตร ${displayMembers[0].full_name_th || 'สมาชิก'}`,
+        altText: `นามบัตร ${membersWithTenant[0].full_name_th || 'สมาชิก'}`,
         contents: bubble
       }, accessToken);
     } else {
-      // Multiple members - send carousel with medium cards
-      const carouselContents = displayMembers.map(m => 
-        createMediumBusinessCardBubble(m as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
-      );
+      const { message, displayedCount } = buildPaginatedCarousel(membersWithTenant as BusinessCardData[], {
+        baseUrl,
+        tenantId,
+        shareEnabled,
+        shareServiceUrl,
+        categoryCode,
+        categoryName,
+        currentPage: 1,
+        hasMoreInDb: false
+      });
       
-      // Add "View More" indicator if there are more results
-      if (hasMore) {
-        const remainingCount = membersWithTenant.length - maxCardsPerPage;
-        carouselContents.push({
-          type: "bubble",
-          size: "kilo",
-          body: {
-            type: "box",
-            layout: "vertical",
-            justifyContent: "center",
-            alignItems: "center",
-            contents: [
-              {
-                type: "text",
-                text: `+${remainingCount} คน`,
-                size: "lg",
-                weight: "bold",
-                color: "#1DB446"
-              },
-              {
-                type: "text",
-                text: "ใช้ LIFF ดูทั้งหมด",
-                size: "xs",
-                color: "#888888",
-                margin: "sm"
-              }
-            ]
-          }
-        } as any);
-      }
-      
-      await replyMessage(event.replyToken, {
-        type: "flex",
-        altText: `พบ ${membersWithTenant.length} สมาชิกในหมวดหมู่ "${categoryName}"`,
-        contents: {
-          type: "carousel",
-          contents: carouselContents
-        }
-      }, accessToken);
+      await replyMessage(event.replyToken, message, accessToken);
+      console.log(`${logPrefix} Sent ${displayedCount}/${members.length} business cards for category ${categoryCode}`);
+      return;
     }
     
-    console.log(`${logPrefix} Sent ${displayMembers.length}/${members.length} business cards for category ${categoryCode}`);
+    console.log(`${logPrefix} Sent 1/${members.length} business cards for category ${categoryCode}`);
     
   } catch (error: any) {
     console.error(`${logPrefix} Error handling category selection:`, error);
