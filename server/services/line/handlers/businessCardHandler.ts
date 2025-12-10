@@ -286,6 +286,32 @@ export async function handleCardSearch(
     console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
     console.log(`${logPrefix} Search fields: ${searchFields.join(', ')}`);
 
+    // Helper function to wrap query with timeout
+    const queryWithTimeout = async <T>(
+      queryFn: () => Promise<{ data: T | null; error: any }>,
+      timeoutMs: number,
+      queryName: string
+    ): Promise<{ data: T | null; error: any; timedOut: boolean }> => {
+      return new Promise(async (resolve) => {
+        const timeout = setTimeout(() => {
+          console.log(`${logPrefix} Query "${queryName}" timed out after ${timeoutMs}ms`);
+          resolve({ data: null, error: { message: `Query timeout after ${timeoutMs}ms` }, timedOut: true });
+        }, timeoutMs);
+        
+        try {
+          const result = await queryFn();
+          clearTimeout(timeout);
+          resolve({ ...result, timedOut: false });
+        } catch (err: any) {
+          clearTimeout(timeout);
+          console.error(`${logPrefix} Query "${queryName}" threw exception:`, err?.message);
+          resolve({ data: null, error: err, timedOut: false });
+        }
+      });
+    };
+
+    const QUERY_TIMEOUT_MS = 5000; // 5 second timeout per query
+    
     // Search each keyword separately and merge results (to avoid complex OR syntax issues)
     let participants: any[] = [];
     const participantIds = new Set<string>();
@@ -297,19 +323,29 @@ export async function handleCardSearch(
       // Build OR conditions for this keyword across all fields
       const orConditions = searchFields.map(field => `${field}.ilike.%${keyword}%`).join(',');
       
-      console.log(`${logPrefix} Query for keyword "${keyword}": tenant=${tenantId}, orConditions=${orConditions.substring(0, 100)}...`);
+      console.log(`${logPrefix} Query for keyword "${keyword}": tenant=${tenantId}`);
+      console.log(`${logPrefix} OR conditions: ${orConditions}`);
       const queryStart = Date.now();
       
-      const { data: keywordMatches, error } = await supabaseAdmin
-        .from("participants")
-        .select(selectFields)
-        .eq("tenant_id", tenantId)
-        .in("status", ["member", "visitor"])
-        .or(orConditions)
-        .limit(10);
+      const { data: keywordMatches, error, timedOut } = await queryWithTimeout(
+        async () => await supabaseAdmin
+          .from("participants")
+          .select(selectFields)
+          .eq("tenant_id", tenantId)
+          .in("status", ["member", "visitor"])
+          .or(orConditions)
+          .limit(10),
+        QUERY_TIMEOUT_MS,
+        `field_search_${keyword}`
+      );
       
       const queryTime = Date.now() - queryStart;
-      console.log(`${logPrefix} Query completed in ${queryTime}ms, found: ${keywordMatches?.length || 0} matches`);
+      console.log(`${logPrefix} Query completed in ${queryTime}ms, found: ${(keywordMatches as any[])?.length || 0} matches, timedOut: ${timedOut}`);
+
+      if (timedOut) {
+        console.error(`${logPrefix} Query timed out for keyword "${keyword}" - skipping`);
+        continue;
+      }
 
       if (error) {
         searchError = error;
@@ -318,9 +354,10 @@ export async function handleCardSearch(
       }
 
       // Merge and deduplicate results (cap at 10)
-      if (keywordMatches && keywordMatches.length > 0) {
-        console.log(`${logPrefix} Found ${keywordMatches.length} matches for "${keyword}": ${keywordMatches.map(m => m.full_name_th).join(', ')}`);
-        for (const match of keywordMatches) {
+      const matches = keywordMatches as any[] | null;
+      if (matches && matches.length > 0) {
+        console.log(`${logPrefix} Found ${matches.length} matches for "${keyword}": ${matches.map((m: any) => m.full_name_th).join(', ')}`);
+        for (const match of matches) {
           if (participants.length >= 10) break;
           if (!participantIds.has(match.participant_id)) {
             participants.push(match);
@@ -332,21 +369,37 @@ export async function handleCardSearch(
       }
 
       // Also search in tags array for this keyword (partial + case insensitive)
+      // Use a simpler query with limit to prevent fetching all participants
       if (participants.length < 10) {
-        // Fetch ALL participants with non-empty tags for proper partial matching
-        const { data: tagCandidates } = await supabaseAdmin
-          .from("participants")
-          .select(selectFields)
-          .eq("tenant_id", tenantId)
-          .in("status", ["member", "visitor"])
-          .not("tags", "is", null)
-          .order("full_name_th", { ascending: true });
+        console.log(`${logPrefix} Starting tag search for keyword "${keyword}"`);
+        const tagQueryStart = Date.now();
+        
+        const { data: tagCandidates, timedOut: tagTimedOut } = await queryWithTimeout(
+          async () => await supabaseAdmin
+            .from("participants")
+            .select(selectFields)
+            .eq("tenant_id", tenantId)
+            .in("status", ["member", "visitor"])
+            .not("tags", "is", null)
+            .limit(50), // Limit to 50 for performance
+          QUERY_TIMEOUT_MS,
+          `tag_search_${keyword}`
+        );
+        
+        const tagQueryTime = Date.now() - tagQueryStart;
+        const candidates = tagCandidates as any[] | null;
+        console.log(`${logPrefix} Tag query completed in ${tagQueryTime}ms, found: ${candidates?.length || 0} candidates, timedOut: ${tagTimedOut}`);
 
-        if (tagCandidates && tagCandidates.length > 0) {
+        if (tagTimedOut) {
+          console.log(`${logPrefix} Tag search timed out - skipping tag matching`);
+          continue;
+        }
+
+        if (candidates && candidates.length > 0) {
           const keywordLower = keyword.toLowerCase();
-          console.log(`${logPrefix} Tag search: checking ${tagCandidates.length} participants for keyword "${keyword}"`);
+          console.log(`${logPrefix} Tag search: checking ${candidates.length} participants for keyword "${keyword}"`);
           
-          for (const candidate of tagCandidates) {
+          for (const candidate of candidates) {
             if (participants.length >= 10) break;
             if (participantIds.has(candidate.participant_id)) continue;
             
