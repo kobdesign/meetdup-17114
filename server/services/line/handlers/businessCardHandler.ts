@@ -202,7 +202,7 @@ export async function handleMemberSearch(
 /**
  * Handle card search command
  * Example: "card กบ", "card abhisak", "นามบัตร john"
- * Searches across: full_name_th, nickname_th, phone, company, notes, tags
+ * Searches across: full_name, nickname, phone, company, notes, tags
  */
 export async function handleCardSearch(
   event: any,
@@ -225,7 +225,7 @@ export async function handleCardSearch(
 
   try {
     // Build comprehensive search query
-    // Search across: full_name_th, full_name_en, nickname_th, phone, company, notes, tags
+    // Search across: full_name_th, nickname, phone, company, notes, and tags array
     const selectFields = `
       participant_id,
       tenant_id,
@@ -310,7 +310,41 @@ export async function handleCardSearch(
           }
         }
       }
-      // Note: tag search removed - 'tags' column doesn't exist in Production schema
+
+      // Also search in tags array for this keyword (partial + case insensitive)
+      if (participants.length < 10) {
+        // Fetch ALL participants with non-empty tags for proper partial matching
+        const { data: tagCandidates } = await supabaseAdmin
+          .from("participants")
+          .select(selectFields)
+          .eq("tenant_id", tenantId)
+          .in("status", ["member", "visitor"])
+          .not("tags", "is", null)
+          .order("full_name_th", { ascending: true });
+
+        if (tagCandidates && tagCandidates.length > 0) {
+          const keywordLower = keyword.toLowerCase();
+          console.log(`${logPrefix} Tag search: checking ${tagCandidates.length} participants for keyword "${keyword}"`);
+          
+          for (const candidate of tagCandidates) {
+            if (participants.length >= 10) break;
+            if (participantIds.has(candidate.participant_id)) continue;
+            
+            // Check if any tag contains the keyword (partial + case insensitive)
+            const tags = candidate.tags as string[] | null;
+            if (tags && tags.length > 0) {
+              const hasMatch = tags.some(tag => 
+                tag && tag.toLowerCase().includes(keywordLower)
+              );
+              if (hasMatch) {
+                console.log(`${logPrefix} Tag match found: ${candidate.full_name_th} has tags: [${tags.join(', ')}]`);
+                participants.push(candidate);
+                participantIds.add(candidate.participant_id);
+              }
+            }
+          }
+        }
+      }
     }
 
     // Ensure hard cap of 10 results
