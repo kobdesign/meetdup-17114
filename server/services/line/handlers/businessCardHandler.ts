@@ -536,11 +536,21 @@ export async function handleBusinessCardPagePostback(
     console.log(`${logPrefix} ========== PAGE ${page} SEARCH END ==========`);
 
   } catch (error: any) {
-    console.error(`${logPrefix} Error in page ${page} search:`, error);
-    await replyMessage(event.replyToken, {
-      type: "text",
-      text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
-    }, accessToken, tenantId);
+    const elapsed = Date.now() - startTime;
+    console.error(`${logPrefix} ========== PAGE ${page} SEARCH ERROR after ${elapsed}ms ==========`);
+    console.error(`${logPrefix} Error type: ${error?.name || 'unknown'}`);
+    console.error(`${logPrefix} Error message: ${error?.message || 'unknown'}`);
+    console.error(`${logPrefix} Error stack: ${error?.stack || 'no stack'}`);
+    
+    try {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      }, accessToken, tenantId);
+      console.log(`${logPrefix} Error reply sent successfully`);
+    } catch (replyError: any) {
+      console.error(`${logPrefix} Failed to send error reply: ${replyError?.message || replyError}`);
+    }
   }
 }
 
@@ -861,7 +871,7 @@ export async function handleCategorySelection(
 /**
  * Send LINE reply message with enhanced error logging
  */
-async function replyMessage(
+export async function replyMessage(
   replyToken: string,
   message: any,
   accessToken: string,

@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
-import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch, handleCategorySelection, handleBusinessCardPagePostback } from "../../services/line/handlers/businessCardHandler";
+import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch, handleCategorySelection, handleBusinessCardPagePostback, replyMessage } from "../../services/line/handlers/businessCardHandler";
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSummaryHandler";
@@ -232,24 +232,70 @@ async function processEvent(
   // Handle postback events
   if (event.type === "postback") {
     const postbackData = event.postback.data;
+    console.log(`${logPrefix} ========== POSTBACK EVENT RECEIVED ==========`);
+    console.log(`${logPrefix} Raw postback data: "${postbackData}"`);
+    console.log(`${logPrefix} Postback data length: ${postbackData.length}`);
     
     // Check for business_card_page pagination postback (format: business_card_page:pageNum:encodedSearchTerm)
     if (postbackData.startsWith("business_card_page:")) {
+      console.log(`${logPrefix} Matched business_card_page pattern`);
       const parts = postbackData.split(":");
+      console.log(`${logPrefix} Split parts count: ${parts.length}, parts: [${parts.map(p => `"${p}"`).join(', ')}]`);
+      
       if (parts.length >= 3) {
         const page = parseInt(parts[1], 10);
         const encodedSearchTerm = parts.slice(2).join(":"); // Handle search terms that may contain ":"
-        const searchTerm = decodeURIComponent(encodedSearchTerm);
+        console.log(`${logPrefix} Encoded search term: "${encodedSearchTerm}"`);
+        
+        let searchTerm: string;
+        try {
+          searchTerm = decodeURIComponent(encodedSearchTerm);
+          console.log(`${logPrefix} Decoded search term: "${searchTerm}"`);
+        } catch (decodeError) {
+          console.error(`${logPrefix} Failed to decode search term: "${encodedSearchTerm}"`, decodeError);
+          try {
+            await replyMessage(event.replyToken, {
+              type: "text",
+              text: "เกิดข้อผิดพลาดในการถอดรหัสคำค้นหา กรุณาลองค้นหาใหม่"
+            }, accessToken, tenantId);
+          } catch (replyError) {
+            console.error(`${logPrefix} Failed to send decode error reply:`, replyError);
+          }
+          return;
+        }
         
         // Validate page number
         if (isNaN(page) || page < 1) {
           console.log(`${logPrefix} Invalid page number: ${page}`);
+          try {
+            await replyMessage(event.replyToken, {
+              type: "text",
+              text: "หมายเลขหน้าไม่ถูกต้อง กรุณาลองใหม่"
+            }, accessToken, tenantId);
+          } catch (replyError) {
+            console.error(`${logPrefix} Failed to send page validation error reply:`, replyError);
+          }
           return;
         }
         
-        console.log(`${logPrefix} Business card page postback: page=${page}, searchTerm="${searchTerm}"`);
-        await handleBusinessCardPagePostback(event, tenantId, accessToken, page, searchTerm, logPrefix);
+        console.log(`${logPrefix} Calling handleBusinessCardPagePostback: page=${page}, searchTerm="${searchTerm}"`);
+        try {
+          await handleBusinessCardPagePostback(event, tenantId, accessToken, page, searchTerm, logPrefix);
+          console.log(`${logPrefix} handleBusinessCardPagePostback completed successfully`);
+        } catch (handlerError) {
+          console.error(`${logPrefix} handleBusinessCardPagePostback FAILED:`, handlerError);
+          try {
+            await replyMessage(event.replyToken, {
+              type: "text",
+              text: "เกิดข้อผิดพลาดในการโหลดหน้าถัดไป กรุณาลองใหม่"
+            }, accessToken, tenantId);
+          } catch (replyError) {
+            console.error(`${logPrefix} Failed to send error reply:`, replyError);
+          }
+        }
         return;
+      } else {
+        console.log(`${logPrefix} Invalid business_card_page format: parts.length=${parts.length}`);
       }
     }
     

@@ -334,6 +334,16 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
   // For accurate total, we'd need a separate count query, but hasMore is what matters for pagination
   const totalFetched = allParticipants.length;
   
+  console.log(`${logPrefix} ========== PAGINATION DEBUG ==========`);
+  console.log(`${logPrefix} allParticipants.length: ${allParticipants.length}`);
+  console.log(`${logPrefix} offset: ${offset}, limit: ${limit}`);
+  console.log(`${logPrefix} slice range: [${offset}, ${offset + limit}]`);
+  console.log(`${logPrefix} paginatedParticipants.length: ${paginatedParticipants.length}`);
+  console.log(`${logPrefix} hasMore calculation: ${allParticipants.length} > ${offset + limit} = ${hasMore}`);
+  if (paginatedParticipants.length > 0) {
+    console.log(`${logPrefix} First result: ${paginatedParticipants[0]?.full_name_th || 'unknown'}`);
+    console.log(`${logPrefix} Last result: ${paginatedParticipants[paginatedParticipants.length - 1]?.full_name_th || 'unknown'}`);
+  }
   console.log(`${logPrefix} Total fetched: ${totalFetched}, returning ${paginatedParticipants.length} (offset: ${offset}, limit: ${limit}, hasMore: ${hasMore})`);
 
   result.participants = paginatedParticipants;
