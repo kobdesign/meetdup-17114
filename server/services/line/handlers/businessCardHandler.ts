@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
-import { createBusinessCardFlexMessage, createCompactBusinessCardBubble, BusinessCardData } from "../templates/businessCard";
+import { createBusinessCardFlexMessage, createCompactBusinessCardBubble, createViewMoreBubble, BusinessCardData } from "../templates/businessCard";
 import { getLiffId, getShareEnabled, getShareServiceUrl } from "../../../utils/liffConfig";
 import { logLineWebhookError, logLineReplyError } from "../../../utils/errorLogger";
 
@@ -491,19 +491,32 @@ export async function handleCardSearch(
     }
 
     // Multiple results - send Carousel of compact Flex Messages
-    // Using compact bubbles (~3KB each) and max 5 to stay under LINE's 50KB limit
-    console.log(`${logPrefix} Creating carousel with ${participantsWithTenant.length} cards...`);
-    const maxBubbles = 5; // Reduced from 12 to stay under 50KB limit
-    const limitedParticipants = participantsWithTenant.slice(0, maxBubbles);
+    // Using compact bubbles (~3KB each) and max 10 to stay under LINE's 50KB limit
+    const totalCount = participantsWithTenant.length;
+    const maxBubbles = 10;
+    const needsViewMore = totalCount > maxBubbles;
+    
+    // If more than 10 results, show 9 cards + 1 "View More" bubble
+    const cardsToShow = needsViewMore ? maxBubbles - 1 : totalCount;
+    const limitedParticipants = participantsWithTenant.slice(0, cardsToShow);
+    
+    console.log(`${logPrefix} Creating carousel: ${cardsToShow} cards${needsViewMore ? ' + view more bubble' : ''} (total: ${totalCount})`);
     
     // Use compact bubble format for carousel (smaller size)
-    const carouselContents = limitedParticipants.map(p => 
+    const carouselContents: any[] = limitedParticipants.map(p => 
       createCompactBusinessCardBubble(p as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
     );
+    
+    // Add "View More" bubble if there are more results
+    if (needsViewMore) {
+      const remainingCount = totalCount - cardsToShow;
+      carouselContents.push(
+        createViewMoreBubble(remainingCount, totalCount, searchTerm, tenantId, baseUrl)
+      );
+    }
 
-    const totalCount = participantsWithTenant.length;
-    const altText = totalCount > maxBubbles 
-      ? `พบ ${totalCount} รายการ (แสดง ${maxBubbles} รายการแรก)`
+    const altText = needsViewMore 
+      ? `พบ ${totalCount} รายการ (แสดง ${cardsToShow} รายการแรก)`
       : `พบ ${totalCount} รายการที่ตรงกับ "${searchTerm}"`;
 
     // Check message size before sending
@@ -519,17 +532,23 @@ export async function handleCardSearch(
     const messageSize = JSON.stringify(carouselMessage).length;
     console.log(`${logPrefix} Carousel message size: ${messageSize} bytes (limit: 50KB)`);
     
-    // If still too large, fallback to text list
+    // If still too large, fallback to text list with link
     if (messageSize > 45000) { // 45KB safety margin
       console.log(`${logPrefix} Message too large (${messageSize}), falling back to text list`);
-      const textList = limitedParticipants.map((p: any, i: number) => {
+      const liffCardsUrl = `${baseUrl}/liff/cards?search=${encodeURIComponent(searchTerm)}&tenantId=${tenantId}`;
+      const previewCount = Math.min(5, limitedParticipants.length);
+      const textList = limitedParticipants.slice(0, previewCount).map((p: any, i: number) => {
         const subtitle = [p.position, p.company].filter(Boolean).join(" | ");
         return `${i + 1}. ${p.full_name_th}${p.nickname_th ? ` (${p.nickname_th})` : ""}\n   ${subtitle || ""}`;
       }).join("\n\n");
       
+      const moreText = totalCount > previewCount 
+        ? `\n\n(แสดง ${previewCount} จาก ${totalCount} คน)\n\nดูทั้งหมด: ${liffCardsUrl}`
+        : "";
+      
       await replyMessage(event.replyToken, {
         type: "text",
-        text: `พบ ${totalCount} คน:\n\n${textList}${totalCount > maxBubbles ? `\n\n(แสดง ${maxBubbles} รายการแรก)` : ""}`
+        text: `พบ ${totalCount} คน:\n\n${textList}${moreText}`
       }, accessToken, tenantId);
       console.log(`${logPrefix} ========== SEARCH END (text fallback sent) ==========`);
       return;
@@ -540,7 +559,7 @@ export async function handleCardSearch(
     
     await replyMessage(event.replyToken, carouselMessage, accessToken, tenantId);
 
-    console.log(`${logPrefix} ========== SEARCH END (${limitedParticipants.length}/${totalCount} cards sent) ==========`);
+    console.log(`${logPrefix} ========== SEARCH END (${carouselContents.length} bubbles sent, ${cardsToShow} cards${needsViewMore ? ' + view more' : ''}) ==========`);
 
   } catch (error: any) {
     const elapsed = Date.now() - startTime;

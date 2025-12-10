@@ -48,6 +48,79 @@ export interface BusinessCardOptions {
 }
 
 /**
+ * Create a "View More" bubble for carousel when there are more results
+ * Links to LIFF Cards page with search term pre-filled
+ */
+export function createViewMoreBubble(
+  remainingCount: number, 
+  totalCount: number,
+  searchTerm: string,
+  tenantId: string,
+  baseUrl: string
+): any {
+  // URL to LIFF Cards with search term pre-filled
+  const liffCardsUrl = `${baseUrl}/liff/cards?search=${encodeURIComponent(searchTerm)}&tenantId=${tenantId}`;
+  
+  return {
+    type: "bubble",
+    size: "kilo",
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `พบอีก ${remainingCount} คน`,
+          weight: "bold",
+          size: "lg",
+          color: COLORS.primary,
+          align: "center"
+        },
+        {
+          type: "text",
+          text: `รวมทั้งหมด ${totalCount} คน`,
+          size: "sm",
+          color: COLORS.textMedium,
+          align: "center",
+          margin: "sm"
+        },
+        {
+          type: "text",
+          text: `คำค้นหา: "${searchTerm}"`,
+          size: "xs",
+          color: COLORS.textLight,
+          align: "center",
+          margin: "md",
+          wrap: true
+        }
+      ],
+      paddingAll: "20px",
+      backgroundColor: COLORS.bgLight,
+      justifyContent: "center"
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "button",
+          action: {
+            type: "uri",
+            label: "ดูทั้งหมด",
+            uri: liffCardsUrl
+          },
+          style: "primary",
+          height: "sm",
+          color: COLORS.primary
+        }
+      ],
+      paddingAll: "12px",
+      backgroundColor: COLORS.bgWhite
+    }
+  };
+}
+
+/**
  * Create a compact business card for carousel search results
  * Smaller size (~3KB per bubble) to fit within LINE's 50KB limit
  * Shows: name, nickname, position, company, phone + Call/Profile buttons
