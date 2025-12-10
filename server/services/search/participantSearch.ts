@@ -173,12 +173,12 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
 
   console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
 
-  // To handle offset and detect if there are more results, we need offset + limit + 1 unique results
-  // The extra +1 is a sentinel to determine if there are more pages
-  const targetCount = offset + limit + 1;
+  // We need offset + limit results for the current page, plus 1 sentinel to detect if there are more pages
+  // The sentinel is a result beyond the current page - if we find it, hasMore = true
+  const pageEnd = offset + limit;
   // Fetch more from each query to account for duplicates across queries
-  const perQueryLimit = Math.max(100, targetCount * 2);
-  console.log(`${logPrefix} Target: ${targetCount} unique results (offset: ${offset}, limit: ${limit}, +1 sentinel), per-query limit: ${perQueryLimit}`);
+  const perQueryLimit = Math.max(100, (pageEnd + 1) * 2);
+  console.log(`${logPrefix} Page needs: ${limit} results (offset: ${offset}), looking for sentinel beyond ${pageEnd}, per-query limit: ${perQueryLimit}`);
 
   let matchingCategoryCodes: string[] = [];
   if (enableCategoryMatching) {
@@ -197,8 +197,12 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
   let allParticipants: ParticipantSearchResult[] = [];
   const participantIds = new Set<string>();
 
+  // Helper: check if we found the sentinel (result beyond current page)
+  const hasSentinel = () => allParticipants.length > pageEnd;
+
   for (const keyword of keywords) {
-    if (allParticipants.length >= targetCount) break;
+    // Only stop early if we have the sentinel (proof of more results)
+    if (hasSentinel()) break;
 
     const orConditions = SEARCH_FIELDS.map(field => `${field}.ilike.%${keyword}%`).join(',');
     
@@ -236,7 +240,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     if (matches && matches.length > 0) {
       console.log(`${logPrefix} Found ${matches.length} matches for "${keyword}"`);
       for (const match of matches) {
-        if (allParticipants.length >= targetCount) break;
+        if (hasSentinel()) break;
         if (!participantIds.has(match.participant_id)) {
           allParticipants.push(match);
           participantIds.add(match.participant_id);
@@ -244,7 +248,8 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
       }
     }
 
-    if (allParticipants.length < targetCount) {
+    // Continue to tag search if we haven't found sentinel yet
+    if (!hasSentinel()) {
       console.log(`${logPrefix} Starting tag search for keyword "${keyword}"`);
       const tagQueryStart = Date.now();
 
@@ -275,7 +280,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
         const keywordLower = keyword.toLowerCase();
         
         for (const candidate of candidates) {
-          if (allParticipants.length >= targetCount) break;
+          if (hasSentinel()) break;
           if (participantIds.has(candidate.participant_id)) continue;
 
           const tags = candidate.tags;
@@ -294,9 +299,10 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     }
   }
 
-  if (enableCategoryMatching && matchingCategoryCodes.length > 0 && allParticipants.length < targetCount) {
+  // Continue to category search if we haven't found sentinel yet
+  if (enableCategoryMatching && matchingCategoryCodes.length > 0 && !hasSentinel()) {
     for (const categoryCode of matchingCategoryCodes) {
-      if (allParticipants.length >= targetCount) break;
+      if (hasSentinel()) break;
 
       const { data: categoryMatches } = await supabaseAdmin
         .from("participants")
@@ -310,7 +316,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
       if (matches && matches.length > 0) {
         console.log(`${logPrefix} Found ${matches.length} matches for category ${categoryCode}`);
         for (const match of matches) {
-          if (allParticipants.length >= targetCount) break;
+          if (hasSentinel()) break;
           if (!participantIds.has(match.participant_id)) {
             allParticipants.push(match);
             participantIds.add(match.participant_id);
