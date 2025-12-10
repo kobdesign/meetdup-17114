@@ -324,54 +324,19 @@ export async function handleCardSearch(
       return;
     }
 
-    // Multiple results - send Carousel of medium Flex Messages
-    // Using medium bubbles (~5-6KB each) and max 7 to stay safely under LINE's 50KB limit
-    // 7 bubbles x 6KB = 42KB + envelope ~2KB = 44KB (safety margin)
-    const totalCount = participantsWithTenant.length;
-    const maxBubbles = 7; // Medium cards ~6KB each, 7 max for safety
-    const hasMoreResults = searchResult.hasMore;
-    const needsViewMore = totalCount >= maxBubbles || hasMoreResults;
+    // Multiple results - use shared pagination function
+    const { message: carouselMessage, displayedCount } = buildPaginatedCarousel(participantsWithTenant as BusinessCardData[], {
+      baseUrl,
+      tenantId,
+      shareEnabled,
+      shareServiceUrl,
+      searchTerm,
+      currentPage: 1,
+      hasMoreInDb: searchResult.hasMore,
+      totalFound: searchResult.totalFound
+    });
     
-    // If more than 6 results or hasMore, show 6 cards + 1 "View More" bubble
-    const cardsToShow = needsViewMore ? Math.min(maxBubbles - 1, totalCount) : totalCount;
-    const limitedParticipants = participantsWithTenant.slice(0, cardsToShow);
-    
-    console.log(`${logPrefix} Creating carousel: ${cardsToShow} cards${needsViewMore ? ' + view more bubble' : ''} (total: ${totalCount}, hasMore: ${hasMoreResults})`);
-    
-    // Use medium bubble format for carousel (more info than compact)
-    const carouselContents: any[] = limitedParticipants.map(p => 
-      createMediumBusinessCardBubble(p as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
-    );
-    
-    // Add "View More" bubble if there are more results
-    if (needsViewMore) {
-      const displayedCount = cardsToShow;
-      // hasNextPage is true if:
-      // 1. searchResult.hasMore = true (more results in database beyond what we fetched)
-      // 2. OR totalCount > cardsToShow (we have more fetched results than we're displaying)
-      const hasNextPage = hasMoreResults || totalCount > cardsToShow;
-      console.log(`${logPrefix} View more bubble: displayedCount=${displayedCount}, totalCount=${totalCount}, hasMoreResults=${hasMoreResults}, hasNextPage=${hasNextPage}`);
-      carouselContents.push(
-        createViewMoreBubble(totalCount - displayedCount, searchResult.totalFound, searchTerm, tenantId, baseUrl, {
-          currentPage: 1,
-          hasNextPage
-        })
-      );
-    }
-
-    const altText = needsViewMore 
-      ? `พบ ${totalCount} รายการ (แสดง ${cardsToShow} รายการแรก)`
-      : `พบ ${totalCount} รายการที่ตรงกับ "${searchTerm}"`;
-
-    // Check message size before sending
-    const carouselMessage = {
-      type: "flex" as const,
-      altText,
-      contents: {
-        type: "carousel" as const,
-        contents: carouselContents
-      }
-    };
+    console.log(`${logPrefix} Creating carousel: ${displayedCount} cards (total: ${participantsWithTenant.length}, hasMore: ${searchResult.hasMore})`);
     
     const messageSize = JSON.stringify(carouselMessage).length;
     console.log(`${logPrefix} Carousel message size: ${messageSize} bytes (limit: 50KB)`);
@@ -380,8 +345,9 @@ export async function handleCardSearch(
     if (messageSize > 45000) { // 45KB safety margin
       console.log(`${logPrefix} Message too large (${messageSize}), falling back to text list`);
       const liffCardsUrl = `${baseUrl}/liff/cards?search=${encodeURIComponent(searchTerm)}&tenantId=${tenantId}`;
-      const previewCount = Math.min(5, limitedParticipants.length);
-      const textList = limitedParticipants.slice(0, previewCount).map((p: any, i: number) => {
+      const totalCount = participantsWithTenant.length;
+      const previewCount = Math.min(5, totalCount);
+      const textList = participantsWithTenant.slice(0, previewCount).map((p: any, i: number) => {
         const subtitle = [p.position, p.company].filter(Boolean).join(" | ");
         return `${i + 1}. ${p.full_name_th}${p.nickname_th ? ` (${p.nickname_th})` : ""}\n   ${subtitle || ""}`;
       }).join("\n\n");
@@ -403,7 +369,7 @@ export async function handleCardSearch(
     
     await replyMessage(event.replyToken, carouselMessage, accessToken, tenantId);
 
-    console.log(`${logPrefix} ========== SEARCH END (${carouselContents.length} bubbles sent, ${cardsToShow} cards${needsViewMore ? ' + view more' : ''}) ==========`);
+    console.log(`${logPrefix} ========== SEARCH END (${displayedCount} cards sent) ==========`);
 
   } catch (error: any) {
     const elapsed = Date.now() - startTime;
@@ -548,6 +514,164 @@ export async function handleBusinessCardPagePostback(
         text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
       }, accessToken, tenantId);
       console.log(`${logPrefix} Error reply sent successfully`);
+    } catch (replyError: any) {
+      console.error(`${logPrefix} Failed to send error reply: ${replyError?.message || replyError}`);
+    }
+  }
+}
+
+/**
+ * Handle category_page postback for pagination
+ * Shows the next page of category search results
+ */
+export async function handleCategoryPagePostback(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  page: number,
+  categoryCode: string,
+  logPrefix: string
+): Promise<void> {
+  const startTime = Date.now();
+  console.log(`${logPrefix} ========== CATEGORY PAGE ${page} START ==========`);
+  console.log(`${logPrefix} Category code: "${categoryCode}", Page: ${page}`);
+
+  try {
+    const maxBubblesPerPage = 6;
+    const offset = (page - 1) * maxBubblesPerPage;
+    
+    // Get category name
+    const { data: category } = await supabaseAdmin
+      .from("business_categories")
+      .select("name_th")
+      .eq("category_code", categoryCode)
+      .single();
+    
+    const categoryName = category?.name_th || `หมวดหมู่ ${categoryCode}`;
+    
+    // Get total count
+    const { count: totalCount } = await supabaseAdmin
+      .from("participants")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .eq("business_type_code", categoryCode);
+    
+    const totalFound = totalCount ?? 0;
+    
+    // Get members for this page
+    const { data: members, error: searchError } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name_th,
+        nickname_th,
+        position,
+        company,
+        tagline,
+        photo_url,
+        company_logo_url,
+        email,
+        phone,
+        website_url,
+        facebook_url,
+        instagram_url,
+        linkedin_url,
+        line_id,
+        business_address,
+        tags,
+        onepage_url
+      `)
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .eq("business_type_code", categoryCode)
+      .order("full_name_th", { ascending: true })
+      .range(offset, offset + maxBubblesPerPage - 1);
+    
+    if (searchError) {
+      console.error(`${logPrefix} Search error:`, searchError);
+      throw new Error("Database search error");
+    }
+    
+    if (!members || members.length === 0) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `ไม่พบข้อมูลเพิ่มเติมในหมวด "${categoryName}"`
+      }, accessToken);
+      return;
+    }
+    
+    const baseUrl = getBaseUrl();
+    
+    // Get tenant info
+    const { data: tenantInfo } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, logo_url")
+      .eq("tenant_id", tenantId)
+      .single();
+    
+    const membersWithTenant = members.map(m => ({
+      ...m,
+      tenants: tenantInfo
+    }));
+    
+    const shareEnabled = await getShareEnabled();
+    const shareServiceUrl = await getShareServiceUrl();
+    
+    // Create carousel contents
+    const carouselContents: any[] = membersWithTenant.map(m => 
+      createMediumBusinessCardBubble(m as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
+    );
+    
+    // Check if there are more pages
+    const displayedSoFar = offset + members.length;
+    const hasNextPage = displayedSoFar < totalFound;
+    
+    if (hasNextPage) {
+      const remainingCount = totalFound - displayedSoFar;
+      carouselContents.push(
+        createViewMoreBubble(remainingCount, totalFound, categoryName, tenantId, baseUrl, {
+          currentPage: page,
+          hasNextPage: true,
+          type: 'category',
+          categoryCode,
+          categoryName
+        })
+      );
+    }
+    
+    const altText = `หน้า ${page}: พบ ${members.length} รายการในหมวด "${categoryName}"`;
+    
+    const carouselMessage = {
+      type: "flex" as const,
+      altText,
+      contents: {
+        type: "carousel" as const,
+        contents: carouselContents
+      }
+    };
+    
+    const messageSize = JSON.stringify(carouselMessage).length;
+    console.log(`${logPrefix} Carousel message size: ${messageSize} bytes`);
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`${logPrefix} Sending category page ${page} carousel after ${elapsed}ms`);
+    
+    await replyMessage(event.replyToken, carouselMessage, accessToken, tenantId);
+    
+    console.log(`${logPrefix} ========== CATEGORY PAGE ${page} END ==========`);
+    
+  } catch (error: any) {
+    const elapsed = Date.now() - startTime;
+    console.error(`${logPrefix} ========== CATEGORY PAGE ${page} ERROR after ${elapsed}ms ==========`);
+    console.error(`${logPrefix} Error message: ${error?.message || 'unknown'}`);
+    
+    try {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      }, accessToken, tenantId);
     } catch (replyError: any) {
       console.error(`${logPrefix} Failed to send error reply: ${replyError?.message || replyError}`);
     }
@@ -782,7 +906,17 @@ export async function handleCategorySelection(
     
     const categoryName = category?.name_th || `หมวดหมู่ ${categoryCode}`;
     
-    // Search for members by category
+    // First, get total count for the category
+    const { count: totalCount } = await supabaseAdmin
+      .from("participants")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .eq("business_type_code", categoryCode);
+    
+    const totalFound = totalCount ?? 0;
+    
+    // Search for members by category with limit
     const { data: members, error: searchError } = await supabaseAdmin
       .from("participants")
       .select(`
@@ -851,6 +985,7 @@ export async function handleCategorySelection(
         contents: bubble
       }, accessToken);
     } else {
+      const hasMoreInDb = totalFound > membersWithTenant.length;
       const { message, displayedCount } = buildPaginatedCarousel(membersWithTenant as BusinessCardData[], {
         baseUrl,
         tenantId,
@@ -859,7 +994,8 @@ export async function handleCategorySelection(
         categoryCode,
         categoryName,
         currentPage: 1,
-        hasMoreInDb: false
+        hasMoreInDb,
+        totalFound
       });
       
       await replyMessage(event.replyToken, message, accessToken);

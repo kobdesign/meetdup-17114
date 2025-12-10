@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
-import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch, handleCategorySelection, handleBusinessCardPagePostback, replyMessage } from "../../services/line/handlers/businessCardHandler";
+import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch, handleCategorySelection, handleBusinessCardPagePostback, handleCategoryPagePostback, replyMessage } from "../../services/line/handlers/businessCardHandler";
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSummaryHandler";
@@ -235,6 +235,47 @@ async function processEvent(
     console.log(`${logPrefix} ========== POSTBACK EVENT RECEIVED ==========`);
     console.log(`${logPrefix} Raw postback data: "${postbackData}"`);
     console.log(`${logPrefix} Postback data length: ${postbackData.length}`);
+    
+    // Check for category_page pagination postback (format: category_page:pageNum:categoryCode)
+    if (postbackData.startsWith("category_page:")) {
+      console.log(`${logPrefix} Matched category_page pattern`);
+      const parts = postbackData.split(":");
+      
+      if (parts.length >= 3) {
+        const page = parseInt(parts[1], 10);
+        const categoryCode = parts[2];
+        
+        if (isNaN(page) || page < 1 || !categoryCode) {
+          console.log(`${logPrefix} Invalid category_page format: page=${page}, categoryCode=${categoryCode}`);
+          try {
+            await replyMessage(event.replyToken, {
+              type: "text",
+              text: "รูปแบบไม่ถูกต้อง กรุณาลองใหม่"
+            }, accessToken, tenantId);
+          } catch (replyError) {
+            console.error(`${logPrefix} Failed to send validation error reply:`, replyError);
+          }
+          return;
+        }
+        
+        console.log(`${logPrefix} Calling handleCategoryPagePostback: page=${page}, categoryCode="${categoryCode}"`);
+        try {
+          await handleCategoryPagePostback(event, tenantId, accessToken, page, categoryCode, logPrefix);
+          console.log(`${logPrefix} handleCategoryPagePostback completed successfully`);
+        } catch (handlerError) {
+          console.error(`${logPrefix} handleCategoryPagePostback FAILED:`, handlerError);
+          try {
+            await replyMessage(event.replyToken, {
+              type: "text",
+              text: "เกิดข้อผิดพลาดในการโหลดหน้าถัดไป กรุณาลองใหม่"
+            }, accessToken, tenantId);
+          } catch (replyError) {
+            console.error(`${logPrefix} Failed to send error reply:`, replyError);
+          }
+        }
+        return;
+      }
+    }
     
     // Check for business_card_page pagination postback (format: business_card_page:pageNum:encodedSearchTerm)
     if (postbackData.startsWith("business_card_page:")) {

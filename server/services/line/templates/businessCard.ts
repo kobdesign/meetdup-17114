@@ -184,6 +184,7 @@ export interface BuildCarouselOptions {
   categoryName?: string;
   currentPage?: number;
   hasMoreInDb?: boolean;
+  totalFound?: number;
 }
 
 /**
@@ -195,10 +196,11 @@ export function buildPaginatedCarousel(
   options: BuildCarouselOptions
 ): { message: any; displayedCount: number } {
   const maxBubbles = 7;
-  const totalCount = members.length;
-  const needsViewMore = totalCount >= maxBubbles || options.hasMoreInDb;
+  const pageCount = members.length;
+  const totalFound = options.totalFound ?? pageCount;
+  const needsViewMore = pageCount >= maxBubbles || options.hasMoreInDb;
   
-  const cardsToShow = needsViewMore ? Math.min(maxBubbles - 1, totalCount) : totalCount;
+  const cardsToShow = needsViewMore ? Math.min(maxBubbles - 1, pageCount) : pageCount;
   const displayMembers = members.slice(0, cardsToShow);
   
   const carouselContents: any[] = displayMembers.map(m => 
@@ -209,8 +211,8 @@ export function buildPaginatedCarousel(
   );
   
   if (needsViewMore) {
-    const remainingCount = totalCount - cardsToShow;
-    const hasNextPage = (options.hasMoreInDb ?? false) || totalCount > cardsToShow;
+    const remainingCount = totalFound - cardsToShow;
+    const hasNextPage = (options.hasMoreInDb ?? false) || pageCount > cardsToShow;
     
     const viewMoreOptions: ViewMoreOptions = {
       currentPage: options.currentPage ?? 1,
@@ -223,7 +225,7 @@ export function buildPaginatedCarousel(
     carouselContents.push(
       createViewMoreBubble(
         remainingCount, 
-        totalCount, 
+        totalFound, 
         options.searchTerm || options.categoryName || '',
         options.tenantId, 
         options.baseUrl, 
@@ -237,8 +239,8 @@ export function buildPaginatedCarousel(
     : `"${options.searchTerm}"`;
   
   const altText = needsViewMore 
-    ? `พบ ${totalCount} รายการ (แสดง ${cardsToShow} รายการแรก)`
-    : `พบ ${totalCount} รายการใน${contextLabel}`;
+    ? `พบ ${totalFound} รายการ (แสดง ${cardsToShow} รายการแรก)`
+    : `พบ ${pageCount} รายการใน${contextLabel}`;
   
   return {
     message: {
