@@ -121,27 +121,82 @@ export function createViewMoreBubble(
 }
 
 /**
- * Create a compact business card for carousel search results
- * Smaller size (~3KB per bubble) to fit within LINE's 50KB limit
- * Shows: name, nickname, position, company, phone + Call/Profile buttons
+ * Create a medium business card for carousel search results
+ * Shows: photo, name, nickname, position, company, tagline, phone, email, LINE + action buttons
+ * Excludes: tags, Profile button, company logo
+ * Size: ~5-6KB per bubble
  */
-export function createCompactBusinessCardBubble(data: BusinessCardData, baseUrl: string, options?: BusinessCardOptions): any {
+export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: string, options?: BusinessCardOptions): any {
+  const shareEnabled = options?.shareEnabled ?? true;
   const phoneUri = sanitizePhone(data.phone);
-  const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
+  const emailUri = sanitizeEmail(data.email);
   
-  // Name with optional nickname
-  const displayName = data.nickname_th 
-    ? `${data.full_name_th} (${data.nickname_th})`
-    : data.full_name_th;
-  
-  // Subtitle: position + company
-  const subtitle = [data.position, data.company].filter(Boolean).join(" | ");
-  
-  // Header contents - name and position
-  const headerContents: any[] = [
+  // External Share Service URL
+  const rawShareServiceUrl = options?.shareServiceUrl || "https://line-share-flex-api.lovable.app";
+  const shareServiceUrl = rawShareServiceUrl.replace(/\/+$/, "");
+  const flexJsonUrl = `${baseUrl}/api/public/share-flex/${data.participant_id}?tenantId=${data.tenant_id}&format=raw`;
+  const shareUrl = `${shareServiceUrl}/share?messages=${encodeURIComponent(flexJsonUrl)}`;
+
+  // Hero section with photo
+  const heroContents: any[] = [];
+
+  if (data.photo_url) {
+    heroContents.push({
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "image",
+          url: data.photo_url,
+          size: "full",
+          aspectRatio: "1:1",
+          aspectMode: "cover"
+        }
+      ],
+      width: "60px",
+      height: "60px",
+      cornerRadius: "30px",
+      borderWidth: "2px",
+      borderColor: COLORS.accent
+    });
+  } else {
+    const initials = data.full_name_th
+      .split(" ")
+      .map(n => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
+    heroContents.push({
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: initials,
+          size: "lg",
+          weight: "bold",
+          color: COLORS.bgWhite,
+          align: "center",
+          gravity: "center"
+        }
+      ],
+      width: "60px",
+      height: "60px",
+      cornerRadius: "30px",
+      backgroundColor: COLORS.primaryLight,
+      borderWidth: "2px",
+      borderColor: COLORS.accent,
+      justifyContent: "center",
+      alignItems: "center"
+    });
+  }
+
+  // Name section
+  const nameSection: any[] = [
     {
       type: "text",
-      text: displayName,
+      text: data.full_name_th,
       weight: "bold",
       size: "md",
       color: COLORS.textDark,
@@ -149,39 +204,151 @@ export function createCompactBusinessCardBubble(data: BusinessCardData, baseUrl:
       maxLines: 2
     }
   ];
-  
-  if (subtitle) {
-    headerContents.push({
+
+  if (data.nickname_th) {
+    nameSection.push({
       type: "text",
-      text: subtitle,
+      text: `"${data.nickname_th}"`,
+      size: "sm",
+      color: COLORS.accent,
+      weight: "bold",
+      margin: "xs"
+    });
+  }
+
+  // Position and company (no logo)
+  if (data.position || data.company) {
+    const posCompany = [data.position, data.company].filter(Boolean).join(" | ");
+    nameSection.push({
+      type: "text",
+      text: posCompany,
       size: "xs",
       color: COLORS.textMedium,
+      margin: "xs",
       wrap: true,
-      maxLines: 2,
-      margin: "sm"
+      maxLines: 2
     });
   }
-  
-  // Tagline (short version)
+
+  // Body contents - tagline
+  const bodyContents: any[] = [];
+
   if (data.tagline) {
-    headerContents.push({
-      type: "text",
-      text: data.tagline.length > 50 ? data.tagline.substring(0, 50) + "..." : data.tagline,
-      size: "xxs",
-      color: COLORS.textLight,
-      wrap: true,
-      maxLines: 2,
-      margin: "md",
-      style: "italic"
+    bodyContents.push({
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `"${data.tagline.length > 80 ? data.tagline.substring(0, 80) + "..." : data.tagline}"`,
+          size: "xs",
+          color: COLORS.textMedium,
+          wrap: true,
+          maxLines: 3,
+          style: "italic"
+        }
+      ],
+      backgroundColor: COLORS.bgMuted,
+      paddingAll: "10px",
+      cornerRadius: "6px"
     });
   }
-  
+
+  // Contact info
+  const contactItems: any[] = [];
+
+  if (data.phone) {
+    contactItems.push({
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "text",
+          text: "TEL",
+          size: "xxs",
+          color: COLORS.textLight,
+          flex: 0
+        },
+        {
+          type: "text",
+          text: data.phone,
+          size: "xs",
+          color: COLORS.textDark,
+          margin: "sm",
+          flex: 1
+        }
+      ],
+      alignItems: "center"
+    });
+  }
+
+  if (data.email) {
+    contactItems.push({
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "text",
+          text: "EMAIL",
+          size: "xxs",
+          color: COLORS.textLight,
+          flex: 0
+        },
+        {
+          type: "text",
+          text: data.email,
+          size: "xs",
+          color: COLORS.textDark,
+          margin: "sm",
+          flex: 1,
+          wrap: true,
+          maxLines: 1
+        }
+      ],
+      alignItems: "center"
+    });
+  }
+
+  if (data.line_id) {
+    contactItems.push({
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "text",
+          text: "LINE",
+          size: "xxs",
+          color: COLORS.textLight,
+          flex: 0
+        },
+        {
+          type: "text",
+          text: `@${data.line_id}`,
+          size: "xs",
+          color: "#06C755",
+          margin: "sm",
+          flex: 1
+        }
+      ],
+      alignItems: "center"
+    });
+  }
+
+  if (contactItems.length > 0) {
+    bodyContents.push({
+      type: "box",
+      layout: "vertical",
+      contents: contactItems,
+      spacing: "xs",
+      margin: bodyContents.length > 0 ? "md" : "none"
+    });
+  }
+
   // Footer with action buttons
-  const footerContents: any[] = [];
-  
-  // Call button (if phone exists)
+  const primaryActions: any[] = [];
+
   if (phoneUri) {
-    footerContents.push({
+    primaryActions.push({
       type: "button",
       action: {
         type: "uri",
@@ -193,38 +360,117 @@ export function createCompactBusinessCardBubble(data: BusinessCardData, baseUrl:
       color: COLORS.primary
     });
   }
-  
-  // Profile button (always)
-  footerContents.push({
-    type: "button",
-    action: {
-      type: "uri",
-      label: "ดูข้อมูล",
-      uri: publicProfileUrl
-    },
-    style: "secondary",
-    height: "sm"
-  });
-  
-  return {
-    type: "bubble",
-    size: "kilo", // Smaller bubble size
-    header: {
-      type: "box",
-      layout: "vertical",
-      contents: headerContents,
-      paddingAll: "16px",
-      backgroundColor: COLORS.bgWhite
-    },
-    footer: {
+
+  if (emailUri) {
+    primaryActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "Email",
+        uri: emailUri
+      },
+      style: "secondary",
+      height: "sm"
+    });
+  }
+
+  if (data.line_id) {
+    primaryActions.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "LINE",
+        uri: `https://line.me/ti/p/~${data.line_id}`
+      },
+      style: "secondary",
+      height: "sm"
+    });
+  }
+
+  const footerContents: any[] = [];
+
+  if (primaryActions.length > 0) {
+    footerContents.push({
       type: "box",
       layout: "horizontal",
-      contents: footerContents,
-      spacing: "sm",
-      paddingAll: "12px",
-      backgroundColor: COLORS.bgLight
+      contents: primaryActions.slice(0, 3), // Max 3 buttons in a row
+      spacing: "sm"
+    });
+  }
+
+  // Share button (if enabled)
+  if (shareEnabled) {
+    footerContents.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "แชร์",
+        uri: shareUrl
+      },
+      style: "secondary",
+      height: "sm",
+      margin: primaryActions.length > 0 ? "sm" : "none"
+    });
+  }
+
+  const bubble: any = {
+    type: "bubble",
+    size: "kilo",
+    header: {
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          contents: heroContents,
+          flex: 0
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          contents: nameSection,
+          flex: 1,
+          margin: "md"
+        }
+      ],
+      paddingAll: "14px",
+      backgroundColor: COLORS.bgWhite,
+      alignItems: "center"
+    },
+    styles: {
+      header: { separator: false },
+      body: { separator: false }
     }
   };
+
+  if (bodyContents.length > 0) {
+    bubble.body = {
+      type: "box",
+      layout: "vertical",
+      contents: bodyContents,
+      paddingAll: "12px",
+      paddingTop: "0px",
+      backgroundColor: COLORS.bgWhite
+    };
+  }
+
+  if (footerContents.length > 0) {
+    bubble.footer = {
+      type: "box",
+      layout: "vertical",
+      contents: footerContents,
+      spacing: "none",
+      paddingAll: "12px",
+      backgroundColor: COLORS.bgLight
+    };
+    bubble.styles.footer = {
+      separator: true,
+      separatorColor: COLORS.separator
+    };
+  }
+
+  return bubble;
 }
 
 export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string, options?: BusinessCardOptions) {

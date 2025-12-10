@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
-import { createBusinessCardFlexMessage, createCompactBusinessCardBubble, createViewMoreBubble, BusinessCardData } from "../templates/businessCard";
+import { createBusinessCardFlexMessage, createMediumBusinessCardBubble, createViewMoreBubble, BusinessCardData } from "../templates/businessCard";
 import { getLiffId, getShareEnabled, getShareServiceUrl } from "../../../utils/liffConfig";
 import { logLineWebhookError, logLineReplyError } from "../../../utils/errorLogger";
 
@@ -490,21 +490,22 @@ export async function handleCardSearch(
       return;
     }
 
-    // Multiple results - send Carousel of compact Flex Messages
-    // Using compact bubbles (~3KB each) and max 10 to stay under LINE's 50KB limit
+    // Multiple results - send Carousel of medium Flex Messages
+    // Using medium bubbles (~5-6KB each) and max 7 to stay safely under LINE's 50KB limit
+    // 7 bubbles x 6KB = 42KB + envelope ~2KB = 44KB (safety margin)
     const totalCount = participantsWithTenant.length;
-    const maxBubbles = 10;
+    const maxBubbles = 7; // Medium cards ~6KB each, 7 max for safety
     const needsViewMore = totalCount > maxBubbles;
     
-    // If more than 10 results, show 9 cards + 1 "View More" bubble
+    // If more than 7 results, show 6 cards + 1 "View More" bubble
     const cardsToShow = needsViewMore ? maxBubbles - 1 : totalCount;
     const limitedParticipants = participantsWithTenant.slice(0, cardsToShow);
     
     console.log(`${logPrefix} Creating carousel: ${cardsToShow} cards${needsViewMore ? ' + view more bubble' : ''} (total: ${totalCount})`);
     
-    // Use compact bubble format for carousel (smaller size)
+    // Use medium bubble format for carousel (more info than compact)
     const carouselContents: any[] = limitedParticipants.map(p => 
-      createCompactBusinessCardBubble(p as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
+      createMediumBusinessCardBubble(p as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
     );
     
     // Add "View More" bubble if there are more results
