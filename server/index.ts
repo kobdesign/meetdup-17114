@@ -7,6 +7,7 @@ import usersRouter from "./routes/users";
 import publicRouter from "./routes/public";
 import systemSettingsRouter from "./routes/system-settings";
 import goalsRouter from "./routes/goals";
+import businessCategoriesRouter from "./routes/business-categories";
 import { performHealthCheck, printHealthCheckReport } from "./utils/dbHealthCheck";
 import { setupRichMenuStorage } from "./utils/setupStorage";
 
@@ -251,6 +252,8 @@ app.use("/api/public", publicRouter);
 app.use("/api/admin/system-settings", systemSettingsRouter);
 
 app.use("/api/goals", goalsRouter);
+
+app.use("/api/business-categories", businessCategoriesRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();

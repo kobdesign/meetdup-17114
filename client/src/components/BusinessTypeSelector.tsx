@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Label } from "@/components/ui/label";
 import { 
   Select,
@@ -7,8 +8,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Building2 } from "lucide-react";
+import { X, Building2, Loader2 } from "lucide-react";
 import { BUSINESS_CATEGORIES, getBusinessCategoryLabel } from "@/lib/business-categories";
+
+interface BusinessCategory {
+  category_code: string;
+  name_th: string;
+  name_en: string | null;
+  is_active: boolean;
+}
 
 interface BusinessTypeSelectorProps {
   value: string | null | undefined;
@@ -21,6 +29,17 @@ export default function BusinessTypeSelector({
   onChange,
   disabled = false 
 }: BusinessTypeSelectorProps) {
+  const { data, isLoading } = useQuery<{ categories: BusinessCategory[] }>({
+    queryKey: ["/api/business-categories"],
+  });
+
+  const categories = data?.categories || BUSINESS_CATEGORIES.map(c => ({
+    category_code: c.code,
+    name_th: c.name_th,
+    name_en: c.name_en,
+    is_active: true,
+  }));
+
   const handleChange = (newValue: string) => {
     onChange(newValue);
   };
@@ -29,7 +48,10 @@ export default function BusinessTypeSelector({
     onChange(null);
   };
 
-  const currentLabel = value ? getBusinessCategoryLabel(value) : null;
+  const currentCategory = value 
+    ? categories.find(c => c.category_code === value) 
+    : null;
+  const currentLabel = currentCategory?.name_th || (value ? getBusinessCategoryLabel(value) : null);
 
   return (
     <div className="space-y-3">
@@ -61,14 +83,21 @@ export default function BusinessTypeSelector({
       <Select
         value={value || ""}
         onValueChange={handleChange}
-        disabled={disabled}
+        disabled={disabled || isLoading}
       >
         <SelectTrigger data-testid="select-business-category">
-          <SelectValue placeholder="เลือกประเภทธุรกิจ" />
+          {isLoading ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>กำลังโหลด...</span>
+            </div>
+          ) : (
+            <SelectValue placeholder="เลือกประเภทธุรกิจ" />
+          )}
         </SelectTrigger>
         <SelectContent>
-          {BUSINESS_CATEGORIES.map((cat) => (
-            <SelectItem key={cat.code} value={cat.code}>
+          {categories.map((cat) => (
+            <SelectItem key={cat.category_code} value={cat.category_code}>
               {cat.name_th}
             </SelectItem>
           ))}

@@ -31,6 +31,7 @@ import ChapterGoals from "./pages/admin/ChapterGoals";
 import LineCommandAccess from "./pages/admin/LineCommandAccess";
 import Tenants from "./pages/super-admin/Tenants";
 import LiffSettings from "./pages/admin/LiffSettings";
+import BusinessCategories from "./pages/admin/BusinessCategories";
 import ChapterProfile from "./pages/public/ChapterProfile";
 import CheckInScanner from "./pages/public/CheckInScanner";
 import VisitorRegister from "./pages/public/VisitorRegister";
@@ -172,6 +173,11 @@ const App = () => (
           <Route path="/super-admin/liff-settings" element={
             <ProtectedRoute requiredRole="super_admin">
               <LiffSettings />
+            </ProtectedRoute>
+          } />
+          <Route path="/super-admin/business-categories" element={
+            <ProtectedRoute requiredRole="super_admin">
+              <BusinessCategories />
             </ProtectedRoute>
           } />
           
