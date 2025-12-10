@@ -88,11 +88,20 @@ export default function LiffCards() {
     
     // Check for direct search params (from "View More" button)
     const directSearch = searchParams.get("search");
+    const directCategory = searchParams.get("category");
     const directTenantId = searchParams.get("tenantId");
     
     if (directSearch && directTenantId) {
       console.log("[LiffCards] Direct search mode - search:", directSearch, "tenantId:", directTenantId);
       navigate(`/liff/search?tenant=${directTenantId}&q=${encodeURIComponent(directSearch)}`, { replace: true });
+      return;
+    }
+    
+    // Check for category params (from category "View More" button)
+    // Redirect to category members list page: /liff/search/category/:code?tenant=xxx
+    if (directCategory && directTenantId) {
+      console.log("[LiffCards] Category search mode - category:", directCategory, "tenantId:", directTenantId);
+      navigate(`/liff/search/category/${encodeURIComponent(directCategory)}?tenant=${directTenantId}`, { replace: true });
       return;
     }
     
