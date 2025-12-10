@@ -4,7 +4,13 @@
 Meetdup is a multi-tenant SaaS application designed to streamline business networking chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for business chapters, offering a tailored experience through multi-tenancy and role-based access control. Key capabilities include self-service activation link requests, automated LINE LIFF activation, and bulk member import.
 
 ## User Preferences
-None specified yet.
+- **Supabase Production Query**: Agent สามารถ query Supabase Production ได้โดยใช้ environment variables:
+  ```bash
+  curl -s "$SUPABASE_URL/rest/v1/<table_name>?<query_params>" \
+    -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
+  ```
+  ใช้สำหรับตรวจสอบข้อมูลจริงใน Production เมื่อ dev database ไม่มีข้อมูลที่ต้องการ
 
 ## System Architecture
 

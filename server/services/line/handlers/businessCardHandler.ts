@@ -719,11 +719,17 @@ export async function handleCategorySearch(
     const { data: categories } = await supabaseAdmin
       .from("business_categories")
       .select("category_code, name_th")
-      .in("category_code", categoryCodesWithMembers)
-      .order("category_code");
+      .in("category_code", categoryCodesWithMembers);
+    
+    // Sort by member count (descending) to show most popular categories first
+    const sortedCategories = (categories || []).sort((a, b) => {
+      const countA = categoryCounts[a.category_code] || 0;
+      const countB = categoryCounts[b.category_code] || 0;
+      return countB - countA;
+    });
     
     // Build Quick Reply items (max 13)
-    const quickReplyItems = (categories || []).slice(0, 13).map(cat => ({
+    const quickReplyItems = sortedCategories.slice(0, 13).map(cat => ({
       type: "action",
       action: {
         type: "postback",
