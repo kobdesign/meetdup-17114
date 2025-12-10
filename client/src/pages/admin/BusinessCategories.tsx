@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Loader2, Building2, Users, ChevronUp, ChevronDown } from "lucide-react";
+import AdminLayout from "@/components/layout/AdminLayout";
 
 interface BusinessCategory {
   category_code: string;
@@ -282,13 +283,16 @@ export default function BusinessCategories() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
+    <AdminLayout>
     <div className="container max-w-4xl mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -519,5 +523,6 @@ export default function BusinessCategories() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </AdminLayout>
   );
 }
