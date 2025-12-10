@@ -124,10 +124,15 @@ router.get("/members/by-category/:code", async (req: Request, res: Response) => 
       .eq("category_code", code)
       .single();
 
+    const membersWithCategoryName = (members || []).map(m => ({
+      ...m,
+      business_type: category?.name_th || m.business_type
+    }));
+
     return res.json({ 
-      members: members || [],
+      members: membersWithCategoryName,
       category: category || { name_th: "ไม่ระบุ", name_en: "Unknown" },
-      total: members?.length || 0
+      total: membersWithCategoryName.length
     });
   } catch (error: any) {
     console.error("Error in getMembersByCategory:", error);
@@ -252,6 +257,9 @@ router.get("/member/:participantId", async (req: Request, res: Response) => {
         .eq("category_code", member.business_type_code)
         .single();
       categoryName = cat;
+      if (cat) {
+        memberWithSignedUrls.business_type = cat.name_th;
+      }
     }
 
     return res.json({ 
@@ -598,10 +606,27 @@ router.get("/members/by-position/:code", async (req: Request, res: Response) => 
       member: { name_th: "สมาชิก", name_en: "Member" }
     };
 
+    const businessTypeCodes = [...new Set((members || []).map(m => m.business_type_code).filter(Boolean))];
+    let categoryMap: Record<string, string> = {};
+    if (businessTypeCodes.length > 0) {
+      const { data: categories } = await supabaseAdmin
+        .from("business_categories")
+        .select("category_code, name_th")
+        .in("category_code", businessTypeCodes);
+      if (categories) {
+        categoryMap = Object.fromEntries(categories.map(c => [c.category_code, c.name_th]));
+      }
+    }
+
+    const membersWithCategoryNames = (members || []).map(m => ({
+      ...m,
+      business_type: m.business_type_code ? (categoryMap[m.business_type_code] || m.business_type) : m.business_type
+    }));
+
     return res.json({ 
-      members: members || [],
+      members: membersWithCategoryNames,
       position: positionNames[code] || { name_th: code, name_en: code },
-      total: members?.length || 0
+      total: membersWithCategoryNames.length
     });
   } catch (error: any) {
     console.error("Error in getMembersByPosition:", error);
@@ -737,10 +762,27 @@ router.get("/members/by-powerteam/:id", async (req: Request, res: Response) => {
       return res.status(500).json({ error: "Database error" });
     }
 
+    const businessTypeCodes = [...new Set((members || []).map(m => m.business_type_code).filter(Boolean))];
+    let categoryMap: Record<string, string> = {};
+    if (businessTypeCodes.length > 0) {
+      const { data: categories } = await supabaseAdmin
+        .from("business_categories")
+        .select("category_code, name_th")
+        .in("category_code", businessTypeCodes);
+      if (categories) {
+        categoryMap = Object.fromEntries(categories.map(c => [c.category_code, c.name_th]));
+      }
+    }
+
+    const membersWithCategoryNames = (members || []).map(m => ({
+      ...m,
+      business_type: m.business_type_code ? (categoryMap[m.business_type_code] || m.business_type) : m.business_type
+    }));
+
     return res.json({ 
-      members: members || [],
+      members: membersWithCategoryNames,
       powerTeam: powerTeam,
-      total: members?.length || 0
+      total: membersWithCategoryNames.length
     });
   } catch (error: any) {
     console.error("Error in getMembersByPowerTeam:", error);
