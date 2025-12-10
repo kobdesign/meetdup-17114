@@ -211,13 +211,23 @@ export async function handleCardSearch(
   searchTerm: string
 ): Promise<void> {
   const logPrefix = `[CardSearch]`;
+  const startTime = Date.now();
+  
+  console.log(`${logPrefix} ========== SEARCH START ==========`);
+  console.log(`${logPrefix} Timestamp: ${new Date().toISOString()}`);
+  console.log(`${logPrefix} Tenant ID: ${tenantId}`);
+  console.log(`${logPrefix} Search term: "${searchTerm}"`);
+  console.log(`${logPrefix} Reply token: ${event.replyToken?.substring(0, 20)}...`);
+  console.log(`${logPrefix} User ID: ${event.source?.userId || 'unknown'}`);
+  console.log(`${logPrefix} Access token length: ${accessToken?.length || 0}`);
   
   // If no search term, prompt for keyword
   if (!searchTerm || searchTerm.trim() === "") {
+    console.log(`${logPrefix} Empty search term, sending prompt`);
     await replyMessage(event.replyToken, {
       type: "text",
       text: `🔍 ค้นหานามบัตร\n\nกรุณาพิมพ์คำค้นหา เช่น:\n• ชื่อ-นามสกุล\n• ชื่อเล่น\n• ชื่อบริษัท\n• เบอร์โทร\n• คำค้นหาอื่นๆ\n\nตัวอย่าง: "กบ" หรือ "Microsoft" หรือ "081"`
-    }, accessToken);
+    }, accessToken, tenantId);
     return;
   }
   
@@ -274,6 +284,7 @@ export async function handleCardSearch(
     const searchFields = ['full_name_th', 'full_name_en', 'nickname_th', 'nickname_en', 'phone', 'company', 'tagline', 'notes'];
     
     console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
+    console.log(`${logPrefix} Search fields: ${searchFields.join(', ')}`);
 
     // Search each keyword separately and merge results (to avoid complex OR syntax issues)
     let participants: any[] = [];
@@ -286,6 +297,9 @@ export async function handleCardSearch(
       // Build OR conditions for this keyword across all fields
       const orConditions = searchFields.map(field => `${field}.ilike.%${keyword}%`).join(',');
       
+      console.log(`${logPrefix} Query for keyword "${keyword}": tenant=${tenantId}, orConditions=${orConditions.substring(0, 100)}...`);
+      const queryStart = Date.now();
+      
       const { data: keywordMatches, error } = await supabaseAdmin
         .from("participants")
         .select(selectFields)
@@ -293,15 +307,19 @@ export async function handleCardSearch(
         .in("status", ["member", "visitor"])
         .or(orConditions)
         .limit(10);
+      
+      const queryTime = Date.now() - queryStart;
+      console.log(`${logPrefix} Query completed in ${queryTime}ms, found: ${keywordMatches?.length || 0} matches`);
 
       if (error) {
         searchError = error;
-        console.error(`${logPrefix} Search error for keyword "${keyword}":`, error);
+        console.error(`${logPrefix} Search error for keyword "${keyword}":`, JSON.stringify(error));
         continue;
       }
 
       // Merge and deduplicate results (cap at 10)
       if (keywordMatches && keywordMatches.length > 0) {
+        console.log(`${logPrefix} Found ${keywordMatches.length} matches for "${keyword}": ${keywordMatches.map(m => m.full_name_th).join(', ')}`);
         for (const match of keywordMatches) {
           if (participants.length >= 10) break;
           if (!participantIds.has(match.participant_id)) {
@@ -309,6 +327,8 @@ export async function handleCardSearch(
             participantIds.add(match.participant_id);
           }
         }
+      } else {
+        console.log(`${logPrefix} No matches found for keyword "${keyword}" in standard fields`);
       }
 
       // Also search in tags array for this keyword (partial + case insensitive)
@@ -362,22 +382,29 @@ export async function handleCardSearch(
 
     if (error) {
       console.error(`${logPrefix} Search error:`, error);
+      const elapsed = Date.now() - startTime;
+      console.log(`${logPrefix} Sending error reply after ${elapsed}ms`);
       await replyMessage(event.replyToken, {
         type: "text",
         text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
-      }, accessToken);
+      }, accessToken, tenantId);
       return;
     }
 
     if (!participants || participants.length === 0) {
+      const elapsed = Date.now() - startTime;
+      console.log(`${logPrefix} No results found, sending not-found reply after ${elapsed}ms`);
       await replyMessage(event.replyToken, {
         type: "text",
         text: `❌ ไม่พบข้อมูลที่ตรงกับ "${searchTerm}"\n\n💡 ลองค้นหาด้วย:\n• ชื่อหรือชื่อเล่นอื่น\n• ชื่อบริษัท\n• เบอร์โทรศัพท์\n• คำสำคัญที่เกี่ยวข้อง`
-      }, accessToken);
+      }, accessToken, tenantId);
       return;
     }
 
+    console.log(`${logPrefix} Found ${participants.length} participants, preparing reply...`);
+    
     const baseUrl = getBaseUrl();
+    console.log(`${logPrefix} Base URL: ${baseUrl}`);
 
     // Get tenant info for branding
     const { data: tenantInfo } = await supabaseAdmin
@@ -385,6 +412,8 @@ export async function handleCardSearch(
       .select("tenant_name, logo_url")
       .eq("tenant_id", tenantId)
       .single();
+    
+    console.log(`${logPrefix} Tenant info: ${tenantInfo?.tenant_name || 'unknown'}`);
 
     // Add tenant info to participants
     const participantsWithTenant = participants.map(p => ({
@@ -395,16 +424,21 @@ export async function handleCardSearch(
     // Get share button setting and service URL
     const shareEnabled = await getShareEnabled();
     const shareServiceUrl = await getShareServiceUrl();
+    console.log(`${logPrefix} Share settings: enabled=${shareEnabled}, serviceUrl=${shareServiceUrl?.substring(0, 30)}...`);
 
     // If only one result, send single Business Card Flex Message
     if (participantsWithTenant.length === 1) {
+      console.log(`${logPrefix} Creating single card flex message...`);
       const flexMessage = createBusinessCardFlexMessage(participantsWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
-      await replyMessage(event.replyToken, flexMessage, accessToken);
-      console.log(`${logPrefix} Sent single card for ${participantsWithTenant[0].full_name_th}`);
+      const elapsed = Date.now() - startTime;
+      console.log(`${logPrefix} Sending single card reply after ${elapsed}ms`);
+      await replyMessage(event.replyToken, flexMessage, accessToken, tenantId);
+      console.log(`${logPrefix} ========== SEARCH END (single card sent) ==========`);
       return;
     }
 
     // Multiple results - send Carousel of Flex Messages (LINE limits to 12 bubbles max)
+    console.log(`${logPrefix} Creating carousel with ${participantsWithTenant.length} cards...`);
     const maxBubbles = 12;
     const limitedParticipants = participantsWithTenant.slice(0, maxBubbles);
     const carouselContents = limitedParticipants.map(p => {
@@ -417,6 +451,9 @@ export async function handleCardSearch(
       ? `พบ ${totalCount} รายการ (แสดง ${maxBubbles} รายการแรก)`
       : `พบ ${totalCount} รายการที่ตรงกับ "${searchTerm}"`;
 
+    const elapsed = Date.now() - startTime;
+    console.log(`${logPrefix} Sending carousel reply after ${elapsed}ms`);
+    
     await replyMessage(event.replyToken, {
       type: "flex",
       altText,
@@ -424,16 +461,26 @@ export async function handleCardSearch(
         type: "carousel",
         contents: carouselContents
       }
-    }, accessToken);
+    }, accessToken, tenantId);
 
-    console.log(`${logPrefix} Sent carousel with ${limitedParticipants.length}/${totalCount} cards`);
+    console.log(`${logPrefix} ========== SEARCH END (${limitedParticipants.length}/${totalCount} cards sent) ==========`);
 
   } catch (error: any) {
-    console.error(`${logPrefix} Error searching cards:`, error);
-    await replyMessage(event.replyToken, {
-      type: "text",
-      text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
-    }, accessToken);
+    const elapsed = Date.now() - startTime;
+    console.error(`${logPrefix} ========== SEARCH ERROR after ${elapsed}ms ==========`);
+    console.error(`${logPrefix} Error type: ${error?.name || 'unknown'}`);
+    console.error(`${logPrefix} Error message: ${error?.message || 'unknown'}`);
+    console.error(`${logPrefix} Error stack: ${error?.stack || 'no stack'}`);
+    
+    try {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง"
+      }, accessToken, tenantId);
+      console.log(`${logPrefix} Error reply sent successfully`);
+    } catch (replyError: any) {
+      console.error(`${logPrefix} Failed to send error reply: ${replyError?.message || replyError}`);
+    }
   }
 }
 
