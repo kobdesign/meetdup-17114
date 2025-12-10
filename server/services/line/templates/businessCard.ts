@@ -47,9 +47,17 @@ export interface BusinessCardOptions {
   shareServiceUrl?: string;
 }
 
+export interface ViewMoreOptions {
+  currentPage?: number;
+  hasNextPage?: boolean;
+  type?: 'search' | 'category';
+  categoryCode?: string;
+  categoryName?: string;
+}
+
 /**
  * Create a "View More" bubble for carousel when there are more results
- * Links to LIFF Cards page with search term pre-filled
+ * Links to LIFF Cards page with search term or category pre-filled
  * Optionally shows "Next Page" button for pagination
  */
 export function createViewMoreBubble(
@@ -58,34 +66,46 @@ export function createViewMoreBubble(
   searchTerm: string,
   tenantId: string,
   baseUrl: string,
-  options?: {
-    currentPage?: number;
-    hasNextPage?: boolean;
-  }
+  options?: ViewMoreOptions
 ): any {
-  // URL to LIFF Cards with search term pre-filled
-  const liffCardsUrl = `${baseUrl}/liff/cards?search=${encodeURIComponent(searchTerm)}&tenantId=${tenantId}`;
-  
   const currentPage = options?.currentPage ?? 1;
   const hasNextPage = options?.hasNextPage ?? false;
+  const searchType = options?.type ?? 'search';
+  
+  // Build LIFF URL based on type
+  const liffCardsUrl = searchType === 'category' && options?.categoryCode
+    ? `${baseUrl}/liff/cards?category=${encodeURIComponent(options.categoryCode)}&tenantId=${tenantId}`
+    : `${baseUrl}/liff/cards?search=${encodeURIComponent(searchTerm)}&tenantId=${tenantId}`;
   
   const footerButtons: any[] = [];
   
   // "Next Page" button (postback) - only show if there are more pages
   if (hasNextPage) {
     const nextPage = currentPage + 1;
-    // Encode search term to handle special characters like : and &
-    const encodedSearchTerm = encodeURIComponent(searchTerm);
-    footerButtons.push({
-      type: "button",
-      action: {
-        type: "postback",
-        label: `หน้าถัดไป (${nextPage})`,
-        data: `business_card_page:${nextPage}:${encodedSearchTerm}`
-      },
-      style: "link",
-      height: "sm"
-    });
+    if (searchType === 'category' && options?.categoryCode) {
+      footerButtons.push({
+        type: "button",
+        action: {
+          type: "postback",
+          label: `หน้าถัดไป (${nextPage})`,
+          data: `category_page:${nextPage}:${options.categoryCode}`
+        },
+        style: "link",
+        height: "sm"
+      });
+    } else {
+      const encodedSearchTerm = encodeURIComponent(searchTerm);
+      footerButtons.push({
+        type: "button",
+        action: {
+          type: "postback",
+          label: `หน้าถัดไป (${nextPage})`,
+          data: `business_card_page:${nextPage}:${encodedSearchTerm}`
+        },
+        style: "link",
+        height: "sm"
+      });
+    }
   }
   
   // "View All at Website" button
@@ -100,6 +120,11 @@ export function createViewMoreBubble(
     height: "sm",
     color: COLORS.primary
   });
+  
+  // Context text based on type
+  const contextText = searchType === 'category' && options?.categoryName
+    ? `หมวด: "${options.categoryName}"`
+    : `คำค้นหา: "${searchTerm}"`;
   
   return {
     type: "bubble",
@@ -126,7 +151,7 @@ export function createViewMoreBubble(
         },
         {
           type: "text",
-          text: `คำค้นหา: "${searchTerm}"`,
+          text: contextText,
           size: "xs",
           color: COLORS.textLight,
           align: "center",
@@ -146,6 +171,85 @@ export function createViewMoreBubble(
       paddingAll: "12px",
       backgroundColor: COLORS.bgWhite
     }
+  };
+}
+
+export interface BuildCarouselOptions {
+  baseUrl: string;
+  tenantId: string;
+  shareEnabled: boolean;
+  shareServiceUrl?: string;
+  searchTerm?: string;
+  categoryCode?: string;
+  categoryName?: string;
+  currentPage?: number;
+  hasMoreInDb?: boolean;
+}
+
+/**
+ * Shared function to build carousel with medium cards and pagination
+ * Used by both handleCardSearch and handleCategorySelection
+ */
+export function buildPaginatedCarousel(
+  members: BusinessCardData[],
+  options: BuildCarouselOptions
+): { message: any; displayedCount: number } {
+  const maxBubbles = 7;
+  const totalCount = members.length;
+  const needsViewMore = totalCount >= maxBubbles || options.hasMoreInDb;
+  
+  const cardsToShow = needsViewMore ? Math.min(maxBubbles - 1, totalCount) : totalCount;
+  const displayMembers = members.slice(0, cardsToShow);
+  
+  const carouselContents: any[] = displayMembers.map(m => 
+    createMediumBusinessCardBubble(m, options.baseUrl, { 
+      shareEnabled: options.shareEnabled, 
+      shareServiceUrl: options.shareServiceUrl 
+    })
+  );
+  
+  if (needsViewMore) {
+    const remainingCount = totalCount - cardsToShow;
+    const hasNextPage = (options.hasMoreInDb ?? false) || totalCount > cardsToShow;
+    
+    const viewMoreOptions: ViewMoreOptions = {
+      currentPage: options.currentPage ?? 1,
+      hasNextPage,
+      type: options.categoryCode ? 'category' : 'search',
+      categoryCode: options.categoryCode,
+      categoryName: options.categoryName
+    };
+    
+    carouselContents.push(
+      createViewMoreBubble(
+        remainingCount, 
+        totalCount, 
+        options.searchTerm || options.categoryName || '',
+        options.tenantId, 
+        options.baseUrl, 
+        viewMoreOptions
+      )
+    );
+  }
+  
+  const contextLabel = options.categoryName 
+    ? `หมวด "${options.categoryName}"`
+    : `"${options.searchTerm}"`;
+  
+  const altText = needsViewMore 
+    ? `พบ ${totalCount} รายการ (แสดง ${cardsToShow} รายการแรก)`
+    : `พบ ${totalCount} รายการใน${contextLabel}`;
+  
+  return {
+    message: {
+      type: "flex" as const,
+      altText,
+      contents: {
+        type: "carousel" as const,
+        contents: carouselContents
+      }
+    },
+    displayedCount: cardsToShow
   };
 }
 
