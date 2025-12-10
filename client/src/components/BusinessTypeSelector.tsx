@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { X, Building2, Loader2 } from "lucide-react";
-import { BUSINESS_CATEGORIES, getBusinessCategoryLabel } from "@/lib/business-categories";
 
 interface BusinessCategory {
   category_code: string;
@@ -29,16 +28,19 @@ export default function BusinessTypeSelector({
   onChange,
   disabled = false 
 }: BusinessTypeSelectorProps) {
-  const { data, isLoading } = useQuery<{ categories: BusinessCategory[] }>({
+  const { data, isLoading, error } = useQuery<{ categories: BusinessCategory[] }>({
     queryKey: ["/api/business-categories"],
+    queryFn: async () => {
+      const response = await fetch("/api/business-categories");
+      if (!response.ok) {
+        throw new Error("Failed to fetch categories");
+      }
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5,
   });
 
-  const categories = data?.categories || BUSINESS_CATEGORIES.map(c => ({
-    category_code: c.code,
-    name_th: c.name_th,
-    name_en: c.name_en,
-    is_active: true,
-  }));
+  const categories = data?.categories || [];
 
   const handleChange = (newValue: string) => {
     onChange(newValue);
@@ -51,7 +53,7 @@ export default function BusinessTypeSelector({
   const currentCategory = value 
     ? categories.find(c => c.category_code === value) 
     : null;
-  const currentLabel = currentCategory?.name_th || (value ? getBusinessCategoryLabel(value) : null);
+  const currentLabel = currentCategory?.name_th || (value ? `รหัส ${value}` : null);
 
   return (
     <div className="space-y-3">
@@ -110,5 +112,3 @@ export default function BusinessTypeSelector({
     </div>
   );
 }
-
-export { getBusinessCategoryLabel };
