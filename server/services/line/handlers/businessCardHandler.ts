@@ -234,198 +234,30 @@ export async function handleCardSearch(
   console.log(`${logPrefix} Searching for: "${searchTerm}" in tenant: ${tenantId}`);
 
   try {
-    // Build comprehensive search query
-    // Search across: full_name_th, nickname, phone, company, notes, and tags array
-    const selectFields = `
-      participant_id,
-      tenant_id,
-      full_name_th,
-      nickname_th,
-      position,
-      company,
-      tagline,
-      photo_url,
-      company_logo_url,
-      email,
-      phone,
-      website_url,
-      facebook_url,
-      instagram_url,
-      linkedin_url,
-      line_id,
-      business_address,
-      notes,
-      tags,
-      onepage_url,
-      status
-    `;
+    // Use shared search service for consistency with LIFF search
+    const { searchParticipants } = await import("../../search/participantSearch");
+    
+    const searchResult = await searchParticipants({
+      tenantId,
+      searchTerm,
+      limit: 10,
+      tagScanLimit: 50,
+      logPrefix
+    });
 
-    // Split search term into keywords and sanitize each
-    // Supports multi-keyword OR search: "card กบ it" finds matches for "กบ" OR "it"
-    const keywords = searchTerm
-      .split(/\s+/)
-      .filter(k => k.trim().length > 0)
-      .map(k => k
-        .replace(/%/g, '\\%')
-        .replace(/_/g, '\\_')
-        .replace(/['";]/g, '') // Remove quotes and semicolons
-      )
-      .filter(k => k.length > 0);
-
-    if (keywords.length === 0) {
+    if (searchResult.emptyQuery) {
       await replyMessage(event.replyToken, {
         type: "text",
         text: `🔍 กรุณาพิมพ์คำค้นหา เช่น: "กบ" หรือ "Microsoft"`
-      }, accessToken);
+      }, accessToken, tenantId);
       return;
     }
 
-    // Search fields: full_name_th, full_name_en, nickname_th, nickname_en, phone, company, tagline, notes
-    const searchFields = ['full_name_th', 'full_name_en', 'nickname_th', 'nickname_en', 'phone', 'company', 'tagline', 'notes'];
-    
-    console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
-    console.log(`${logPrefix} Search fields: ${searchFields.join(', ')}`);
-
-    // Helper function to wrap query with timeout
-    const queryWithTimeout = async <T>(
-      queryFn: () => Promise<{ data: T | null; error: any }>,
-      timeoutMs: number,
-      queryName: string
-    ): Promise<{ data: T | null; error: any; timedOut: boolean }> => {
-      return new Promise(async (resolve) => {
-        const timeout = setTimeout(() => {
-          console.log(`${logPrefix} Query "${queryName}" timed out after ${timeoutMs}ms`);
-          resolve({ data: null, error: { message: `Query timeout after ${timeoutMs}ms` }, timedOut: true });
-        }, timeoutMs);
-        
-        try {
-          const result = await queryFn();
-          clearTimeout(timeout);
-          resolve({ ...result, timedOut: false });
-        } catch (err: any) {
-          clearTimeout(timeout);
-          console.error(`${logPrefix} Query "${queryName}" threw exception:`, err?.message);
-          resolve({ data: null, error: err, timedOut: false });
-        }
-      });
-    };
-
-    const QUERY_TIMEOUT_MS = 5000; // 5 second timeout per query
-    
-    // Search each keyword separately and merge results (to avoid complex OR syntax issues)
-    let participants: any[] = [];
-    const participantIds = new Set<string>();
-    let searchError: any = null;
-
-    for (const keyword of keywords) {
-      if (participants.length >= 10) break;
-      
-      // Build OR conditions for this keyword across all fields
-      const orConditions = searchFields.map(field => `${field}.ilike.%${keyword}%`).join(',');
-      
-      console.log(`${logPrefix} Query for keyword "${keyword}": tenant=${tenantId}`);
-      console.log(`${logPrefix} OR conditions: ${orConditions}`);
-      const queryStart = Date.now();
-      
-      const { data: keywordMatches, error, timedOut } = await queryWithTimeout(
-        async () => await supabaseAdmin
-          .from("participants")
-          .select(selectFields)
-          .eq("tenant_id", tenantId)
-          .in("status", ["member", "visitor"])
-          .or(orConditions)
-          .limit(10),
-        QUERY_TIMEOUT_MS,
-        `field_search_${keyword}`
-      );
-      
-      const queryTime = Date.now() - queryStart;
-      console.log(`${logPrefix} Query completed in ${queryTime}ms, found: ${(keywordMatches as any[])?.length || 0} matches, timedOut: ${timedOut}`);
-
-      if (timedOut) {
-        console.error(`${logPrefix} Query timed out for keyword "${keyword}" - skipping`);
-        continue;
-      }
-
-      if (error) {
-        searchError = error;
-        console.error(`${logPrefix} Search error for keyword "${keyword}":`, JSON.stringify(error));
-        continue;
-      }
-
-      // Merge and deduplicate results (cap at 10)
-      const matches = keywordMatches as any[] | null;
-      if (matches && matches.length > 0) {
-        console.log(`${logPrefix} Found ${matches.length} matches for "${keyword}": ${matches.map((m: any) => m.full_name_th).join(', ')}`);
-        for (const match of matches) {
-          if (participants.length >= 10) break;
-          if (!participantIds.has(match.participant_id)) {
-            participants.push(match);
-            participantIds.add(match.participant_id);
-          }
-        }
-      } else {
-        console.log(`${logPrefix} No matches found for keyword "${keyword}" in standard fields`);
-      }
-
-      // Also search in tags array for this keyword (partial + case insensitive)
-      // Use a simpler query with limit to prevent fetching all participants
-      if (participants.length < 10) {
-        console.log(`${logPrefix} Starting tag search for keyword "${keyword}"`);
-        const tagQueryStart = Date.now();
-        
-        const { data: tagCandidates, timedOut: tagTimedOut } = await queryWithTimeout(
-          async () => await supabaseAdmin
-            .from("participants")
-            .select(selectFields)
-            .eq("tenant_id", tenantId)
-            .in("status", ["member", "visitor"])
-            .not("tags", "is", null)
-            .limit(50), // Limit to 50 for performance
-          QUERY_TIMEOUT_MS,
-          `tag_search_${keyword}`
-        );
-        
-        const tagQueryTime = Date.now() - tagQueryStart;
-        const candidates = tagCandidates as any[] | null;
-        console.log(`${logPrefix} Tag query completed in ${tagQueryTime}ms, found: ${candidates?.length || 0} candidates, timedOut: ${tagTimedOut}`);
-
-        if (tagTimedOut) {
-          console.log(`${logPrefix} Tag search timed out - skipping tag matching`);
-          continue;
-        }
-
-        if (candidates && candidates.length > 0) {
-          const keywordLower = keyword.toLowerCase();
-          console.log(`${logPrefix} Tag search: checking ${candidates.length} participants for keyword "${keyword}"`);
-          
-          for (const candidate of candidates) {
-            if (participants.length >= 10) break;
-            if (participantIds.has(candidate.participant_id)) continue;
-            
-            // Check if any tag contains the keyword (partial + case insensitive)
-            const tags = candidate.tags as string[] | null;
-            if (tags && tags.length > 0) {
-              const hasMatch = tags.some(tag => 
-                tag && tag.toLowerCase().includes(keywordLower)
-              );
-              if (hasMatch) {
-                console.log(`${logPrefix} Tag match found: ${candidate.full_name_th} has tags: [${tags.join(', ')}]`);
-                participants.push(candidate);
-                participantIds.add(candidate.participant_id);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Ensure hard cap of 10 results
-    if (participants.length > 10) {
-      participants = participants.slice(0, 10);
-    }
-
-    const error = participants.length === 0 ? searchError : null;
+    let participants = searchResult.participants;
+    const allQueriesTimedOut = searchResult.timedOutQueries.length >= searchResult.totalQueries;
+    const error = participants.length === 0 && allQueriesTimedOut
+      ? { message: "Search timeout" }
+      : null;
 
     console.log(`${logPrefix} Comprehensive search results:`, { 
       count: participants?.length || 0,

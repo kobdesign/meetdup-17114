@@ -16,6 +16,8 @@ export interface SearchResult {
   matchingCategoryCodes: string[];
   count: number;
   timedOutQueries: string[];
+  totalQueries: number;
+  emptyQuery: boolean;
 }
 
 export interface ParticipantSearchResult {
@@ -144,22 +146,28 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     participants: [],
     matchingCategoryCodes: [],
     count: 0,
-    timedOutQueries: []
+    timedOutQueries: [],
+    totalQueries: 0,
+    emptyQuery: false
   };
 
   const trimmedSearch = searchTerm.trim();
   if (!trimmedSearch) {
     console.log(`${logPrefix} Empty search term`);
+    result.emptyQuery = true;
     return result;
   }
 
   const keywords = sanitizeKeywords(trimmedSearch);
   if (keywords.length === 0) {
     console.log(`${logPrefix} No valid keywords after sanitization`);
+    result.emptyQuery = true;
     return result;
   }
 
   console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
+  
+  result.totalQueries = keywords.length * 2;
 
   let matchingCategoryCodes: string[] = [];
   if (enableCategoryMatching) {

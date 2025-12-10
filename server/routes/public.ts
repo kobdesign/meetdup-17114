@@ -993,9 +993,23 @@ router.post("/liff/search-members", async (req: Request, res: Response) => {
       tenantId: tenant_id,
       searchTerm,
       limit: 50,
+      tagScanLimit: 100,
       enableCategoryMatching: true,
       logPrefix
     });
+
+    if (result.emptyQuery) {
+      return res.status(400).json({ success: false, error: "Invalid search query" });
+    }
+
+    const allQueriesTimedOut = result.timedOutQueries.length >= result.totalQueries;
+    if (result.participants.length === 0 && allQueriesTimedOut) {
+      return res.status(503).json({ 
+        success: false, 
+        error: "Search service temporarily unavailable",
+        retry: true
+      });
+    }
 
     const sortedParticipants = [...result.participants].sort((a, b) => 
       (a.full_name_th || '').localeCompare(b.full_name_th || '')
