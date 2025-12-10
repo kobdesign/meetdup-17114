@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Loader2, Building2, Users, ChevronUp, ChevronDown } from "lucide-react";
 import AdminLayout from "@/components/layout/AdminLayout";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BusinessCategory {
   category_code: string;
@@ -77,7 +78,18 @@ export default function BusinessCategories() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CategoryFormData) => {
-      const response = await apiRequest("/api/business-categories", "POST", data);
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("Not authenticated");
+      }
+      const response = await fetch("/api/business-categories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify(data),
+      });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to create category");
@@ -123,7 +135,22 @@ export default function BusinessCategories() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ code, data }: { code: string; data: Partial<CategoryFormData> }) => {
-      const response = await apiRequest(`/api/business-categories/${code}`, "PUT", data);
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("Not authenticated");
+      }
+      const response = await fetch(`/api/business-categories/${code}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update category");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -140,7 +167,20 @@ export default function BusinessCategories() {
 
   const deleteMutation = useMutation({
     mutationFn: async (code: string) => {
-      const response = await apiRequest(`/api/business-categories/${code}`, "DELETE");
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("Not authenticated");
+      }
+      const response = await fetch(`/api/business-categories/${code}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${sessionData.session.access_token}`,
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || "Failed to delete category");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -156,7 +196,22 @@ export default function BusinessCategories() {
 
   const reorderMutation = useMutation({
     mutationFn: async (updates: { category_code: string; sort_order: number }[]) => {
-      const response = await apiRequest("/api/business-categories/reorder", "PUT", { updates });
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("Not authenticated");
+      }
+      const response = await fetch("/api/business-categories/reorder", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({ updates }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to reorder categories");
+      }
       return response.json();
     },
     onSuccess: () => {
