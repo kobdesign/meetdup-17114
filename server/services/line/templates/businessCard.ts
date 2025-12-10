@@ -47,6 +47,113 @@ export interface BusinessCardOptions {
   shareServiceUrl?: string;
 }
 
+/**
+ * Create a compact business card for carousel search results
+ * Smaller size (~3KB per bubble) to fit within LINE's 50KB limit
+ * Shows: name, nickname, position, company, phone + Call/Profile buttons
+ */
+export function createCompactBusinessCardBubble(data: BusinessCardData, baseUrl: string, options?: BusinessCardOptions): any {
+  const phoneUri = sanitizePhone(data.phone);
+  const publicProfileUrl = `${baseUrl}/p/${data.participant_id}`;
+  
+  // Name with optional nickname
+  const displayName = data.nickname_th 
+    ? `${data.full_name_th} (${data.nickname_th})`
+    : data.full_name_th;
+  
+  // Subtitle: position + company
+  const subtitle = [data.position, data.company].filter(Boolean).join(" | ");
+  
+  // Header contents - name and position
+  const headerContents: any[] = [
+    {
+      type: "text",
+      text: displayName,
+      weight: "bold",
+      size: "md",
+      color: COLORS.textDark,
+      wrap: true,
+      maxLines: 2
+    }
+  ];
+  
+  if (subtitle) {
+    headerContents.push({
+      type: "text",
+      text: subtitle,
+      size: "xs",
+      color: COLORS.textMedium,
+      wrap: true,
+      maxLines: 2,
+      margin: "sm"
+    });
+  }
+  
+  // Tagline (short version)
+  if (data.tagline) {
+    headerContents.push({
+      type: "text",
+      text: data.tagline.length > 50 ? data.tagline.substring(0, 50) + "..." : data.tagline,
+      size: "xxs",
+      color: COLORS.textLight,
+      wrap: true,
+      maxLines: 2,
+      margin: "md",
+      style: "italic"
+    });
+  }
+  
+  // Footer with action buttons
+  const footerContents: any[] = [];
+  
+  // Call button (if phone exists)
+  if (phoneUri) {
+    footerContents.push({
+      type: "button",
+      action: {
+        type: "uri",
+        label: "โทร",
+        uri: phoneUri
+      },
+      style: "primary",
+      height: "sm",
+      color: COLORS.primary
+    });
+  }
+  
+  // Profile button (always)
+  footerContents.push({
+    type: "button",
+    action: {
+      type: "uri",
+      label: "ดูข้อมูล",
+      uri: publicProfileUrl
+    },
+    style: "secondary",
+    height: "sm"
+  });
+  
+  return {
+    type: "bubble",
+    size: "kilo", // Smaller bubble size
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: headerContents,
+      paddingAll: "16px",
+      backgroundColor: COLORS.bgWhite
+    },
+    footer: {
+      type: "box",
+      layout: "horizontal",
+      contents: footerContents,
+      spacing: "sm",
+      paddingAll: "12px",
+      backgroundColor: COLORS.bgLight
+    }
+  };
+}
+
 export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: string, options?: BusinessCardOptions) {
   const shareEnabled = options?.shareEnabled ?? true;
   const phoneUri = sanitizePhone(data.phone);

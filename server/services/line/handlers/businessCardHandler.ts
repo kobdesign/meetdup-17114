@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
-import { createBusinessCardFlexMessage, BusinessCardData } from "../templates/businessCard";
+import { createBusinessCardFlexMessage, createCompactBusinessCardBubble, BusinessCardData } from "../templates/businessCard";
 import { getLiffId, getShareEnabled, getShareServiceUrl } from "../../../utils/liffConfig";
 import { logLineWebhookError, logLineReplyError } from "../../../utils/errorLogger";
 
@@ -490,31 +490,55 @@ export async function handleCardSearch(
       return;
     }
 
-    // Multiple results - send Carousel of Flex Messages (LINE limits to 12 bubbles max)
+    // Multiple results - send Carousel of compact Flex Messages
+    // Using compact bubbles (~3KB each) and max 5 to stay under LINE's 50KB limit
     console.log(`${logPrefix} Creating carousel with ${participantsWithTenant.length} cards...`);
-    const maxBubbles = 12;
+    const maxBubbles = 5; // Reduced from 12 to stay under 50KB limit
     const limitedParticipants = participantsWithTenant.slice(0, maxBubbles);
-    const carouselContents = limitedParticipants.map(p => {
-      const flexMessage = createBusinessCardFlexMessage(p as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
-      return flexMessage.contents;
-    });
+    
+    // Use compact bubble format for carousel (smaller size)
+    const carouselContents = limitedParticipants.map(p => 
+      createCompactBusinessCardBubble(p as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
+    );
 
     const totalCount = participantsWithTenant.length;
     const altText = totalCount > maxBubbles 
       ? `พบ ${totalCount} รายการ (แสดง ${maxBubbles} รายการแรก)`
       : `พบ ${totalCount} รายการที่ตรงกับ "${searchTerm}"`;
 
+    // Check message size before sending
+    const carouselMessage = {
+      type: "flex" as const,
+      altText,
+      contents: {
+        type: "carousel" as const,
+        contents: carouselContents
+      }
+    };
+    
+    const messageSize = JSON.stringify(carouselMessage).length;
+    console.log(`${logPrefix} Carousel message size: ${messageSize} bytes (limit: 50KB)`);
+    
+    // If still too large, fallback to text list
+    if (messageSize > 45000) { // 45KB safety margin
+      console.log(`${logPrefix} Message too large (${messageSize}), falling back to text list`);
+      const textList = limitedParticipants.map((p: any, i: number) => {
+        const subtitle = [p.position, p.company].filter(Boolean).join(" | ");
+        return `${i + 1}. ${p.full_name_th}${p.nickname_th ? ` (${p.nickname_th})` : ""}\n   ${subtitle || ""}`;
+      }).join("\n\n");
+      
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `พบ ${totalCount} คน:\n\n${textList}${totalCount > maxBubbles ? `\n\n(แสดง ${maxBubbles} รายการแรก)` : ""}`
+      }, accessToken, tenantId);
+      console.log(`${logPrefix} ========== SEARCH END (text fallback sent) ==========`);
+      return;
+    }
+
     const elapsed = Date.now() - startTime;
     console.log(`${logPrefix} Sending carousel reply after ${elapsed}ms`);
     
-    await replyMessage(event.replyToken, {
-      type: "flex",
-      altText,
-      contents: {
-        type: "carousel",
-        contents: carouselContents
-      }
-    }, accessToken, tenantId);
+    await replyMessage(event.replyToken, carouselMessage, accessToken, tenantId);
 
     console.log(`${logPrefix} ========== SEARCH END (${limitedParticipants.length}/${totalCount} cards sent) ==========`);
 
