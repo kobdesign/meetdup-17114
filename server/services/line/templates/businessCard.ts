@@ -8,21 +8,24 @@ import { sanitizeUrl, sanitizePhone, sanitizeEmail } from "../urlValidator";
 export interface BusinessCardData {
   participant_id: string;
   tenant_id: string;
-  full_name: string;  // Production uses 'full_name' column
-  nickname?: string | null;  // Production uses 'nickname' column
+  full_name_th: string;
+  nickname_th?: string | null;
   position?: string | null;
   company?: string | null;
   tagline?: string | null;
   photo_url?: string | null;
+  company_logo_url?: string | null;
   email?: string | null;
   phone?: string | null;
   website_url?: string | null;
   facebook_url?: string | null;
   instagram_url?: string | null;
+  linkedin_url?: string | null;
   business_address?: string | null;
   line_user_id?: string | null;
   line_id?: string | null;
-  // Note: company_logo_url, linkedin_url, tags, onepage_url don't exist in Production
+  tags?: string[] | null;
+  onepage_url?: string | null;
 }
 
 const COLORS = {
@@ -51,9 +54,8 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   const websiteUrl = sanitizeUrl(data.website_url);
   const facebookUrl = sanitizeUrl(data.facebook_url);
   const instagramUrl = sanitizeUrl(data.instagram_url);
-  // Note: linkedin_url and onepage_url don't exist in Production schema
-  const linkedinUrl = null;
-  const onepageUrl = null;
+  const linkedinUrl = sanitizeUrl(data.linkedin_url);
+  const onepageUrl = sanitizeUrl(data.onepage_url);
 
   const heroContents: any[] = [];
 
@@ -80,7 +82,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       position: "relative"
     });
   } else {
-    const initials = data.full_name
+    const initials = data.full_name_th
       .split(" ")
       .map(n => n[0])
       .join("")
@@ -115,7 +117,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
   const nameSection: any[] = [
     {
       type: "text",
-      text: data.full_name,
+      text: data.full_name_th,
       weight: "bold",
       size: "xl",
       color: COLORS.textDark,
@@ -123,10 +125,10 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     }
   ];
 
-  if (data.nickname) {
+  if (data.nickname_th) {
     nameSection.push({
       type: "text",
-      text: `"${data.nickname}"`,
+      text: `"${data.nickname_th}"`,
       size: "md",
       color: COLORS.accent,
       weight: "bold",
@@ -150,16 +152,55 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     }
     
     if (data.company) {
-      // Note: company_logo_url doesn't exist in Production schema
-      nameSection.push({
-        type: "text",
-        text: companyText,
-        size: "sm",
-        color: COLORS.primary,
-        weight: "bold",
-        margin: "xs",
-        wrap: true
-      });
+      if (data.company_logo_url) {
+        nameSection.push({
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "image",
+                  url: data.company_logo_url,
+                  size: "full",
+                  aspectRatio: "1:1",
+                  aspectMode: "cover"
+                }
+              ],
+              width: "24px",
+              height: "24px",
+              cornerRadius: "4px",
+              borderWidth: "1px",
+              borderColor: COLORS.separator
+            },
+            {
+              type: "text",
+              text: companyText,
+              size: "sm",
+              color: COLORS.primary,
+              weight: "bold",
+              margin: "sm",
+              wrap: true,
+              flex: 1,
+              gravity: "center"
+            }
+          ],
+          alignItems: "center",
+          margin: "xs"
+        });
+      } else {
+        nameSection.push({
+          type: "text",
+          text: companyText,
+          size: "sm",
+          color: COLORS.primary,
+          weight: "bold",
+          margin: "xs",
+          wrap: true
+        });
+      }
     }
   }
 
@@ -186,7 +227,36 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     });
   }
 
-  // Note: tags column doesn't exist in Production schema - removed tag badges
+  if (data.tags && data.tags.length > 0) {
+    const tagBadges = data.tags.slice(0, 4).map(tag => ({
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: tag,
+          size: "xxs",
+          color: COLORS.primary,
+          align: "center"
+        }
+      ],
+      backgroundColor: COLORS.bgLight,
+      paddingAll: "6px",
+      paddingStart: "10px",
+      paddingEnd: "10px",
+      cornerRadius: "12px",
+      borderWidth: "1px",
+      borderColor: COLORS.separator
+    }));
+
+    bodyContents.push({
+      type: "box",
+      layout: "horizontal",
+      contents: tagBadges,
+      spacing: "sm",
+      margin: "lg"
+    });
+  }
 
   const contactItems: any[] = [];
 
@@ -616,7 +686,7 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
 
   return {
     type: "flex",
-    altText: `นามบัตร - ${data.full_name}`,
+    altText: `นามบัตร - ${data.full_name_th}`,
     contents: bubble
   };
 }
