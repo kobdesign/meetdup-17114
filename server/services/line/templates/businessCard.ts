@@ -3,7 +3,7 @@
  * Clean, corporate design with organized actions
  */
 
-import { sanitizeUrl, sanitizePhone, sanitizeEmail } from "../urlValidator";
+import { sanitizeUrl, sanitizePhone, sanitizeEmail, sanitizeLineId } from "../urlValidator";
 
 export interface BusinessCardData {
   participant_id: string;
@@ -427,13 +427,15 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
     });
   }
 
-  if (data.line_id) {
+  // Use sanitizeLineId to safely create LINE profile URL
+  const lineProfileUrl = sanitizeLineId(data.line_id);
+  if (lineProfileUrl) {
     primaryActions.push({
       type: "button",
       action: {
         type: "uri",
         label: "LINE",
-        uri: `https://line.me/ti/p/~${data.line_id}`
+        uri: lineProfileUrl
       },
       style: "primary",
       height: "sm",
@@ -955,14 +957,15 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
     });
   }
 
-  if (data.line_id) {
-    const lineProfileUrl = `https://line.me/R/ti/p/~${encodeURIComponent(data.line_id)}`;
+  // Use sanitizeLineId to safely create LINE profile URL
+  const safeLineUrl = sanitizeLineId(data.line_id);
+  if (safeLineUrl) {
     primaryActions.push({
       type: "button",
       action: {
         type: "uri",
         label: "LINE",
-        uri: lineProfileUrl
+        uri: safeLineUrl
       },
       style: "primary",
       color: "#06C755",
