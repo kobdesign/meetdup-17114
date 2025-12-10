@@ -842,16 +842,55 @@ export async function handleCategorySelection(
     const shareEnabled = await getShareEnabled();
     const shareServiceUrl = await getShareServiceUrl();
     
-    // Build flex message(s)
-    if (membersWithTenant.length === 1) {
-      const flexMessage = createBusinessCardFlexMessage(membersWithTenant[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
-      await replyMessage(event.replyToken, flexMessage, accessToken);
+    // Limit to 6 cards per carousel to stay under LINE 50KB limit
+    const maxCardsPerPage = 6;
+    const displayMembers = membersWithTenant.slice(0, maxCardsPerPage);
+    const hasMore = membersWithTenant.length > maxCardsPerPage;
+    
+    // Build flex message(s) using medium cards for smaller size
+    if (displayMembers.length === 1) {
+      const bubble = createMediumBusinessCardBubble(displayMembers[0] as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
+      await replyMessage(event.replyToken, {
+        type: "flex",
+        altText: `นามบัตร ${displayMembers[0].full_name_th || 'สมาชิก'}`,
+        contents: bubble
+      }, accessToken);
     } else {
-      // Multiple members - send carousel
-      const carouselContents = membersWithTenant.map(m => {
-        const flexMessage = createBusinessCardFlexMessage(m as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl });
-        return flexMessage.contents;
-      });
+      // Multiple members - send carousel with medium cards
+      const carouselContents = displayMembers.map(m => 
+        createMediumBusinessCardBubble(m as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
+      );
+      
+      // Add "View More" indicator if there are more results
+      if (hasMore) {
+        const remainingCount = membersWithTenant.length - maxCardsPerPage;
+        carouselContents.push({
+          type: "bubble",
+          size: "kilo",
+          body: {
+            type: "box",
+            layout: "vertical",
+            justifyContent: "center",
+            alignItems: "center",
+            contents: [
+              {
+                type: "text",
+                text: `+${remainingCount} คน`,
+                size: "lg",
+                weight: "bold",
+                color: "#1DB446"
+              },
+              {
+                type: "text",
+                text: "ใช้ LIFF ดูทั้งหมด",
+                size: "xs",
+                color: "#888888",
+                margin: "sm"
+              }
+            ]
+          }
+        } as any);
+      }
       
       await replyMessage(event.replyToken, {
         type: "flex",
@@ -863,7 +902,7 @@ export async function handleCategorySelection(
       }, accessToken);
     }
     
-    console.log(`${logPrefix} Sent ${members.length} business cards for category ${categoryCode}`);
+    console.log(`${logPrefix} Sent ${displayMembers.length}/${members.length} business cards for category ${categoryCode}`);
     
   } catch (error: any) {
     console.error(`${logPrefix} Error handling category selection:`, error);
