@@ -83,7 +83,7 @@ export function createViewMoreBubble(
         label: `หน้าถัดไป (${nextPage})`,
         data: `business_card_page:${nextPage}:${encodedSearchTerm}`
       },
-      style: "secondary",
+      style: "link",
       height: "sm"
     });
   }
