@@ -50,16 +50,56 @@ export interface BusinessCardOptions {
 /**
  * Create a "View More" bubble for carousel when there are more results
  * Links to LIFF Cards page with search term pre-filled
+ * Optionally shows "Next Page" button for pagination
  */
 export function createViewMoreBubble(
   remainingCount: number, 
   totalCount: number,
   searchTerm: string,
   tenantId: string,
-  baseUrl: string
+  baseUrl: string,
+  options?: {
+    currentPage?: number;
+    hasNextPage?: boolean;
+  }
 ): any {
   // URL to LIFF Cards with search term pre-filled
   const liffCardsUrl = `${baseUrl}/liff/cards?search=${encodeURIComponent(searchTerm)}&tenantId=${tenantId}`;
+  
+  const currentPage = options?.currentPage ?? 1;
+  const hasNextPage = options?.hasNextPage ?? false;
+  
+  const footerButtons: any[] = [];
+  
+  // "Next Page" button (postback) - only show if there are more pages
+  if (hasNextPage) {
+    const nextPage = currentPage + 1;
+    // Encode search term to handle special characters like : and &
+    const encodedSearchTerm = encodeURIComponent(searchTerm);
+    footerButtons.push({
+      type: "button",
+      action: {
+        type: "postback",
+        label: `หน้าถัดไป (${nextPage})`,
+        data: `business_card_page:${nextPage}:${encodedSearchTerm}`
+      },
+      style: "secondary",
+      height: "sm"
+    });
+  }
+  
+  // "View All at Website" button
+  footerButtons.push({
+    type: "button",
+    action: {
+      type: "uri",
+      label: "ดูทั้งหมดที่ Website",
+      uri: liffCardsUrl
+    },
+    style: "primary",
+    height: "sm",
+    color: COLORS.primary
+  });
   
   return {
     type: "bubble",
@@ -101,19 +141,8 @@ export function createViewMoreBubble(
     footer: {
       type: "box",
       layout: "vertical",
-      contents: [
-        {
-          type: "button",
-          action: {
-            type: "uri",
-            label: "ดูทั้งหมด",
-            uri: liffCardsUrl
-          },
-          style: "primary",
-          height: "sm",
-          color: COLORS.primary
-        }
-      ],
+      contents: footerButtons,
+      spacing: "sm",
       paddingAll: "12px",
       backgroundColor: COLORS.bgWhite
     }
@@ -398,19 +427,6 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
     });
   }
 
-  if (emailUri) {
-    primaryActions.push({
-      type: "button",
-      action: {
-        type: "uri",
-        label: "Email",
-        uri: emailUri
-      },
-      style: "secondary",
-      height: "sm"
-    });
-  }
-
   if (data.line_id) {
     primaryActions.push({
       type: "button",
@@ -419,8 +435,9 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
         label: "LINE",
         uri: `https://line.me/ti/p/~${data.line_id}`
       },
-      style: "secondary",
-      height: "sm"
+      style: "primary",
+      height: "sm",
+      color: "#06C755"
     });
   }
 

@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
-import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch, handleCategorySelection } from "../../services/line/handlers/businessCardHandler";
+import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch, handleCategorySelection, handleBusinessCardPagePostback } from "../../services/line/handlers/businessCardHandler";
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSummaryHandler";
@@ -231,7 +231,29 @@ async function processEvent(
 
   // Handle postback events
   if (event.type === "postback") {
-    const params = new URLSearchParams(event.postback.data);
+    const postbackData = event.postback.data;
+    
+    // Check for business_card_page pagination postback (format: business_card_page:pageNum:encodedSearchTerm)
+    if (postbackData.startsWith("business_card_page:")) {
+      const parts = postbackData.split(":");
+      if (parts.length >= 3) {
+        const page = parseInt(parts[1], 10);
+        const encodedSearchTerm = parts.slice(2).join(":"); // Handle search terms that may contain ":"
+        const searchTerm = decodeURIComponent(encodedSearchTerm);
+        
+        // Validate page number
+        if (isNaN(page) || page < 1) {
+          console.log(`${logPrefix} Invalid page number: ${page}`);
+          return;
+        }
+        
+        console.log(`${logPrefix} Business card page postback: page=${page}, searchTerm="${searchTerm}"`);
+        await handleBusinessCardPagePostback(event, tenantId, accessToken, page, searchTerm, logPrefix);
+        return;
+      }
+    }
+    
+    const params = new URLSearchParams(postbackData);
     const action = params.get("action");
 
     console.log(`${logPrefix} Postback action: ${action}`);

@@ -4,6 +4,7 @@ export interface SearchOptions {
   tenantId: string;
   searchTerm: string;
   limit?: number;
+  offset?: number;
   statusFilter?: string[];
   enableCategoryMatching?: boolean;
   tagScanLimit?: number;
@@ -15,6 +16,8 @@ export interface SearchResult {
   participants: ParticipantSearchResult[];
   matchingCategoryCodes: string[];
   count: number;
+  totalFound: number;
+  hasMore: boolean;
   timedOutQueries: string[];
   executedQueries: number;
   emptyQuery: boolean;
@@ -129,6 +132,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     tenantId,
     searchTerm,
     limit = DEFAULT_LIMIT,
+    offset = 0,
     statusFilter = DEFAULT_STATUS_FILTER,
     enableCategoryMatching = false,
     tagScanLimit = DEFAULT_TAG_SCAN_LIMIT,
@@ -139,13 +143,15 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
   console.log(`${logPrefix} ========== SEARCH START ==========`);
   console.log(`${logPrefix} Tenant ID: ${tenantId}`);
   console.log(`${logPrefix} Search term: "${searchTerm}"`);
-  console.log(`${logPrefix} Limit: ${limit}, Status filter: [${statusFilter.join(', ')}]`);
+  console.log(`${logPrefix} Limit: ${limit}, Offset: ${offset}, Status filter: [${statusFilter.join(', ')}]`);
   console.log(`${logPrefix} Category matching: ${enableCategoryMatching}`);
 
   const result: SearchResult = {
     participants: [],
     matchingCategoryCodes: [],
     count: 0,
+    totalFound: 0,
+    hasMore: false,
     timedOutQueries: [],
     executedQueries: 0,
     emptyQuery: false
@@ -167,6 +173,13 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
 
   console.log(`${logPrefix} Multi-keyword search: keywords=[${keywords.join(', ')}]`);
 
+  // To handle offset and detect if there are more results, we need offset + limit + 1 unique results
+  // The extra +1 is a sentinel to determine if there are more pages
+  const targetCount = offset + limit + 1;
+  // Fetch more from each query to account for duplicates across queries
+  const perQueryLimit = Math.max(100, targetCount * 2);
+  console.log(`${logPrefix} Target: ${targetCount} unique results (offset: ${offset}, limit: ${limit}, +1 sentinel), per-query limit: ${perQueryLimit}`);
+
   let matchingCategoryCodes: string[] = [];
   if (enableCategoryMatching) {
     const { data: matchingCategories } = await supabaseAdmin
@@ -181,11 +194,11 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     result.matchingCategoryCodes = matchingCategoryCodes;
   }
 
-  let participants: ParticipantSearchResult[] = [];
+  let allParticipants: ParticipantSearchResult[] = [];
   const participantIds = new Set<string>();
 
   for (const keyword of keywords) {
-    if (participants.length >= limit) break;
+    if (allParticipants.length >= targetCount) break;
 
     const orConditions = SEARCH_FIELDS.map(field => `${field}.ilike.%${keyword}%`).join(',');
     
@@ -199,7 +212,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
         .eq("tenant_id", tenantId)
         .in("status", statusFilter)
         .or(orConditions)
-        .limit(limit),
+        .limit(perQueryLimit),
       queryTimeoutMs,
       `field_search_${keyword}`,
       logPrefix
@@ -223,15 +236,15 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     if (matches && matches.length > 0) {
       console.log(`${logPrefix} Found ${matches.length} matches for "${keyword}"`);
       for (const match of matches) {
-        if (participants.length >= limit) break;
+        if (allParticipants.length >= targetCount) break;
         if (!participantIds.has(match.participant_id)) {
-          participants.push(match);
+          allParticipants.push(match);
           participantIds.add(match.participant_id);
         }
       }
     }
 
-    if (participants.length < limit) {
+    if (allParticipants.length < targetCount) {
       console.log(`${logPrefix} Starting tag search for keyword "${keyword}"`);
       const tagQueryStart = Date.now();
 
@@ -262,7 +275,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
         const keywordLower = keyword.toLowerCase();
         
         for (const candidate of candidates) {
-          if (participants.length >= limit) break;
+          if (allParticipants.length >= targetCount) break;
           if (participantIds.has(candidate.participant_id)) continue;
 
           const tags = candidate.tags;
@@ -272,7 +285,7 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
             );
             if (hasMatch) {
               console.log(`${logPrefix} Tag match found: ${candidate.full_name_th}`);
-              participants.push(candidate);
+              allParticipants.push(candidate);
               participantIds.add(candidate.participant_id);
             }
           }
@@ -281,9 +294,9 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     }
   }
 
-  if (enableCategoryMatching && matchingCategoryCodes.length > 0 && participants.length < limit) {
+  if (enableCategoryMatching && matchingCategoryCodes.length > 0 && allParticipants.length < targetCount) {
     for (const categoryCode of matchingCategoryCodes) {
-      if (participants.length >= limit) break;
+      if (allParticipants.length >= targetCount) break;
 
       const { data: categoryMatches } = await supabaseAdmin
         .from("participants")
@@ -291,15 +304,15 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
         .eq("tenant_id", tenantId)
         .in("status", statusFilter)
         .eq("business_type_code", categoryCode)
-        .limit(limit);
+        .limit(perQueryLimit);
 
       const matches = categoryMatches as ParticipantSearchResult[] | null;
       if (matches && matches.length > 0) {
         console.log(`${logPrefix} Found ${matches.length} matches for category ${categoryCode}`);
         for (const match of matches) {
-          if (participants.length >= limit) break;
+          if (allParticipants.length >= targetCount) break;
           if (!participantIds.has(match.participant_id)) {
-            participants.push(match);
+            allParticipants.push(match);
             participantIds.add(match.participant_id);
           }
         }
@@ -307,12 +320,20 @@ export async function searchParticipants(options: SearchOptions): Promise<Search
     }
   }
 
-  if (participants.length > limit) {
-    participants = participants.slice(0, limit);
-  }
+  // Apply offset and limit - slice to get the requested page
+  // hasMore is true if we fetched more than offset + limit (the sentinel row exists)
+  const hasMore = allParticipants.length > offset + limit;
+  const paginatedParticipants = allParticipants.slice(offset, offset + limit);
+  // totalFound is the actual number fetched (capped by targetCount, so it's an estimate)
+  // For accurate total, we'd need a separate count query, but hasMore is what matters for pagination
+  const totalFetched = allParticipants.length;
+  
+  console.log(`${logPrefix} Total fetched: ${totalFetched}, returning ${paginatedParticipants.length} (offset: ${offset}, limit: ${limit}, hasMore: ${hasMore})`);
 
-  result.participants = participants;
-  result.count = participants.length;
+  result.participants = paginatedParticipants;
+  result.count = paginatedParticipants.length;
+  result.totalFound = totalFetched;
+  result.hasMore = hasMore;
 
   const elapsed = Date.now();
   console.log(`${logPrefix} Search complete: ${result.count} results`);

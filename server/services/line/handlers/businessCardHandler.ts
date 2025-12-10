@@ -329,13 +329,14 @@ export async function handleCardSearch(
     // 7 bubbles x 6KB = 42KB + envelope ~2KB = 44KB (safety margin)
     const totalCount = participantsWithTenant.length;
     const maxBubbles = 7; // Medium cards ~6KB each, 7 max for safety
-    const needsViewMore = totalCount > maxBubbles;
+    const hasMoreResults = searchResult.hasMore;
+    const needsViewMore = totalCount >= maxBubbles || hasMoreResults;
     
-    // If more than 7 results, show 6 cards + 1 "View More" bubble
-    const cardsToShow = needsViewMore ? maxBubbles - 1 : totalCount;
+    // If more than 6 results or hasMore, show 6 cards + 1 "View More" bubble
+    const cardsToShow = needsViewMore ? Math.min(maxBubbles - 1, totalCount) : totalCount;
     const limitedParticipants = participantsWithTenant.slice(0, cardsToShow);
     
-    console.log(`${logPrefix} Creating carousel: ${cardsToShow} cards${needsViewMore ? ' + view more bubble' : ''} (total: ${totalCount})`);
+    console.log(`${logPrefix} Creating carousel: ${cardsToShow} cards${needsViewMore ? ' + view more bubble' : ''} (total: ${totalCount}, hasMore: ${hasMoreResults})`);
     
     // Use medium bubble format for carousel (more info than compact)
     const carouselContents: any[] = limitedParticipants.map(p => 
@@ -344,9 +345,13 @@ export async function handleCardSearch(
     
     // Add "View More" bubble if there are more results
     if (needsViewMore) {
-      const remainingCount = totalCount - cardsToShow;
+      const displayedCount = cardsToShow;
+      // Use hasMore from search result to determine if there's a next page
       carouselContents.push(
-        createViewMoreBubble(remainingCount, totalCount, searchTerm, tenantId, baseUrl)
+        createViewMoreBubble(totalCount - displayedCount, searchResult.totalFound, searchTerm, tenantId, baseUrl, {
+          currentPage: 1,
+          hasNextPage: hasMoreResults
+        })
       );
     }
 
@@ -412,6 +417,126 @@ export async function handleCardSearch(
     } catch (replyError: any) {
       console.error(`${logPrefix} Failed to send error reply: ${replyError?.message || replyError}`);
     }
+  }
+}
+
+/**
+ * Handle business_card_page postback for pagination
+ * Shows the next page of search results
+ */
+export async function handleBusinessCardPagePostback(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  page: number,
+  searchTerm: string,
+  logPrefix: string
+): Promise<void> {
+  const startTime = Date.now();
+  console.log(`${logPrefix} ========== PAGE ${page} SEARCH START ==========`);
+  console.log(`${logPrefix} Search term: "${searchTerm}", Page: ${page}`);
+
+  try {
+    const { searchParticipants } = await import("../../search/participantSearch");
+    
+    const maxBubblesPerPage = 6; // 6 cards per page (leaving room for navigation)
+    const offset = (page - 1) * maxBubblesPerPage;
+    
+    const searchResult = await searchParticipants({
+      tenantId,
+      searchTerm,
+      limit: maxBubblesPerPage, // Search service handles sentinel internally
+      offset,
+      statusFilter: ["member", "visitor"],
+      enableCategoryMatching: true,
+      tagScanLimit: 50,
+      queryTimeoutMs: 5000,
+      logPrefix: `${logPrefix}[Search]`
+    });
+
+    if (searchResult.emptyQuery) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "กรุณาระบุคำค้นหา"
+      }, accessToken, tenantId);
+      return;
+    }
+
+    const participants = searchResult.participants;
+    const hasNextPage = searchResult.hasMore;
+
+    if (participants.length === 0) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `ไม่พบข้อมูลเพิ่มเติมสำหรับ "${searchTerm}"`
+      }, accessToken, tenantId);
+      return;
+    }
+
+    // Get base URL
+    const baseUrl = getBaseUrl();
+
+    // Get tenant info
+    const { data: tenantInfo } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, logo_url")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    const participantsWithTenant = participants.map(p => ({
+      ...p,
+      tenants: tenantInfo
+    }));
+
+    const shareEnabled = await getShareEnabled();
+    const shareServiceUrl = await getShareServiceUrl();
+
+    // Create carousel contents
+    const carouselContents: any[] = participantsWithTenant.map(p => 
+      createMediumBusinessCardBubble(p as BusinessCardData, baseUrl, { shareEnabled, shareServiceUrl })
+    );
+
+    // Add "View More" bubble with navigation if there are more results
+    if (hasNextPage) {
+      const totalFound = searchResult.totalFound;
+      const displayedSoFar = offset + participants.length;
+      const remainingEstimate = Math.max(0, totalFound - displayedSoFar);
+      
+      carouselContents.push(
+        createViewMoreBubble(remainingEstimate, totalFound, searchTerm, tenantId, baseUrl, {
+          currentPage: page,
+          hasNextPage: true
+        })
+      );
+    }
+
+    const altText = `หน้า ${page}: พบ ${participants.length} รายการ "${searchTerm}"`;
+
+    const carouselMessage = {
+      type: "flex" as const,
+      altText,
+      contents: {
+        type: "carousel" as const,
+        contents: carouselContents
+      }
+    };
+
+    const messageSize = JSON.stringify(carouselMessage).length;
+    console.log(`${logPrefix} Carousel message size: ${messageSize} bytes`);
+
+    const elapsed = Date.now() - startTime;
+    console.log(`${logPrefix} Sending page ${page} carousel after ${elapsed}ms`);
+
+    await replyMessage(event.replyToken, carouselMessage, accessToken, tenantId);
+
+    console.log(`${logPrefix} ========== PAGE ${page} SEARCH END ==========`);
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error in page ${page} search:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    }, accessToken, tenantId);
   }
 }
 
