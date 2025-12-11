@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Users, Briefcase, Award, Search, Loader2, Phone, Mail, ExternalLink, Share2 } from "lucide-react";
+import { ArrowLeft, Users, Briefcase, Award, Search, Loader2, Phone, Mail, ExternalLink, Share2, MessageCircle } from "lucide-react";
+import { SiLine } from "react-icons/si";
 
 interface Tenant {
   tenant_id: string;
@@ -22,6 +23,7 @@ interface SearchResult {
   email: string | null;
   photo_url: string | null;
   tagline: string | null;
+  line_id: string | null;
 }
 
 export default function LiffSearchHome() {
@@ -347,6 +349,17 @@ export default function LiffSearchHome() {
                             >
                               <Mail className="h-3 w-3" />
                               Email
+                            </a>
+                          )}
+                          {member.line_id && (
+                            <a 
+                              href={`https://line.me/R/ti/p/@${member.line_id.startsWith("@") ? member.line_id.substring(1) : member.line_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1 text-xs text-[#00B900]"
+                              data-testid={`link-line-${member.participant_id}`}
+                            >
+                              <SiLine className="h-3 w-3" />
+                              LINE
                             </a>
                           )}
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">

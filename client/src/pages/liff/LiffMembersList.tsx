@@ -2,22 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Building2, Phone, Mail, Loader2, Share2 } from "lucide-react";
-
-interface Member {
-  participant_id: string;
-  full_name: string;
-  full_name_th?: string;
-  nickname: string | null;
-  company: string | null;
-  position: string | null;
-  tagline: string | null;
-  photo_url: string | null;
-  business_type: string | null;
-  phone: string | null;
-  email: string | null;
-}
+import { ArrowLeft, Loader2 } from "lucide-react";
+import MemberListCard, { MemberListData } from "@/components/liff/MemberListCard";
 
 interface FilterInfo {
   name_th: string;
@@ -36,7 +22,7 @@ export default function LiffMembersList() {
   const { code, id } = useParams<{ code?: string; id?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<MemberListData[]>([]);
   const [filterInfo, setFilterInfo] = useState<FilterInfo | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,7 +32,6 @@ export default function LiffMembersList() {
   const searchParams = new URLSearchParams(location.search);
   const tenantId = searchParams.get("tenant");
 
-  // Determine search type from URL path
   const getSearchType = (): SearchType => {
     if (location.pathname.includes("/position/")) return "position";
     if (location.pathname.includes("/powerteam/")) return "powerteam";
@@ -64,7 +49,6 @@ export default function LiffMembersList() {
       return;
     }
 
-    // Build API URL based on search type
     let membersApiUrl = "";
     switch (currentSearchType) {
       case "position":
@@ -101,7 +85,6 @@ export default function LiffMembersList() {
         }
         if (membersData.members) {
           setMembers(membersData.members);
-          // Handle different response structures
           if (membersData.category) {
             setFilterInfo(membersData.category);
           } else if (membersData.position) {
@@ -151,20 +134,14 @@ export default function LiffMembersList() {
     navigate(`/liff/card/${participantId}?tenant=${tenantId}`);
   };
 
-  const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
-  // Handle share button click - uses external share service
-  const handleShare = (e: React.MouseEvent, member: Member) => {
-    e.stopPropagation(); // Prevent card click navigation
+  const handleShare = (e: React.MouseEvent, member: MemberListData) => {
+    e.stopPropagation();
     
     const baseUrl = window.location.origin;
     const flexJsonUrl = `${baseUrl}/api/public/share-flex/${member.participant_id}?tenantId=${tenantId}&format=raw`;
     const externalShareUrl = `https://line-share-flex-api.lovable.app/share?messages=${encodeURIComponent(flexJsonUrl)}`;
     
     console.log("[LiffMembersList] Opening external share service for:", member.full_name_th || member.full_name);
-    // Use location.href instead of window.open for LIFF WebView compatibility
     window.location.href = externalShareUrl;
   };
 
@@ -229,72 +206,12 @@ export default function LiffMembersList() {
 
       <div className="p-4 space-y-3">
         {members.map((member) => (
-          <Card 
+          <MemberListCard
             key={member.participant_id}
-            className="overflow-hidden hover-elevate cursor-pointer"
+            member={member}
             onClick={() => handleMemberClick(member.participant_id)}
-            data-testid={`card-member-${member.participant_id}`}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={member.photo_url || undefined} alt={member.full_name_th || member.full_name} />
-                  <AvatarFallback className="text-lg">
-                    {getInitials(member.full_name_th || member.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-lg">
-                    {member.full_name_th || member.full_name}
-                    {member.nickname && (
-                      <span className="text-muted-foreground font-normal ml-2">
-                        ({member.nickname})
-                      </span>
-                    )}
-                  </h3>
-                  {member.position && (
-                    <p className="text-sm text-muted-foreground">{member.position}</p>
-                  )}
-                  {member.company && (
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                      <Building2 className="h-3 w-3" />
-                      <span className="truncate">{member.company}</span>
-                    </div>
-                  )}
-                  {member.tagline && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 italic">
-                      "{member.tagline}"
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-4 mt-3 pt-3 border-t">
-                <div className="flex items-center gap-4 flex-wrap">
-                  {member.phone && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Phone className="h-3 w-3" />
-                      <span>{member.phone}</span>
-                    </div>
-                  )}
-                  {member.email && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Mail className="h-3 w-3" />
-                      <span className="truncate max-w-[150px]">{member.email}</span>
-                    </div>
-                  )}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => handleShare(e, member)}
-                  className="shrink-0"
-                  data-testid={`button-share-${member.participant_id}`}
-                >
-                  <Share2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            onShare={(e) => handleShare(e, member)}
+          />
         ))}
       </div>
 
