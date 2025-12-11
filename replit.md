@@ -28,109 +28,31 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - **Multi-Tenancy**: Implemented with tenant-based data isolation, chapter-specific branding, and settings.
 - **Role-Based Access Control (RBAC)**: Supports Super Admin, Chapter Admin, and Member roles with progressive disclosure navigation and route-level guards.
 - **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface, including an image cropper for profile photos.
-- **LINE Integration**: Comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management (with database persistence, tenant isolation, and edit functionality with rollback), and message-based interaction flows (e.g., phone linking, business card search with tags support, automated LIFF activation). Includes a LIFF-based member search system with tenant branding.
+- **LINE Integration**: Comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and message-based interaction flows (e.g., phone linking, business card search, automated LIFF activation). Includes a LIFF-based member search system with tenant branding.
 - **Check-In System**: QR code-based check-ins integrated with LINE webhooks, primarily using phone number for identification.
 - **Member/Visitor Pipeline Separation**: UI separates active member management from visitor pipeline analytics, standardizing visitor progression.
 - **Multi-Path Onboarding System**: Supports Pioneer, Invite, and Discovery onboarding flows.
-- **Unified Member-Participant Architecture**: Every member has records in both `user_roles` (for access control) and `participants` (for chapter activities), linked via `user_id`.
+- **Unified Member-Participant Architecture**: Every member has records in both `user_roles` (for access control) and `participants` (for chapter activities).
 - **Bulk Member Import System**: Excel-based import with validation, phone normalization, duplicate detection, and error reporting.
 - **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching during registration.
-- **Activation Flow**: Secure token-based self-registration for imported members with single-use, expiring tokens. Upon successful activation, participant status is automatically upgraded to "member" with joined_date set (preserving existing values if already a member).
-- **User Journey Status Transitions**:
-  - `prospect` → Initial registration as a visitor
-  - `visitor` → After first check-in (auto-upgrade from prospect)  
-  - `member` → After using activation link (sets joined_date and role)
+- **Activation Flow**: Secure token-based self-registration for imported members with single-use, expiring tokens.
+- **User Journey Status Transitions**: `prospect` → `visitor` → `member`.
 - **Business Card Search**: Enhanced multi-field search across various participant data fields with input sanitization and SQL injection prevention.
-- **Participant Deletion**: Comprehensive participant deletion with cleanup of related records and proper handling of multi-tenant scenarios, ensuring data integrity.
-- **Database Management & Health Monitoring**: Includes a health check system for database status and schema sync verification. Supabase Production is the source of truth, with manual migration for safety.
-- **Schema Update (Nov 2024)**:
-  - **Simplified Name Fields**: Unified full name approach with `full_name_th` (Thai, required) and `full_name_en` (English, optional), plus `nickname_th`/`nickname_en`. Migrated from legacy `full_name` column.
-  - **Dual-Field Referral Model**: `referral_origin` enum (`member`, `central`, `external`) + conditional `referred_by_participant_id` FK to track member referrals vs. central/external sources
-  - **LinkedIn Field**: Added `linkedin_url` for professional networking
-  - **Required Phone**: Phone number is now required for participant creation/update
-  - **LINE ID Distinction**: `line_id` (user-entered public @username for contact) is separate from `line_user_id` (system-managed internal ID from LINE Platform for messaging)
-  - **Migration Status**: SQL migration script ready at `supabase/migrations/20241129_rename_name_columns.sql` - execute manually in Supabase dashboard to complete the migration
-- **Business Category System (Nov 2024, Updated Dec 2024)**:
-  - **Dynamic Categories**: Uses standardized 2-digit codes matching Supabase `business_categories` table. Examples: 01=อสังหาริมทรัพย์, 02=ไอที และ เทคโนโลยี, 14=กฎหมาย
-  - **Searchable Selector (Dec 2024)**: BusinessTypeSelector component uses Combobox (Popover + Command) for searchable dropdown with instant filtering
-  - **Member-Created Categories (Dec 2024)**: Members can add new business categories directly from profile update page
-    - Endpoint: POST `/api/business-categories/member-create` (requires authentication, no admin needed)
-    - Auto-generates next category_code (26, 27, etc.)
-    - Case-insensitive duplicate detection (returns existing if found)
-    - New categories are global - shared across all chapters
-  - **Category Search via Quick Reply (Nov 2024)**: Bot-driven category selection using Quick Reply + Postback instead of LIFF. Avoids LINE OAuth 400 errors with ephemeral dev URLs.
-    - User sends "ค้นหาประเภทธุรกิจ" → Bot replies with Quick Reply showing categories with member counts
-    - User taps category → Bot sends business card Flex Message(s) directly
-    - Handlers: `handleCategorySearch()` and `handleCategorySelection()` in `businessCardHandler.ts`
-  - **Migration Required**: Run `server/migrations/20241130_clear_old_business_type_codes.sql` on Supabase production to clear legacy hierarchical codes before deployment
-- **LIFF Configuration (Nov 2024)**:
-  - **Production LIFF**: Uses `liff_id` from `system_settings` table for stable domain (meetdup.com)
-  - **Development Note**: LIFF OAuth requires stable domains; Replit dev URLs cause 400 errors. Use Quick Reply flow for development testing.
-  - **Helper**: `server/utils/liffConfig.ts` - centralized LIFF ID resolution
-- **Goals & Achievements System (Dec 2024)**:
-  - **Purpose**: Chapters can set and track goals (visitors, members, check-ins, referrals) with auto-calculated progress from real data
-  - **Database Tables**: `goal_templates` (predefined templates), `chapter_goals` (chapter-specific goals)
-  - **Metric Types**: `weekly_visitors`, `monthly_visitors`, `total_members`, `weekly_checkins`, `monthly_checkins`, `weekly_referrals`, `monthly_referrals`
-  - **Progress Calculation**: Auto-calculated from `participants` and `checkins` tables based on date range
-  - **LINE Notification**: Sends Flex Message congratulations to Chapter Admins when goal is achieved
-  - **Duplicate Prevention**: Uses `line_notified_at` timestamp to prevent duplicate notifications
-  - **Security**: All endpoints enforce tenant access verification via `checkTenantAccess()`
-  - **UI**: Badge-style achievement cards at `/admin/goals` with progress bars, icons, and status indicators
-  - **Migration**: Run `server/migrations/20251205_create_chapter_goals.sql` on Supabase (already executed on dev)
-- **Daily Progress Summary (Dec 2024)**:
-  - **Purpose**: Sends summary of active goals progress to Chapter Admins via LINE
-  - **Trigger Methods**:
-    - Manual: "ส่งสรุป LINE" button in Admin Goals page (POST `/api/goals/send-summary`)
-    - LINE Bot: Send "สรุปเป้าหมาย" command (supports Thai particles: ค่ะ, ครับ, นะ, คะ)
-  - **Flex Message Format**: Badge-style progress summary with Thai date formatting, progress bars, and meeting details
-  - **Admin Verification**: Dual-check via cached admins list and Supabase fallback for robustness
-  - **Settings**: Stored in `system_settings` table (`goals.daily_summary_enabled`, `goals.daily_summary_time`)
-  - **Edge Case Handling**: Null-safe date formatting, division-by-zero guards for progress calculation
-  - **Handler**: `server/services/line/handlers/goalsSummaryHandler.ts`
-- **LINE Command Authorization System (Dec 2024)**:
-  - **Purpose**: Flexible access control for LINE bot commands per chapter
-  - **Access Levels**: `public` (anyone), `member` (linked members only), `admin` (chapter admins)
-  - **Group Chat Support**: Commands can be enabled/disabled for group chats
-  - **Database**: `line_command_permissions` table with tenant isolation and RLS
-  - **Caching**: 5-minute TTL for permission lookups to reduce database calls
-  - **Admin UI**: `/admin/line-command-access` page for managing command permissions
-  - **Commands Supported**: `goals_summary`, `business_card_search`, `category_search`, `checkin`, `link_phone`
-  - **Security**: Zod validation for API requests, member status verified as 'member' only (not visitor)
-  - **Migration**: Run `server/migrations/20251205_create_line_command_permissions.sql` on Supabase
-- **LIFF Business Card Share System (Dec 2024)**:
-  - **Purpose**: Allow members to share their business card as Flex Message via LINE Share Target Picker
-  - **Requirements**: LIFF SDK v2.x, LINE App >= 10.3.0, max 5 bubbles per share
-  - **LIFF Key Concepts**:
-    - **LIFF URI**: `https://liff.line.me/{liffId}` - What users click to open LIFF (LINE controls this)
-    - **LIFF Endpoint URL**: `https://meetdup.com/liff/cards` - Registered in LINE Console (must be EXACT match for OAuth)
-    - LINE OAuth validates redirect URL BEFORE JavaScript runs - different paths cause 400 error
-  - **Architecture** (LINE OAuth Compliant):
-    - Share button URL: `https://liff.line.me/2008514122-46EJngRL?liff.state=share:{tenantId}:{participantId}`
-    - LINE OAuth → redirects to registered endpoint `/liff/cards` with liff.state preserved
-    - `/liff/cards` page parses liff.state and renders share UI **INLINE** (no navigation to different path)
-    - Share Target Picker executes → Success/Cancel
-  - **Files**:
-    - `client/src/pages/liff/LiffCards.tsx` - Main LIFF page that handles both search AND share inline
-    - `client/src/pages/liff/LiffCardsRedirect.tsx` - Fallback: redirects path-based state to query param format
-    - `client/src/hooks/useLiff.ts` - LIFF hook with init, login, shareTargetPicker, closeWindow
-    - `client/src/components/LiffStateHandler.tsx` - Passes through share: states (no redirect)
-    - `server/routes/public.ts` - GET `/api/public/share-flex/:participantId` endpoint
-    - `server/services/line/templates/businessCard.ts` - Flex Message template with conditional share button
-  - **LIFF Configuration**:
-    - LIFF ID: `2008514122-46EJngRL`
-    - LIFF URI: `https://liff.line.me/2008514122-46EJngRL`
-    - Endpoint URL: `https://meetdup.com/liff/cards` (MUST be exact match)
-  - **URL Normalization (Dec 2024)**:
-    - Route `/liff/cards/*` catches path-based states (e.g., `/liff/cards/share:tenant:participant`)
-    - `LiffCardsRedirect.tsx` normalizes to canonical format: `/liff/cards?liff.state=share:tenant:participant`
-    - Prevents 404 errors when users access URL directly instead of through LIFF URI
-  - **Share Button Toggle (Dec 2024)**:
-    - Super Admin can enable/disable share button globally via LIFF Settings page
-    - Setting: `liff_share_enabled` in `system_settings` table (defaults to true)
-    - API: GET/PUT `/api/admin/system-settings/liff`
-    - Helper: `getShareEnabled()` in `server/utils/liffConfig.ts`
-  - **Error Handling**: login needed, not-in-liff, cancelled, network error states
-  - **Security**: UUID validation, tenant isolation, URL sanitization
+- **Participant Deletion**: Comprehensive participant deletion with cleanup of related records and proper handling of multi-tenant scenarios.
+- **Database Management & Health Monitoring**: Includes a health check system for database status and schema sync verification.
+- **Schema Updates**:
+    - **Simplified Name Fields**: Unified `full_name_th` (Thai, required) and `full_name_en` (English, optional), plus `nickname_th`/`nickname_en`.
+    - **Dual-Field Referral Model**: `referral_origin` enum + conditional `referred_by_participant_id` FK.
+    - **LinkedIn Field**: Added `linkedin_url`.
+    - **Required Phone**: Phone number is now required for participant creation/update.
+    - **LINE ID Distinction**: `line_id` (user-entered) is separate from `line_user_id` (system-managed).
+- **Business Category System**: Dynamic 2-digit codes, searchable selector, member-created categories (global across chapters), and bot-driven category search via Quick Reply + Postback.
+- **LIFF Configuration**: Uses `liff_id` from `system_settings` for production; development uses Quick Reply flow due to LIFF OAuth domain restrictions.
+- **Goals & Achievements System**: Chapters can set and track goals (visitors, members, check-ins, referrals) with auto-calculated progress and LINE notifications for achievement.
+- **Daily Progress Summary**: Sends summary of active goals progress to Chapter Admins via LINE (manual trigger or bot command).
+- **LINE Command Authorization System**: Flexible access control for LINE bot commands per chapter with `public`, `member`, and `admin` levels, supporting group chats and an admin UI for management.
+- **LIFF Business Card Share System**: Allows members to share their business card as a Flex Message via LINE Share Target Picker, with robust LINE OAuth compliant architecture, URL normalization, and Super Admin toggle for share button visibility.
+- **LIFF Profile Components**: Reusable `MemberProfileCard` (detailed view) and `MemberListCard` (compact list view) for displaying member profiles across LIFF pages, including LINE Chat links.
 
 ## External Dependencies
 
