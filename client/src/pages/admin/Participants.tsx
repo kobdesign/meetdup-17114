@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle, Globe, Instagram, Facebook, MessageCircle, MapPin, Linkedin, AlertCircle, Users, Phone } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle, Globe, Instagram, Facebook, MessageCircle, MapPin, Linkedin, AlertCircle, Users, Phone, Upload, Loader2, FileImage, X, Building2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import ImageCropper from "@/components/ImageCropper";
+import imageCompression from "browser-image-compression";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -82,6 +85,16 @@ export default function Participants() {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Image upload states
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingOnepage, setUploadingOnepage] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const onepageInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!effectiveTenantId) {
       setLoading(false);
@@ -125,6 +138,197 @@ export default function Participants() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Photo upload handlers
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("กรุณาเลือกไฟล์รูปภาพ");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("ไฟล์ต้องมีขนาดไม่เกิน 10MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImage(reader.result as string);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+    
+    if (photoInputRef.current) {
+      photoInputRef.current.value = "";
+    }
+  };
+
+  const handleCroppedImage = async (croppedBlob: Blob) => {
+    if (!editingParticipant) return;
+    
+    try {
+      setUploadingPhoto(true);
+
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 800,
+        useWebWorker: true
+      };
+      
+      const file = new File([croppedBlob], "avatar.jpg", { type: "image/jpeg" });
+      const compressedFile = await imageCompression(file, options);
+      
+      const fileName = `${editingParticipant.participant_id}-${Date.now()}.jpg`;
+      const filePath = `profiles/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, compressedFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      setEditingParticipant(prev => prev ? { ...prev, photo_url: publicUrl } : prev);
+      toast.success("อัปโหลดรูปโปรไฟล์สำเร็จ");
+      
+    } catch (error: any) {
+      console.error('Error uploading photo:', error);
+      toast.error(error.message || "ไม่สามารถอัปโหลดรูปภาพได้");
+    } finally {
+      setUploadingPhoto(false);
+      setCropperOpen(false);
+      setSelectedImage(null);
+    }
+  };
+
+  const handleOnepageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingParticipant) return;
+    
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("กรุณาเลือกไฟล์รูปภาพหรือ PDF");
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("ไฟล์ต้องมีขนาดไม่เกิน 10MB");
+        return;
+      }
+
+      setUploadingOnepage(true);
+
+      let uploadFile: File | Blob = file;
+      
+      if (file.type.startsWith('image/')) {
+        const options = {
+          maxSizeMB: 2,
+          maxWidthOrHeight: 2000,
+          useWebWorker: true
+        };
+        uploadFile = await imageCompression(file, options);
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${editingParticipant.participant_id}-onepage-${Date.now()}.${fileExt}`;
+      const filePath = `onepages/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, uploadFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      setEditingParticipant(prev => prev ? { ...prev, onepage_url: publicUrl } : prev);
+      toast.success("อัปโหลด One Page สำเร็จ");
+      
+    } catch (error: any) {
+      console.error('Error uploading onepage:', error);
+      toast.error(error.message || "ไม่สามารถอัปโหลดไฟล์ได้");
+    } finally {
+      setUploadingOnepage(false);
+      if (onepageInputRef.current) {
+        onepageInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingParticipant) return;
+    
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP, SVG)");
+        return;
+      }
+
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("ไฟล์ต้องมีขนาดไม่เกิน 2MB");
+        return;
+      }
+
+      setUploadingLogo(true);
+
+      let uploadFile: File | Blob = file;
+      
+      if (file.type.startsWith('image/') && file.type !== 'image/svg+xml') {
+        const options = {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 500,
+          useWebWorker: true
+        };
+        uploadFile = await imageCompression(file, options);
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${editingParticipant.participant_id}-logo-${Date.now()}.${fileExt}`;
+      const filePath = `logos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, uploadFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      setEditingParticipant(prev => prev ? { ...prev, company_logo_url: publicUrl } : prev);
+      toast.success("อัปโหลดโลโก้บริษัทสำเร็จ");
+      
+    } catch (error: any) {
+      console.error('Error uploading logo:', error);
+      toast.error(error.message || "ไม่สามารถอัปโหลดโลโก้ได้");
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) {
+        logoInputRef.current.value = "";
+      }
+    }
+  };
+
+  const getInitials = (name: string | null) => {
+    if (!name) return "?";
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   const handleAddParticipant = async () => {
@@ -282,6 +486,9 @@ export default function Participants() {
           tags: editingParticipant.tags?.length > 0 ? editingParticipant.tags : null,
           referral_origin: editingParticipant.referral_origin || "member",
           referred_by_participant_id: editingParticipant.referral_origin === "member" ? editingParticipant.referred_by_participant_id : null,
+          photo_url: editingParticipant.photo_url || null,
+          onepage_url: editingParticipant.onepage_url || null,
+          company_logo_url: editingParticipant.company_logo_url || null,
         })
         .eq("participant_id", editingParticipant.participant_id);
 
@@ -722,6 +929,155 @@ export default function Participants() {
               </DialogHeader>
               {editingParticipant && (
                 <div className="grid gap-4 py-4">
+                  {/* Photo Upload Section */}
+                  <div className="space-y-4 p-4 border rounded-md bg-muted/30">
+                    <Label className="text-sm font-medium text-muted-foreground">รูปภาพ</Label>
+                    
+                    {/* Profile Photo */}
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-16 w-16">
+                        <AvatarImage src={editingParticipant.photo_url || ""} />
+                        <AvatarFallback className="text-lg">
+                          {getInitials(editingParticipant.full_name_th || editingParticipant.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="space-y-2">
+                        <input
+                          ref={photoInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePhotoSelect}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => photoInputRef.current?.click()}
+                          disabled={uploadingPhoto}
+                          data-testid="button-upload-photo"
+                        >
+                          {uploadingPhoto ? (
+                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังอัปโหลด...</>
+                          ) : (
+                            <><Upload className="mr-2 h-4 w-4" />อัปโหลดรูปโปรไฟล์</>
+                          )}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">รูปโปรไฟล์ (ไม่เกิน 10MB)</p>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* One Page Upload */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <FileImage className="h-4 w-4" />
+                        รูป One Page
+                      </Label>
+                      <div className="flex items-center gap-4">
+                        {editingParticipant.onepage_url && (
+                          <a 
+                            href={editingParticipant.onepage_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary hover:underline flex items-center gap-1"
+                          >
+                            <FileImage className="h-4 w-4" />
+                            ดูไฟล์ปัจจุบัน
+                          </a>
+                        )}
+                        <input
+                          ref={onepageInputRef}
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={handleOnepageUpload}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onepageInputRef.current?.click()}
+                          disabled={uploadingOnepage}
+                          data-testid="button-upload-onepage"
+                        >
+                          {uploadingOnepage ? (
+                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังอัปโหลด...</>
+                          ) : (
+                            <><Upload className="mr-2 h-4 w-4" />{editingParticipant.onepage_url ? "เปลี่ยนไฟล์" : "อัปโหลด"}</>
+                          )}
+                        </Button>
+                        {editingParticipant.onepage_url && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingParticipant({ ...editingParticipant, onepage_url: null })}
+                            data-testid="button-remove-onepage"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">รูปภาพหรือ PDF (ไม่เกิน 10MB)</p>
+                    </div>
+
+                    <Separator />
+
+                    {/* Company Logo Upload */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        โลโก้บริษัท
+                      </Label>
+                      <div className="flex items-center gap-4">
+                        {editingParticipant.company_logo_url && (
+                          <img 
+                            src={editingParticipant.company_logo_url} 
+                            alt="Company Logo" 
+                            className="h-12 w-12 object-contain border rounded"
+                          />
+                        )}
+                        <input
+                          ref={logoInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => logoInputRef.current?.click()}
+                          disabled={uploadingLogo}
+                          data-testid="button-upload-logo"
+                        >
+                          {uploadingLogo ? (
+                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังอัปโหลด...</>
+                          ) : (
+                            <><Upload className="mr-2 h-4 w-4" />{editingParticipant.company_logo_url ? "เปลี่ยนโลโก้" : "อัปโหลด"}</>
+                          )}
+                        </Button>
+                        {editingParticipant.company_logo_url && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingParticipant({ ...editingParticipant, company_logo_url: null })}
+                            data-testid="button-remove-logo"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">รูปภาพ JPG, PNG, WEBP, SVG (ไม่เกิน 2MB)</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
                   {/* Thai Name Section */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">ข้อมูลชื่อ (ไทย)</Label>
@@ -1184,6 +1540,21 @@ export default function Participants() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Image Cropper Modal */}
+      {selectedImage && (
+        <ImageCropper
+          open={cropperOpen}
+          onClose={() => {
+            setCropperOpen(false);
+            setSelectedImage(null);
+          }}
+          image={selectedImage}
+          onCropComplete={handleCroppedImage}
+          aspectRatio={1}
+          cropShape="round"
+        />
+      )}
     </AdminLayout>
   );
 }
