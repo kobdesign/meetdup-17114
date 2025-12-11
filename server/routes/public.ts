@@ -5,6 +5,7 @@ import { getProductionBaseUrl } from "../utils/getProductionUrl";
 import { getLineCredentials } from "../services/line/credentials";
 import { LineClient } from "../services/line/lineClient";
 import { getShareEnabled, getShareServiceUrl } from "../utils/liffConfig";
+import { verifyProfileToken } from "../utils/profileToken";
 
 const router = Router();
 
@@ -1067,6 +1068,103 @@ router.post("/liff/search-members", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);
     return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+router.post("/business-categories/create", async (req: Request, res: Response) => {
+  try {
+    const { token, name_th, name_en } = req.body;
+
+    if (!token) {
+      return res.status(401).json({ error: "Missing authentication token" });
+    }
+
+    const tokenPayload = verifyProfileToken(token);
+    if (!tokenPayload) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    if (!name_th || typeof name_th !== "string" || name_th.trim().length < 2) {
+      return res.status(400).json({ error: "ชื่อหมวดหมู่ต้องมีอย่างน้อย 2 ตัวอักษร" });
+    }
+
+    const { data: participant } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, status")
+      .eq("participant_id", tokenPayload.participant_id)
+      .single();
+
+    if (!participant) {
+      return res.status(404).json({ error: "Participant not found" });
+    }
+
+    if (participant.status !== "member") {
+      return res.status(403).json({ error: "Only members can create categories" });
+    }
+
+    const { data: existingByName } = await supabaseAdmin
+      .from("business_categories")
+      .select("category_code, name_th")
+      .ilike("name_th", name_th.trim())
+      .single();
+
+    if (existingByName) {
+      return res.json({ 
+        category: existingByName,
+        message: "Category already exists",
+        isExisting: true
+      });
+    }
+
+    const { data: categories } = await supabaseAdmin
+      .from("business_categories")
+      .select("category_code")
+      .order("category_code", { ascending: false });
+
+    let nextCode = "26";
+    if (categories && categories.length > 0) {
+      const numericCodes = categories
+        .map(c => parseInt(c.category_code, 10))
+        .filter(n => !isNaN(n));
+      
+      if (numericCodes.length > 0) {
+        const maxCode = Math.max(...numericCodes);
+        nextCode = String(maxCode + 1).padStart(2, "0");
+      }
+    }
+
+    const { data: maxSortOrder } = await supabaseAdmin
+      .from("business_categories")
+      .select("sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .single();
+
+    const newSortOrder = (maxSortOrder?.sort_order || 25) + 1;
+
+    const { data: category, error } = await supabaseAdmin
+      .from("business_categories")
+      .insert({
+        category_code: nextCode,
+        name_th: name_th.trim(),
+        name_en: name_en?.trim() || null,
+        sort_order: newSortOrder,
+        is_active: true,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[Public/BusinessCategories] Error creating category:", error);
+      return res.status(500).json({ error: "Failed to create category" });
+    }
+
+    console.log(`[Public/BusinessCategories] Member ${tokenPayload.participant_id} created new category: ${name_th} (${nextCode})`);
+    return res.status(201).json({ category, isExisting: false });
+  } catch (error: any) {
+    console.error("[Public/BusinessCategories] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 

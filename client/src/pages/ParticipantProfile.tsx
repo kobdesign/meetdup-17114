@@ -815,6 +815,7 @@ export default function ParticipantProfile() {
                     <BusinessTypeSelector
                       value={businessTypeCode}
                       onChange={setBusinessTypeCode}
+                      profileToken={token}
                     />
                   </div>
 

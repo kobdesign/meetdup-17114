@@ -33,12 +33,14 @@ interface BusinessTypeSelectorProps {
   value: string | null | undefined;
   onChange: (value: string | null) => void;
   disabled?: boolean;
+  profileToken?: string;
 }
 
 export default function BusinessTypeSelector({ 
   value, 
   onChange,
-  disabled = false 
+  disabled = false,
+  profileToken
 }: BusinessTypeSelectorProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -59,10 +61,23 @@ export default function BusinessTypeSelector({
 
   const createCategoryMutation = useMutation({
     mutationFn: async (name_th: string) => {
-      const response = await apiRequest("/api/business-categories/member-create", "POST", {
-        name_th
-      });
-      return response;
+      if (profileToken) {
+        const response = await fetch("/api/public/business-categories/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: profileToken, name_th })
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Failed to create category");
+        }
+        return response.json();
+      } else {
+        const response = await apiRequest("/api/business-categories/member-create", "POST", {
+          name_th
+        });
+        return response;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/business-categories"] });
