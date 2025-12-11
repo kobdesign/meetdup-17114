@@ -168,7 +168,7 @@ export default function Participants() {
   };
 
   const handleCroppedImage = async (croppedBlob: Blob) => {
-    if (!editingParticipant) return;
+    if (!editingParticipant || !effectiveTenantId) return;
     
     try {
       setUploadingPhoto(true);
@@ -182,20 +182,31 @@ export default function Participants() {
       const file = new File([croppedBlob], "avatar.jpg", { type: "image/jpeg" });
       const compressedFile = await imageCompression(file, options);
       
-      const fileName = `${editingParticipant.participant_id}-${Date.now()}.jpg`;
-      const filePath = `profiles/${fileName}`;
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+      formData.append('participant_id', editingParticipant.participant_id);
+      formData.append('upload_type', 'photo');
+      formData.append('tenant_id', effectiveTenantId);
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, compressedFile, { upsert: true });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("กรุณาเข้าสู่ระบบใหม่");
+      }
 
-      if (uploadError) throw uploadError;
+      const response = await fetch('/api/participants/admin/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: formData
+      });
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || "อัปโหลดไม่สำเร็จ");
+      }
 
-      setEditingParticipant(prev => prev ? { ...prev, photo_url: publicUrl } : prev);
+      setEditingParticipant(prev => prev ? { ...prev, photo_url: result.url } : prev);
       toast.success("อัปโหลดรูปโปรไฟล์สำเร็จ");
       
     } catch (error: any) {
@@ -209,7 +220,7 @@ export default function Participants() {
   };
 
   const handleOnepageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!editingParticipant) return;
+    if (!editingParticipant || !effectiveTenantId) return;
     
     try {
       const file = e.target.files?.[0];
@@ -239,21 +250,31 @@ export default function Participants() {
         uploadFile = await imageCompression(file, options);
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${editingParticipant.participant_id}-onepage-${Date.now()}.${fileExt}`;
-      const filePath = `onepages/${fileName}`;
+      const formData = new FormData();
+      formData.append('file', new File([uploadFile], file.name, { type: file.type }));
+      formData.append('participant_id', editingParticipant.participant_id);
+      formData.append('upload_type', 'onepage');
+      formData.append('tenant_id', effectiveTenantId);
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, uploadFile, { upsert: true });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("กรุณาเข้าสู่ระบบใหม่");
+      }
 
-      if (uploadError) throw uploadError;
+      const response = await fetch('/api/participants/admin/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: formData
+      });
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || "อัปโหลดไม่สำเร็จ");
+      }
 
-      setEditingParticipant(prev => prev ? { ...prev, onepage_url: publicUrl } : prev);
+      setEditingParticipant(prev => prev ? { ...prev, onepage_url: result.url } : prev);
       toast.success("อัปโหลด One Page สำเร็จ");
       
     } catch (error: any) {
@@ -268,7 +289,7 @@ export default function Participants() {
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!editingParticipant) return;
+    if (!editingParticipant || !effectiveTenantId) return;
     
     try {
       const file = e.target.files?.[0];
@@ -298,21 +319,31 @@ export default function Participants() {
         uploadFile = await imageCompression(file, options);
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${editingParticipant.participant_id}-logo-${Date.now()}.${fileExt}`;
-      const filePath = `logos/${fileName}`;
+      const formData = new FormData();
+      formData.append('file', new File([uploadFile], file.name, { type: file.type }));
+      formData.append('participant_id', editingParticipant.participant_id);
+      formData.append('upload_type', 'logo');
+      formData.append('tenant_id', effectiveTenantId);
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, uploadFile, { upsert: true });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("กรุณาเข้าสู่ระบบใหม่");
+      }
 
-      if (uploadError) throw uploadError;
+      const response = await fetch('/api/participants/admin/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: formData
+      });
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || "อัปโหลดไม่สำเร็จ");
+      }
 
-      setEditingParticipant(prev => prev ? { ...prev, company_logo_url: publicUrl } : prev);
+      setEditingParticipant(prev => prev ? { ...prev, company_logo_url: result.url } : prev);
       toast.success("อัปโหลดโลโก้บริษัทสำเร็จ");
       
     } catch (error: any) {

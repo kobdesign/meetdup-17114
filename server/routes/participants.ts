@@ -296,6 +296,143 @@ const upload = multer({
   },
 });
 
+// Configure multer for admin uploads (larger files, more types)
+const adminUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml',
+      'application/pdf'
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images (JPEG, PNG, WEBP, GIF, SVG) and PDF are allowed.'));
+    }
+  },
+});
+
+// Admin upload endpoint - uses service role to bypass RLS
+router.post("/admin/upload", verifySupabaseAuth, adminUpload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID();
+  const logPrefix = `[admin-upload:${requestId}]`;
+
+  try {
+    const file = req.file;
+    const { participant_id, upload_type, tenant_id } = req.body;
+
+    console.log(`${logPrefix} Admin upload request`, {
+      upload_type,
+      participant_id,
+      tenant_id,
+      file_name: file?.originalname,
+      file_size: file?.size,
+      mime_type: file?.mimetype
+    });
+
+    if (!file) {
+      return res.status(400).json({ success: false, error: "No file provided" });
+    }
+
+    if (!participant_id || !upload_type || !tenant_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing required fields: participant_id, upload_type, tenant_id" 
+      });
+    }
+
+    // Validate upload_type
+    const validTypes = ['photo', 'onepage', 'logo'];
+    if (!validTypes.includes(upload_type)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Invalid upload_type. Must be one of: ${validTypes.join(', ')}` 
+      });
+    }
+
+    // Verify user has access to this tenant
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("tenant_id", tenant_id)
+      .single();
+
+    if (!userRole || !['super_admin', 'chapter_admin'].includes(userRole.role)) {
+      return res.status(403).json({ 
+        success: false, 
+        error: "You do not have permission to upload files for this tenant" 
+      });
+    }
+
+    // Determine file path based on upload type
+    const fileExt = path.extname(file.originalname).toLowerCase() || 
+      (file.mimetype === 'application/pdf' ? '.pdf' : '.jpg');
+    const timestamp = Date.now();
+    
+    let filePath: string;
+    switch (upload_type) {
+      case 'photo':
+        filePath = `${tenant_id}/profile/${participant_id}_${timestamp}${fileExt}`;
+        break;
+      case 'onepage':
+        filePath = `${tenant_id}/onepage/${participant_id}_${timestamp}${fileExt}`;
+        break;
+      case 'logo':
+        filePath = `${tenant_id}/logos/${participant_id}_${timestamp}${fileExt}`;
+        break;
+      default:
+        filePath = `${tenant_id}/misc/${participant_id}_${timestamp}${fileExt}`;
+    }
+
+    console.log(`${logPrefix} Uploading to path: ${filePath}`);
+
+    // Upload using service role (bypasses RLS)
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("avatars")
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error(`${logPrefix} Upload error:`, uploadError);
+      return res.status(500).json({ 
+        success: false, 
+        error: uploadError.message || "Failed to upload file" 
+      });
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabaseAdmin.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    console.log(`${logPrefix} Upload successful, public URL: ${publicUrl}`);
+
+    return res.json({
+      success: true,
+      url: publicUrl,
+      path: filePath
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || "Internal server error" 
+    });
+  }
+});
+
 // Lookup participant by phone number (public endpoint - no auth required)
 // Used in check-in flow to find existing participants
 router.get("/lookup-by-phone", async (req: Request, res: Response) => {
