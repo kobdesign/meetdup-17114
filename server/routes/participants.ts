@@ -359,14 +359,35 @@ router.post("/admin/upload", verifySupabaseAuth, adminUpload.single('file'), asy
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is super_admin (can access any tenant)
+    const { data: superAdminRole } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("tenant_id", tenant_id)
-      .single();
+      .eq("role", "super_admin")
+      .limit(1)
+      .maybeSingle();
 
-    if (!userRole || !['super_admin', 'chapter_admin'].includes(userRole.role)) {
+    // Check tenant-specific role if not super_admin
+    let hasAccess = !!superAdminRole;
+    if (!hasAccess) {
+      const { data: tenantRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenant_id)
+        .eq("role", "chapter_admin")
+        .maybeSingle();
+      
+      hasAccess = !!tenantRole;
+    }
+
+    console.log(`${logPrefix} User ${userId} access check:`, { 
+      isSuperAdmin: !!superAdminRole, 
+      hasAccess 
+    });
+
+    if (!hasAccess) {
       return res.status(403).json({ 
         success: false, 
         error: "You do not have permission to upload files for this tenant" 
