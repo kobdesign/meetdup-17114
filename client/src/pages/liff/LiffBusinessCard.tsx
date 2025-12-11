@@ -130,51 +130,26 @@ export default function LiffBusinessCard() {
     }
   };
 
+  // Share using external share service (same as search results and category lists)
   const handleShare = async () => {
     if (!member) return;
     
     setSharing(true);
     try {
-      if (isInLiff && isLiffReady) {
-        const response = await fetch(`/api/public/share-flex/${member.participant_id}?tenant=${member.tenant_id}`);
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch flex message: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (!data.flexMessage) {
-          throw new Error("No flex message returned");
-        }
-        
-        await shareTargetPicker([data.flexMessage]);
-        
-        toast({
-          title: "แชร์สำเร็จ",
-          description: "ส่งนามบัตรเรียบร้อยแล้ว"
-        });
-      } else {
-        await handleWebShare();
-      }
+      const baseUrl = window.location.origin;
+      const flexJsonUrl = `${baseUrl}/api/public/share-flex/${member.participant_id}?tenantId=${member.tenant_id}&format=raw`;
+      const externalShareUrl = `https://line-share-flex-api.lovable.app/share?messages=${encodeURIComponent(flexJsonUrl)}`;
+      
+      console.log("[LiffBusinessCard] Opening external share service for:", member.full_name_th || member.full_name);
+      // Use location.href instead of window.open for LIFF WebView compatibility
+      window.location.href = externalShareUrl;
     } catch (err: any) {
       console.error("Share error:", err);
-      
-      if (err.message?.includes("cancelled")) {
-        toast({
-          title: "ยกเลิกการแชร์",
-          description: "คุณได้ยกเลิกการแชร์นามบัตร"
-        });
-      } else if (err.message === "LIFF is not configured" || err.message?.includes("not available")) {
-        await handleWebShare();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "เกิดข้อผิดพลาด",
-          description: "ไม่สามารถแชร์ได้ กรุณาลองใหม่อีกครั้ง"
-        });
-      }
-    } finally {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถแชร์ได้ กรุณาลองใหม่อีกครั้ง"
+      });
       setSharing(false);
     }
   };

@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Building2, Phone, Mail, Loader2 } from "lucide-react";
+import { ArrowLeft, Building2, Phone, Mail, Loader2, Share2 } from "lucide-react";
 
 interface Member {
   participant_id: string;
@@ -155,6 +155,19 @@ export default function LiffMembersList() {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
+  // Handle share button click - uses external share service
+  const handleShare = (e: React.MouseEvent, member: Member) => {
+    e.stopPropagation(); // Prevent card click navigation
+    
+    const baseUrl = window.location.origin;
+    const flexJsonUrl = `${baseUrl}/api/public/share-flex/${member.participant_id}?tenantId=${tenantId}&format=raw`;
+    const externalShareUrl = `https://line-share-flex-api.lovable.app/share?messages=${encodeURIComponent(flexJsonUrl)}`;
+    
+    console.log("[LiffMembersList] Opening external share service for:", member.full_name_th || member.full_name);
+    // Use location.href instead of window.open for LIFF WebView compatibility
+    window.location.href = externalShareUrl;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -255,19 +268,30 @@ export default function LiffMembersList() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t">
-                {member.phone && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Phone className="h-3 w-3" />
-                    <span>{member.phone}</span>
-                  </div>
-                )}
-                {member.email && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Mail className="h-3 w-3" />
-                    <span className="truncate max-w-[150px]">{member.email}</span>
-                  </div>
-                )}
+              <div className="flex items-center justify-between gap-4 mt-3 pt-3 border-t">
+                <div className="flex items-center gap-4 flex-wrap">
+                  {member.phone && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      <span>{member.phone}</span>
+                    </div>
+                  )}
+                  {member.email && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Mail className="h-3 w-3" />
+                      <span className="truncate max-w-[150px]">{member.email}</span>
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => handleShare(e, member)}
+                  className="shrink-0"
+                  data-testid={`button-share-${member.participant_id}`}
+                >
+                  <Share2 className="h-4 w-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>
