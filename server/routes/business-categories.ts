@@ -299,6 +299,90 @@ router.get("/count/:code", async (req, res: Response) => {
   }
 });
 
+const memberCreateSchema = z.object({
+  name_th: z.string().min(1, "ชื่อหมวดหมู่ภาษาไทยจำเป็น").max(255),
+  name_en: z.string().max(255).optional().nullable(),
+});
+
+router.post("/member-create", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const parsed = memberCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+    }
+
+    const { name_th, name_en } = parsed.data;
+
+    const { data: existingByName } = await supabaseAdmin
+      .from("business_categories")
+      .select("category_code, name_th")
+      .ilike("name_th", name_th.trim())
+      .single();
+
+    if (existingByName) {
+      return res.json({ 
+        category: existingByName,
+        message: "Category already exists",
+        isExisting: true
+      });
+    }
+
+    const { data: categories } = await supabaseAdmin
+      .from("business_categories")
+      .select("category_code")
+      .order("category_code", { ascending: false });
+
+    let nextCode = "26";
+    if (categories && categories.length > 0) {
+      const numericCodes = categories
+        .map(c => parseInt(c.category_code, 10))
+        .filter(n => !isNaN(n));
+      
+      if (numericCodes.length > 0) {
+        const maxCode = Math.max(...numericCodes);
+        nextCode = String(maxCode + 1).padStart(2, "0");
+      }
+    }
+
+    const { data: maxSortOrder } = await supabaseAdmin
+      .from("business_categories")
+      .select("sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .single();
+
+    const newSortOrder = (maxSortOrder?.sort_order || 25) + 1;
+
+    const { data: category, error } = await supabaseAdmin
+      .from("business_categories")
+      .insert({
+        category_code: nextCode,
+        name_th: name_th.trim(),
+        name_en: name_en?.trim() || null,
+        sort_order: newSortOrder,
+        is_active: true,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[BusinessCategories] Error creating category:", error);
+      return res.status(500).json({ error: "Failed to create category" });
+    }
+
+    console.log(`[BusinessCategories] Member created new category: ${name_th} (${nextCode})`);
+    return res.status(201).json({ category, isExisting: false });
+  } catch (error: any) {
+    console.error("[BusinessCategories] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/generate-code", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) {
