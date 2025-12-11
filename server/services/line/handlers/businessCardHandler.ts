@@ -850,7 +850,7 @@ export async function handleCategorySearch(
       .single();
     
     const baseUrl = getBaseUrl();
-    const liffUrl = `${baseUrl}/liff/categories?tenant=${tenantId}`;
+    const liffUrl = `${baseUrl}/liff/search/category?tenant=${tenantId}`;
     
     // Validate primary_color is a valid hex color for LINE Flex Message
     // Falls back to default blue if not a valid hex format
