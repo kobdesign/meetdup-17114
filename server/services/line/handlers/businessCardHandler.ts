@@ -797,8 +797,8 @@ function getBaseUrl(): string {
 }
 
 /**
- * Handle category search command - show categories with member counts
- * Uses postback flow for category selection instead of LIFF to avoid OAuth issues
+ * Handle category search command - send LIFF link to categories page
+ * Opens full categories page in LIFF with search capability
  */
 export async function handleCategorySearch(
   event: any,
@@ -807,7 +807,7 @@ export async function handleCategorySearch(
   logPrefix: string
 ): Promise<void> {
   try {
-    console.log(`${logPrefix} Fetching categories with member counts`);
+    console.log(`${logPrefix} Fetching categories summary for LIFF link`);
     
     // Get categories with member counts for this tenant
     const { data: categoriesWithCounts, error: catError } = await supabaseAdmin
@@ -830,9 +830,11 @@ export async function handleCategorySearch(
       }
     }
     
-    // Get category names
     const categoryCodesWithMembers = Object.keys(categoryCounts);
-    if (categoryCodesWithMembers.length === 0) {
+    const totalCategories = categoryCodesWithMembers.length;
+    const totalMembers = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0);
+    
+    if (totalCategories === 0) {
       await replyMessage(event.replyToken, {
         type: "text",
         text: "ยังไม่มีสมาชิกที่ลงทะเบียนประเภทธุรกิจ"
@@ -840,39 +842,136 @@ export async function handleCategorySearch(
       return;
     }
     
-    const { data: categories } = await supabaseAdmin
-      .from("business_categories")
-      .select("category_code, name_th")
-      .in("category_code", categoryCodesWithMembers);
+    // Get tenant info for branding
+    const { data: tenantInfo } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, logo_url, primary_color")
+      .eq("tenant_id", tenantId)
+      .single();
     
-    // Sort by member count (descending) to show most popular categories first
-    const sortedCategories = (categories || []).sort((a, b) => {
-      const countA = categoryCounts[a.category_code] || 0;
-      const countB = categoryCounts[b.category_code] || 0;
-      return countB - countA;
-    });
+    const baseUrl = getBaseUrl();
+    const liffUrl = `${baseUrl}/liff/categories?tenant=${tenantId}`;
     
-    // Build Quick Reply items (max 13)
-    const quickReplyItems = sortedCategories.slice(0, 13).map(cat => ({
-      type: "action",
-      action: {
-        type: "postback",
-        label: `${cat.name_th} (${categoryCounts[cat.category_code]})`.substring(0, 20),
-        data: `action=search_category&category=${cat.category_code}`,
-        displayText: `ค้นหา: ${cat.name_th}`
-      }
-    }));
+    // Validate primary_color is a valid hex color for LINE Flex Message
+    // Falls back to default blue if not a valid hex format
+    const rawColor = tenantInfo?.primary_color || "";
+    const isValidHexColor = /^#[0-9A-Fa-f]{6}$/.test(rawColor);
+    const primaryColor = isValidHexColor ? rawColor : "#2563EB";
     
-    const message = {
-      type: "text",
-      text: "เลือกประเภทธุรกิจที่ต้องการค้นหา:",
-      quickReply: {
-        items: quickReplyItems
+    // Build Flex Message with LIFF link
+    const flexMessage = {
+      type: "flex",
+      altText: `ประเภทธุรกิจ - ${totalCategories} หมวดหมู่`,
+      contents: {
+        type: "bubble",
+        size: "kilo",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "ค้นหาตามประเภทธุรกิจ",
+              weight: "bold",
+              size: "lg",
+              color: "#FFFFFF"
+            }
+          ],
+          backgroundColor: primaryColor,
+          paddingAll: "16px"
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [
+                    {
+                      type: "text",
+                      text: String(totalCategories),
+                      size: "xxl",
+                      weight: "bold",
+                      color: primaryColor,
+                      align: "center"
+                    },
+                    {
+                      type: "text",
+                      text: "หมวดหมู่",
+                      size: "xs",
+                      color: "#888888",
+                      align: "center"
+                    }
+                  ],
+                  flex: 1
+                },
+                {
+                  type: "separator",
+                  margin: "md"
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [
+                    {
+                      type: "text",
+                      text: String(totalMembers),
+                      size: "xxl",
+                      weight: "bold",
+                      color: primaryColor,
+                      align: "center"
+                    },
+                    {
+                      type: "text",
+                      text: "สมาชิก",
+                      size: "xs",
+                      color: "#888888",
+                      align: "center"
+                    }
+                  ],
+                  flex: 1
+                }
+              ],
+              paddingAll: "12px"
+            },
+            {
+              type: "text",
+              text: "กดปุ่มด้านล่างเพื่อดูหมวดหมู่ทั้งหมด และค้นหาสมาชิกตามประเภทธุรกิจ",
+              size: "sm",
+              color: "#666666",
+              wrap: true,
+              margin: "lg"
+            }
+          ],
+          paddingAll: "16px"
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "button",
+              action: {
+                type: "uri",
+                label: "ดูประเภทธุรกิจทั้งหมด",
+                uri: liffUrl
+              },
+              style: "primary",
+              color: primaryColor
+            }
+          ],
+          paddingAll: "12px"
+        }
       }
     };
     
-    await replyMessage(event.replyToken, message, accessToken);
-    console.log(`${logPrefix} Sent category quick reply with ${quickReplyItems.length} options`);
+    await replyMessage(event.replyToken, flexMessage, accessToken);
+    console.log(`${logPrefix} Sent LIFF categories link: ${totalCategories} categories, ${totalMembers} members`);
     
   } catch (error: any) {
     console.error(`${logPrefix} Error handling category search:`, error);

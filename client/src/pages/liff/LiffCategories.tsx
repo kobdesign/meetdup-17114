@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronRight, Loader2, Send, CheckCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, ChevronRight, Loader2, Send, CheckCircle, Search, X } from "lucide-react";
 import liff from "@line/liff";
 
 interface Category {
@@ -29,9 +30,25 @@ export default function LiffCategories() {
   const [liffReady, setLiffReady] = useState(false);
   const [sendingCategory, setSendingCategory] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const searchParams = new URLSearchParams(location.search);
   const tenantId = searchParams.get("tenant");
+
+  // Filter categories based on search query
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return categories;
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    return categories.filter(cat => {
+      const matchNameTh = cat.name_th?.toLowerCase().includes(query);
+      const matchNameEn = cat.name_en?.toLowerCase().includes(query);
+      const matchCode = cat.category_code?.toLowerCase().includes(query);
+      return matchNameTh || matchNameEn || matchCode;
+    });
+  }, [categories, searchQuery]);
 
   // Initialize LIFF
   useEffect(() => {
@@ -217,6 +234,37 @@ export default function LiffCategories() {
         </p>
       </div>
 
+      {/* Search Input */}
+      <div className="p-4 pb-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="ค้นหาประเภทธุรกิจ..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-9"
+            data-testid="input-search-category"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+              onClick={() => setSearchQuery("")}
+              data-testid="button-clear-search"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="text-sm text-muted-foreground mt-2">
+            พบ {filteredCategories.length} หมวดหมู่{filteredCategories.length !== categories.length && ` จาก ${categories.length} หมวดหมู่`}
+          </p>
+        )}
+      </div>
+
       {successMessage && (
         <div className="mx-4 mt-4 p-4 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center gap-3">
           <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -224,8 +272,8 @@ export default function LiffCategories() {
         </div>
       )}
 
-      <div className="p-4 grid grid-cols-2 gap-4">
-        {categories.map((category) => (
+      <div className="p-4 pt-2 grid grid-cols-2 gap-4">
+        {filteredCategories.map((category) => (
           <Card 
             key={category.category_code}
             className="overflow-hidden hover-elevate cursor-pointer"
@@ -277,7 +325,22 @@ export default function LiffCategories() {
         ))}
       </div>
 
-      {categories.length === 0 && (
+      {filteredCategories.length === 0 && searchQuery && (
+        <div className="p-8 text-center">
+          <Search className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground">ไม่พบหมวดหมู่ที่ตรงกับ "{searchQuery}"</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSearchQuery("")}
+            className="mt-3"
+          >
+            ล้างการค้นหา
+          </Button>
+        </div>
+      )}
+
+      {categories.length === 0 && !searchQuery && (
         <div className="p-8 text-center">
           <p className="text-muted-foreground">ไม่พบประเภทธุรกิจที่มีสมาชิก</p>
         </div>
