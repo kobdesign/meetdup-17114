@@ -353,7 +353,9 @@ export default function LiffSearchHome() {
                           )}
                           {member.line_id && (
                             <a 
-                              href={`https://line.me/R/ti/p/@${member.line_id.startsWith("@") ? member.line_id.substring(1) : member.line_id}`}
+                              href={member.line_id.startsWith("@") 
+                                ? `https://line.me/R/ti/p/@${member.line_id.substring(1)}`
+                                : `https://line.me/ti/p/~${member.line_id}`}
                               onClick={(e) => e.stopPropagation()}
                               className="flex items-center gap-1 text-xs text-[#00B900]"
                               data-testid={`link-line-${member.participant_id}`}

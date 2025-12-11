@@ -43,10 +43,13 @@ export default function MemberListCard({
   const handleLineChat = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (member.line_id) {
-      const lineId = member.line_id.startsWith("@") 
-        ? member.line_id.substring(1) 
-        : member.line_id;
-      window.location.href = `https://line.me/R/ti/p/@${lineId}`;
+      const isOfficialAccount = member.line_id.startsWith("@");
+      if (isOfficialAccount) {
+        const lineId = member.line_id.substring(1);
+        window.location.href = `https://line.me/R/ti/p/@${lineId}`;
+      } else {
+        window.location.href = `https://line.me/ti/p/~${member.line_id}`;
+      }
     }
   };
 
