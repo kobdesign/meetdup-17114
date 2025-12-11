@@ -50,9 +50,14 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
   - **Required Phone**: Phone number is now required for participant creation/update
   - **LINE ID Distinction**: `line_id` (user-entered public @username for contact) is separate from `line_user_id` (system-managed internal ID from LINE Platform for messaging)
   - **Migration Status**: SQL migration script ready at `supabase/migrations/20241129_rename_name_columns.sql` - execute manually in Supabase dashboard to complete the migration
-- **Business Category System (Nov 2024)**:
-  - **25 Simple Categories**: Uses standardized 2-digit codes (01-25) matching Supabase `business_categories` table. Examples: 01=อสังหาริมทรัพย์, 02=ไอที และ เทคโนโลยี, 14=กฎหมาย
-  - **Unified Selector**: BusinessTypeSelector component now uses single dropdown instead of hierarchical 3-level selection
+- **Business Category System (Nov 2024, Updated Dec 2024)**:
+  - **Dynamic Categories**: Uses standardized 2-digit codes matching Supabase `business_categories` table. Examples: 01=อสังหาริมทรัพย์, 02=ไอที และ เทคโนโลยี, 14=กฎหมาย
+  - **Searchable Selector (Dec 2024)**: BusinessTypeSelector component uses Combobox (Popover + Command) for searchable dropdown with instant filtering
+  - **Member-Created Categories (Dec 2024)**: Members can add new business categories directly from profile update page
+    - Endpoint: POST `/api/business-categories/member-create` (requires authentication, no admin needed)
+    - Auto-generates next category_code (26, 27, etc.)
+    - Case-insensitive duplicate detection (returns existing if found)
+    - New categories are global - shared across all chapters
   - **Category Search via Quick Reply (Nov 2024)**: Bot-driven category selection using Quick Reply + Postback instead of LIFF. Avoids LINE OAuth 400 errors with ephemeral dev URLs.
     - User sends "ค้นหาประเภทธุรกิจ" → Bot replies with Quick Reply showing categories with member counts
     - User taps category → Bot sends business card Flex Message(s) directly
