@@ -758,7 +758,14 @@ export default function POSCheckin() {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">เช็คอินแล้ว</p>
-                        <p className="text-2xl font-bold" data-testid="text-checkin-count">{checkins.length}</p>
+                        <p className="text-2xl font-bold" data-testid="text-checkin-count">
+                          {checkins.length + confirmedSubstitutes.length}
+                        </p>
+                        {confirmedSubstitutes.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            (รวม {confirmedSubstitutes.length} ตัวแทน)
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -851,48 +858,82 @@ export default function POSCheckin() {
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium">รายชื่อผู้เช็คอินล่าสุด</h4>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {checkins.length === 0 ? (
+                      {checkins.length === 0 && confirmedSubstitutes.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-4">
                           ยังไม่มีการเช็คอิน
                         </p>
                       ) : (
-                        checkins.slice(0, 10).map((checkin) => (
-                          <div
-                            key={checkin.checkin_id}
-                            className="flex items-center justify-between gap-2 p-3 border rounded-lg text-sm"
-                            data-testid={`row-checkin-${checkin.checkin_id}`}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              {checkin.participant?.photo_url ? (
-                                <img 
-                                  src={checkin.participant.photo_url} 
-                                  alt=""
-                                  className="h-8 w-8 rounded-full object-cover flex-shrink-0"
-                                />
-                              ) : (
-                                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                                  <User className="h-4 w-4 text-muted-foreground" />
+                        <>
+                          {/* Show confirmed substitutes first with badge */}
+                          {confirmedSubstitutes.map((sub) => (
+                            <div
+                              key={`sub-${sub.request_id}`}
+                              className="flex items-center justify-between gap-2 p-3 border rounded-lg text-sm bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800"
+                              data-testid={`row-sub-checkin-${sub.request_id}`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center flex-shrink-0">
+                                  <UserCheck className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                                 </div>
-                              )}
-                              <div className="min-w-0">
-                                <div className="font-medium truncate">
-                                  {checkin.participant?.full_name_th || "ไม่ระบุชื่อ"}
-                                </div>
-                                {checkin.participant?.company && (
-                                  <div className="text-xs text-muted-foreground truncate">
-                                    {checkin.participant.company}
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate flex items-center gap-2">
+                                    {sub.substitute_name}
+                                    <Badge variant="secondary" className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">
+                                      ตัวแทน
+                                    </Badge>
                                   </div>
-                                )}
+                                  <div className="text-xs text-muted-foreground truncate">
+                                    แทน: {sub.member?.full_name_th}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground flex-shrink-0">
+                                {new Date(sub.confirmed_at).toLocaleTimeString("th-TH", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
                               </div>
                             </div>
-                            <div className="text-xs text-muted-foreground flex-shrink-0">
-                              {new Date(checkin.checkin_time).toLocaleTimeString("th-TH", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                          ))}
+                          {/* Show regular check-ins */}
+                          {checkins.slice(0, 10).map((checkin) => (
+                            <div
+                              key={checkin.checkin_id}
+                              className="flex items-center justify-between gap-2 p-3 border rounded-lg text-sm"
+                              data-testid={`row-checkin-${checkin.checkin_id}`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                {checkin.participant?.photo_url ? (
+                                  <img 
+                                    src={checkin.participant.photo_url} 
+                                    alt=""
+                                    className="h-8 w-8 rounded-full object-cover flex-shrink-0"
+                                  />
+                                ) : (
+                                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                                    <User className="h-4 w-4 text-muted-foreground" />
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">
+                                    {checkin.participant?.full_name_th || "ไม่ระบุชื่อ"}
+                                  </div>
+                                  {checkin.participant?.company && (
+                                    <div className="text-xs text-muted-foreground truncate">
+                                      {checkin.participant.company}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground flex-shrink-0">
+                                {new Date(checkin.checkin_time).toLocaleTimeString("th-TH", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                        </>
                       )}
                     </div>
                   </div>
