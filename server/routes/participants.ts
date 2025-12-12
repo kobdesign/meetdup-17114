@@ -1769,7 +1769,19 @@ router.patch("/profile", async (req: Request, res: Response) => {
     // Normalize phone
     const normalizedPhone = phone.replace(/\D/g, "");
 
-    console.log(`${logPrefix} Received data:`, { 
+    // Get current participant data to compare before/after
+    const { data: currentParticipant } = await supabaseAdmin
+      .from("participants")
+      .select("tags, business_type_code")
+      .eq("participant_id", decoded.participant_id)
+      .single();
+
+    console.log(`${logPrefix} BEFORE update:`, { 
+      current_tags: currentParticipant?.tags,
+      current_business_type_code: currentParticipant?.business_type_code,
+    });
+
+    console.log(`${logPrefix} Received data (will update):`, { 
       business_type, 
       business_type_code, 
       tags,
@@ -1847,6 +1859,11 @@ router.patch("/profile", async (req: Request, res: Response) => {
         message: updateError.message
       });
     }
+
+    console.log(`${logPrefix} AFTER update:`, { 
+      updated_tags: updatedParticipant?.tags,
+      updated_business_type_code: updatedParticipant?.business_type_code,
+    });
 
     // Send LINE notification if user has LINE linked
     if (updatedParticipant?.line_user_id) {

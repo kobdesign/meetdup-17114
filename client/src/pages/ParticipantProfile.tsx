@@ -364,9 +364,55 @@ export default function ParticipantProfile() {
     }
   };
 
+  // Check if any upload is in progress
+  const isUploading = uploading || uploadingOnepage || uploadingLogo;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent save while uploading
+    if (isUploading) {
+      toast.error("กรุณารอให้การอัปโหลดเสร็จสิ้นก่อน");
+      return;
+    }
+    
     setSaving(true);
+
+    // Debug logging - track what we're sending
+    const submitData = {
+      // Thai names
+      full_name_th: fullNameTh,
+      nickname_th: nicknameTh || null,
+      // English names
+      full_name_en: fullNameEn || null,
+      nickname_en: nicknameEn || null,
+      // Other fields
+      position: position || null,
+      company: company || null,
+      tagline: tagline || null,
+      business_type: businessTypeCode ? getCategoryLabel(businessTypeCode) : null,
+      business_type_code: businessTypeCode,
+      goal: goal || null,
+      phone,
+      email: email || null,
+      website_url: website || null,
+      facebook_url: facebook || null,
+      instagram_url: instagram || null,
+      linkedin_url: linkedin || null,
+      line_id: lineId || null,
+      business_address: businessAddress || null,
+      tags: tags.length > 0 ? tags : null,
+      // Referral fields
+      referral_origin: referralOrigin,
+      referred_by_participant_id: referralOrigin === "member" ? referredByParticipantId : null,
+      notes: notes || null,
+    };
+    
+    console.log("[ParticipantProfile] Submitting data:", {
+      tags: submitData.tags,
+      business_type_code: submitData.business_type_code,
+      full_name_th: submitData.full_name_th,
+    });
 
     try {
       const response = await fetch(`/api/participants/profile?token=${token}`, {
@@ -374,34 +420,7 @@ export default function ParticipantProfile() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          // Thai names
-          full_name_th: fullNameTh,
-          nickname_th: nicknameTh || null,
-          // English names
-          full_name_en: fullNameEn || null,
-          nickname_en: nicknameEn || null,
-          // Other fields
-          position: position || null,
-          company: company || null,
-          tagline: tagline || null,
-          business_type: businessTypeCode ? getCategoryLabel(businessTypeCode) : null,
-          business_type_code: businessTypeCode,
-          goal: goal || null,
-          phone,
-          email: email || null,
-          website_url: website || null,
-          facebook_url: facebook || null,
-          instagram_url: instagram || null,
-          linkedin_url: linkedin || null,
-          line_id: lineId || null,
-          business_address: businessAddress || null,
-          tags: tags.length > 0 ? tags : null,
-          // Referral fields
-          referral_origin: referralOrigin,
-          referred_by_participant_id: referralOrigin === "member" ? referredByParticipantId : null,
-          notes: notes || null,
-        }),
+        body: JSON.stringify(submitData),
       });
 
       const data = await response.json();
@@ -410,8 +429,22 @@ export default function ParticipantProfile() {
         throw new Error(data.message || "ไม่สามารถบันทึกข้อมูลได้");
       }
 
+      console.log("[ParticipantProfile] Save success, response:", {
+        tags: data.participant?.tags,
+        business_type_code: data.participant?.business_type_code,
+      });
+
       toast.success("บันทึกข้อมูลสำเร็จ");
-      setProfile(data.participant);
+      
+      // Sync form state from response to prevent stale data issues
+      const p = data.participant;
+      if (p) {
+        setProfile(p);
+        // Sync critical fields that might get out of sync
+        setTags(p.tags || []);
+        setBusinessTypeCode(p.business_type_code || null);
+        setAvatarPreview(p.photo_url);
+      }
       
     } catch (error: any) {
       console.error("Error updating profile:", error);
@@ -1018,12 +1051,12 @@ export default function ParticipantProfile() {
                 <div className="pt-2">
                   <Button 
                     type="submit" 
-                    disabled={saving || !fullNameTh || !phone}
+                    disabled={saving || isUploading || !fullNameTh || !phone}
                     className="w-full"
                     data-testid="button-save-profile"
                   >
-                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {saving ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
+                    {(saving || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {saving ? "กำลังบันทึก..." : isUploading ? "รอการอัปโหลด..." : "บันทึกข้อมูล"}
                   </Button>
                 </div>
 
