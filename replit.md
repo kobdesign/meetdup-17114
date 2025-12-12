@@ -30,6 +30,12 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface, including an image cropper for profile photos.
 - **LINE Integration**: Comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and message-based interaction flows (e.g., phone linking, business card search, automated LIFF activation). Includes a LIFF-based member search system with tenant branding.
 - **Check-In System**: QR code-based check-ins integrated with LINE webhooks, primarily using phone number for identification.
+- **POS Check-In System**: Secure QR-based check-in for physical meetings with:
+    - JWT tokens (15-min expiry, single-use enforcement via `used_checkin_tokens` database table)
+    - LINE Bot "QR" command for generating secure check-in QR codes
+    - Admin POS page with QR scanner (@yudiel/react-qr-scanner) and manual search fallback
+    - Atomic `/pos-checkin` endpoint for QR validation
+    - Auth-protected `/pos-manual-checkin` endpoint for manual check-in (requires admin role)
 - **Member/Visitor Pipeline Separation**: UI separates active member management from visitor pipeline analytics, standardizing visitor progression.
 - **Multi-Path Onboarding System**: Supports Pioneer, Invite, and Discovery onboarding flows.
 - **Unified Member-Participant Architecture**: Every member has records in both `user_roles` (for access control) and `participants` (for chapter activities).
