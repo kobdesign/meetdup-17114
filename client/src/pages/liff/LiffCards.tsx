@@ -86,6 +86,18 @@ export default function LiffCards() {
       }
     }
     
+    // Check for page routing (from LINE bot commands)
+    const pageName = searchParams.get("page");
+    const tenantFromParams = searchParams.get("tenant");
+    const meetingFromParams = searchParams.get("meeting");
+    
+    if (pageName === "substitute" && tenantFromParams) {
+      console.log("[LiffCards] Substitute page - tenant:", tenantFromParams, "meeting:", meetingFromParams);
+      const meetingParam = meetingFromParams ? `&meeting=${meetingFromParams}` : "";
+      navigate(`/liff/substitute?tenant=${tenantFromParams}${meetingParam}`, { replace: true });
+      return;
+    }
+    
     // Check for direct search params (from "View More" button)
     const directSearch = searchParams.get("search");
     const directCategory = searchParams.get("category");

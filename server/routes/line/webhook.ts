@@ -563,7 +563,6 @@ async function handleSubstituteRequest(
   
   try {
     const { supabaseAdmin } = await import("../../utils/supabaseClient");
-    const { getProductionBaseUrl } = await import("../../utils/getProductionUrl");
     
     // Find participant by LINE user ID
     const { data: participant, error } = await supabaseAdmin
@@ -591,6 +590,22 @@ async function handleSubstituteRequest(
       return;
     }
     
+    // Get LIFF ID from system_settings
+    const { data: settings } = await supabaseAdmin
+      .from("system_settings")
+      .select("liff_id")
+      .eq("tenant_id", tenantId)
+      .single();
+    
+    if (!settings?.liff_id) {
+      console.log(`${logPrefix} LIFF ID not found for tenant:`, tenantId);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่พบการตั้งค่า LIFF สำหรับ Chapter นี้ กรุณาติดต่อผู้ดูแลระบบ"
+      }, accessToken, tenantId);
+      return;
+    }
+    
     // Get next meeting
     const today = new Date().toISOString().split("T")[0];
     const { data: meeting } = await supabaseAdmin
@@ -610,8 +625,9 @@ async function handleSubstituteRequest(
       return;
     }
     
-    const baseUrl = getProductionBaseUrl();
-    const liffUrl = `${baseUrl}/liff/substitute?tenant=${tenantId}&meeting=${meeting.meeting_id}`;
+    // Use LIFF URL directly to avoid OAuth domain issues
+    // LIFF URLs must not have path after liff_id - use query params for routing
+    const liffUrl = `https://liff.line.me/${settings.liff_id}?page=substitute&tenant=${tenantId}&meeting=${meeting.meeting_id}`;
     
     const meetingDate = new Date(meeting.meeting_date);
     const dateStr = meetingDate.toLocaleDateString("th-TH", {
