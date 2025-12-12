@@ -61,6 +61,10 @@ interface SubstituteRequest {
   };
 }
 
+interface ConfirmedSubstitute extends SubstituteRequest {
+  confirmed_at: string;
+}
+
 export default function POSCheckin() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
@@ -77,6 +81,7 @@ export default function POSCheckin() {
   const [validatingQr, setValidatingQr] = useState(false);
   
   const [pendingSubstitutes, setPendingSubstitutes] = useState<SubstituteRequest[]>([]);
+  const [confirmedSubstitutes, setConfirmedSubstitutes] = useState<ConfirmedSubstitute[]>([]);
   const [confirmingSubId, setConfirmingSubId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -89,6 +94,7 @@ export default function POSCheckin() {
     if (selectedMeetingId) {
       loadCheckins();
       loadPendingSubstitutes();
+      setConfirmedSubstitutes([]); // Clear confirmed list when meeting changes
     }
   }, [selectedMeetingId]);
 
@@ -178,6 +184,10 @@ export default function POSCheckin() {
 
   const handleConfirmSubstitute = async (requestId: string) => {
     setConfirmingSubId(requestId);
+    
+    // Find the substitute being confirmed (for optimistic UI)
+    const substituteToConfirm = pendingSubstitutes.find(s => s.request_id === requestId);
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
@@ -197,8 +207,18 @@ export default function POSCheckin() {
       const data = await response.json();
       
       if (data.success) {
+        // Move from pending to confirmed list
+        if (substituteToConfirm) {
+          const confirmedItem: ConfirmedSubstitute = {
+            ...substituteToConfirm,
+            status: "confirmed",
+            confirmed_at: new Date().toISOString()
+          };
+          setConfirmedSubstitutes(prev => [confirmedItem, ...prev]);
+          setPendingSubstitutes(prev => prev.filter(s => s.request_id !== requestId));
+        }
+        
         toast.success(data.message || "ยืนยันตัวแทนสำเร็จ");
-        loadPendingSubstitutes();
         loadCheckins();
       } else {
         toast.error(data.error || "เกิดข้อผิดพลาด");
@@ -776,6 +796,43 @@ export default function POSCheckin() {
                                   </>
                                 )}
                               </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {confirmedSubstitutes.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        ตัวแทนที่เช็คอินแล้ว ({confirmedSubstitutes.length})
+                      </h4>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {confirmedSubstitutes.map((sub) => (
+                          <div
+                            key={sub.request_id}
+                            className="p-3 border rounded-lg bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                            data-testid={`card-confirmed-sub-${sub.request_id}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1 min-w-0">
+                                <p className="font-medium text-sm truncate flex items-center gap-1">
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
+                                  {sub.substitute_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  แทน: {sub.member?.full_name_th}
+                                </p>
+                              </div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0">
+                                <Clock className="h-3 w-3" />
+                                {new Date(sub.confirmed_at).toLocaleTimeString("th-TH", {
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })}
+                              </div>
                             </div>
                           </div>
                         ))}
