@@ -1863,13 +1863,16 @@ router.patch("/profile", async (req: Request, res: Response) => {
     console.log(`${logPrefix} AFTER update:`, { 
       updated_tags: updatedParticipant?.tags,
       updated_business_type_code: updatedParticipant?.business_type_code,
+      line_user_id: updatedParticipant?.line_user_id ? `${updatedParticipant.line_user_id.slice(0, 8)}...` : null,
     });
 
     // Send LINE notification if user has LINE linked
     if (updatedParticipant?.line_user_id) {
+      console.log(`${logPrefix} LINE notification: User has line_user_id, attempting to send notification`);
       try {
         // Get LINE credentials for this tenant using existing helper
         const lineCredentials = await getLineCredentials(decoded.tenant_id);
+        console.log(`${logPrefix} LINE credentials found:`, !!lineCredentials?.channelAccessToken);
 
         if (lineCredentials?.channelAccessToken) {
           const lineClient = new LineClient(lineCredentials.channelAccessToken);
@@ -1999,14 +2002,19 @@ router.patch("/profile", async (req: Request, res: Response) => {
           // Create and send business card Flex Message
           const shareEnabled = await getShareEnabled();
           const shareServiceUrl = await getShareServiceUrl();
+          console.log(`${logPrefix} Creating business card flex message with shareEnabled=${shareEnabled}`);
           const businessCardFlexMessage = createBusinessCardFlexMessage(businessCardData, baseUrl, { shareEnabled, shareServiceUrl });
           await lineClient.pushMessage(updatedParticipant.line_user_id, businessCardFlexMessage);
-          console.log(`${logPrefix} Sent business card to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
+          console.log(`${logPrefix} SUCCESS: Sent business card to ${updatedParticipant.line_user_id.slice(0, 8)}...`);
+        } else {
+          console.log(`${logPrefix} LINE notification skipped: No channel access token found`);
         }
       } catch (lineError: any) {
         // Don't fail the request if LINE notification fails
         console.error(`${logPrefix} Failed to send LINE notification:`, lineError.message);
       }
+    } else {
+      console.log(`${logPrefix} LINE notification skipped: No line_user_id on participant`);
     }
 
     return res.json({
