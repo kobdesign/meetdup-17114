@@ -13,6 +13,19 @@ interface SubstituteTokenRequest extends Request {
 
 // Helper: Check if user has admin access to tenant
 async function checkAdminAccess(userId: string, tenantId: string): Promise<boolean> {
+  // Check for super_admin with null tenant_id (global super admin)
+  const { data: superAdminRoles } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "super_admin")
+    .is("tenant_id", null);
+  
+  if (superAdminRoles && superAdminRoles.length > 0) {
+    return true;
+  }
+
+  // Check for tenant-specific admin roles
   const { data: userRoles } = await supabaseAdmin
     .from("user_roles")
     .select("role")
