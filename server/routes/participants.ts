@@ -538,9 +538,8 @@ router.get("/lookup-by-phone", async (req: Request, res: Response) => {
   }
 });
 
-// DEPRECATED: Legacy check-in endpoint - now requires authentication
-// Use /pos-checkin (QR) or /pos-manual-checkin (manual) instead
-router.post("/check-in", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+// Public self-check-in endpoint for visitors/members using phone lookup flow
+router.post("/check-in", async (req: Request, res: Response) => {
   const requestId = crypto.randomUUID();
   const logPrefix = `[check-in:${requestId}]`;
 
