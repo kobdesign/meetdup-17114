@@ -1168,4 +1168,71 @@ router.post("/business-categories/create", async (req: Request, res: Response) =
   }
 });
 
+/**
+ * GET /api/public/next-meeting
+ * Get the next upcoming meeting for a tenant
+ */
+router.get("/next-meeting", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.query.tenant_id as string;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenant_id parameter" });
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+
+    const { data: meeting, error } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", today)
+      .order("meeting_date", { ascending: true })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("[Public/NextMeeting] Error:", error);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    return res.json({ meeting: meeting || null });
+  } catch (error: any) {
+    console.error("[Public/NextMeeting] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/public/participant-by-line
+ * Get participant info by LINE user ID
+ */
+router.get("/participant-by-line", async (req: Request, res: Response) => {
+  try {
+    const lineUserId = req.query.line_user_id as string;
+    const tenantId = req.query.tenant_id as string;
+
+    if (!lineUserId || !tenantId) {
+      return res.status(400).json({ error: "Missing line_user_id or tenant_id" });
+    }
+
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th, status, phone, email")
+      .eq("line_user_id", lineUserId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("[Public/ParticipantByLine] Error:", error);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    return res.json({ participant: participant || null });
+  } catch (error: any) {
+    console.error("[Public/ParticipantByLine] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;

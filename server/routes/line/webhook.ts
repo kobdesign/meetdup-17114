@@ -222,6 +222,14 @@ async function processEvent(
       await handleCheckinQRRequest(event, tenantId, accessToken, logPrefix);
       return;
     }
+
+    // Priority 6.6: Substitute request command - open LIFF page
+    if (textLower === "ส่งตัวแทน" || textLower === "substitute" || textLower === "sub" || 
+        textLower === "ตัวแทน" || textLower === "ส่ง sub") {
+      console.log(`${logPrefix} Command: SUBSTITUTE_REQUEST`);
+      await handleSubstituteRequest(event, tenantId, accessToken, logPrefix);
+      return;
+    }
     
     // Priority 7: Goals summary command - show progress summary to admins
     // Support variations: "สรุปเป้าหมาย", "เป้าหมาย", "goals", "progress", with optional Thai particles
@@ -532,6 +540,148 @@ async function handleCheckinQRRequest(
     
   } catch (error: any) {
     console.error(`${logPrefix} Error generating check-in QR:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    }, accessToken, tenantId);
+  }
+}
+
+/**
+ * Handle substitute request command
+ * Sends LIFF link for member to submit substitute info
+ */
+async function handleSubstituteRequest(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  const lineUserId = event.source.userId;
+  
+  console.log(`${logPrefix} Substitute request from:`, lineUserId);
+  
+  try {
+    const { supabaseAdmin } = await import("../../utils/supabaseClient");
+    const { getProductionBaseUrl } = await import("../../utils/getProductionUrl");
+    
+    // Find participant by LINE user ID
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, tenant_id, full_name_th, status")
+      .eq("line_user_id", lineUserId)
+      .eq("tenant_id", tenantId)
+      .single();
+    
+    if (error || !participant) {
+      console.log(`${logPrefix} Participant not found for LINE user:`, lineUserId);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่พบข้อมูลของคุณในระบบ\n\nกรุณาลงทะเบียนก่อนโดยพิมพ์ \"ลงทะเบียน\""
+      }, accessToken, tenantId);
+      return;
+    }
+    
+    // Only members can send substitutes
+    if (participant.status !== "member") {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "เฉพาะสมาชิกเท่านั้นที่สามารถส่งตัวแทนได้"
+      }, accessToken, tenantId);
+      return;
+    }
+    
+    // Get next meeting
+    const today = new Date().toISOString().split("T")[0];
+    const { data: meeting } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, theme")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", today)
+      .order("meeting_date", { ascending: true })
+      .limit(1)
+      .single();
+    
+    if (!meeting) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่พบ Meeting ที่กำลังจะมาถึง"
+      }, accessToken, tenantId);
+      return;
+    }
+    
+    const baseUrl = getProductionBaseUrl();
+    const liffUrl = `${baseUrl}/liff/substitute?tenant=${tenantId}&meeting=${meeting.meeting_id}`;
+    
+    const meetingDate = new Date(meeting.meeting_date);
+    const dateStr = meetingDate.toLocaleDateString("th-TH", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    });
+    
+    const flexMessage = {
+      type: "flex",
+      altText: "แจ้งส่งตัวแทน",
+      contents: {
+        type: "bubble",
+        size: "kilo",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "แจ้งส่งตัวแทน",
+              weight: "bold",
+              size: "lg",
+              color: "#1F2937"
+            }
+          ],
+          paddingAll: "15px",
+          backgroundColor: "#F3F4F6"
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: `Meeting: ${dateStr}`,
+              size: "sm",
+              color: "#374151",
+              wrap: true
+            },
+            {
+              type: "text",
+              text: meeting.theme || "",
+              size: "xs",
+              color: "#6B7280",
+              margin: "sm",
+              wrap: true
+            },
+            {
+              type: "button",
+              action: {
+                type: "uri",
+                label: "กรอกข้อมูลตัวแทน",
+                uri: liffUrl
+              },
+              style: "primary",
+              margin: "lg"
+            }
+          ],
+          paddingAll: "15px"
+        }
+      }
+    };
+    
+    await replyMessage(event.replyToken, flexMessage, accessToken, tenantId);
+    console.log(`${logPrefix} Substitute request LIFF link sent to:`, participant.full_name_th);
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error handling substitute request:`, error);
     await replyMessage(event.replyToken, {
       type: "text",
       text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
