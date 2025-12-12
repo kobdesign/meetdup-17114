@@ -29,6 +29,7 @@ import MembersManagement from "./pages/admin/MembersManagement";
 import ImportMembers from "./pages/admin/ImportMembers";
 import ChapterGoals from "./pages/admin/ChapterGoals";
 import LineCommandAccess from "./pages/admin/LineCommandAccess";
+import POSCheckin from "./pages/admin/POSCheckin";
 import Tenants from "./pages/super-admin/Tenants";
 import LiffSettings from "./pages/admin/LiffSettings";
 import BusinessCategories from "./pages/admin/BusinessCategories";
@@ -121,6 +122,11 @@ const App = () => (
           <Route path="/admin/checkin" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <CheckIn />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/pos-checkin" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <POSCheckin />
             </ProtectedRoute>
           } />
           <Route path="/admin/settings" element={

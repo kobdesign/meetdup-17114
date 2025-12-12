@@ -216,6 +216,13 @@ async function processEvent(
       return;
     }
     
+    // Priority 6.5: Check-in QR code command - send QR for POS check-in
+    if (textLower === "qr" || textLower === "เช็คอิน" || textLower === "checkin" || textLower === "check-in") {
+      console.log(`${logPrefix} Command: CHECKIN_QR`);
+      await handleCheckinQRRequest(event, tenantId, accessToken, logPrefix);
+      return;
+    }
+    
     // Priority 7: Goals summary command - show progress summary to admins
     // Support variations: "สรุปเป้าหมาย", "เป้าหมาย", "goals", "progress", with optional Thai particles
     const goalsSummaryPattern = /^(สรุปเป้าหมาย|เป้าหมาย|goals|goal\s*summary|progress)(ค่ะ|ครับ|นะ|คะ)?$/i;
@@ -374,6 +381,161 @@ async function processEvent(
 
   if (event.type === "unfollow") {
     console.log(`${logPrefix} User unfollowed: ${event.source.userId}`);
+  }
+}
+
+/**
+ * Handle check-in QR code request
+ * Generates a secure signed QR code for POS check-in
+ */
+async function handleCheckinQRRequest(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  const lineUserId = event.source.userId;
+  
+  console.log(`${logPrefix} Check-in QR request from:`, lineUserId);
+  
+  try {
+    const { supabaseAdmin } = await import("../../utils/supabaseClient");
+    const { generateCheckinToken } = await import("../../utils/checkinToken");
+    const { getProductionBaseUrl } = await import("../../utils/getProductionUrl");
+    
+    // Find participant by LINE user ID
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, tenant_id, full_name_th, status")
+      .eq("line_user_id", lineUserId)
+      .eq("tenant_id", tenantId)
+      .single();
+    
+    if (error || !participant) {
+      console.log(`${logPrefix} Participant not found for LINE user:`, lineUserId);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่พบข้อมูลของคุณในระบบ\n\nกรุณาลงทะเบียนก่อนโดยพิมพ์ \"ลงทะเบียน\""
+      }, accessToken, tenantId);
+      return;
+    }
+    
+    // Check eligibility
+    const allowedStatuses = ["member", "visitor", "prospect"];
+    if (!allowedStatuses.includes(participant.status)) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "สถานะของคุณไม่สามารถขอ QR เช็คอินได้"
+      }, accessToken, tenantId);
+      return;
+    }
+    
+    // Generate secure signed token with 15-minute expiry
+    const qrToken = generateCheckinToken(participant.participant_id, participant.tenant_id);
+    const baseUrl = getProductionBaseUrl();
+    const qrUrl = `${baseUrl}/pos-qr?token=${encodeURIComponent(qrToken)}`;
+    
+    // Create Flex Message with QR code
+    const flexMessage = {
+      type: "flex",
+      altText: `QR Code สำหรับเช็คอิน - ${participant.full_name_th}`,
+      contents: {
+        type: "bubble",
+        size: "mega",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "QR Code สำหรับเช็คอิน",
+              weight: "bold",
+              size: "lg",
+              color: "#1F2937"
+            }
+          ],
+          paddingAll: "15px",
+          backgroundColor: "#F3F4F6"
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: participant.full_name_th,
+              weight: "bold",
+              size: "xl",
+              align: "center",
+              color: "#1F2937"
+            },
+            {
+              type: "text",
+              text: participant.status === "member" ? "สมาชิก" : "ผู้เยี่ยมชม",
+              size: "sm",
+              align: "center",
+              color: "#6B7280",
+              margin: "sm"
+            },
+            {
+              type: "separator",
+              margin: "lg"
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "image",
+                  url: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrToken)}`,
+                  size: "full",
+                  aspectMode: "fit",
+                  aspectRatio: "1:1"
+                }
+              ],
+              margin: "lg",
+              paddingAll: "10px",
+              backgroundColor: "#FFFFFF",
+              cornerRadius: "md"
+            },
+            {
+              type: "text",
+              text: "QR นี้ใช้ได้ 15 นาที",
+              size: "xs",
+              color: "#EF4444",
+              align: "center",
+              margin: "md"
+            }
+          ],
+          paddingAll: "20px"
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "แสดง QR นี้ให้เจ้าหน้าที่ลงทะเบียน",
+              size: "xs",
+              color: "#9CA3AF",
+              align: "center"
+            }
+          ],
+          paddingAll: "15px"
+        }
+      }
+    };
+    
+    await replyMessage(event.replyToken, flexMessage, accessToken, tenantId);
+    
+    console.log(`${logPrefix} Secure check-in QR sent for:`, participant.full_name_th);
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error generating check-in QR:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    }, accessToken, tenantId);
   }
 }
 

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
-import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
+import { verifySupabaseAuth, AuthenticatedRequest, checkTenantAccess } from "../utils/auth";
 import { generateVCard, getVCardFilename, VCardData } from "../services/line/vcard";
 import { generateProfileToken, verifyProfileToken } from "../utils/profileToken";
 import { LineClient } from "../services/line/lineClient";
@@ -538,9 +538,9 @@ router.get("/lookup-by-phone", async (req: Request, res: Response) => {
   }
 });
 
-// Check-in participant to a meeting (public endpoint - no auth required)
-// New flow: Frontend looks up participant first, then sends participant_id
-router.post("/check-in", async (req: Request, res: Response) => {
+// DEPRECATED: Legacy check-in endpoint - now requires authentication
+// Use /pos-checkin (QR) or /pos-manual-checkin (manual) instead
+router.post("/check-in", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   const requestId = crypto.randomUUID();
   const logPrefix = `[check-in:${requestId}]`;
 
@@ -4932,6 +4932,499 @@ router.get("/public/:participantId/vcard", async (req: Request, res: Response) =
     return res.status(500).json({
       success: false,
       error: "Failed to generate vCard"
+    });
+  }
+});
+
+// ==========================================
+// POS Check-in System APIs
+// ==========================================
+
+import { verifyCheckinToken, consumeCheckinTokenAsync } from "../utils/checkinToken";
+
+/**
+ * Validate a check-in QR code and return participant info
+ * Verifies JWT signature, expiry, and participant eligibility
+ */
+router.post("/validate-checkin-qr", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[validate-qr:${requestId}]`;
+  
+  try {
+    const { qr_payload, meeting_id, expected_tenant_id } = req.body;
+    
+    console.log(`${logPrefix} Validating QR token`);
+    
+    if (!qr_payload) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing qr_payload"
+      });
+    }
+    
+    // Verify signed token
+    const decoded = verifyCheckinToken(qr_payload);
+    
+    if (!decoded) {
+      console.log(`${logPrefix} Invalid or expired token`);
+      return res.status(401).json({
+        success: false,
+        error: "QR Code หมดอายุหรือไม่ถูกต้อง กรุณาขอ QR ใหม่"
+      });
+    }
+    
+    const { participant_id: participantId, tenant_id: tenantId } = decoded;
+    
+    // Verify tenant matches if expected
+    if (expected_tenant_id && tenantId !== expected_tenant_id) {
+      console.log(`${logPrefix} Tenant mismatch: expected ${expected_tenant_id}, got ${tenantId}`);
+      return res.status(403).json({
+        success: false,
+        error: "QR Code นี้ไม่ใช่ของ Chapter นี้"
+      });
+    }
+    
+    // Fetch participant with full details
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name_th,
+        nickname_th,
+        status,
+        phone,
+        email,
+        company,
+        position,
+        photo_url
+      `)
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId)
+      .single();
+    
+    if (error || !participant) {
+      console.log(`${logPrefix} Participant not found:`, participantId);
+      return res.status(404).json({
+        success: false,
+        error: "ไม่พบข้อมูลผู้เข้าร่วม"
+      });
+    }
+    
+    // Verify participant is in eligible status
+    const allowedStatuses = ["member", "visitor", "prospect"];
+    if (!allowedStatuses.includes(participant.status)) {
+      return res.status(403).json({
+        success: false,
+        error: "ผู้เข้าร่วมนี้ไม่มีสิทธิ์เช็คอิน"
+      });
+    }
+    
+    // Check if already checked in for this meeting (if meeting_id provided)
+    let alreadyCheckedIn = false;
+    if (meeting_id) {
+      const { data: existingCheckin } = await supabaseAdmin
+        .from("checkins")
+        .select("checkin_id")
+        .eq("meeting_id", meeting_id)
+        .eq("participant_id", participantId)
+        .single();
+      
+      alreadyCheckedIn = !!existingCheckin;
+    }
+    
+    console.log(`${logPrefix} Participant validated:`, participant.full_name_th);
+    
+    return res.json({
+      success: true,
+      participant,
+      already_checked_in: alreadyCheckedIn
+    });
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to validate QR code"
+    });
+  }
+});
+
+/**
+ * Search participants for POS check-in (by name or phone)
+ * Used when participant doesn't have QR code
+ */
+router.get("/pos-search", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[pos-search:${requestId}]`;
+  
+  try {
+    const { query, tenant_id, meeting_id } = req.query;
+    
+    if (!query || !tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing query or tenant_id"
+      });
+    }
+    
+    const searchTerm = String(query).trim();
+    const tenantIdStr = String(tenant_id);
+    const meetingIdStr = meeting_id ? String(meeting_id) : null;
+    
+    console.log(`${logPrefix} Searching:`, { searchTerm, tenantIdStr });
+    
+    // Search by name or phone
+    const isPhoneSearch = /^[0-9]+$/.test(searchTerm);
+    
+    let queryBuilder = supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name_th,
+        nickname_th,
+        status,
+        phone,
+        email,
+        company,
+        position,
+        photo_url
+      `)
+      .eq("tenant_id", tenantIdStr)
+      .in("status", ["member", "visitor", "prospect"]);
+    
+    if (isPhoneSearch) {
+      queryBuilder = queryBuilder.ilike("phone", `%${searchTerm}%`);
+    } else {
+      queryBuilder = queryBuilder.or(`full_name_th.ilike.%${searchTerm}%,nickname_th.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%`);
+    }
+    
+    const { data: participants, error } = await queryBuilder.limit(10);
+    
+    if (error) {
+      console.error(`${logPrefix} Search error:`, error);
+      return res.status(500).json({
+        success: false,
+        error: "Search failed"
+      });
+    }
+    
+    // If meeting_id provided, check check-in status for each participant
+    let participantsWithStatus = participants || [];
+    
+    if (meetingIdStr && participantsWithStatus.length > 0) {
+      const participantIds = participantsWithStatus.map(p => p.participant_id);
+      
+      const { data: checkins } = await supabaseAdmin
+        .from("checkins")
+        .select("participant_id")
+        .eq("meeting_id", meetingIdStr)
+        .in("participant_id", participantIds);
+      
+      const checkedInIds = new Set((checkins || []).map(c => c.participant_id));
+      
+      participantsWithStatus = participantsWithStatus.map(p => ({
+        ...p,
+        already_checked_in: checkedInIds.has(p.participant_id)
+      }));
+    }
+    
+    console.log(`${logPrefix} Found ${participantsWithStatus.length} participants`);
+    
+    return res.json({
+      success: true,
+      participants: participantsWithStatus
+    });
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Search failed"
+    });
+  }
+});
+
+/**
+ * POS Check-in with QR token
+ * Atomic operation: validates token (single-use), verifies participant, and creates check-in
+ */
+router.post("/pos-checkin", async (req: Request, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[pos-checkin:${requestId}]`;
+  
+  try {
+    const { qr_token, meeting_id, expected_tenant_id } = req.body;
+    
+    console.log(`${logPrefix} POS check-in request`);
+    
+    if (!qr_token || !meeting_id || !expected_tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+    
+    // Consume token (single-use validation with database persistence)
+    const decoded = await consumeCheckinTokenAsync(qr_token);
+    
+    if (!decoded) {
+      console.log(`${logPrefix} Invalid or already used token`);
+      return res.status(401).json({
+        success: false,
+        error: "QR Code หมดอายุ, ถูกใช้แล้ว, หรือไม่ถูกต้อง"
+      });
+    }
+    
+    const { participant_id: participantId, tenant_id: tokenTenantId } = decoded;
+    
+    // Verify tenant matches
+    if (tokenTenantId !== expected_tenant_id) {
+      console.log(`${logPrefix} Tenant mismatch`);
+      return res.status(403).json({
+        success: false,
+        error: "QR Code นี้ไม่ใช่ของ Chapter นี้"
+      });
+    }
+    
+    // Verify meeting belongs to this tenant
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id")
+      .eq("meeting_id", meeting_id)
+      .eq("tenant_id", expected_tenant_id)
+      .single();
+    
+    if (meetingError || !meeting) {
+      return res.status(404).json({
+        success: false,
+        error: "ไม่พบข้อมูลการประชุม"
+      });
+    }
+    
+    // Fetch participant and verify eligibility
+    const { data: participant, error } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name_th,
+        nickname_th,
+        status,
+        phone,
+        company,
+        photo_url
+      `)
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tokenTenantId)
+      .single();
+    
+    if (error || !participant) {
+      console.log(`${logPrefix} Participant not found:`, participantId);
+      return res.status(404).json({
+        success: false,
+        error: "ไม่พบข้อมูลผู้เข้าร่วม"
+      });
+    }
+    
+    // Verify eligible status
+    const allowedStatuses = ["member", "visitor", "prospect"];
+    if (!allowedStatuses.includes(participant.status)) {
+      return res.status(403).json({
+        success: false,
+        error: "ผู้เข้าร่วมนี้ไม่มีสิทธิ์เช็คอิน"
+      });
+    }
+    
+    // Check if already checked in
+    const { data: existingCheckin } = await supabaseAdmin
+      .from("checkins")
+      .select("checkin_id")
+      .eq("meeting_id", meeting_id)
+      .eq("participant_id", participantId)
+      .single();
+    
+    if (existingCheckin) {
+      return res.json({
+        success: false,
+        already_checked_in: true,
+        participant,
+        message: `${participant.full_name_th} เช็คอินแล้ว`
+      });
+    }
+    
+    // Create check-in record
+    const { data: checkin, error: checkinError } = await supabaseAdmin
+      .from("checkins")
+      .insert({
+        meeting_id,
+        participant_id: participantId,
+        checkin_time: new Date().toISOString(),
+        checkin_method: "pos_qr"
+      })
+      .select()
+      .single();
+    
+    if (checkinError) {
+      console.error(`${logPrefix} Check-in creation failed:`, checkinError);
+      return res.status(500).json({
+        success: false,
+        error: "ไม่สามารถบันทึกการเช็คอินได้"
+      });
+    }
+    
+    console.log(`${logPrefix} Check-in created for:`, participant.full_name_th);
+    
+    return res.json({
+      success: true,
+      checkin,
+      participant,
+      message: `เช็คอินสำเร็จ: ${participant.full_name_th}`
+    });
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "เกิดข้อผิดพลาดในการเช็คอิน"
+    });
+  }
+});
+
+/**
+ * POS Manual Check-in (secured with Supabase Auth + tenant verification)
+ * For manual check-in when member doesn't have QR code
+ * Requires authenticated admin session and tenant access
+ */
+router.post("/pos-manual-checkin", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[pos-manual-checkin:${requestId}]`;
+  
+  try {
+    const { meeting_id, participant_id, expected_tenant_id } = req.body;
+    const userId = req.user?.id;
+    
+    console.log(`${logPrefix} POS manual check-in request from user:`, userId);
+    
+    if (!meeting_id || !participant_id || !expected_tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+    
+    // Verify user has admin access to this tenant
+    const hasAccess = await checkTenantAccess(userId!, expected_tenant_id);
+    if (!hasAccess) {
+      console.log(`${logPrefix} User ${userId} denied access to tenant ${expected_tenant_id}`);
+      return res.status(403).json({
+        success: false,
+        error: "ไม่มีสิทธิ์เข้าถึง Chapter นี้"
+      });
+    }
+    
+    // Verify meeting belongs to expected tenant
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id")
+      .eq("meeting_id", meeting_id)
+      .eq("tenant_id", expected_tenant_id)
+      .single();
+    
+    if (meetingError || !meeting) {
+      console.log(`${logPrefix} Meeting not found or tenant mismatch`);
+      return res.status(404).json({
+        success: false,
+        error: "ไม่พบข้อมูลการประชุม"
+      });
+    }
+    
+    // Verify participant belongs to same tenant
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        tenant_id,
+        full_name_th,
+        nickname_th,
+        status,
+        phone,
+        company,
+        photo_url
+      `)
+      .eq("participant_id", participant_id)
+      .eq("tenant_id", expected_tenant_id)
+      .single();
+    
+    if (participantError || !participant) {
+      console.log(`${logPrefix} Participant not found or tenant mismatch`);
+      return res.status(404).json({
+        success: false,
+        error: "ไม่พบข้อมูลผู้เข้าร่วม"
+      });
+    }
+    
+    // Verify eligible status
+    const allowedStatuses = ["member", "visitor", "prospect"];
+    if (!allowedStatuses.includes(participant.status)) {
+      return res.status(403).json({
+        success: false,
+        error: "ผู้เข้าร่วมนี้ไม่มีสิทธิ์เช็คอิน"
+      });
+    }
+    
+    // Check if already checked in
+    const { data: existingCheckin } = await supabaseAdmin
+      .from("checkins")
+      .select("checkin_id")
+      .eq("meeting_id", meeting_id)
+      .eq("participant_id", participant_id)
+      .single();
+    
+    if (existingCheckin) {
+      return res.json({
+        success: false,
+        already_checked_in: true,
+        participant,
+        message: `${participant.full_name_th} เช็คอินแล้ว`
+      });
+    }
+    
+    // Create check-in record
+    const { data: checkin, error: checkinError } = await supabaseAdmin
+      .from("checkins")
+      .insert({
+        meeting_id,
+        participant_id,
+        checkin_time: new Date().toISOString(),
+        checkin_method: "pos_manual"
+      })
+      .select()
+      .single();
+    
+    if (checkinError) {
+      console.error(`${logPrefix} Check-in creation failed:`, checkinError);
+      return res.status(500).json({
+        success: false,
+        error: "ไม่สามารถบันทึกการเช็คอินได้"
+      });
+    }
+    
+    console.log(`${logPrefix} Manual check-in created for:`, participant.full_name_th);
+    
+    return res.json({
+      success: true,
+      checkin,
+      participant,
+      message: `เช็คอินสำเร็จ: ${participant.full_name_th}`
+    });
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "เกิดข้อผิดพลาดในการเช็คอิน"
     });
   }
 });
