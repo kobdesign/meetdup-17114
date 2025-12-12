@@ -21,6 +21,22 @@ function extractFinalPath(liffState: string): string | null {
       return decoded;
     }
     
+    // Handle query params format: page=substitute&tenant=xxx&meeting=xxx
+    // This comes from LINE bot commands that use ?page=substitute format
+    if (decoded.includes("page=")) {
+      const params = new URLSearchParams(decoded.replace(/^[?&]/, ''));
+      const page = params.get("page");
+      const tenant = params.get("tenant");
+      const meeting = params.get("meeting");
+      
+      if (page === "substitute" && tenant) {
+        const meetingParam = meeting ? `&meeting=${meeting}` : "";
+        const targetPath = `/liff/substitute?tenant=${tenant}${meetingParam}`;
+        console.log("[LiffStateHandler] Substitute page detected, redirecting to:", targetPath);
+        return targetPath;
+      }
+    }
+    
     // IMPORTANT: share: format is handled INLINE by /liff/cards
     // Do NOT redirect - LINE OAuth only allows exact endpoint match
     // /liff/cards will parse liff.state and render share UI directly
