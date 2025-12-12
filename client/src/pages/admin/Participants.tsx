@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle, Globe, Instagram, Facebook, MessageCircle, MapPin, Linkedin, AlertCircle, Users, Phone, Upload, Loader2, FileImage, X, Building2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CheckCircle2, XCircle, Globe, Instagram, Facebook, MessageCircle, MapPin, Linkedin, AlertCircle, Users, Phone, Upload, Loader2, FileImage, X, Building2, Download } from "lucide-react";
+import { exportToExcel, MEMBER_COLUMNS } from "@/utils/exportExcel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ImageCropper from "@/components/ImageCropper";
 import imageCompression from "browser-image-compression";
@@ -589,18 +590,28 @@ export default function Participants() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold">สมาชิก</h1>
             <p className="text-muted-foreground">จัดการสมาชิกที่ Active</p>
           </div>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                เพิ่มสมาชิก
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => exportToExcel(filteredParticipants, MEMBER_COLUMNS, "members")}
+              disabled={filteredParticipants.length === 0}
+              data-testid="button-export-members"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export ({filteredParticipants.length})
+            </Button>
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  เพิ่มสมาชิก
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>เพิ่มสมาชิกใหม่</DialogTitle>
@@ -947,7 +958,8 @@ export default function Participants() {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
 
           {/* Edit Participant Dialog */}
           <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

@@ -6,7 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, CheckCircle, XCircle, Clock, Mail, Phone, UserPlus, UserCheck, Users, TrendingUp } from "lucide-react";
+import { Search, CheckCircle, XCircle, Clock, Mail, Phone, UserPlus, UserCheck, Users, TrendingUp, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { exportToExcel, VISITOR_COLUMNS } from "@/utils/exportExcel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -332,6 +334,15 @@ export default function Visitors() {
               <SelectItem value="declined">ไม่ติดตาม</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            onClick={() => exportToExcel(filteredVisitors, VISITOR_COLUMNS, "visitors")}
+            disabled={filteredVisitors.length === 0}
+            data-testid="button-export-visitors"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export ({filteredVisitors.length})
+          </Button>
         </div>
 
         <Card>
