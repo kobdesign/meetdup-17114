@@ -16,10 +16,16 @@ interface SubstituteRequest {
   request_id: string;
   substitute_name: string;
   substitute_phone: string;
+  substitute_email?: string;
   status: string;
-  confirmed_at: string;
+  created_at: string;
+  confirmed_at?: string;
   member?: {
+    participant_id?: string;
     full_name_th: string;
+    nickname_th?: string;
+    phone?: string;
+    photo_url?: string;
   };
 }
 
@@ -130,11 +136,18 @@ export default function CheckIn() {
       
       const data = await response.json();
       
-      const pending = (data.requests || []).filter((r: SubstituteRequest) => r.status === "pending");
-      const confirmed = (data.requests || []).filter((r: SubstituteRequest) => r.status === "confirmed");
-      
-      setPendingSubstitutes(pending);
-      setConfirmedSubstitutes(confirmed);
+      if (data.success) {
+        setPendingSubstitutes(data.pending || []);
+        if (data.confirmed && data.confirmed.length > 0) {
+          const confirmedWithTime = (data.confirmed || []).map((sub: SubstituteRequest) => ({
+            ...sub,
+            confirmed_at: sub.confirmed_at || sub.created_at || new Date().toISOString()
+          }));
+          setConfirmedSubstitutes(confirmedWithTime);
+        } else {
+          setConfirmedSubstitutes([]);
+        }
+      }
     } catch (error: any) {
       console.error("Error loading substitutes:", error);
     }
@@ -143,35 +156,45 @@ export default function CheckIn() {
   const handleConfirmSubstitute = async (requestId: string) => {
     setConfirmingSubId(requestId);
     
+    const substituteToConfirm = pendingSubstitutes.find(s => s.request_id === requestId);
+    
     try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-      
-      const response = await fetch(`/api/palms/confirm-substitute/${requestId}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-      
-      if (!response.ok) {
-        const err = await response.json();
-        toast.error(err.error || "ไม่สามารถยืนยันตัวแทนได้");
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
         return;
       }
       
-      toast.success("ยืนยันตัวแทนเรียบร้อย");
+      const response = await fetch("/api/palms/confirm-substitute", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ request_id: requestId }),
+      });
       
-      const confirmed = pendingSubstitutes.find(s => s.request_id === requestId);
-      if (confirmed) {
-        setPendingSubstitutes(prev => prev.filter(s => s.request_id !== requestId));
-        setConfirmedSubstitutes(prev => [...prev, { ...confirmed, status: "confirmed", confirmed_at: new Date().toISOString() }]);
+      const data = await response.json();
+      
+      if (data.success) {
+        if (substituteToConfirm) {
+          const confirmedItem = {
+            ...substituteToConfirm,
+            status: "confirmed",
+            confirmed_at: new Date().toISOString()
+          };
+          setPendingSubstitutes(prev => prev.filter(s => s.request_id !== requestId));
+          setConfirmedSubstitutes(prev => [...prev, confirmedItem]);
+        }
+        
+        toast.success("ยืนยันตัวแทนเรียบร้อย");
+        
+        // Reload data to ensure sync with server
+        loadCheckins();
+        loadSubstitutes();
+      } else {
+        toast.error(data.error || "ไม่สามารถยืนยันตัวแทนได้");
       }
-      
-      // Reload data to ensure sync with server
-      loadCheckins();
-      loadSubstitutes();
     } catch (error: any) {
       console.error("Error confirming substitute:", error);
       toast.error("เกิดข้อผิดพลาดในการยืนยัน");
