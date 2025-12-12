@@ -176,6 +176,14 @@ export default function POSCheckin() {
       const data = await response.json();
       if (data.success) {
         setPendingSubstitutes(data.pending || []);
+        // Also load confirmed substitutes from API
+        if (data.confirmed && data.confirmed.length > 0) {
+          const confirmedWithTime = data.confirmed.map((sub: SubstituteRequest) => ({
+            ...sub,
+            confirmed_at: sub.created_at // Use created_at as fallback if no confirmed_at
+          }));
+          setConfirmedSubstitutes(confirmedWithTime);
+        }
       }
     } catch (error: any) {
       console.error("Error loading substitutes:", error);
