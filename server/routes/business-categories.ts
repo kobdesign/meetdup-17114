@@ -38,6 +38,21 @@ async function checkSuperAdminAccess(userId: string): Promise<boolean> {
   return userRole?.role === "super_admin";
 }
 
+// Allow both Super Admin and Chapter Admin to manage categories
+async function checkAdminAccess(userId: string): Promise<boolean> {
+  const { data: userRoles } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  
+  if (!userRoles || userRoles.length === 0) {
+    return false;
+  }
+  
+  // Check if user has any admin role
+  return userRoles.some(r => r.role === "super_admin" || r.role === "chapter_admin");
+}
+
 router.get("/", async (req, res: Response) => {
   try {
     const includeInactive = req.query.includeInactive === "true";
@@ -92,9 +107,9 @@ router.post("/", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Resp
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const isSuperAdmin = await checkSuperAdminAccess(req.user.id);
-    if (!isSuperAdmin) {
-      return res.status(403).json({ error: "Super admin access required" });
+    const isAdmin = await checkAdminAccess(req.user.id);
+    if (!isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
     }
 
     const parsed = categorySchema.safeParse(req.body);
