@@ -122,13 +122,31 @@ export default function POSCheckin() {
       if (error) throw error;
       setMeetings(data || []);
 
-      const todayMeeting = data?.find(
-        m => m.meeting_date === today.toISOString().split("T")[0]
-      );
+      // Find the nearest upcoming meeting (closest to today, including today)
+      const todayStr = today.toISOString().split("T")[0];
+      const todayMeeting = data?.find(m => m.meeting_date === todayStr);
+      
       if (todayMeeting) {
         setSelectedMeetingId(todayMeeting.meeting_id);
       } else if (data && data.length > 0) {
-        setSelectedMeetingId(data[0].meeting_id);
+        // Find upcoming meetings (>= today) sorted by date ascending (nearest first)
+        const upcomingMeetings = data
+          .filter(m => m.meeting_date >= todayStr)
+          .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
+        
+        if (upcomingMeetings.length > 0) {
+          // Select the nearest upcoming meeting
+          setSelectedMeetingId(upcomingMeetings[0].meeting_id);
+        } else {
+          // No upcoming meetings, select the most recent past meeting
+          const pastMeetings = data
+            .filter(m => m.meeting_date < todayStr)
+            .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date));
+          
+          if (pastMeetings.length > 0) {
+            setSelectedMeetingId(pastMeetings[0].meeting_id);
+          }
+        }
       }
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
