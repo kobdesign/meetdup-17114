@@ -4,12 +4,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { QrCode, Calendar, Users, Download, Copy, ExternalLink, Info } from "lucide-react";
+import { QrCode, Calendar, Users, Download, Copy, ExternalLink, Info, UserCheck, Phone, CheckCircle, Clock, Loader2 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
+
+interface SubstituteRequest {
+  request_id: string;
+  substitute_name: string;
+  substitute_phone: string;
+  status: string;
+  confirmed_at: string;
+  member?: {
+    full_name_th: string;
+  };
+}
 
 export default function CheckIn() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
@@ -17,6 +29,9 @@ export default function CheckIn() {
   const [meetings, setMeetings] = useState<any[]>([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
   const [checkins, setCheckins] = useState<any[]>([]);
+  const [pendingSubstitutes, setPendingSubstitutes] = useState<SubstituteRequest[]>([]);
+  const [confirmedSubstitutes, setConfirmedSubstitutes] = useState<SubstituteRequest[]>([]);
+  const [confirmingSubId, setConfirmingSubId] = useState<string | null>(null);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -27,6 +42,7 @@ export default function CheckIn() {
   useEffect(() => {
     if (selectedMeetingId) {
       loadCheckins();
+      loadSubstitutes();
     }
   }, [selectedMeetingId]);
 
@@ -88,6 +104,79 @@ export default function CheckIn() {
       setCheckins(data || []);
     } catch (error: any) {
       console.error("Error loading checkins:", error);
+    }
+  };
+
+  const loadSubstitutes = async () => {
+    if (!selectedMeetingId || !effectiveTenantId) return;
+    
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      
+      const response = await fetch(
+        `/api/palms/substitute-requests?meeting_id=${selectedMeetingId}&tenant_id=${effectiveTenantId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        console.error("Failed to load substitutes:", await response.text());
+        return;
+      }
+      
+      const data = await response.json();
+      
+      const pending = (data.requests || []).filter((r: SubstituteRequest) => r.status === "pending");
+      const confirmed = (data.requests || []).filter((r: SubstituteRequest) => r.status === "confirmed");
+      
+      setPendingSubstitutes(pending);
+      setConfirmedSubstitutes(confirmed);
+    } catch (error: any) {
+      console.error("Error loading substitutes:", error);
+    }
+  };
+
+  const handleConfirmSubstitute = async (requestId: string) => {
+    setConfirmingSubId(requestId);
+    
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      
+      const response = await fetch(`/api/palms/confirm-substitute/${requestId}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const err = await response.json();
+        toast.error(err.error || "ไม่สามารถยืนยันตัวแทนได้");
+        return;
+      }
+      
+      toast.success("ยืนยันตัวแทนเรียบร้อย");
+      
+      const confirmed = pendingSubstitutes.find(s => s.request_id === requestId);
+      if (confirmed) {
+        setPendingSubstitutes(prev => prev.filter(s => s.request_id !== requestId));
+        setConfirmedSubstitutes(prev => [...prev, { ...confirmed, status: "confirmed", confirmed_at: new Date().toISOString() }]);
+      }
+      
+      // Reload data to ensure sync with server
+      loadCheckins();
+      loadSubstitutes();
+    } catch (error: any) {
+      console.error("Error confirming substitute:", error);
+      toast.error("เกิดข้อผิดพลาดในการยืนยัน");
+    } finally {
+      setConfirmingSubId(null);
     }
   };
 
@@ -258,42 +347,154 @@ export default function CheckIn() {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">เช็คอินแล้ว</p>
-                        <p className="text-2xl font-bold">{checkins.length}</p>
+                        <p className="text-2xl font-bold">
+                          {checkins.length + confirmedSubstitutes.length}
+                        </p>
+                        {confirmedSubstitutes.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            (รวม {confirmedSubstitutes.length} ตัวแทน)
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
 
+                  {pendingSubstitutes.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-orange-500" />
+                        ตัวแทนรอยืนยัน ({pendingSubstitutes.length})
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {pendingSubstitutes.map((sub) => (
+                          <div
+                            key={sub.request_id}
+                            className="p-3 border rounded-lg bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1 min-w-0">
+                                <p className="font-medium text-sm truncate">
+                                  {sub.substitute_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {sub.substitute_phone}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  แทน: {sub.member?.full_name_th}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => handleConfirmSubstitute(sub.request_id)}
+                                disabled={confirmingSubId === sub.request_id}
+                              >
+                                {confirmingSubId === sub.request_id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "ยืนยัน"
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {confirmedSubstitutes.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        ตัวแทนที่เช็คอินแล้ว ({confirmedSubstitutes.length})
+                      </h4>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {confirmedSubstitutes.map((sub) => (
+                          <div
+                            key={sub.request_id}
+                            className="p-3 border rounded-lg bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1 min-w-0">
+                                <p className="font-medium text-sm truncate flex items-center gap-1">
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
+                                  {sub.substitute_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  แทน: {sub.member?.full_name_th}
+                                </p>
+                              </div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0">
+                                <Clock className="h-3 w-3" />
+                                {new Date(sub.confirmed_at).toLocaleTimeString("th-TH", {
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium">รายชื่อผู้เช็คอินล่าสุด</h4>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {checkins.length === 0 ? (
+                      {checkins.length === 0 && confirmedSubstitutes.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-4">
                           ยังไม่มีการเช็คอิน
                         </p>
                       ) : (
-                        checkins.slice(0, 10).map((checkin) => (
-                          <div
-                            key={checkin.checkin_id}
-                            className="flex items-center justify-between p-3 border rounded-lg text-sm"
-                          >
-                            <div>
-                              <div className="font-medium">
-                                {checkin.participant?.full_name_th || checkin.participant?.full_name || "ไม่ระบุชื่อ"}
-                              </div>
-                              {checkin.participant?.company && (
-                                <div className="text-xs text-muted-foreground">
-                                  {checkin.participant.company}
+                        <>
+                          {confirmedSubstitutes.map((sub) => (
+                            <div
+                              key={`sub-${sub.request_id}`}
+                              className="flex items-center justify-between gap-2 p-3 border rounded-lg text-sm bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800"
+                            >
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  {sub.substitute_name}
+                                  <Badge variant="secondary" className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">
+                                    ตัวแทน
+                                  </Badge>
                                 </div>
-                              )}
+                                <div className="text-xs text-muted-foreground">
+                                  แทน: {sub.member?.full_name_th}
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(sub.confirmed_at).toLocaleTimeString("th-TH", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {new Date(checkin.checkin_time).toLocaleTimeString("th-TH", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                          ))}
+                          {checkins.slice(0, 10).map((checkin) => (
+                            <div
+                              key={checkin.checkin_id}
+                              className="flex items-center justify-between p-3 border rounded-lg text-sm"
+                            >
+                              <div>
+                                <div className="font-medium">
+                                  {checkin.participant?.full_name_th || checkin.participant?.full_name || "ไม่ระบุชื่อ"}
+                                </div>
+                                {checkin.participant?.company && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {checkin.participant.company}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(checkin.checkin_time).toLocaleTimeString("th-TH", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                        </>
                       )}
                     </div>
                   </div>
