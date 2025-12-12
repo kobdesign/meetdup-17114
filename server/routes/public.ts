@@ -1235,4 +1235,70 @@ router.get("/participant-by-line", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/public/verify-substitute-token
+ * Verify substitute request token and return participant/meeting info
+ */
+router.get("/verify-substitute-token", async (req: Request, res: Response) => {
+  try {
+    const token = req.query.token as string;
+
+    if (!token) {
+      return res.status(400).json({ valid: false, error: "Missing token" });
+    }
+
+    // Verify token
+    const payload = verifyProfileToken(token, "substitute_request");
+    if (!payload) {
+      return res.status(401).json({ valid: false, error: "ลิงก์หมดอายุหรือไม่ถูกต้อง" });
+    }
+
+    // Get participant info
+    const { data: participant, error: pError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th, status")
+      .eq("participant_id", payload.participant_id)
+      .eq("tenant_id", payload.tenant_id)
+      .single();
+
+    if (pError || !participant) {
+      return res.status(404).json({ valid: false, error: "ไม่พบข้อมูลสมาชิก" });
+    }
+
+    // Get meeting info
+    const { data: meeting, error: mError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue")
+      .eq("meeting_id", payload.meeting_id)
+      .eq("tenant_id", payload.tenant_id)
+      .single();
+
+    if (mError || !meeting) {
+      return res.status(404).json({ valid: false, error: "ไม่พบ Meeting" });
+    }
+
+    // Check for existing substitute request
+    const { data: existingRequest } = await supabaseAdmin
+      .from("substitute_requests")
+      .select("request_id, substitute_name, substitute_phone, substitute_email, status")
+      .eq("member_participant_id", payload.participant_id)
+      .eq("meeting_id", payload.meeting_id)
+      .eq("status", "pending")
+      .single();
+
+    return res.json({
+      valid: true,
+      participant_id: payload.participant_id,
+      tenant_id: payload.tenant_id,
+      meeting_id: payload.meeting_id,
+      participant_name: participant.full_name_th,
+      meeting,
+      existing_request: existingRequest || null
+    });
+  } catch (error: any) {
+    console.error("[Public/VerifySubstituteToken] Error:", error);
+    return res.status(500).json({ valid: false, error: "Internal server error" });
+  }
+});
+
 export default router;

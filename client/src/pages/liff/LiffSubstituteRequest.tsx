@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, UserPlus, Calendar, CheckCircle, XCircle, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useLiff } from "@/hooks/useLiff";
 
 interface Meeting {
   meeting_id: string;
@@ -23,17 +22,22 @@ interface SubstituteRequest {
   meeting?: Meeting;
 }
 
+interface TokenPayload {
+  participant_id: string;
+  tenant_id: string;
+  meeting_id: string;
+  participant_name?: string;
+}
+
 export default function LiffSubstituteRequest() {
   const location = useLocation();
   const { toast } = useToast();
-  const { isLiffReady, isInLiff, isLoggedIn, profile, closeWindow, login } = useLiff();
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [upcomingMeeting, setUpcomingMeeting] = useState<Meeting | null>(null);
   const [existingRequest, setExistingRequest] = useState<SubstituteRequest | null>(null);
-  const [tenantId, setTenantId] = useState<string | null>(null);
-  const [participantId, setParticipantId] = useState<string | null>(null);
+  const [tokenPayload, setTokenPayload] = useState<TokenPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   
   const [substituteName, setSubstituteName] = useState("");
@@ -41,65 +45,39 @@ export default function LiffSubstituteRequest() {
   const [substituteEmail, setSubstituteEmail] = useState("");
 
   const searchParams = new URLSearchParams(location.search);
-  const urlTenantId = searchParams.get("tenant");
-  const urlMeetingId = searchParams.get("meeting");
+  const urlToken = searchParams.get("token");
 
   useEffect(() => {
-    if (!isLiffReady) return;
-
     const fetchData = async () => {
       try {
-        if (!urlTenantId) {
-          setError("Missing tenant parameter");
+        if (!urlToken) {
+          setError("ลิงก์ไม่ถูกต้อง กรุณาขอลิงก์ใหม่");
           setLoading(false);
           return;
         }
-        setTenantId(urlTenantId);
 
-        // If user is logged in via LIFF, get their participant info
-        if (isLoggedIn && profile?.userId) {
-          const participantRes = await fetch(
-            `/api/public/participant-by-line?line_user_id=${profile.userId}&tenant_id=${urlTenantId}`
-          );
-          const participantData = await participantRes.json();
-          
-          if (participantData.participant) {
-            setParticipantId(participantData.participant.participant_id);
-          } else {
-            setError("ไม่พบข้อมูลของคุณในระบบ กรุณาลงทะเบียนก่อน");
-            setLoading(false);
-            return;
-          }
+        // Verify token and get participant/meeting info
+        const verifyRes = await fetch(`/api/public/verify-substitute-token?token=${urlToken}`);
+        const verifyData = await verifyRes.json();
+        
+        if (!verifyData.valid) {
+          setError(verifyData.error || "ลิงก์หมดอายุหรือไม่ถูกต้อง กรุณาขอลิงก์ใหม่");
+          setLoading(false);
+          return;
         }
 
-        // Get upcoming meeting
-        const meetingRes = await fetch(`/api/public/next-meeting?tenant_id=${urlTenantId}`);
-        const meetingData = await meetingRes.json();
-        
-        if (meetingData.meeting) {
-          setUpcomingMeeting(meetingData.meeting);
-          
-          // Check if there's an existing request for this meeting
-          if (participantId) {
-            const reqRes = await fetch(
-              `/api/palms/my-substitute-requests?tenant_id=${urlTenantId}`,
-              { headers: { "Authorization": `Bearer ${await getAccessToken()}` } }
-            );
-            const reqData = await reqRes.json();
-            
-            if (reqData.requests) {
-              const existing = reqData.requests.find(
-                (r: SubstituteRequest) => r.meeting_id === meetingData.meeting.meeting_id && r.status === "pending"
-              );
-              if (existing) {
-                setExistingRequest(existing);
-                setSubstituteName(existing.substitute_name);
-                setSubstitutePhone(existing.substitute_phone);
-              }
-            }
-          }
-        } else {
-          setError("ไม่พบ Meeting ที่กำลังจะมาถึง");
+        setTokenPayload(verifyData);
+
+        // Get meeting info
+        if (verifyData.meeting) {
+          setUpcomingMeeting(verifyData.meeting);
+        }
+
+        // Check existing request
+        if (verifyData.existing_request) {
+          setExistingRequest(verifyData.existing_request);
+          setSubstituteName(verifyData.existing_request.substitute_name);
+          setSubstitutePhone(verifyData.existing_request.substitute_phone);
         }
 
       } catch (err: any) {
@@ -111,21 +89,12 @@ export default function LiffSubstituteRequest() {
     };
 
     fetchData();
-  }, [isLiffReady, isLoggedIn, profile, urlTenantId, participantId]);
-
-  const getAccessToken = async (): Promise<string> => {
-    try {
-      const liff = (await import("@line/liff")).default;
-      return liff.getAccessToken() || "";
-    } catch {
-      return "";
-    }
-  };
+  }, [urlToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!upcomingMeeting) {
+    if (!upcomingMeeting || !urlToken) {
       toast({ variant: "destructive", title: "ไม่พบ Meeting" });
       return;
     }
@@ -144,13 +113,11 @@ export default function LiffSubstituteRequest() {
 
     setSubmitting(true);
     try {
-      const token = await getAccessToken();
-      
       const res = await fetch("/api/palms/substitute-request", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "X-Substitute-Token": urlToken
         },
         body: JSON.stringify({
           meeting_id: upcomingMeeting.meeting_id,
@@ -188,17 +155,15 @@ export default function LiffSubstituteRequest() {
   };
 
   const handleCancel = async () => {
-    if (!existingRequest) return;
+    if (!existingRequest || !urlToken) return;
 
     setSubmitting(true);
     try {
-      const token = await getAccessToken();
-      
       const res = await fetch(`/api/palms/substitute-request/${existingRequest.request_id}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "X-Substitute-Token": urlToken
         },
         body: JSON.stringify({ reason: "ยกเลิกโดยสมาชิก" })
       });
@@ -233,11 +198,15 @@ export default function LiffSubstituteRequest() {
   };
 
   const handleClose = () => {
-    if (isInLiff) {
-      closeWindow();
-    } else {
-      window.history.back();
-    }
+    // Try to close LIFF window if available
+    try {
+      const liff = (window as any).liff;
+      if (liff?.isInClient?.()) {
+        liff.closeWindow();
+        return;
+      }
+    } catch {}
+    window.history.back();
   };
 
   const formatDate = (dateStr: string) => {
@@ -250,7 +219,7 @@ export default function LiffSubstituteRequest() {
     });
   };
 
-  if (!isLiffReady || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" data-testid="loading-spinner" />
@@ -276,44 +245,28 @@ export default function LiffSubstituteRequest() {
     );
   }
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-background p-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <UserPlus className="h-12 w-12 mx-auto text-primary" />
-              <h2 className="text-lg font-semibold">กรุณาเข้าสู่ระบบ</h2>
-              <p className="text-muted-foreground">เพื่อแจ้งส่งตัวแทนเข้าประชุม</p>
-              <Button onClick={login} data-testid="button-login">
-                เข้าสู่ระบบด้วย LINE
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-50 bg-background border-b p-3 flex items-center gap-3">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleClose}
-          data-testid="button-back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="font-semibold">แจ้งส่งตัวแทน</h1>
+      <div className="bg-primary text-primary-foreground p-4">
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleClose}
+            className="text-primary-foreground hover:bg-primary/80"
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-lg font-semibold">แจ้งส่งตัวแทน</h1>
+        </div>
       </div>
 
       <div className="p-4 space-y-4">
         {upcomingMeeting && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-sm flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 Meeting ที่กำลังจะมาถึง
               </CardTitle>
@@ -323,43 +276,48 @@ export default function LiffSubstituteRequest() {
                 {formatDate(upcomingMeeting.meeting_date)}
               </p>
               {upcomingMeeting.theme && (
-                <p className="text-sm text-muted-foreground" data-testid="text-meeting-theme">
-                  {upcomingMeeting.theme}
-                </p>
+                <p className="text-sm text-muted-foreground">{upcomingMeeting.theme}</p>
               )}
             </CardContent>
           </Card>
         )}
 
-        {existingRequest && existingRequest.status === "pending" ? (
-          <Card className="border-primary">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2 text-primary">
-                <CheckCircle className="h-4 w-4" />
-                แจ้งส่งตัวแทนแล้ว
+        {tokenPayload?.participant_name && (
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-sm text-muted-foreground">สมาชิก</p>
+              <p className="font-medium">{tokenPayload.participant_name}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {existingRequest ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                ลงทะเบียนตัวแทนแล้ว
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <div>
                 <p className="text-sm text-muted-foreground">ชื่อตัวแทน</p>
-                <p className="font-medium" data-testid="text-sub-name">{existingRequest.substitute_name}</p>
+                <p className="font-medium" data-testid="text-substitute-name">{existingRequest.substitute_name}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">เบอร์โทร</p>
-                <p className="font-medium" data-testid="text-sub-phone">{existingRequest.substitute_phone}</p>
+                <p className="font-medium" data-testid="text-substitute-phone">{existingRequest.substitute_phone}</p>
               </div>
-              <Button 
-                variant="outline" 
-                className="w-full" 
+              <Button
+                variant="destructive"
                 onClick={handleCancel}
                 disabled={submitting}
-                data-testid="button-cancel-request"
+                className="w-full"
+                data-testid="button-cancel"
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <XCircle className="h-4 w-4 mr-2" />
-                )}
+                ) : null}
                 ยกเลิกการส่งตัวแทน
               </Button>
             </CardContent>
@@ -367,7 +325,10 @@ export default function LiffSubstituteRequest() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">ข้อมูลตัวแทน</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                ข้อมูลตัวแทน
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -375,64 +336,57 @@ export default function LiffSubstituteRequest() {
                   <Label htmlFor="substituteName">ชื่อ-นามสกุล ตัวแทน *</Label>
                   <Input
                     id="substituteName"
-                    placeholder="กรอกชื่อตัวแทน"
                     value={substituteName}
                     onChange={(e) => setSubstituteName(e.target.value)}
+                    placeholder="กรอกชื่อตัวแทน"
                     required
-                    data-testid="input-sub-name"
+                    data-testid="input-substitute-name"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="substitutePhone">เบอร์โทรศัพท์ *</Label>
+                  <Label htmlFor="substitutePhone">เบอร์โทรตัวแทน *</Label>
                   <Input
                     id="substitutePhone"
                     type="tel"
-                    placeholder="08X-XXX-XXXX"
                     value={substitutePhone}
                     onChange={(e) => setSubstitutePhone(e.target.value)}
+                    placeholder="08XXXXXXXX"
                     required
-                    data-testid="input-sub-phone"
+                    data-testid="input-substitute-phone"
                   />
                   <p className="text-xs text-muted-foreground">
-                    ตัวแทนจะใช้เบอร์นี้ในการ Scan เช็คอิน
+                    ใช้สำหรับตรวจสอบตัวแทนเมื่อมา Check-in
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="substituteEmail">อีเมล (ถ้ามี)</Label>
+                  <Label htmlFor="substituteEmail">อีเมลตัวแทน (ไม่บังคับ)</Label>
                   <Input
                     id="substituteEmail"
                     type="email"
-                    placeholder="email@example.com"
                     value={substituteEmail}
                     onChange={(e) => setSubstituteEmail(e.target.value)}
-                    data-testid="input-sub-email"
+                    placeholder="email@example.com"
+                    data-testid="input-substitute-email"
                   />
                 </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={submitting}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={submitting || !substituteName.trim() || !substitutePhone.trim()}
                   data-testid="button-submit"
                 >
                   {submitting ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <UserPlus className="h-4 w-4 mr-2" />
-                  )}
-                  {existingRequest ? "อัปเดตข้อมูลตัวแทน" : "ยืนยันส่งตัวแทน"}
+                  ) : null}
+                  บันทึกข้อมูลตัวแทน
                 </Button>
               </form>
             </CardContent>
           </Card>
         )}
-
-        <p className="text-xs text-center text-muted-foreground px-4">
-          ตัวแทนของคุณสามารถเช็คอินได้โดยใช้เบอร์โทรที่ระบุไว้
-          ระบบจะบันทึกสถานะของคุณเป็น S (Substitute)
-        </p>
       </div>
     </div>
   );

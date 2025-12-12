@@ -2,8 +2,14 @@ import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
+import { verifyProfileToken, ProfileTokenPayload } from "../utils/profileToken";
 
 const router = Router();
+
+// Extended request type for substitute token auth
+interface SubstituteTokenRequest extends Request {
+  tokenPayload?: ProfileTokenPayload;
+}
 
 // Helper: Check if user has admin access to tenant
 async function checkAdminAccess(userId: string, tenantId: string): Promise<boolean> {
@@ -41,20 +47,34 @@ async function checkMemberAccess(userId: string, tenantId: string): Promise<{ ha
 /**
  * POST /api/palms/substitute-request
  * Member submits a substitute request for a meeting
+ * Supports both Supabase auth and substitute token auth
  */
-router.post("/substitute-request", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post("/substitute-request", async (req: SubstituteTokenRequest, res: Response) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const logPrefix = `[palms-sub-request:${requestId}]`;
 
   try {
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
+    let participantId: string | undefined;
+    let tenantId: string | undefined;
+    let meetingIdFromToken: string | undefined;
+
+    // Check for substitute token first (from LINE bot flow)
+    const substituteToken = req.headers["x-substitute-token"] as string;
+    if (substituteToken) {
+      const payload = verifyProfileToken(substituteToken, "substitute_request");
+      if (!payload) {
+        return res.status(401).json({ success: false, error: "Token หมดอายุหรือไม่ถูกต้อง" });
+      }
+      participantId = payload.participant_id;
+      tenantId = payload.tenant_id;
+      meetingIdFromToken = payload.meeting_id;
+      console.log(`${logPrefix} Using substitute token auth for participant:`, participantId);
     }
 
     const { meeting_id, substitute_name, substitute_phone, substitute_email } = req.body;
+    const actualMeetingId = meeting_id || meetingIdFromToken;
 
-    if (!meeting_id || !substitute_name || !substitute_phone) {
+    if (!actualMeetingId || !substitute_name || !substitute_phone) {
       return res.status(400).json({ 
         success: false, 
         error: "Missing required fields: meeting_id, substitute_name, substitute_phone" 
@@ -65,17 +85,26 @@ router.post("/substitute-request", verifySupabaseAuth, async (req: Authenticated
     const { data: meeting, error: meetingError } = await supabaseAdmin
       .from("meetings")
       .select("meeting_id, tenant_id, meeting_date")
-      .eq("meeting_id", meeting_id)
+      .eq("meeting_id", actualMeetingId)
       .single();
 
     if (meetingError || !meeting) {
       return res.status(404).json({ success: false, error: "Meeting not found" });
     }
 
-    // Check user has member access to this tenant
-    const access = await checkMemberAccess(user.id, meeting.tenant_id);
-    if (!access.hasAccess || !access.participantId) {
-      return res.status(403).json({ success: false, error: "You are not a member of this chapter" });
+    // If using token auth, verify meeting matches token
+    if (substituteToken) {
+      if (tenantId !== meeting.tenant_id) {
+        return res.status(403).json({ success: false, error: "Token ไม่ตรงกับ Meeting" });
+      }
+    } else {
+      // Fall back to Supabase auth
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+      }
+      // For backward compatibility - this path requires Supabase login
+      return res.status(401).json({ success: false, error: "กรุณาใช้ลิงก์จาก LINE bot" });
     }
 
     // Normalize phone
@@ -85,8 +114,8 @@ router.post("/substitute-request", verifySupabaseAuth, async (req: Authenticated
     const { data: existing } = await supabaseAdmin
       .from("substitute_requests")
       .select("request_id, status")
-      .eq("meeting_id", meeting_id)
-      .eq("member_participant_id", access.participantId)
+      .eq("meeting_id", actualMeetingId)
+      .eq("member_participant_id", participantId)
       .single();
 
     if (existing) {
@@ -119,8 +148,8 @@ router.post("/substitute-request", verifySupabaseAuth, async (req: Authenticated
       .from("substitute_requests")
       .insert({
         tenant_id: meeting.tenant_id,
-        meeting_id,
-        member_participant_id: access.participantId,
+        meeting_id: actualMeetingId,
+        member_participant_id: participantId,
         substitute_name,
         substitute_phone: normalizedPhone,
         substitute_email: substitute_email || null,
@@ -192,21 +221,17 @@ router.get("/my-substitute-requests", verifySupabaseAuth, async (req: Authentica
 /**
  * DELETE /api/palms/substitute-request/:requestId
  * Cancel a substitute request
+ * Supports both Supabase auth and substitute token auth
  */
-router.delete("/substitute-request/:requestId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.delete("/substitute-request/:requestId", async (req: SubstituteTokenRequest, res: Response) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const logPrefix = `[palms-cancel-sub:${requestId}]`;
 
   try {
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
-    }
-
     const { requestId: subRequestId } = req.params;
     const { reason } = req.body;
 
-    // Get request and verify ownership
+    // Get request first
     const { data: request, error: fetchError } = await supabaseAdmin
       .from("substitute_requests")
       .select("*, member_participant_id, tenant_id")
@@ -217,12 +242,20 @@ router.delete("/substitute-request/:requestId", verifySupabaseAuth, async (req: 
       return res.status(404).json({ success: false, error: "Request not found" });
     }
 
-    // Verify user owns this request or is admin
-    const access = await checkMemberAccess(user.id, request.tenant_id);
-    const isAdmin = await checkAdminAccess(user.id, request.tenant_id);
-    
-    if (!isAdmin && access.participantId !== request.member_participant_id) {
-      return res.status(403).json({ success: false, error: "Access denied" });
+    // Check for substitute token (from LINE bot flow)
+    const substituteToken = req.headers["x-substitute-token"] as string;
+    if (substituteToken) {
+      const payload = verifyProfileToken(substituteToken, "substitute_request");
+      if (!payload) {
+        return res.status(401).json({ success: false, error: "Token หมดอายุหรือไม่ถูกต้อง" });
+      }
+      // Verify token matches request owner
+      if (payload.participant_id !== request.member_participant_id) {
+        return res.status(403).json({ success: false, error: "Access denied" });
+      }
+    } else {
+      // No token - require Supabase auth (for backward compatibility)
+      return res.status(401).json({ success: false, error: "กรุณาใช้ลิงก์จาก LINE bot" });
     }
 
     // Update status to cancelled

@@ -609,10 +609,12 @@ async function handleSubstituteRequest(
       return;
     }
     
-    // Use direct URL (same pattern as edit profile) - no LIFF needed
+    // Use direct URL with token (same pattern as edit profile) - no LIFF login needed
+    const { generateSubstituteToken } = await import("../../utils/profileToken");
     const { getBaseUrl } = await import("../../services/line/handlers/businessCardHandler");
     const baseUrl = getBaseUrl();
-    const substituteUrl = `${baseUrl}/liff/substitute?tenant=${tenantId}&meeting=${meeting.meeting_id}`;
+    const token = generateSubstituteToken(participant.participant_id, tenantId, meeting.meeting_id);
+    const substituteUrl = `${baseUrl}/liff/substitute?token=${token}`;
     
     const meetingDate = new Date(meeting.meeting_date);
     const dateStr = meetingDate.toLocaleDateString("th-TH", {
