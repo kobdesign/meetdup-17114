@@ -590,23 +590,6 @@ async function handleSubstituteRequest(
       return;
     }
     
-    // Get LIFF ID from system_settings (global setting, not tenant-specific)
-    const { data: liffSetting } = await supabaseAdmin
-      .from("system_settings")
-      .select("setting_value")
-      .eq("setting_key", "liff_id")
-      .single();
-    
-    const liffId = liffSetting?.setting_value;
-    if (!liffId) {
-      console.log(`${logPrefix} LIFF ID not found in system_settings`);
-      await replyMessage(event.replyToken, {
-        type: "text",
-        text: "ไม่พบการตั้งค่า LIFF กรุณาติดต่อผู้ดูแลระบบ"
-      }, accessToken, tenantId);
-      return;
-    }
-    
     // Get next meeting
     const today = new Date().toISOString().split("T")[0];
     const { data: meeting } = await supabaseAdmin
@@ -626,9 +609,10 @@ async function handleSubstituteRequest(
       return;
     }
     
-    // Use LIFF URL directly to avoid OAuth domain issues
-    // LIFF URLs must not have path after liff_id - use query params for routing
-    const liffUrl = `https://liff.line.me/${liffId}?page=substitute&tenant=${tenantId}&meeting=${meeting.meeting_id}`;
+    // Use direct URL (same pattern as edit profile) - no LIFF needed
+    const { getBaseUrl } = await import("../../services/line/handlers/businessCardHandler");
+    const baseUrl = getBaseUrl();
+    const substituteUrl = `${baseUrl}/liff/substitute?tenant=${tenantId}&meeting=${meeting.meeting_id}`;
     
     const meetingDate = new Date(meeting.meeting_date);
     const dateStr = meetingDate.toLocaleDateString("th-TH", {
@@ -683,7 +667,7 @@ async function handleSubstituteRequest(
               action: {
                 type: "uri",
                 label: "กรอกข้อมูลตัวแทน",
-                uri: liffUrl
+                uri: substituteUrl
               },
               style: "primary",
               margin: "lg"
@@ -695,7 +679,7 @@ async function handleSubstituteRequest(
     };
     
     await replyMessage(event.replyToken, flexMessage, accessToken, tenantId);
-    console.log(`${logPrefix} Substitute request LIFF link sent to:`, participant.full_name_th);
+    console.log(`${logPrefix} Substitute request link sent to:`, participant.full_name_th);
     
   } catch (error: any) {
     console.error(`${logPrefix} Error handling substitute request:`, error);

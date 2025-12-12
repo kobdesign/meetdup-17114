@@ -792,7 +792,7 @@ import { getProductionBaseUrl } from "../../../utils/getProductionUrl";
  * Get base URL for LIFF pages
  * Uses shared utility for consistent production URL handling
  */
-function getBaseUrl(): string {
+export function getBaseUrl(): string {
   return getProductionBaseUrl();
 }
 
