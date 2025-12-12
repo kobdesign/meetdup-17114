@@ -21,7 +21,9 @@ import {
   Loader2,
   ArrowLeft,
   ScanLine,
-  AlertCircle
+  AlertCircle,
+  UserCheck,
+  Clock
 } from "lucide-react";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -43,6 +45,22 @@ interface ParticipantInfo {
   already_checked_in?: boolean;
 }
 
+interface SubstituteRequest {
+  request_id: string;
+  substitute_name: string;
+  substitute_phone: string;
+  substitute_email?: string;
+  status: string;
+  created_at: string;
+  member: {
+    participant_id: string;
+    full_name_th: string;
+    nickname_th?: string;
+    phone?: string;
+    photo_url?: string;
+  };
+}
+
 export default function POSCheckin() {
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [loading, setLoading] = useState(true);
@@ -57,6 +75,9 @@ export default function POSCheckin() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [scanError, setScanError] = useState<string>("");
   const [validatingQr, setValidatingQr] = useState(false);
+  
+  const [pendingSubstitutes, setPendingSubstitutes] = useState<SubstituteRequest[]>([]);
+  const [confirmingSubId, setConfirmingSubId] = useState<string | null>(null);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -67,6 +88,7 @@ export default function POSCheckin() {
   useEffect(() => {
     if (selectedMeetingId) {
       loadCheckins();
+      loadPendingSubstitutes();
     }
   }, [selectedMeetingId]);
 
@@ -129,6 +151,62 @@ export default function POSCheckin() {
       setCheckins(data || []);
     } catch (error: any) {
       console.error("Error loading checkins:", error);
+    }
+  };
+
+  const loadPendingSubstitutes = async () => {
+    if (!selectedMeetingId) return;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      
+      const response = await fetch(`/api/palms/meeting/${selectedMeetingId}/substitute-requests`, {
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setPendingSubstitutes(data.pending || []);
+      }
+    } catch (error: any) {
+      console.error("Error loading substitutes:", error);
+    }
+  };
+
+  const handleConfirmSubstitute = async (requestId: string) => {
+    setConfirmingSubId(requestId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+      
+      const response = await fetch("/api/palms/confirm-substitute", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ request_id: requestId })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(data.message || "ยืนยันตัวแทนสำเร็จ");
+        loadPendingSubstitutes();
+        loadCheckins();
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาดในการยืนยัน");
+    } finally {
+      setConfirmingSubId(null);
     }
   };
 
@@ -656,6 +734,54 @@ export default function POSCheckin() {
                       </div>
                     </div>
                   </div>
+
+                  {pendingSubstitutes.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-orange-500" />
+                        ตัวแทนรอยืนยัน ({pendingSubstitutes.length})
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {pendingSubstitutes.map((sub) => (
+                          <div
+                            key={sub.request_id}
+                            className="p-3 border rounded-lg bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800"
+                            data-testid={`card-substitute-${sub.request_id}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1 min-w-0">
+                                <p className="font-medium text-sm truncate" data-testid={`text-sub-name-${sub.request_id}`}>
+                                  {sub.substitute_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {sub.substitute_phone}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  แทน: {sub.member?.full_name_th}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => handleConfirmSubstitute(sub.request_id)}
+                                disabled={confirmingSubId === sub.request_id}
+                                data-testid={`button-confirm-sub-${sub.request_id}`}
+                              >
+                                {confirmingSubId === sub.request_id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                    ยืนยัน
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium">รายชื่อผู้เช็คอินล่าสุด</h4>

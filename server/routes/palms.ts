@@ -823,4 +823,267 @@ router.get("/substitute-requests/by-phone", async (req: Request, res: Response) 
   }
 });
 
+/**
+ * GET /api/palms/meeting/:meetingId/substitute-requests
+ * Get all pending substitute requests for a meeting (for POS admin)
+ */
+router.get("/meeting/:meetingId/substitute-requests", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-meeting-subs:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { meetingId } = req.params;
+
+    // Get meeting
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id, meeting_date, theme")
+      .eq("meeting_id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Check admin access
+    const isAdmin = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, error: "Admin access required" });
+    }
+
+    // Get all substitute requests for this meeting
+    const { data: requests, error } = await supabaseAdmin
+      .from("substitute_requests")
+      .select(`
+        *,
+        member:participants!member_participant_id(
+          participant_id, full_name_th, nickname_th, phone, photo_url
+        )
+      `)
+      .eq("meeting_id", meetingId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(`${logPrefix} Query error:`, error);
+      return res.status(500).json({ success: false, error: "Database error" });
+    }
+
+    // Separate by status
+    const pending = (requests || []).filter(r => r.status === "pending");
+    const confirmed = (requests || []).filter(r => r.status === "confirmed");
+    const cancelled = (requests || []).filter(r => r.status === "cancelled");
+
+    return res.json({
+      success: true,
+      meeting,
+      pending,
+      confirmed,
+      cancelled,
+      total: requests?.length || 0
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/palms/confirm-substitute
+ * Confirm a substitute check-in and create attendance record
+ */
+router.post("/confirm-substitute", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-confirm-sub:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { request_id } = req.body;
+
+    if (!request_id) {
+      return res.status(400).json({ success: false, error: "Missing request_id" });
+    }
+
+    // Get the substitute request with meeting details
+    const { data: subRequest, error: fetchError } = await supabaseAdmin
+      .from("substitute_requests")
+      .select(`
+        *,
+        member:participants!member_participant_id(
+          participant_id, full_name_th, line_user_id
+        ),
+        meeting:meetings(meeting_id, tenant_id, meeting_date, theme)
+      `)
+      .eq("request_id", request_id)
+      .single();
+
+    if (fetchError || !subRequest) {
+      return res.status(404).json({ success: false, error: "Substitute request not found" });
+    }
+
+    // Verify tenant consistency: substitute request tenant must match meeting tenant
+    const meetingTenantId = subRequest.meeting?.tenant_id;
+    if (!meetingTenantId || meetingTenantId !== subRequest.tenant_id) {
+      console.error(`${logPrefix} Tenant mismatch: request=${subRequest.tenant_id}, meeting=${meetingTenantId}`);
+      return res.status(403).json({ success: false, error: "Invalid request" });
+    }
+
+    // Check admin access against meeting's tenant (authoritative source)
+    const isAdmin = await checkAdminAccess(user.id, meetingTenantId);
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, error: "Admin access required" });
+    }
+
+    // Check if already confirmed
+    if (subRequest.status === "confirmed") {
+      return res.status(400).json({ success: false, error: "Request already confirmed" });
+    }
+
+    if (subRequest.status === "cancelled") {
+      return res.status(400).json({ success: false, error: "Request was cancelled" });
+    }
+
+    // Update substitute request status
+    const { error: updateError } = await supabaseAdmin
+      .from("substitute_requests")
+      .update({
+        status: "confirmed",
+        confirmed_at: new Date().toISOString()
+      })
+      .eq("request_id", request_id);
+
+    if (updateError) {
+      console.error(`${logPrefix} Update error:`, updateError);
+      return res.status(500).json({ success: false, error: "Failed to confirm request" });
+    }
+
+    // Create/update attendance record with S status
+    const { error: attendanceError } = await supabaseAdmin
+      .from("meeting_attendance")
+      .upsert({
+        tenant_id: subRequest.tenant_id,
+        meeting_id: subRequest.meeting_id,
+        participant_id: subRequest.member_participant_id,
+        palms_status: "S",
+        substitute_request_id: request_id,
+        source: "pos",
+        recorded_by: user.id,
+        recorded_at: new Date().toISOString()
+      }, {
+        onConflict: "meeting_id,participant_id"
+      });
+
+    if (attendanceError) {
+      console.error(`${logPrefix} Attendance error:`, attendanceError);
+      // Don't fail - the substitute is confirmed, just log error
+    }
+
+    // Send LINE notification to member if they have line_user_id
+    if (subRequest.member?.line_user_id) {
+      try {
+        const { LineClient } = await import("../services/line/lineClient");
+        
+        // Get tenant's access token
+        const { data: tenant } = await supabaseAdmin
+          .from("tenants")
+          .select("line_channel_access_token")
+          .eq("tenant_id", subRequest.tenant_id)
+          .single();
+
+        if (tenant?.line_channel_access_token) {
+          const lineClient = new LineClient(tenant.line_channel_access_token);
+          const meetingDate = new Date(subRequest.meeting?.meeting_date);
+          const dateStr = meetingDate.toLocaleDateString("th-TH", {
+            year: "numeric",
+            month: "long",
+            day: "numeric"
+          });
+
+          const message = {
+            type: "flex" as const,
+            altText: "ตัวแทนเข้าร่วมแล้ว",
+            contents: {
+              type: "bubble",
+              size: "kilo",
+              header: {
+                type: "box",
+                layout: "vertical",
+                backgroundColor: "#22C55E",
+                paddingAll: "12px",
+                contents: [
+                  {
+                    type: "text",
+                    text: "ตัวแทนเข้าร่วมแล้ว",
+                    weight: "bold",
+                    color: "#FFFFFF",
+                    size: "md"
+                  }
+                ]
+              },
+              body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                paddingAll: "16px",
+                contents: [
+                  {
+                    type: "text",
+                    text: `Meeting: ${dateStr}`,
+                    size: "sm",
+                    color: "#6B7280"
+                  },
+                  {
+                    type: "text",
+                    text: `ตัวแทน: ${subRequest.substitute_name}`,
+                    weight: "bold",
+                    size: "md",
+                    margin: "md"
+                  },
+                  {
+                    type: "text",
+                    text: `เบอร์โทร: ${subRequest.substitute_phone}`,
+                    size: "sm",
+                    color: "#6B7280"
+                  }
+                ]
+              }
+            }
+          };
+
+          await lineClient.pushMessage(subRequest.member.line_user_id, message);
+          console.log(`${logPrefix} LINE notification sent to member:`, subRequest.member.full_name_th);
+        }
+      } catch (notifyError: any) {
+        console.error(`${logPrefix} Failed to send LINE notification:`, notifyError.message);
+        // Don't fail the request - notification is optional
+      }
+    }
+
+    console.log(`${logPrefix} Substitute confirmed:`, request_id, "for member:", subRequest.member?.full_name_th);
+    
+    return res.json({
+      success: true,
+      message: `ยืนยันตัวแทน ${subRequest.substitute_name} สำเร็จ`,
+      substitute_request: {
+        ...subRequest,
+        status: "confirmed",
+        confirmed_at: new Date().toISOString()
+      }
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 export default router;
