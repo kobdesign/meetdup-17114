@@ -108,17 +108,17 @@ export default function CheckIn() {
   };
 
   const loadSubstitutes = async () => {
-    if (!selectedMeetingId || !effectiveTenantId) return;
+    if (!selectedMeetingId) return;
     
     try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
       
       const response = await fetch(
-        `/api/palms/substitute-requests?meeting_id=${selectedMeetingId}&tenant_id=${effectiveTenantId}`,
+        `/api/palms/meeting/${selectedMeetingId}/substitute-requests`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
         }
       );
