@@ -1229,4 +1229,185 @@ router.post("/meeting/:meetingId/reopen-ontime", verifySupabaseAuth, async (req:
   }
 });
 
+// ============================================
+// MEETING ATTENDANCE REPORT
+// ============================================
+
+/**
+ * GET /api/palms/meeting/:meetingId/attendance-report
+ * Get detailed attendance report showing member status breakdown:
+ * - มา (ตรงเวลา) - Checked in before on-time closed (is_late = false or null)
+ * - มา (สาย) - Checked in after on-time closed (is_late = true)
+ * - ส่งตัวแทน - Has confirmed substitute request
+ * - ขาด - No check-in and no substitute
+ */
+router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-attendance-report:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { meetingId } = req.params;
+
+    // Get meeting info
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id, meeting_date, theme, ontime_closed_at")
+      .eq("meeting_id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Get all members for this tenant
+    const { data: members, error: membersError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th, phone, photo_url, company_name, position")
+      .eq("tenant_id", meeting.tenant_id)
+      .eq("status", "member")
+      .order("full_name_th");
+
+    if (membersError) {
+      console.error(`${logPrefix} Members query error:`, membersError);
+      return res.status(500).json({ success: false, error: "Failed to fetch members" });
+    }
+
+    // Get check-ins for this meeting (with is_late field)
+    const { data: checkins, error: checkinsError } = await supabaseAdmin
+      .from("checkins")
+      .select("participant_id, checkin_time, source, is_late")
+      .eq("meeting_id", meetingId);
+
+    if (checkinsError) {
+      console.error(`${logPrefix} Checkins query error:`, checkinsError);
+      return res.status(500).json({ success: false, error: "Failed to fetch checkins" });
+    }
+
+    // Get confirmed substitute requests for this meeting
+    const { data: substituteRequests, error: subsError } = await supabaseAdmin
+      .from("substitute_requests")
+      .select("member_participant_id, substitute_name, substitute_phone, status, confirmed_at")
+      .eq("meeting_id", meetingId)
+      .eq("status", "confirmed");
+
+    if (subsError) {
+      console.error(`${logPrefix} Substitute requests query error:`, subsError);
+      return res.status(500).json({ success: false, error: "Failed to fetch substitute requests" });
+    }
+
+    // Create maps for quick lookup
+    const checkinMap = new Map(
+      (checkins || []).map(c => [c.participant_id, c])
+    );
+    const substituteMap = new Map(
+      (substituteRequests || []).map(s => [s.member_participant_id, s])
+    );
+
+    // Categorize each member
+    type AttendanceStatus = "on_time" | "late" | "substitute" | "absent";
+    
+    interface MemberReport {
+      participant_id: string;
+      full_name_th: string;
+      nickname_th: string | null;
+      phone: string | null;
+      photo_url: string | null;
+      company_name: string | null;
+      position: string | null;
+      attendance_status: AttendanceStatus;
+      status_label: string;
+      checkin_time: string | null;
+      substitute_name: string | null;
+      substitute_phone: string | null;
+    }
+
+    const memberReports: MemberReport[] = (members || []).map(member => {
+      const checkin = checkinMap.get(member.participant_id);
+      const substitute = substituteMap.get(member.participant_id);
+
+      let attendanceStatus: AttendanceStatus;
+      let statusLabel: string;
+
+      if (substitute) {
+        // Has confirmed substitute
+        attendanceStatus = "substitute";
+        statusLabel = "ส่งตัวแทน";
+      } else if (checkin) {
+        // Checked in - check if late
+        if (checkin.is_late === true) {
+          attendanceStatus = "late";
+          statusLabel = "มา (สาย)";
+        } else {
+          attendanceStatus = "on_time";
+          statusLabel = "มา (ตรงเวลา)";
+        }
+      } else {
+        // No check-in and no substitute = absent
+        attendanceStatus = "absent";
+        statusLabel = "ขาด";
+      }
+
+      return {
+        participant_id: member.participant_id,
+        full_name_th: member.full_name_th,
+        nickname_th: member.nickname_th,
+        phone: member.phone,
+        photo_url: member.photo_url,
+        company_name: member.company_name,
+        position: member.position,
+        attendance_status: attendanceStatus,
+        status_label: statusLabel,
+        checkin_time: checkin?.checkin_time || null,
+        substitute_name: substitute?.substitute_name || null,
+        substitute_phone: substitute?.substitute_phone || null
+      };
+    });
+
+    // Calculate summary counts
+    const summary = {
+      total_members: memberReports.length,
+      on_time: memberReports.filter(m => m.attendance_status === "on_time").length,
+      late: memberReports.filter(m => m.attendance_status === "late").length,
+      substitute: memberReports.filter(m => m.attendance_status === "substitute").length,
+      absent: memberReports.filter(m => m.attendance_status === "absent").length,
+      attendance_rate: 0
+    };
+
+    // Calculate attendance rate (on_time + late + substitute / total)
+    const attendedCount = summary.on_time + summary.late + summary.substitute;
+    summary.attendance_rate = summary.total_members > 0 
+      ? Math.round((attendedCount / summary.total_members) * 100) 
+      : 0;
+
+    console.log(`${logPrefix} Generated attendance report for meeting:`, meetingId, "summary:", summary);
+
+    return res.json({
+      success: true,
+      meeting: {
+        meeting_id: meeting.meeting_id,
+        meeting_date: meeting.meeting_date,
+        theme: meeting.theme,
+        ontime_closed_at: meeting.ontime_closed_at
+      },
+      summary,
+      members: memberReports
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 export default router;
