@@ -1099,4 +1099,134 @@ router.post("/confirm-substitute", verifySupabaseAuth, async (req: Authenticated
   }
 });
 
+// ============================================
+// ON-TIME CHECK-IN MANAGEMENT
+// ============================================
+
+/**
+ * POST /api/palms/meeting/:meetingId/close-ontime
+ * Admin closes on-time check-in window - subsequent check-ins will be marked as late
+ */
+router.post("/meeting/:meetingId/close-ontime", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-close-ontime:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { meetingId } = req.params;
+
+    // Get meeting to verify tenant
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id, meeting_date, ontime_closed_at")
+      .eq("meeting_id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Check if already closed
+    if (meeting.ontime_closed_at) {
+      return res.json({
+        success: true,
+        message: "On-time ถูกปิดแล้ว",
+        ontime_closed_at: meeting.ontime_closed_at,
+        already_closed: true
+      });
+    }
+
+    // Close on-time window
+    const closedAt = new Date().toISOString();
+    const { error: updateError } = await supabaseAdmin
+      .from("meetings")
+      .update({ ontime_closed_at: closedAt })
+      .eq("meeting_id", meetingId);
+
+    if (updateError) {
+      console.error(`${logPrefix} Update error:`, updateError);
+      return res.status(500).json({ success: false, error: "Failed to close on-time" });
+    }
+
+    console.log(`${logPrefix} On-time closed for meeting:`, meetingId, "at:", closedAt);
+    
+    return res.json({
+      success: true,
+      message: "ปิดรับ On-time เรียบร้อย",
+      ontime_closed_at: closedAt
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/palms/meeting/:meetingId/reopen-ontime
+ * Admin reopens on-time check-in window (undo close)
+ */
+router.post("/meeting/:meetingId/reopen-ontime", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-reopen-ontime:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { meetingId } = req.params;
+
+    // Get meeting to verify tenant
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id")
+      .eq("meeting_id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Reopen on-time window
+    const { error: updateError } = await supabaseAdmin
+      .from("meetings")
+      .update({ ontime_closed_at: null })
+      .eq("meeting_id", meetingId);
+
+    if (updateError) {
+      console.error(`${logPrefix} Update error:`, updateError);
+      return res.status(500).json({ success: false, error: "Failed to reopen on-time" });
+    }
+
+    console.log(`${logPrefix} On-time reopened for meeting:`, meetingId);
+    
+    return res.json({
+      success: true,
+      message: "เปิดรับ On-time อีกครั้ง"
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 export default router;

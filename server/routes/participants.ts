@@ -560,10 +560,10 @@ router.post("/check-in", async (req: Request, res: Response) => {
       });
     }
 
-    // Get meeting details
+    // Get meeting details including ontime_closed_at
     const { data: meeting, error: meetingError } = await supabaseAdmin
       .from("meetings")
-      .select("meeting_id, tenant_id")
+      .select("meeting_id, tenant_id, ontime_closed_at")
       .eq("meeting_id", meeting_id)
       .single();
 
@@ -677,6 +677,12 @@ router.post("/check-in", async (req: Request, res: Response) => {
       }
     }
 
+    // Determine if this is a late check-in
+    const isLate = !!meeting.ontime_closed_at;
+    if (isLate) {
+      console.log(`${logPrefix} Late check-in - on-time closed at:`, meeting.ontime_closed_at);
+    }
+
     // Create check-in record
     const { error: checkinError } = await supabaseAdmin
       .from("checkins")
@@ -686,6 +692,7 @@ router.post("/check-in", async (req: Request, res: Response) => {
         participant_id,
         notes: checkinNotes,
         status: "approved", // Auto-approve check-ins
+        is_late: isLate,
       });
 
     if (checkinError) {
@@ -697,13 +704,14 @@ router.post("/check-in", async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`${logPrefix} Check-in successful`);
+    console.log(`${logPrefix} Check-in successful${isLate ? ' (late)' : ''}`);
     return res.json({
       success: true,
       participant_id: participant_id,
       participant_name: participant.full_name_th,
       participant_status: participant.status,
-      message: "Check-in successful"
+      is_late: isLate,
+      message: isLate ? "Check-in successful (สาย)" : "Check-in successful"
     });
 
   } catch (error: any) {
@@ -5187,10 +5195,10 @@ router.post("/pos-checkin", async (req: Request, res: Response) => {
       });
     }
     
-    // Verify meeting belongs to this tenant
+    // Verify meeting belongs to this tenant and get ontime_closed_at
     const { data: meeting, error: meetingError } = await supabaseAdmin
       .from("meetings")
-      .select("meeting_id, tenant_id")
+      .select("meeting_id, tenant_id, ontime_closed_at")
       .eq("meeting_id", meeting_id)
       .eq("tenant_id", expected_tenant_id)
       .single();
@@ -5253,6 +5261,12 @@ router.post("/pos-checkin", async (req: Request, res: Response) => {
       });
     }
     
+    // Determine if this is a late check-in
+    const isLate = !!meeting.ontime_closed_at;
+    if (isLate) {
+      console.log(`${logPrefix} Late check-in (POS QR) - on-time closed at:`, meeting.ontime_closed_at);
+    }
+
     // Create check-in record
     const { data: checkin, error: checkinError } = await supabaseAdmin
       .from("checkins")
@@ -5260,7 +5274,8 @@ router.post("/pos-checkin", async (req: Request, res: Response) => {
         meeting_id,
         participant_id: participantId,
         checkin_time: new Date().toISOString(),
-        checkin_method: "pos_qr"
+        checkin_method: "pos_qr",
+        is_late: isLate,
       })
       .select()
       .single();
@@ -5323,10 +5338,10 @@ router.post("/pos-manual-checkin", verifySupabaseAuth, async (req: Authenticated
       });
     }
     
-    // Verify meeting belongs to expected tenant
+    // Verify meeting belongs to expected tenant and get ontime_closed_at
     const { data: meeting, error: meetingError } = await supabaseAdmin
       .from("meetings")
-      .select("meeting_id, tenant_id")
+      .select("meeting_id, tenant_id, ontime_closed_at")
       .eq("meeting_id", meeting_id)
       .eq("tenant_id", expected_tenant_id)
       .single();
@@ -5390,6 +5405,12 @@ router.post("/pos-manual-checkin", verifySupabaseAuth, async (req: Authenticated
       });
     }
     
+    // Determine if this is a late check-in
+    const isLate = !!meeting.ontime_closed_at;
+    if (isLate) {
+      console.log(`${logPrefix} Late check-in (POS Manual) - on-time closed at:`, meeting.ontime_closed_at);
+    }
+
     // Create check-in record
     const { data: checkin, error: checkinError } = await supabaseAdmin
       .from("checkins")
@@ -5397,7 +5418,8 @@ router.post("/pos-manual-checkin", verifySupabaseAuth, async (req: Authenticated
         meeting_id,
         participant_id,
         checkin_time: new Date().toISOString(),
-        checkin_method: "pos_manual"
+        checkin_method: "pos_manual",
+        is_late: isLate,
       })
       .select()
       .single();
@@ -5410,13 +5432,14 @@ router.post("/pos-manual-checkin", verifySupabaseAuth, async (req: Authenticated
       });
     }
     
-    console.log(`${logPrefix} Manual check-in created for:`, participant.full_name_th);
+    console.log(`${logPrefix} Manual check-in created for:`, participant.full_name_th, isLate ? '(late)' : '');
     
     return res.json({
       success: true,
       checkin,
       participant,
-      message: `เช็คอินสำเร็จ: ${participant.full_name_th}`
+      is_late: isLate,
+      message: isLate ? `เช็คอินสำเร็จ (สาย): ${participant.full_name_th}` : `เช็คอินสำเร็จ: ${participant.full_name_th}`
     });
     
   } catch (error: any) {
