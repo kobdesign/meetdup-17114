@@ -23,7 +23,9 @@ import {
   ScanLine,
   AlertCircle,
   UserCheck,
-  Clock
+  Clock,
+  LockKeyhole,
+  Unlock
 } from "lucide-react";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -83,6 +85,7 @@ export default function POSCheckin() {
   const [pendingSubstitutes, setPendingSubstitutes] = useState<SubstituteRequest[]>([]);
   const [confirmedSubstitutes, setConfirmedSubstitutes] = useState<ConfirmedSubstitute[]>([]);
   const [confirmingSubId, setConfirmingSubId] = useState<string | null>(null);
+  const [togglingOntime, setTogglingOntime] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -160,7 +163,11 @@ export default function POSCheckin() {
       const { data, error } = await supabase
         .from("checkins")
         .select(`
-          *,
+          checkin_id,
+          meeting_id,
+          participant_id,
+          checkin_time,
+          is_late,
           participant:participants!fk_checkins_participant (
             full_name_th,
             company,
@@ -205,6 +212,52 @@ export default function POSCheckin() {
       }
     } catch (error: any) {
       console.error("Error loading substitutes:", error);
+    }
+  };
+
+  const handleToggleOntime = async () => {
+    if (!selectedMeetingId) return;
+    
+    setTogglingOntime(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+      
+      const isClosed = selectedMeeting?.ontime_closed_at;
+      const endpoint = isClosed 
+        ? `/api/palms/meeting/${selectedMeetingId}/reopen-ontime`
+        : `/api/palms/meeting/${selectedMeetingId}/close-ontime`;
+      
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(data.message);
+        // Optimistically update the local meeting state
+        setMeetings(prev => prev.map(m => 
+          m.meeting_id === selectedMeetingId 
+            ? { ...m, ontime_closed_at: isClosed ? null : new Date().toISOString() }
+            : m
+        ));
+        // Reload checkins to reflect updated is_late status
+        await loadCheckins();
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาดในการเปลี่ยนสถานะ");
+    } finally {
+      setTogglingOntime(false);
     }
   };
 
@@ -431,6 +484,7 @@ export default function POSCheckin() {
   }
 
   const selectedMeeting = meetings.find(m => m.meeting_id === selectedMeetingId);
+  const isOntimeClosed = !!selectedMeeting?.ontime_closed_at;
 
   return (
     <AdminLayout>
@@ -769,7 +823,7 @@ export default function POSCheckin() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between gap-2 p-4 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-primary/10 rounded-lg">
                         <Users className="h-5 w-5 text-primary" />
@@ -786,6 +840,47 @@ export default function POSCheckin() {
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">สถานะเช็คอินตรงเวลา</span>
+                      </div>
+                      {isOntimeClosed ? (
+                        <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300">
+                          ปิดแล้ว
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+                          เปิดอยู่
+                        </Badge>
+                      )}
+                    </div>
+                    <Button
+                      variant={isOntimeClosed ? "outline" : "destructive"}
+                      size="sm"
+                      className="w-full"
+                      onClick={handleToggleOntime}
+                      disabled={togglingOntime}
+                      data-testid="button-toggle-ontime"
+                    >
+                      {togglingOntime ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : isOntimeClosed ? (
+                        <Unlock className="h-4 w-4 mr-2" />
+                      ) : (
+                        <LockKeyhole className="h-4 w-4 mr-2" />
+                      )}
+                      {isOntimeClosed ? "เปิดรับเช็คอินตรงเวลา" : "ปิดรับเช็คอินตรงเวลา"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      {isOntimeClosed 
+                        ? "ผู้ที่เช็คอินหลังจากนี้จะถูกบันทึกว่า \"มาสาย\""
+                        : "กดปิดเพื่อเริ่มบันทึกผู้มาสาย"
+                      }
+                    </p>
                   </div>
 
                   {pendingSubstitutes.length > 0 && (
@@ -917,7 +1012,11 @@ export default function POSCheckin() {
                           {checkins.slice(0, 10).map((checkin) => (
                             <div
                               key={checkin.checkin_id}
-                              className="flex items-center justify-between gap-2 p-3 border rounded-lg text-sm"
+                              className={`flex items-center justify-between gap-2 p-3 border rounded-lg text-sm ${
+                                checkin.is_late 
+                                  ? "bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800" 
+                                  : ""
+                              }`}
                               data-testid={`row-checkin-${checkin.checkin_id}`}
                             >
                               <div className="flex items-center gap-3 min-w-0">
@@ -933,8 +1032,13 @@ export default function POSCheckin() {
                                   </div>
                                 )}
                                 <div className="min-w-0">
-                                  <div className="font-medium truncate">
+                                  <div className="font-medium truncate flex items-center gap-2 flex-wrap">
                                     {checkin.participant?.full_name_th || "ไม่ระบุชื่อ"}
+                                    {checkin.is_late && (
+                                      <Badge variant="secondary" className="text-xs bg-orange-200 dark:bg-orange-800 text-orange-700 dark:text-orange-300">
+                                        สาย
+                                      </Badge>
+                                    )}
                                   </div>
                                   {checkin.participant?.company && (
                                     <div className="text-xs text-muted-foreground truncate">
