@@ -71,10 +71,11 @@ export default function Visitors() {
       }
 
       const response = await fetch(
-        `/api/participants/visitor-pipeline?tenant_id=${effectiveTenantId}`,
+        `/api/participants/visitor-pipeline?tenant_id=${effectiveTenantId}&_t=${Date.now()}`,
         {
           headers: {
             Authorization: `Bearer ${session.session.access_token}`,
+            'Cache-Control': 'no-cache',
           },
         }
       );
@@ -118,10 +119,11 @@ export default function Visitors() {
       }
 
       const response = await fetch(
-        `/api/participants/visitor-analytics?tenant_id=${effectiveTenantId}`,
+        `/api/participants/visitor-analytics?tenant_id=${effectiveTenantId}&_t=${Date.now()}`,
         {
           headers: {
             Authorization: `Bearer ${session.session.access_token}`,
+            'Cache-Control': 'no-cache',
           },
         }
       );
