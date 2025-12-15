@@ -173,7 +173,9 @@ export default function Visitors() {
     if (searchTerm) {
       filtered = filtered.filter(v => {
         const displayName = (v.full_name_th || v.full_name || "").toLowerCase();
+        const nickname = (v.nickname_th || "").toLowerCase();
         return displayName.includes(searchTerm.toLowerCase()) ||
+          nickname.includes(searchTerm.toLowerCase()) ||
           v.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           v.phone?.includes(searchTerm) ||
           v.company?.toLowerCase().includes(searchTerm.toLowerCase());

@@ -574,7 +574,9 @@ export default function Participants() {
 
   const filteredParticipants = participants.filter((p) => {
     const displayName = (p.full_name_th || p.full_name || "").toLowerCase();
+    const nickname = (p.nickname_th || "").toLowerCase();
     return displayName.includes(searchTerm.toLowerCase()) ||
+      nickname.includes(searchTerm.toLowerCase()) ||
       p.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.email?.toLowerCase().includes(searchTerm.toLowerCase());
   });

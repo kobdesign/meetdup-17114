@@ -831,6 +831,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       participant_id, // NEW: If provided, UPDATE existing participant instead of INSERT
       meeting_id, 
       full_name_th, 
+      nickname, // nickname_th field from frontend
       email, 
       phone, 
       company, 
@@ -928,6 +929,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
         .from("participants")
         .update({
           full_name_th,
+          nickname_th: nickname || null,
           email,
           phone: normalizedPhone,
           company: company || null,
@@ -961,6 +963,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
         .insert({
           tenant_id,
           full_name_th,
+          nickname_th: nickname || null,
           email,
           phone: normalizedPhone,
           company: company || null,
