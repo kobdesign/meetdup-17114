@@ -1230,6 +1230,78 @@ router.post("/meeting/:meetingId/reopen-ontime", verifySupabaseAuth, async (req:
 });
 
 // ============================================
+// CLOSE MEETING
+// ============================================
+
+/**
+ * POST /api/palms/meeting/:meetingId/close
+ * Close the meeting - anyone who hasn't checked in will be marked as absent
+ */
+router.post("/meeting/:meetingId/close", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-close-meeting:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { meetingId } = req.params;
+
+    // Get meeting info
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id, meeting_closed_at")
+      .eq("meeting_id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Check if already closed
+    if (meeting.meeting_closed_at) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Meeting is already closed",
+        meeting_closed_at: meeting.meeting_closed_at
+      });
+    }
+
+    // Close the meeting
+    const closedAt = new Date().toISOString();
+    const { error: updateError } = await supabaseAdmin
+      .from("meetings")
+      .update({ meeting_closed_at: closedAt })
+      .eq("meeting_id", meetingId);
+
+    if (updateError) {
+      console.error(`${logPrefix} Update error:`, updateError);
+      return res.status(500).json({ success: false, error: "Failed to close meeting" });
+    }
+
+    console.log(`${logPrefix} Meeting closed:`, meetingId, "at:", closedAt);
+    
+    return res.json({
+      success: true,
+      message: "ปิด Meeting เรียบร้อย",
+      meeting_closed_at: closedAt
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// ============================================
 // MEETING ATTENDANCE REPORT
 // ============================================
 
@@ -1256,7 +1328,7 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
     // Get meeting info
     const { data: meeting, error: meetingError } = await supabaseAdmin
       .from("meetings")
-      .select("meeting_id, tenant_id, meeting_date, theme, ontime_closed_at")
+      .select("meeting_id, tenant_id, meeting_date, theme, ontime_closed_at, meeting_closed_at")
       .eq("meeting_id", meetingId)
       .single();
 
@@ -1314,9 +1386,9 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
       (substituteRequests || []).map(s => [s.member_participant_id, s])
     );
 
-    // Check if meeting has passed (meeting_date < today means it's in the past)
+    // Check if meeting has ended (either explicitly closed OR meeting_date < today)
     const today = new Date().toISOString().split('T')[0];
-    const meetingHasPassed = meeting.meeting_date < today;
+    const meetingHasPassed = !!meeting.meeting_closed_at || meeting.meeting_date < today;
 
     // Categorize each member
     type AttendanceStatus = "on_time" | "late" | "substitute" | "absent" | "pending";
@@ -1408,7 +1480,8 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
         meeting_id: meeting.meeting_id,
         meeting_date: meeting.meeting_date,
         theme: meeting.theme,
-        ontime_closed_at: meeting.ontime_closed_at
+        ontime_closed_at: meeting.ontime_closed_at,
+        meeting_closed_at: meeting.meeting_closed_at
       },
       summary,
       members: memberReports
