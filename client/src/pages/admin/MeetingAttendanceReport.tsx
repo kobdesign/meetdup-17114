@@ -101,7 +101,15 @@ export default function MeetingAttendanceReport() {
       setMeetings(data || []);
       
       if (data && data.length > 0) {
-        setSelectedMeetingId(data[0].meeting_id);
+        // Find the nearest upcoming meeting (or the most recent past one)
+        const today = new Date().toISOString().split('T')[0];
+        const upcomingMeeting = data.find(m => m.meeting_date >= today);
+        if (upcomingMeeting) {
+          setSelectedMeetingId(upcomingMeeting.meeting_id);
+        } else {
+          // No upcoming meeting, use the most recent one
+          setSelectedMeetingId(data[0].meeting_id);
+        }
       }
     } catch (err: any) {
       console.error("Error loading meetings:", err);
