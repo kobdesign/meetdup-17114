@@ -2377,10 +2377,10 @@ router.get("/members-for-referral", async (req: Request, res: Response) => {
     // Query active members only
     const { data: members, error } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name_th, nickname")
+      .select("participant_id, full_name_th, nickname_th")
       .eq("tenant_id", meeting.tenant_id)
       .eq("status", "member")
-      .order("nickname", { ascending: true, nullsFirst: false })
+      .order("nickname_th", { ascending: true, nullsFirst: false })
       .order("full_name_th", { ascending: true });
 
     if (error) {
@@ -2391,12 +2391,12 @@ router.get("/members-for-referral", async (req: Request, res: Response) => {
       });
     }
 
-    // Return members with display_name (nickname or full_name_th)
+    // Return members with display_name (nickname_th or full_name_th)
     const membersWithDisplay = (members || []).map(m => ({
       participant_id: m.participant_id,
       full_name_th: m.full_name_th,
-      nickname: m.nickname,
-      display_name: m.nickname || m.full_name_th
+      nickname_th: m.nickname_th,
+      display_name: m.nickname_th || m.full_name_th
     }));
 
     return res.json({
