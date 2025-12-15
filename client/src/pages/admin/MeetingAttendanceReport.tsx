@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
@@ -18,7 +29,9 @@ import {
   Loader2,
   FileSpreadsheet,
   TrendingUp,
-  ArrowLeft
+  ArrowLeft,
+  Lock,
+  LockOpen
 } from "lucide-react";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -57,6 +70,7 @@ interface AttendanceReportData {
     meeting_date: string;
     theme: string | null;
     ontime_closed_at: string | null;
+    meeting_closed_at: string | null;
   };
   summary: AttendanceSummary;
   members: MemberReport[];
@@ -72,6 +86,7 @@ export default function MeetingAttendanceReport() {
   const [loadingReport, setLoadingReport] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [closingMeeting, setClosingMeeting] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -148,7 +163,8 @@ export default function MeetingAttendanceReport() {
         throw new Error(data.error || "Failed to load report");
       }
 
-      setReportData(data);
+      const { meeting, summary, members } = data;
+      setReportData({ meeting, summary, members });
     } catch (err: any) {
       console.error("Error loading attendance report:", err);
       toast.error("ไม่สามารถโหลดรายงานได้");
@@ -216,6 +232,40 @@ export default function MeetingAttendanceReport() {
       toast.error("ไม่สามารถส่งออกไฟล์ได้");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleCloseMeeting = async () => {
+    if (!selectedMeetingId) return;
+
+    setClosingMeeting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+
+      const response = await fetch(`/api/palms/meeting/${selectedMeetingId}/close`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || "Failed to close meeting");
+      }
+
+      toast.success("ปิด Meeting เรียบร้อย");
+      loadAttendanceReport();
+    } catch (err: any) {
+      console.error("Error closing meeting:", err);
+      toast.error(err.message || "ไม่สามารถปิด Meeting ได้");
+    } finally {
+      setClosingMeeting(false);
     }
   };
 
@@ -303,18 +353,69 @@ export default function MeetingAttendanceReport() {
               </Select>
 
               {reportData && (
-                <Button 
-                  onClick={handleExportExcel}
-                  disabled={exporting}
-                  data-testid="button-export-excel"
-                >
-                  {exporting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <>
+                  {reportData.meeting.meeting_closed_at ? (
+                    <Badge variant="secondary" className="gap-1" data-testid="badge-meeting-closed">
+                      <Lock className="h-3 w-3" />
+                      ปิดแล้ว
+                    </Badge>
                   ) : (
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    <Badge variant="outline" className="gap-1" data-testid="badge-meeting-open">
+                      <LockOpen className="h-3 w-3" />
+                      กำลังดำเนินการ
+                    </Badge>
                   )}
-                  Export Excel
-                </Button>
+
+                  <Button 
+                    onClick={handleExportExcel}
+                    disabled={exporting}
+                    data-testid="button-export-excel"
+                  >
+                    {exporting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    )}
+                    Export Excel
+                  </Button>
+
+                  {!reportData.meeting.meeting_closed_at && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          variant="destructive"
+                          disabled={closingMeeting}
+                          data-testid="button-close-meeting"
+                        >
+                          {closingMeeting ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Lock className="h-4 w-4 mr-2" />
+                          )}
+                          ปิด Meeting
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>ยืนยันปิด Meeting</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            เมื่อปิด Meeting แล้ว สมาชิกที่ยังไม่ได้เช็คอินจะถูกนับเป็น "ขาด" 
+                            และไม่สามารถเช็คอินได้อีก คุณต้องการดำเนินการต่อหรือไม่?
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel data-testid="button-cancel-close">ยกเลิก</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={handleCloseMeeting}
+                            data-testid="button-confirm-close"
+                          >
+                            ยืนยันปิด Meeting
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </>
               )}
             </div>
           </CardContent>
