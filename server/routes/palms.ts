@@ -1495,7 +1495,7 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
 
 /**
  * GET /api/palms/meeting/:meetingId/registered-visitors
- * Get visitors who registered for a meeting with their check-in status
+ * Get visitors who registered for a meeting (via meeting_registrations) with their check-in status
  * Returns: visitors with phone, line_user_id, and check-in status for follow-up
  */
 router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
@@ -1527,25 +1527,36 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       return res.status(403).json({ success: false, error: "Access denied" });
     }
 
-    // Get all visitors/prospects for this tenant
-    const { data: visitors, error: visitorsError } = await supabaseAdmin
-      .from("participants")
-      .select("participant_id, full_name_th, nickname_th, phone, company, line_user_id, photo_url")
-      .eq("tenant_id", meeting.tenant_id)
-      .in("status", ["visitor", "prospect"])
-      .order("full_name_th");
+    // Get registered visitors from meeting_registrations table
+    const { data: registrations, error: registrationsError } = await supabaseAdmin
+      .from("meeting_registrations")
+      .select(`
+        registration_id,
+        participant_id,
+        registration_status,
+        registered_at,
+        participant:participants!inner(
+          participant_id,
+          full_name_th,
+          nickname_th,
+          phone,
+          company,
+          line_user_id,
+          photo_url,
+          status
+        )
+      `)
+      .eq("meeting_id", meetingId)
+      .in("participant.status", ["visitor", "prospect"]);
 
-    if (visitorsError) {
-      console.error(`${logPrefix} Visitors query error:`, visitorsError);
-      return res.status(500).json({ success: false, error: "Failed to fetch visitors" });
+    if (registrationsError) {
+      console.error(`${logPrefix} Registrations query error:`, registrationsError);
+      return res.status(500).json({ success: false, error: "Failed to fetch registrations" });
     }
 
-    // Get check-ins for this meeting for these visitors
-    const visitorIds = (visitors || []).map(v => v.participant_id);
-    
-    // Short-circuit if no visitors exist
-    if (visitorIds.length === 0) {
-      console.log(`${logPrefix} No visitors found for tenant, returning empty list`);
+    // Short-circuit if no registrations exist
+    if (!registrations || registrations.length === 0) {
+      console.log(`${logPrefix} No registered visitors found for meeting, returning empty list`);
       return res.json({
         success: true,
         meeting: {
@@ -1555,15 +1566,19 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
           meeting_closed_at: meeting.meeting_closed_at
         },
         visitors: [],
-        summary: { total: 0, checked_in: 0 }
+        summary: { total: 0, checked_in: 0, not_checked_in: 0 }
       });
     }
-    
+
+    // Get participant IDs from registrations
+    const participantIds = registrations.map(r => r.participant_id);
+
+    // Get check-ins for these registered visitors
     const { data: checkins, error: checkinsError } = await supabaseAdmin
       .from("checkins")
       .select("participant_id, checkin_time")
       .eq("meeting_id", meetingId)
-      .in("participant_id", visitorIds);
+      .in("participant_id", participantIds);
 
     if (checkinsError) {
       console.error(`${logPrefix} Checkins query error:`, checkinsError);
@@ -1575,26 +1590,29 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       (checkins || []).map(c => [c.participant_id, c])
     );
 
-    // Filter visitors who have registered for this meeting (have a checkin record)
-    // AND also visitors without checkin for reference
-    const registeredVisitors = (visitors || [])
-      .filter(v => checkinMap.has(v.participant_id))
-      .map(visitor => {
-        const checkin = checkinMap.get(visitor.participant_id);
-        return {
-          participant_id: visitor.participant_id,
-          full_name_th: visitor.full_name_th,
-          nickname_th: visitor.nickname_th,
-          phone: visitor.phone,
-          company: visitor.company,
-          line_user_id: visitor.line_user_id,
-          photo_url: visitor.photo_url,
-          checked_in: true,
-          checkin_time: checkin?.checkin_time || null
-        };
-      });
+    // Build visitor list with check-in status
+    const registeredVisitors = registrations.map(reg => {
+      const participant = reg.participant as any;
+      const checkin = checkinMap.get(reg.participant_id);
+      return {
+        participant_id: participant.participant_id,
+        full_name_th: participant.full_name_th,
+        nickname_th: participant.nickname_th,
+        phone: participant.phone,
+        company: participant.company,
+        line_user_id: participant.line_user_id,
+        photo_url: participant.photo_url,
+        registered_at: reg.registered_at,
+        checked_in: !!checkin,
+        checkin_time: checkin?.checkin_time || null
+      };
+    });
 
-    console.log(`${logPrefix} Found ${registeredVisitors.length} registered visitors for meeting:`, meetingId);
+    const checkedInCount = registeredVisitors.filter(v => v.checked_in).length;
+    const notCheckedInCount = registeredVisitors.filter(v => !v.checked_in).length;
+
+    console.log(`${logPrefix} Found ${registeredVisitors.length} registered visitors for meeting:`, meetingId, 
+      `(checked_in: ${checkedInCount}, not_checked_in: ${notCheckedInCount})`);
 
     return res.json({
       success: true,
@@ -1607,7 +1625,8 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       visitors: registeredVisitors,
       summary: {
         total: registeredVisitors.length,
-        checked_in: registeredVisitors.filter(v => v.checked_in).length
+        checked_in: checkedInCount,
+        not_checked_in: notCheckedInCount
       }
     });
 

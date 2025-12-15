@@ -87,6 +87,7 @@ interface VisitorReport {
   company: string | null;
   line_user_id: string | null;
   photo_url: string | null;
+  registered_at: string | null;
   checked_in: boolean;
   checkin_time: string | null;
 }
@@ -646,17 +647,17 @@ export default function MeetingAttendanceReport() {
               </CardContent>
             </Card>
 
-            {/* Visitor Section */}
+            {/* Visitor Section - Show only visitors who registered but haven't checked in */}
             <Card data-testid="card-visitors">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <UserCheck className="h-4 w-4" />
-                    Visitor ที่เช็คอิน ({visitors.length})
+                    <Clock className="h-4 w-4 text-yellow-500" />
+                    Visitor ที่ลงทะเบียนแต่ยังไม่มา ({visitors.filter(v => !v.checked_in).length})
                   </CardTitle>
                 </div>
                 <CardDescription>
-                  รายชื่อ Visitor ที่เช็คอินใน Meeting นี้
+                  รายชื่อ Visitor ที่ลงทะเบียนไว้แต่ยังไม่ได้เช็คอิน สามารถติดต่อติดตามได้
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -664,11 +665,11 @@ export default function MeetingAttendanceReport() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : visitors.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">ยังไม่มี Visitor เช็คอิน</p>
+                ) : visitors.filter(v => !v.checked_in).length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">ไม่มี Visitor ที่ลงทะเบียนแต่ยังไม่มา</p>
                 ) : (
                   <div className="space-y-2">
-                    {visitors.map((visitor) => (
+                    {visitors.filter(v => !v.checked_in).map((visitor) => (
                       <div 
                         key={visitor.participant_id}
                         className="flex items-center gap-3 p-3 rounded-lg border"
@@ -691,9 +692,9 @@ export default function MeetingAttendanceReport() {
                           <div className="text-sm text-muted-foreground truncate">
                             {visitor.company || visitor.phone || "-"}
                           </div>
-                          {visitor.checkin_time && (
+                          {visitor.registered_at && (
                             <div className="text-sm text-muted-foreground">
-                              เช็คอิน: {new Date(visitor.checkin_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                              ลงทะเบียน: {new Date(visitor.registered_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
                             </div>
                           )}
                         </div>
@@ -727,9 +728,9 @@ export default function MeetingAttendanceReport() {
                               </a>
                             </Button>
                           )}
-                          <Badge variant="default" className="bg-green-500">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            มาแล้ว
+                          <Badge variant="default" className="bg-yellow-500">
+                            <Clock className="h-3 w-3 mr-1" />
+                            ยังไม่มา
                           </Badge>
                         </div>
                       </div>
