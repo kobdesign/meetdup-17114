@@ -1286,7 +1286,7 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
     // Get check-ins for this meeting (with is_late field)
     const { data: checkins, error: checkinsError } = await supabaseAdmin
       .from("checkins")
-      .select("participant_id, checkin_time, source, is_late")
+      .select("participant_id, checkin_time, is_late")
       .eq("meeting_id", meetingId);
 
     if (checkinsError) {
