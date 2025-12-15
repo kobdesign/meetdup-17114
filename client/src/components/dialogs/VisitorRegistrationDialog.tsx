@@ -38,6 +38,7 @@ export default function VisitorRegistrationDialog({
   
   const [formData, setFormData] = useState({
     full_name_th: "",
+    nickname: "",
     email: "",
     phone: "",
     company: "",
@@ -82,6 +83,7 @@ export default function VisitorRegistrationDialog({
       setAllowChangeMeeting(false);
       setFormData({
         full_name_th: "",
+        nickname: "",
         email: "",
         phone: "",
         company: "",
@@ -197,6 +199,7 @@ export default function VisitorRegistrationDialog({
         setExistingParticipant(data.participant);
         setFormData({
           full_name_th: data.participant.full_name_th || data.participant.full_name || "",
+          nickname: data.participant.nickname_th || "",
           email: data.participant.email || "",
           phone: data.participant.phone || formData.phone,
           company: data.participant.company || "",
@@ -212,6 +215,7 @@ export default function VisitorRegistrationDialog({
         setExistingParticipant(null);
         setFormData({
           full_name_th: "",
+          nickname: "",
           email: "",
           phone: formData.phone, // Keep the phone number they just entered
           company: "",
@@ -249,6 +253,7 @@ export default function VisitorRegistrationDialog({
       const payload: any = {
         meeting_id: selectedMeetingId,
         full_name_th: formData.full_name_th,
+        nickname: formData.nickname,
         email: formData.email,
         phone: formData.phone,
         company: formData.company,
@@ -514,6 +519,17 @@ export default function VisitorRegistrationDialog({
               onChange={(e) => setFormData({ ...formData, full_name_th: e.target.value })}
               required
               placeholder="กรอกชื่อ-นามสกุล"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="nickname">ชื่อเล่น</Label>
+            <Input
+              id="nickname"
+              value={formData.nickname}
+              onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
+              placeholder="กรอกชื่อเล่น"
+              data-testid="input-nickname"
             />
           </div>
 
