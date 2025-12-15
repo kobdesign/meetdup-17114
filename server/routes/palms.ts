@@ -1273,7 +1273,7 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
     // Get all members for this tenant
     const { data: members, error: membersError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name_th, nickname_th, phone, photo_url, company_name, position")
+      .select("participant_id, full_name_th, nickname_th, phone, photo_url, company, position")
       .eq("tenant_id", meeting.tenant_id)
       .eq("status", "member")
       .order("full_name_th");
@@ -1323,7 +1323,7 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
       nickname_th: string | null;
       phone: string | null;
       photo_url: string | null;
-      company_name: string | null;
+      company: string | null;
       position: string | null;
       attendance_status: AttendanceStatus;
       status_label: string;
@@ -1364,7 +1364,7 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
         nickname_th: member.nickname_th,
         phone: member.phone,
         photo_url: member.photo_url,
-        company_name: member.company_name,
+        company: member.company,
         position: member.position,
         attendance_status: attendanceStatus,
         status_label: statusLabel,
