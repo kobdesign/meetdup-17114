@@ -1296,7 +1296,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
         email,
         phone,
         company,
-        nickname,
+        nickname_th,
         business_type,
         status,
         created_at,
@@ -2046,7 +2046,7 @@ router.patch("/profile", async (req: Request, res: Response) => {
 router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { participantId } = req.params;
-    const { full_name_th, email, phone, company, business_type, status, referred_by_participant_id } = req.body;
+    const { full_name_th, nickname_th, email, phone, company, business_type, status, referred_by_participant_id } = req.body;
     const userId = req.user?.id;
 
     if (!participantId) {
@@ -2099,6 +2099,7 @@ router.patch("/:participantId", verifySupabaseAuth, async (req: AuthenticatedReq
     // Prepare update data (only update provided fields)
     const updateData: any = {};
     if (full_name_th !== undefined) updateData.full_name_th = full_name_th;
+    if (nickname_th !== undefined) updateData.nickname_th = nickname_th || null;
     if (email !== undefined) updateData.email = email || null;
     if (company !== undefined) updateData.company = company || null;
     if (business_type !== undefined) updateData.business_type = business_type || null;
