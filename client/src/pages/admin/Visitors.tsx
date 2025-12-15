@@ -363,6 +363,7 @@ export default function Visitors() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>ชื่อ-นามสกุล</TableHead>
+                    <TableHead>ชื่อเล่น</TableHead>
                     <TableHead>ติดต่อ</TableHead>
                     <TableHead>บริษัท/ธุรกิจ</TableHead>
                     <TableHead>สถานะ</TableHead>
@@ -392,6 +393,7 @@ export default function Visitors() {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell>{visitor.nickname_th || "-"}</TableCell>
                       <TableCell>
                         <div className="space-y-1 text-sm">
                           {visitor.email && (
