@@ -101,13 +101,18 @@ export default function MeetingAttendanceReport() {
       setMeetings(data || []);
       
       if (data && data.length > 0) {
-        // Find the nearest upcoming meeting (or the most recent past one)
+        // Find the nearest upcoming meeting (smallest date >= today)
         const today = new Date().toISOString().split('T')[0];
-        const upcomingMeeting = data.find(m => m.meeting_date >= today);
-        if (upcomingMeeting) {
-          setSelectedMeetingId(upcomingMeeting.meeting_id);
+        const upcomingMeetings = data.filter(m => m.meeting_date >= today);
+        
+        if (upcomingMeetings.length > 0) {
+          // Sort ascending by date and pick the first (nearest)
+          const nearestMeeting = upcomingMeetings.sort((a, b) => 
+            a.meeting_date.localeCompare(b.meeting_date)
+          )[0];
+          setSelectedMeetingId(nearestMeeting.meeting_id);
         } else {
-          // No upcoming meeting, use the most recent one
+          // No upcoming meeting, use the most recent past one
           setSelectedMeetingId(data[0].meeting_id);
         }
       }
