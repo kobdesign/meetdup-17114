@@ -34,6 +34,7 @@ export default function VisitorRegister() {
 
   const [formData, setFormData] = useState({
     full_name: "",
+    nickname: "",
     email: "",
     phone: prefilledPhone,
     company: "",
@@ -140,6 +141,7 @@ export default function VisitorRegister() {
         setExistingParticipant(data.participant);
         setFormData({
           full_name: data.participant.full_name_th || data.participant.full_name || "",
+          nickname: data.participant.nickname_th || "",
           email: data.participant.email || "",
           phone: data.participant.phone || formData.phone,
           company: data.participant.company || "",
@@ -186,6 +188,7 @@ export default function VisitorRegister() {
       const payload: any = {
         meeting_id: meetingId, // Backend derives tenant_id from meeting_id
         full_name: formData.full_name,
+        nickname: formData.nickname,
         email: formData.email,
         phone: formData.phone,
         company: formData.company,
@@ -419,6 +422,17 @@ export default function VisitorRegister() {
                 required
                 placeholder="กรอกชื่อ-นามสกุล"
                 data-testid="input-full-name"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="nickname">ชื่อเล่น</Label>
+              <Input
+                id="nickname"
+                value={formData.nickname}
+                onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
+                placeholder="กรอกชื่อเล่น"
+                data-testid="input-nickname"
               />
             </div>
 
