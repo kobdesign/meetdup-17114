@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { verifyProfileToken, ProfileTokenPayload } from "../utils/profileToken";
+import { LineClient } from "../services/line/lineClient";
 
 const router = Router();
 
@@ -131,6 +132,162 @@ router.post("/substitute-request", async (req: SubstituteTokenRequest, res: Resp
       .eq("member_participant_id", participantId)
       .single();
 
+    // Helper function to send LINE notification
+    const sendLineNotification = async (requestData: any, isUpdate: boolean) => {
+      try {
+        // Get participant's line_user_id
+        const { data: participant } = await supabaseAdmin
+          .from("participants")
+          .select("line_user_id, full_name_th")
+          .eq("participant_id", participantId)
+          .single();
+
+        // Get tenant's LINE access token
+        const { data: tenant } = await supabaseAdmin
+          .from("tenants")
+          .select("line_channel_access_token, name")
+          .eq("tenant_id", tenantId)
+          .single();
+
+        if (!participant?.line_user_id || !tenant?.line_channel_access_token) {
+          console.log(`${logPrefix} Cannot send LINE notification - missing line_user_id or access_token`);
+          return;
+        }
+
+        // Format meeting date
+        const meetingDate = new Date(meeting.meeting_date);
+        const dateStr = meetingDate.toLocaleDateString("th-TH", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        });
+
+        // Create Flex Message for success notification
+        const flexMessage = {
+          type: "flex",
+          altText: `${isUpdate ? "อัพเดต" : "บันทึก"}ตัวแทนสำเร็จ - ${substitute_name}`,
+          contents: {
+            type: "bubble",
+            size: "kilo",
+            header: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "text",
+                  text: isUpdate ? "อัพเดตตัวแทนสำเร็จ" : "บันทึกตัวแทนสำเร็จ",
+                  color: "#ffffff",
+                  size: "lg",
+                  weight: "bold"
+                }
+              ],
+              backgroundColor: "#22c55e",
+              paddingAll: "lg"
+            },
+            body: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "Meeting",
+                      color: "#8c8c8c",
+                      size: "sm",
+                      flex: 2
+                    },
+                    {
+                      type: "text",
+                      text: dateStr,
+                      wrap: true,
+                      size: "sm",
+                      flex: 5
+                    }
+                  ],
+                  spacing: "sm"
+                },
+                {
+                  type: "separator",
+                  margin: "md"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "ตัวแทน",
+                      color: "#8c8c8c",
+                      size: "sm",
+                      flex: 2
+                    },
+                    {
+                      type: "text",
+                      text: substitute_name,
+                      wrap: true,
+                      size: "sm",
+                      weight: "bold",
+                      flex: 5
+                    }
+                  ],
+                  spacing: "sm",
+                  margin: "md"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "เบอร์โทร",
+                      color: "#8c8c8c",
+                      size: "sm",
+                      flex: 2
+                    },
+                    {
+                      type: "text",
+                      text: normalizedPhone.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3"),
+                      size: "sm",
+                      flex: 5
+                    }
+                  ],
+                  spacing: "sm",
+                  margin: "md"
+                }
+              ],
+              paddingAll: "lg"
+            },
+            footer: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "text",
+                  text: "หากต้องการยกเลิก กรุณาพิมพ์ \"ส่งตัวแทน\" อีกครั้ง",
+                  size: "xs",
+                  color: "#8c8c8c",
+                  wrap: true,
+                  align: "center"
+                }
+              ],
+              paddingAll: "md"
+            }
+          }
+        };
+
+        const lineClient = new LineClient(tenant.line_channel_access_token);
+        await lineClient.pushMessage(participant.line_user_id, flexMessage);
+        console.log(`${logPrefix} LINE notification sent to:`, participant.line_user_id);
+      } catch (notifyError: any) {
+        console.error(`${logPrefix} Failed to send LINE notification:`, notifyError.message);
+        // Don't fail the request if notification fails
+      }
+    };
+
     if (existing) {
       // Update existing request
       const { data: updated, error: updateError } = await supabaseAdmin
@@ -153,6 +310,10 @@ router.post("/substitute-request", async (req: SubstituteTokenRequest, res: Resp
       }
 
       console.log(`${logPrefix} Updated substitute request:`, updated.request_id);
+      
+      // Send LINE notification (async, don't wait)
+      sendLineNotification(updated, true);
+      
       return res.json({ success: true, request: updated, updated: true });
     }
 
@@ -177,6 +338,10 @@ router.post("/substitute-request", async (req: SubstituteTokenRequest, res: Resp
     }
 
     console.log(`${logPrefix} Created substitute request:`, newRequest.request_id);
+    
+    // Send LINE notification (async, don't wait)
+    sendLineNotification(newRequest, false);
+    
     return res.json({ success: true, request: newRequest, created: true });
 
   } catch (error: any) {
