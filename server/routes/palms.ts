@@ -1314,8 +1314,12 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
       (substituteRequests || []).map(s => [s.member_participant_id, s])
     );
 
+    // Check if meeting has passed (meeting_date < today means it's in the past)
+    const today = new Date().toISOString().split('T')[0];
+    const meetingHasPassed = meeting.meeting_date < today;
+
     // Categorize each member
-    type AttendanceStatus = "on_time" | "late" | "substitute" | "absent";
+    type AttendanceStatus = "on_time" | "late" | "substitute" | "absent" | "pending";
     
     interface MemberReport {
       participant_id: string;
@@ -1352,8 +1356,12 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
           attendanceStatus = "on_time";
           statusLabel = "มา (ตรงเวลา)";
         }
+      } else if (!meetingHasPassed) {
+        // Meeting hasn't happened yet - show pending
+        attendanceStatus = "pending";
+        statusLabel = "รอเข้าร่วม";
       } else {
-        // No check-in and no substitute = absent
+        // Meeting has passed, no check-in and no substitute = absent
         attendanceStatus = "absent";
         statusLabel = "ขาด";
       }
@@ -1381,7 +1389,9 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
       late: memberReports.filter(m => m.attendance_status === "late").length,
       substitute: memberReports.filter(m => m.attendance_status === "substitute").length,
       absent: memberReports.filter(m => m.attendance_status === "absent").length,
-      attendance_rate: 0
+      pending: memberReports.filter(m => m.attendance_status === "pending").length,
+      attendance_rate: 0,
+      meeting_has_passed: meetingHasPassed
     };
 
     // Calculate attendance rate (on_time + late + substitute / total)

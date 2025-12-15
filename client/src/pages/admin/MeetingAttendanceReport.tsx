@@ -33,7 +33,7 @@ interface MemberReport {
   photo_url: string | null;
   company_name: string | null;
   position: string | null;
-  attendance_status: "on_time" | "late" | "substitute" | "absent";
+  attendance_status: "on_time" | "late" | "substitute" | "absent" | "pending";
   status_label: string;
   checkin_time: string | null;
   substitute_name: string | null;
@@ -46,7 +46,9 @@ interface AttendanceSummary {
   late: number;
   substitute: number;
   absent: number;
+  pending: number;
   attendance_rate: number;
+  meeting_has_passed: boolean;
 }
 
 interface AttendanceReportData {
@@ -186,8 +188,15 @@ export default function MeetingAttendanceReport() {
         { "สรุป": "มา (ตรงเวลา)", "จำนวน": reportData.summary.on_time },
         { "สรุป": "มา (สาย)", "จำนวน": reportData.summary.late },
         { "สรุป": "ส่งตัวแทน", "จำนวน": reportData.summary.substitute },
-        { "สรุป": "ขาด", "จำนวน": reportData.summary.absent },
-        { "สรุป": "อัตราเข้าร่วม", "จำนวน": `${reportData.summary.attendance_rate}%` }
+        ...(reportData.summary.meeting_has_passed 
+          ? [
+              { "สรุป": "ขาด", "จำนวน": reportData.summary.absent },
+              { "สรุป": "อัตราเข้าร่วม", "จำนวน": `${reportData.summary.attendance_rate}%` }
+            ]
+          : [
+              { "สรุป": "รอเข้าร่วม", "จำนวน": reportData.summary.pending }
+            ]
+        )
       ];
 
       const wb = XLSX.utils.book_new();
@@ -220,6 +229,8 @@ export default function MeetingAttendanceReport() {
         return <Badge variant="default" className="bg-blue-500 hover:bg-blue-600">ส่งตัวแทน</Badge>;
       case "absent":
         return <Badge variant="destructive">ขาด</Badge>;
+      case "pending":
+        return <Badge variant="secondary">รอเข้าร่วม</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -372,33 +383,51 @@ export default function MeetingAttendanceReport() {
                 </CardContent>
               </Card>
 
-              <Card className="border-red-500/30" data-testid="card-absent">
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-md bg-red-500/10">
-                      <UserMinus className="h-5 w-5 text-red-500" />
+              {reportData.summary.meeting_has_passed ? (
+                <Card className="border-red-500/30" data-testid="card-absent">
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-md bg-red-500/10">
+                        <UserMinus className="h-5 w-5 text-red-500" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-red-600">{reportData.summary.absent}</p>
+                        <p className="text-xs text-muted-foreground">ขาด</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold text-red-600">{reportData.summary.absent}</p>
-                      <p className="text-xs text-muted-foreground">ขาด</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="border-muted-foreground/30" data-testid="card-pending">
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-md bg-muted">
+                        <Clock className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-muted-foreground">{reportData.summary.pending}</p>
+                        <p className="text-xs text-muted-foreground">รอเข้าร่วม</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
 
-              <Card className="border-primary/30" data-testid="card-rate">
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-md bg-primary/10">
-                      <TrendingUp className="h-5 w-5 text-primary" />
+              {reportData.summary.meeting_has_passed && (
+                <Card className="border-primary/30" data-testid="card-rate">
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-md bg-primary/10">
+                        <TrendingUp className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">{reportData.summary.attendance_rate}%</p>
+                        <p className="text-xs text-muted-foreground">เข้าร่วม</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{reportData.summary.attendance_rate}%</p>
-                      <p className="text-xs text-muted-foreground">เข้าร่วม</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             <Card>
@@ -414,7 +443,11 @@ export default function MeetingAttendanceReport() {
                       <SelectItem value="on_time">ตรงเวลา ({reportData.summary.on_time})</SelectItem>
                       <SelectItem value="late">สาย ({reportData.summary.late})</SelectItem>
                       <SelectItem value="substitute">ส่งตัวแทน ({reportData.summary.substitute})</SelectItem>
-                      <SelectItem value="absent">ขาด ({reportData.summary.absent})</SelectItem>
+                      {reportData.summary.meeting_has_passed ? (
+                        <SelectItem value="absent">ขาด ({reportData.summary.absent})</SelectItem>
+                      ) : (
+                        <SelectItem value="pending">รอเข้าร่วม ({reportData.summary.pending})</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
