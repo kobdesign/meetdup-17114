@@ -31,7 +31,10 @@ import {
   TrendingUp,
   ArrowLeft,
   Lock,
-  LockOpen
+  LockOpen,
+  Phone,
+  MessageCircle,
+  UserCheck
 } from "lucide-react";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -76,6 +79,18 @@ interface AttendanceReportData {
   members: MemberReport[];
 }
 
+interface VisitorReport {
+  participant_id: string;
+  full_name_th: string;
+  nickname_th: string | null;
+  phone: string | null;
+  company: string | null;
+  line_user_id: string | null;
+  photo_url: string | null;
+  checked_in: boolean;
+  checkin_time: string | null;
+}
+
 export default function MeetingAttendanceReport() {
   const navigate = useNavigate();
   const { effectiveTenantId } = useTenantContext();
@@ -87,6 +102,8 @@ export default function MeetingAttendanceReport() {
   const [exporting, setExporting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [closingMeeting, setClosingMeeting] = useState(false);
+  const [visitors, setVisitors] = useState<VisitorReport[]>([]);
+  const [loadingVisitors, setLoadingVisitors] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -97,8 +114,34 @@ export default function MeetingAttendanceReport() {
   useEffect(() => {
     if (selectedMeetingId) {
       loadAttendanceReport();
+      loadVisitors();
     }
   }, [selectedMeetingId]);
+
+  const loadVisitors = async () => {
+    if (!selectedMeetingId) return;
+
+    setLoadingVisitors(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const response = await fetch(`/api/palms/meeting/${selectedMeetingId}/registered-visitors`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setVisitors(data.visitors || []);
+      }
+    } catch (err: any) {
+      console.error("Error loading visitors:", err);
+    } finally {
+      setLoadingVisitors(false);
+    }
+  };
 
   const loadMeetings = async () => {
     if (!effectiveTenantId) {
@@ -600,6 +643,99 @@ export default function MeetingAttendanceReport() {
                     ))
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Visitor Section */}
+            <Card data-testid="card-visitors">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <UserCheck className="h-4 w-4" />
+                    Visitor ที่เช็คอิน ({visitors.length})
+                  </CardTitle>
+                </div>
+                <CardDescription>
+                  รายชื่อ Visitor ที่เช็คอินใน Meeting นี้
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingVisitors ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : visitors.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">ยังไม่มี Visitor เช็คอิน</p>
+                ) : (
+                  <div className="space-y-2">
+                    {visitors.map((visitor) => (
+                      <div 
+                        key={visitor.participant_id}
+                        className="flex items-center gap-3 p-3 rounded-lg border"
+                        data-testid={`row-visitor-${visitor.participant_id}`}
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={visitor.photo_url || undefined} />
+                          <AvatarFallback>
+                            {visitor.full_name_th?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium truncate">{visitor.full_name_th}</p>
+                            {visitor.nickname_th && (
+                              <span className="text-sm text-muted-foreground">({visitor.nickname_th})</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground truncate">
+                            {visitor.company || visitor.phone || "-"}
+                          </div>
+                          {visitor.checkin_time && (
+                            <div className="text-sm text-muted-foreground">
+                              เช็คอิน: {new Date(visitor.checkin_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2 shrink-0">
+                          {visitor.phone && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              asChild
+                              data-testid={`button-call-visitor-${visitor.participant_id}`}
+                            >
+                              <a href={`tel:${visitor.phone}`}>
+                                <Phone className="h-4 w-4" />
+                              </a>
+                            </Button>
+                          )}
+                          {visitor.line_user_id && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              asChild
+                              data-testid={`button-line-visitor-${visitor.participant_id}`}
+                            >
+                              <a 
+                                href={`https://line.me/R/oaMessage/@${visitor.line_user_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </a>
+                            </Button>
+                          )}
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            มาแล้ว
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </>

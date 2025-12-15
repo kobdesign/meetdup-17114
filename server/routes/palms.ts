@@ -1493,4 +1493,128 @@ router.get("/meeting/:meetingId/attendance-report", verifySupabaseAuth, async (r
   }
 });
 
+/**
+ * GET /api/palms/meeting/:meetingId/registered-visitors
+ * Get visitors who registered for a meeting with their check-in status
+ * Returns: visitors with phone, line_user_id, and check-in status for follow-up
+ */
+router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-registered-visitors:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { meetingId } = req.params;
+
+    // Get meeting info
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id, meeting_date, theme, meeting_closed_at")
+      .eq("meeting_id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Get all visitors/prospects for this tenant
+    const { data: visitors, error: visitorsError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th, phone, company, line_user_id, photo_url")
+      .eq("tenant_id", meeting.tenant_id)
+      .in("status", ["visitor", "prospect"])
+      .order("full_name_th");
+
+    if (visitorsError) {
+      console.error(`${logPrefix} Visitors query error:`, visitorsError);
+      return res.status(500).json({ success: false, error: "Failed to fetch visitors" });
+    }
+
+    // Get check-ins for this meeting for these visitors
+    const visitorIds = (visitors || []).map(v => v.participant_id);
+    
+    // Short-circuit if no visitors exist
+    if (visitorIds.length === 0) {
+      console.log(`${logPrefix} No visitors found for tenant, returning empty list`);
+      return res.json({
+        success: true,
+        meeting: {
+          meeting_id: meeting.meeting_id,
+          meeting_date: meeting.meeting_date,
+          theme: meeting.theme,
+          meeting_closed_at: meeting.meeting_closed_at
+        },
+        visitors: [],
+        summary: { total: 0, checked_in: 0 }
+      });
+    }
+    
+    const { data: checkins, error: checkinsError } = await supabaseAdmin
+      .from("checkins")
+      .select("participant_id, checkin_time")
+      .eq("meeting_id", meetingId)
+      .in("participant_id", visitorIds);
+
+    if (checkinsError) {
+      console.error(`${logPrefix} Checkins query error:`, checkinsError);
+      return res.status(500).json({ success: false, error: "Failed to fetch checkins" });
+    }
+
+    // Create checkin map for quick lookup
+    const checkinMap = new Map(
+      (checkins || []).map(c => [c.participant_id, c])
+    );
+
+    // Filter visitors who have registered for this meeting (have a checkin record)
+    // AND also visitors without checkin for reference
+    const registeredVisitors = (visitors || [])
+      .filter(v => checkinMap.has(v.participant_id))
+      .map(visitor => {
+        const checkin = checkinMap.get(visitor.participant_id);
+        return {
+          participant_id: visitor.participant_id,
+          full_name_th: visitor.full_name_th,
+          nickname_th: visitor.nickname_th,
+          phone: visitor.phone,
+          company: visitor.company,
+          line_user_id: visitor.line_user_id,
+          photo_url: visitor.photo_url,
+          checked_in: true,
+          checkin_time: checkin?.checkin_time || null
+        };
+      });
+
+    console.log(`${logPrefix} Found ${registeredVisitors.length} registered visitors for meeting:`, meetingId);
+
+    return res.json({
+      success: true,
+      meeting: {
+        meeting_id: meeting.meeting_id,
+        meeting_date: meeting.meeting_date,
+        theme: meeting.theme,
+        meeting_closed_at: meeting.meeting_closed_at
+      },
+      visitors: registeredVisitors,
+      summary: {
+        total: registeredVisitors.length,
+        checked_in: registeredVisitors.filter(v => v.checked_in).length
+      }
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 export default router;
