@@ -25,6 +25,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
   const [members, setMembers] = useState<Array<{ participant_id: string; full_name_th: string | null; nickname: string | null; nickname_th: string | null }>>([]);
   const [formData, setFormData] = useState({
     full_name_th: "",
+    nickname_th: "",
     email: "",
     phone: "",
     company: "",
@@ -68,6 +69,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
     if (visitor) {
       setFormData({
         full_name_th: visitor.full_name_th || visitor.full_name || "",
+        nickname_th: visitor.nickname_th || "",
         email: visitor.email || "",
         phone: visitor.phone || "",
         company: visitor.company || "",
@@ -83,6 +85,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
   const handleEdit = () => {
     setFormData({
       full_name_th: visitor.full_name_th || visitor.full_name || "",
+      nickname_th: visitor.nickname_th || "",
       email: visitor.email || "",
       phone: visitor.phone || "",
       company: visitor.company || "",
@@ -97,6 +100,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
     setIsEditMode(false);
     setFormData({
       full_name_th: visitor.full_name_th || visitor.full_name || "",
+      nickname_th: visitor.nickname_th || "",
       email: visitor.email || "",
       phone: visitor.phone || "",
       company: visitor.company || "",
@@ -214,6 +218,23 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
                   <div className="flex items-center gap-2">
                     <UserCircle className="w-4 h-4 text-muted-foreground" />
                     <span>{visitor.full_name_th || visitor.full_name || "-"}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="nickname_th">ชื่อเล่น</Label>
+                {isEditMode ? (
+                  <Input
+                    id="nickname_th"
+                    value={formData.nickname_th}
+                    onChange={(e) => setFormData({ ...formData, nickname_th: e.target.value })}
+                    data-testid="input-nickname"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <UserCircle className="w-4 h-4 text-muted-foreground" />
+                    <span>{visitor.nickname_th || "-"}</span>
                   </div>
                 )}
               </div>
