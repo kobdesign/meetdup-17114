@@ -138,6 +138,8 @@ export default function MeetingAttendanceReport() {
   const [repeatVisitorList, setRepeatVisitorList] = useState<RepeatVisitor[]>([]);
   const [loadingVisitorStats, setLoadingVisitorStats] = useState(false);
   const [repeatVisitorsOpen, setRepeatVisitorsOpen] = useState(false);
+  const [membersListOpen, setMembersListOpen] = useState(true);
+  const [visitorsListOpen, setVisitorsListOpen] = useState(true);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -778,170 +780,188 @@ export default function MeetingAttendanceReport() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <CardTitle className="text-base">รายชื่อสมาชิก</CardTitle>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">ทั้งหมด ({reportData.members.length})</SelectItem>
-                      <SelectItem value="on_time">ตรงเวลา ({reportData.summary.on_time})</SelectItem>
-                      <SelectItem value="late">สาย ({reportData.summary.late})</SelectItem>
-                      <SelectItem value="substitute">ส่งตัวแทน ({reportData.summary.substitute})</SelectItem>
-                      {reportData.summary.meeting_has_passed ? (
-                        <SelectItem value="absent">ขาด ({reportData.summary.absent})</SelectItem>
+            <Collapsible open={membersListOpen} onOpenChange={setMembersListOpen}>
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="gap-2 p-0 h-auto hover:bg-transparent" data-testid="button-toggle-members">
+                        <CardTitle className="text-base">รายชื่อสมาชิก ({reportData.members.length})</CardTitle>
+                        <ChevronDown className={`h-4 w-4 transition-transform ${membersListOpen ? "" : "-rotate-90"}`} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">ทั้งหมด ({reportData.members.length})</SelectItem>
+                        <SelectItem value="on_time">ตรงเวลา ({reportData.summary.on_time})</SelectItem>
+                        <SelectItem value="late">สาย ({reportData.summary.late})</SelectItem>
+                        <SelectItem value="substitute">ส่งตัวแทน ({reportData.summary.substitute})</SelectItem>
+                        {reportData.summary.meeting_has_passed ? (
+                          <SelectItem value="absent">ขาด ({reportData.summary.absent})</SelectItem>
+                        ) : (
+                          <SelectItem value="pending">รอเข้าร่วม ({reportData.summary.pending})</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <div className="space-y-2">
+                      {filteredMembers.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">ไม่พบข้อมูล</p>
                       ) : (
-                        <SelectItem value="pending">รอเข้าร่วม ({reportData.summary.pending})</SelectItem>
+                        filteredMembers.map((member) => (
+                          <div 
+                            key={member.participant_id}
+                            className="flex items-center gap-3 p-3 rounded-lg border"
+                            data-testid={`row-member-${member.participant_id}`}
+                          >
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={member.photo_url || undefined} />
+                              <AvatarFallback>
+                                {member.full_name_th?.charAt(0) || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium truncate">{member.full_name_th}</p>
+                                {member.nickname_th && (
+                                  <span className="text-sm text-muted-foreground">({member.nickname_th})</span>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground truncate">
+                                {member.company_name || member.position || member.phone || "-"}
+                              </div>
+                              {member.attendance_status === "substitute" && member.substitute_name && (
+                                <div className="text-sm text-blue-600 mt-1">
+                                  ตัวแทน: {member.substitute_name} ({member.substitute_phone})
+                                </div>
+                              )}
+                              {member.checkin_time && (
+                                <div className="text-sm text-muted-foreground">
+                                  เช็คอิน: {new Date(member.checkin_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="shrink-0">
+                              {getStatusBadge(member.attendance_status)}
+                            </div>
+                          </div>
+                        ))
                       )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {filteredMembers.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">ไม่พบข้อมูล</p>
-                  ) : (
-                    filteredMembers.map((member) => (
-                      <div 
-                        key={member.participant_id}
-                        className="flex items-center gap-3 p-3 rounded-lg border"
-                        data-testid={`row-member-${member.participant_id}`}
-                      >
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={member.photo_url || undefined} />
-                          <AvatarFallback>
-                            {member.full_name_th?.charAt(0) || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium truncate">{member.full_name_th}</p>
-                            {member.nickname_th && (
-                              <span className="text-sm text-muted-foreground">({member.nickname_th})</span>
-                            )}
-                          </div>
-                          <div className="text-sm text-muted-foreground truncate">
-                            {member.company_name || member.position || member.phone || "-"}
-                          </div>
-                          {member.attendance_status === "substitute" && member.substitute_name && (
-                            <div className="text-sm text-blue-600 mt-1">
-                              ตัวแทน: {member.substitute_name} ({member.substitute_phone})
-                            </div>
-                          )}
-                          {member.checkin_time && (
-                            <div className="text-sm text-muted-foreground">
-                              เช็คอิน: {new Date(member.checkin_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="shrink-0">
-                          {getStatusBadge(member.attendance_status)}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
             {/* Visitor Section - Show only visitors who registered but haven't checked in */}
-            <Card data-testid="card-visitors">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-yellow-500" />
-                    Visitor ที่ลงทะเบียนแต่ยังไม่มา ({visitors.filter(v => !v.checked_in).length})
-                  </CardTitle>
-                </div>
-                <CardDescription>
-                  รายชื่อ Visitor ที่ลงทะเบียนไว้แต่ยังไม่ได้เช็คอิน สามารถติดต่อติดตามได้
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingVisitors ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Collapsible open={visitorsListOpen} onOpenChange={setVisitorsListOpen}>
+              <Card data-testid="card-visitors">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="gap-2 p-0 h-auto hover:bg-transparent" data-testid="button-toggle-visitors">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-yellow-500" />
+                          Visitor ที่ลงทะเบียนแต่ยังไม่มา ({visitors.filter(v => !v.checked_in).length})
+                        </CardTitle>
+                        <ChevronDown className={`h-4 w-4 transition-transform ${visitorsListOpen ? "" : "-rotate-90"}`} />
+                      </Button>
+                    </CollapsibleTrigger>
                   </div>
-                ) : visitors.filter(v => !v.checked_in).length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">ไม่มี Visitor ที่ลงทะเบียนแต่ยังไม่มา</p>
-                ) : (
-                  <div className="space-y-2">
-                    {visitors.filter(v => !v.checked_in).map((visitor) => (
-                      <div 
-                        key={visitor.participant_id}
-                        className="flex items-center gap-3 p-3 rounded-lg border"
-                        data-testid={`row-visitor-${visitor.participant_id}`}
-                      >
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={visitor.photo_url || undefined} />
-                          <AvatarFallback>
-                            {visitor.full_name_th?.charAt(0) || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium truncate">{visitor.full_name_th}</p>
-                            {visitor.nickname_th && (
-                              <span className="text-sm text-muted-foreground">({visitor.nickname_th})</span>
-                            )}
-                          </div>
-                          <div className="text-sm text-muted-foreground truncate">
-                            {visitor.company || visitor.phone || "-"}
-                          </div>
-                          {visitor.registered_at && (
-                            <div className="text-sm text-muted-foreground">
-                              ลงทะเบียน: {new Date(visitor.registered_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center gap-2 shrink-0">
-                          {visitor.phone && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              asChild
-                              data-testid={`button-call-visitor-${visitor.participant_id}`}
-                            >
-                              <a href={`tel:${visitor.phone}`}>
-                                <Phone className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          )}
-                          {visitor.line_user_id && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              asChild
-                              data-testid={`button-line-visitor-${visitor.participant_id}`}
-                            >
-                              <a 
-                                href={`https://line.me/R/oaMessage/@${visitor.line_user_id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <MessageCircle className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          )}
-                          <Badge variant="default" className="bg-yellow-500">
-                            <Clock className="h-3 w-3 mr-1" />
-                            ยังไม่มา
-                          </Badge>
-                        </div>
+                  <CardDescription>
+                    รายชื่อ Visitor ที่ลงทะเบียนไว้แต่ยังไม่ได้เช็คอิน สามารถติดต่อติดตามได้
+                  </CardDescription>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    {loadingVisitors ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    ) : visitors.filter(v => !v.checked_in).length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">ไม่มี Visitor ที่ลงทะเบียนแต่ยังไม่มา</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {visitors.filter(v => !v.checked_in).map((visitor) => (
+                          <div 
+                            key={visitor.participant_id}
+                            className="flex items-center gap-3 p-3 rounded-lg border"
+                            data-testid={`row-visitor-${visitor.participant_id}`}
+                          >
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={visitor.photo_url || undefined} />
+                              <AvatarFallback>
+                                {visitor.full_name_th?.charAt(0) || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium truncate">{visitor.full_name_th}</p>
+                                {visitor.nickname_th && (
+                                  <span className="text-sm text-muted-foreground">({visitor.nickname_th})</span>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground truncate">
+                                {visitor.company || visitor.phone || "-"}
+                              </div>
+                              {visitor.registered_at && (
+                                <div className="text-sm text-muted-foreground">
+                                  ลงทะเบียน: {new Date(visitor.registered_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-2 shrink-0">
+                              {visitor.phone && (
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  asChild
+                                  data-testid={`button-call-visitor-${visitor.participant_id}`}
+                                >
+                                  <a href={`tel:${visitor.phone}`}>
+                                    <Phone className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              )}
+                              {visitor.line_user_id && (
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  asChild
+                                  data-testid={`button-line-visitor-${visitor.participant_id}`}
+                                >
+                                  <a 
+                                    href={`https://line.me/R/oaMessage/@${visitor.line_user_id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <MessageCircle className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              )}
+                              <Badge variant="default" className="bg-yellow-500">
+                                <Clock className="h-3 w-3 mr-1" />
+                                ยังไม่มา
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           </>
         ) : meetings.length === 0 ? (
           <Card>
