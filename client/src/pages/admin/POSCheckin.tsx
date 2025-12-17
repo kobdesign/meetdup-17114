@@ -187,6 +187,7 @@ export default function POSCheckin() {
           is_late,
           participant:participants!fk_checkins_participant (
             full_name_th,
+            nickname_th,
             company,
             status,
             photo_url
@@ -870,7 +871,10 @@ export default function POSCheckin() {
                                   </div>
                                 )}
                                 <div className="min-w-0">
-                                  <div className="font-medium truncate">{p.full_name_th}</div>
+                                  <div className="font-medium truncate">
+                                    {p.full_name_th}
+                                    {p.nickname_th && <span className="font-normal text-muted-foreground"> ({p.nickname_th})</span>}
+                                  </div>
                                   {p.company && (
                                     <div className="text-xs text-muted-foreground truncate">{p.company}</div>
                                   )}
@@ -1105,7 +1109,10 @@ export default function POSCheckin() {
                                   </div>
                                 )}
                                 <div className="text-sm">
-                                  <div className="font-medium">{member.full_name_th}</div>
+                                  <div className="font-medium">
+                                    {member.full_name_th}
+                                    {member.nickname_th && <span className="font-normal text-muted-foreground"> ({member.nickname_th})</span>}
+                                  </div>
                                   {member.company && <div className="text-xs text-muted-foreground">{member.company}</div>}
                                 </div>
                               </div>
@@ -1193,47 +1200,6 @@ export default function POSCheckin() {
                     </div>
                   </div>
 
-                  <div className="p-4 border rounded-lg space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">สถานะเช็คอินตรงเวลา</span>
-                      </div>
-                      {isOntimeClosed ? (
-                        <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300">
-                          ปิดแล้ว
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
-                          เปิดอยู่
-                        </Badge>
-                      )}
-                    </div>
-                    <Button
-                      variant={isOntimeClosed ? "outline" : "destructive"}
-                      size="sm"
-                      className="w-full"
-                      onClick={handleToggleOntime}
-                      disabled={togglingOntime}
-                      data-testid="button-toggle-ontime"
-                    >
-                      {togglingOntime ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : isOntimeClosed ? (
-                        <Unlock className="h-4 w-4 mr-2" />
-                      ) : (
-                        <LockKeyhole className="h-4 w-4 mr-2" />
-                      )}
-                      {isOntimeClosed ? "เปิดรับเช็คอินตรงเวลา" : "ปิดรับเช็คอินตรงเวลา"}
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      {isOntimeClosed 
-                        ? "ผู้ที่เช็คอินหลังจากนี้จะถูกบันทึกว่า \"มาสาย\""
-                        : "กดปิดเพื่อเริ่มบันทึกผู้มาสาย"
-                      }
-                    </p>
-                  </div>
-
                   {pendingSubstitutes.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium flex items-center gap-2">
@@ -1258,6 +1224,7 @@ export default function POSCheckin() {
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   แทน: {sub.member?.full_name_th}
+                                  {sub.member?.nickname_th && ` (${sub.member.nickname_th})`}
                                 </p>
                               </div>
                               <Button
@@ -1303,6 +1270,7 @@ export default function POSCheckin() {
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   แทน: {sub.member?.full_name_th}
+                                  {sub.member?.nickname_th && ` (${sub.member.nickname_th})`}
                                 </p>
                               </div>
                               <div className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0">
@@ -1348,6 +1316,7 @@ export default function POSCheckin() {
                                   </div>
                                   <div className="text-xs text-muted-foreground truncate">
                                     แทน: {sub.member?.full_name_th}
+                                    {sub.member?.nickname_th && ` (${sub.member.nickname_th})`}
                                   </div>
                                 </div>
                               </div>
@@ -1385,6 +1354,9 @@ export default function POSCheckin() {
                                 <div className="min-w-0">
                                   <div className="font-medium truncate flex items-center gap-2 flex-wrap">
                                     {checkin.participant?.full_name_th || "ไม่ระบุชื่อ"}
+                                    {checkin.participant?.nickname_th && (
+                                      <span className="font-normal text-muted-foreground">({checkin.participant.nickname_th})</span>
+                                    )}
                                     {checkin.is_late && (
                                       <Badge variant="secondary" className="text-xs bg-orange-200 dark:bg-orange-800 text-orange-700 dark:text-orange-300">
                                         สาย

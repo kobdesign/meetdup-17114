@@ -33,6 +33,8 @@ import {
   ArrowLeft,
   Lock,
   LockOpen,
+  LockKeyhole,
+  Unlock,
   Phone,
   MessageCircle,
   UserCheck,
@@ -140,6 +142,7 @@ export default function MeetingAttendanceReport() {
   const [repeatVisitorsOpen, setRepeatVisitorsOpen] = useState(false);
   const [membersListOpen, setMembersListOpen] = useState(false);
   const [visitorsListOpen, setVisitorsListOpen] = useState(false);
+  const [togglingOntime, setTogglingOntime] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -392,6 +395,53 @@ export default function MeetingAttendanceReport() {
     }
   };
 
+  const selectedMeeting = meetings.find(m => m.meeting_id === selectedMeetingId);
+  const isOntimeClosed = !!selectedMeeting?.ontime_closed_at;
+
+  const handleToggleOntime = async () => {
+    if (!selectedMeetingId) return;
+    
+    setTogglingOntime(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+      
+      const isClosed = selectedMeeting?.ontime_closed_at;
+      const endpoint = isClosed 
+        ? `/api/palms/meeting/${selectedMeetingId}/reopen-ontime`
+        : `/api/palms/meeting/${selectedMeetingId}/close-ontime`;
+      
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(data.message);
+        setMeetings(prev => prev.map(m => 
+          m.meeting_id === selectedMeetingId
+            ? { ...m, ontime_closed_at: isClosed ? null : new Date().toISOString() }
+            : m
+        ));
+      } else {
+        toast.error(data.message || "เกิดข้อผิดพลาด");
+      }
+    } catch (err) {
+      console.error("Error toggling ontime:", err);
+      toast.error("ไม่สามารถเปลี่ยนสถานะได้");
+    } finally {
+      setTogglingOntime(false);
+    }
+  };
+
   const filteredMembers = reportData?.members.filter(member => {
     if (statusFilter === "all") return true;
     return member.attendance_status === statusFilter;
@@ -533,6 +583,50 @@ export default function MeetingAttendanceReport() {
           </div>
         ) : reportData ? (
           <>
+            {/* Toggle On-time Check-in Button */}
+            {!reportData.meeting.meeting_closed_at && (
+              <Card className="border-dashed">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-2 rounded-md ${isOntimeClosed ? "bg-orange-500/10" : "bg-green-500/10"}`}>
+                        {isOntimeClosed ? (
+                          <LockKeyhole className="h-5 w-5 text-orange-500" />
+                        ) : (
+                          <Unlock className="h-5 w-5 text-green-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">สถานะเช็คอินตรงเวลา</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isOntimeClosed 
+                            ? "ปิดแล้ว - ผู้ที่เช็คอินหลังจากนี้จะถูกบันทึกว่า \"มาสาย\""
+                            : "เปิดอยู่ - กดปิดเพื่อเริ่มบันทึกผู้มาสาย"
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant={isOntimeClosed ? "outline" : "destructive"}
+                      size="sm"
+                      onClick={handleToggleOntime}
+                      disabled={togglingOntime}
+                      data-testid="button-toggle-ontime"
+                    >
+                      {togglingOntime ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : isOntimeClosed ? (
+                        <Unlock className="h-4 w-4 mr-2" />
+                      ) : (
+                        <LockKeyhole className="h-4 w-4 mr-2" />
+                      )}
+                      {isOntimeClosed ? "เปิดรับเช็คอินตรงเวลา" : "ปิดรับเช็คอินตรงเวลา"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <Card data-testid="card-total">
                 <CardContent className="pt-4 pb-4">
@@ -754,7 +848,12 @@ export default function MeetingAttendanceReport() {
                                   <AvatarFallback>{visitor.full_name_th?.charAt(0) || "?"}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm truncate">{visitor.full_name_th}</p>
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <p className="font-medium text-sm truncate">{visitor.full_name_th}</p>
+                                    {visitor.nickname_th && (
+                                      <span className="text-xs text-muted-foreground">({visitor.nickname_th})</span>
+                                    )}
+                                  </div>
                                   {visitor.company && (
                                     <p className="text-xs text-muted-foreground truncate">{visitor.company}</p>
                                   )}

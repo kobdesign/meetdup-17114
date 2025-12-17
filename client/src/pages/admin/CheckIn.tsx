@@ -117,6 +117,7 @@ export default function CheckIn() {
           *,
           participant:participants!fk_checkins_participant (
             full_name_th,
+            nickname_th,
             company,
             status
           )
@@ -423,6 +424,7 @@ export default function CheckIn() {
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   แทน: {sub.member?.full_name_th}
+                                  {sub.member?.nickname_th && ` (${sub.member.nickname_th})`}
                                 </p>
                               </div>
                               <Button
@@ -463,6 +465,7 @@ export default function CheckIn() {
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   แทน: {sub.member?.full_name_th}
+                                  {sub.member?.nickname_th && ` (${sub.member.nickname_th})`}
                                 </p>
                               </div>
                               <div className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0">
@@ -502,6 +505,7 @@ export default function CheckIn() {
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   แทน: {sub.member?.full_name_th}
+                                  {sub.member?.nickname_th && ` (${sub.member.nickname_th})`}
                                 </div>
                               </div>
                               <div className="text-xs text-muted-foreground">
@@ -518,8 +522,11 @@ export default function CheckIn() {
                               className="flex items-center justify-between p-3 border rounded-lg text-sm"
                             >
                               <div>
-                                <div className="font-medium">
+                                <div className="font-medium flex items-center gap-1 flex-wrap">
                                   {checkin.participant?.full_name_th || checkin.participant?.full_name || "ไม่ระบุชื่อ"}
+                                  {checkin.participant?.nickname_th && (
+                                    <span className="text-muted-foreground font-normal">({checkin.participant.nickname_th})</span>
+                                  )}
                                 </div>
                                 {checkin.participant?.company && (
                                   <div className="text-xs text-muted-foreground">
