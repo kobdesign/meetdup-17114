@@ -25,7 +25,7 @@ export async function handleApplyMember(
   try {
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("participants")
-      .select("participant_id, full_name_th, nickname_th, phone, company, status, tenant_id, line_user_id")
+      .select("participant_id, full_name_th, nickname_th, phone, company, status, tenant_id, line_user_id, user_id")
       .eq("participant_id", participantId)
       .eq("tenant_id", tenantId)
       .single();
@@ -57,6 +57,23 @@ export async function handleApplyMember(
       return { success: true };
     }
 
+    // Check if there's already a pending request for this participant
+    const { data: existingRequest, error: existingError } = await supabaseAdmin
+      .from("chapter_join_requests")
+      .select("request_id, status")
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (existingRequest) {
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "📋 คุณมีคำขอสมัครสมาชิกที่รออนุมัติอยู่แล้ว\n\nกรุณารอการอนุมัติจากผู้ดูแลระบบ"
+      });
+      return { success: true };
+    }
+
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from("tenants")
       .select("tenant_name")
@@ -68,13 +85,33 @@ export async function handleApplyMember(
       return { success: false, error: "Tenant not found" };
     }
 
+    // Create join request record in database
+    const { error: insertError } = await supabaseAdmin
+      .from("chapter_join_requests")
+      .insert({
+        tenant_id: tenantId,
+        participant_id: participantId,
+        user_id: participant.user_id || null,
+        status: "pending",
+        message: `สมัครผ่าน LINE: ${participant.full_name_th}`
+      });
+
+    if (insertError) {
+      console.error(`${logPrefix} Error creating join request:`, insertError);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      });
+      return { success: false, error: "Failed to create request" };
+    }
+
+    console.log(`${logPrefix} Created join request for participant ${participantId}`);
+
+    // Notify admins via LINE (without approve/reject buttons - they use web UI)
     const { data: admins, error: adminsError } = await supabaseAdmin
       .from("user_roles")
       .select(`
         user_id,
-        users:user_id (
-          id
-        ),
         participants!inner (
           line_user_id,
           full_name_th
@@ -105,11 +142,13 @@ export async function handleApplyMember(
 
     console.log(`${logPrefix} Found ${adminLineUserIds.length} admin LINE users to notify`);
 
+    // Reply to applicant
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
       text: `📨 ส่งคำขอสมัครสมาชิกแล้ว!\n\nชื่อ: ${participant.full_name_th}\n\nกรุณารอการอนุมัติจากผู้ดูแลระบบ`
     });
 
+    // Send notification to admins (informational only, no buttons)
     if (adminLineUserIds.length > 0) {
       const adminFlexMessage = {
         type: "flex" as const,
@@ -173,36 +212,18 @@ export async function handleApplyMember(
               },
               {
                 type: "text",
-                text: tenant.tenant_name,
+                text: `กรุณาตรวจสอบและอนุมัติที่หน้า "จัดการสมาชิก"`,
                 size: "sm",
                 color: "#888888",
-                margin: "md"
-              }
-            ]
-          },
-          footer: {
-            type: "box",
-            layout: "horizontal",
-            spacing: "md",
-            contents: [
-              {
-                type: "button",
-                style: "primary",
-                color: "#1DB446",
-                action: {
-                  type: "postback",
-                  label: "อนุมัติ",
-                  data: `action=approve_member&participant_id=${participantId}&tenant_id=${tenantId}`
-                }
+                margin: "md",
+                wrap: true
               },
               {
-                type: "button",
-                style: "secondary",
-                action: {
-                  type: "postback",
-                  label: "ปฏิเสธ",
-                  data: `action=reject_member&participant_id=${participantId}&tenant_id=${tenantId}`
-                }
+                type: "text",
+                text: tenant.tenant_name,
+                size: "xs",
+                color: "#AAAAAA",
+                margin: "sm"
               }
             ]
           }

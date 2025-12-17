@@ -1286,7 +1286,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
       });
     }
 
-    // Get participants (prospects, visitors, declined)
+    // Get participants (prospects, visitors, members converted from visitors, declined)
     const { data: participants, error: participantsError } = await supabaseAdmin
       .from("participants")
       .select(`
@@ -1303,7 +1303,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
         referred_by_participant_id
       `)
       .eq("tenant_id", tenant_id)
-      .in("status", ["prospect", "visitor", "declined"])
+      .in("status", ["prospect", "visitor", "member", "declined"])
       .order("created_at", { ascending: false });
 
     if (participantsError) {

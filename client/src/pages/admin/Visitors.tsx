@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, CheckCircle, XCircle, Clock, Mail, Phone, UserPlus, UserCheck, Users, TrendingUp, Download } from "lucide-react";
+import { Search, CheckCircle, XCircle, Clock, Mail, Phone, UserPlus, UserCheck, Users, TrendingUp, Download, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportToExcel, VISITOR_COLUMNS } from "@/utils/exportExcel";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -211,6 +211,8 @@ export default function Visitors() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case "member":
+        return <Award className="h-4 w-4 text-primary" />;
       case "visitor":
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case "prospect":
@@ -300,6 +302,23 @@ export default function Visitors() {
           </Card>
 
           <Card 
+            data-testid="card-members-converted"
+            className="cursor-pointer hover-elevate"
+            onClick={() => handleKPICardClick("member")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">เปลี่ยนเป็นสมาชิก</CardTitle>
+              <Award className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-members-converted">{analytics.members}</div>
+              <p className="text-xs text-muted-foreground">
+                จากผู้เยี่ยมชมทั้งหมด
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card 
             data-testid="card-declined"
             className="cursor-pointer hover-elevate"
             onClick={() => handleKPICardClick("declined")}
@@ -335,6 +354,7 @@ export default function Visitors() {
               <SelectItem value="all">ทุกสถานะ</SelectItem>
               <SelectItem value="prospect">ผู้มุ่งหวัง</SelectItem>
               <SelectItem value="visitor">ผู้เยี่ยมชม</SelectItem>
+              <SelectItem value="member">เปลี่ยนเป็นสมาชิก</SelectItem>
               <SelectItem value="declined">ไม่ติดตาม</SelectItem>
             </SelectContent>
           </Select>

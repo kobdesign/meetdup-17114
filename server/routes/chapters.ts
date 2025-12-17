@@ -2,6 +2,8 @@ import { Router } from "express";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { syncUserToParticipants } from "../utils/participants";
+import { LineClient } from "../services/line/lineClient";
+import { getLineCredentials } from "../services/line/credentials";
 import crypto from "crypto";
 
 const router = Router();
@@ -681,6 +683,7 @@ router.post("/join-request/:requestId/:action", verifySupabaseAuth, async (req: 
       return res.status(404).json({ error: "Request not found" });
     }
 
+    // SECURITY: Check authorization FIRST before revealing any request status
     // Check if user is super admin OR chapter admin of this specific chapter
     const { data: superAdminRole } = await supabaseAdmin
       .from("user_roles")
@@ -691,7 +694,7 @@ router.post("/join-request/:requestId/:action", verifySupabaseAuth, async (req: 
       .maybeSingle();
 
     if (!superAdminRole) {
-      // Not a super admin, check if chapter admin for this specific chapter
+      // Not a super admin, check if chapter admin for this specific chapter's tenant
       const { data: chapterAdminRole } = await supabaseAdmin
         .from("user_roles")
         .select("role")
@@ -705,53 +708,95 @@ router.post("/join-request/:requestId/:action", verifySupabaseAuth, async (req: 
       }
     }
 
+    // Check if already processed (after authorization check)
+    if (request.status !== "pending") {
+      return res.status(400).json({ error: "คำขอนี้ได้รับการดำเนินการแล้ว" });
+    }
+
+    // Get tenant info for notification
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name")
+      .eq("tenant_id", request.tenant_id)
+      .single();
+
+    // Determine if this is a participant-based request (LINE flow) or user-based (invite link)
+    const isParticipantRequest = !!request.participant_id;
+
     if (action === "approve") {
-      // Create user profile if not exists
-      const { data: existingProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .eq("id", request.user_id)
-        .single();
+      if (isParticipantRequest) {
+        // LINE flow: Update participant status to member
+        const { error: updateParticipantError } = await supabaseAdmin
+          .from("participants")
+          .update({ status: "member" })
+          .eq("participant_id", request.participant_id);
 
-      if (!existingProfile) {
-        await supabaseAdmin
+        if (updateParticipantError) {
+          console.error("Error updating participant status:", updateParticipantError);
+          return res.status(500).json({ error: "Failed to update participant status" });
+        }
+
+        // If participant has user_id, also create user_role
+        if (request.user_id) {
+          const { error: roleError } = await supabaseAdmin
+            .from("user_roles")
+            .upsert({
+              user_id: request.user_id,
+              tenant_id: request.tenant_id,
+              role: "member",
+            }, { onConflict: "user_id,tenant_id" });
+
+          if (roleError) {
+            console.error("Error upserting member role:", roleError);
+          }
+        }
+      } else if (request.user_id) {
+        // Invite link flow: Create user profile and role
+        const { data: existingProfile } = await supabaseAdmin
           .from("profiles")
-          .insert({ id: request.user_id });
-      }
+          .select("id")
+          .eq("id", request.user_id)
+          .single();
 
-      // Add user as member
-      const { error: roleError } = await supabaseAdmin
-        .from("user_roles")
-        .insert({
+        if (!existingProfile) {
+          await supabaseAdmin
+            .from("profiles")
+            .insert({ id: request.user_id });
+        }
+
+        // Add user as member
+        const { error: roleError } = await supabaseAdmin
+          .from("user_roles")
+          .insert({
+            user_id: request.user_id,
+            tenant_id: request.tenant_id,
+            role: "member",
+          });
+
+        if (roleError) {
+          console.error("Error assigning member role:", roleError);
+          return res.status(500).json({ error: "Failed to approve request" });
+        }
+
+        // Sync user to participants table
+        const participantResult = await syncUserToParticipants({
           user_id: request.user_id,
           tenant_id: request.tenant_id,
           role: "member",
         });
 
-      if (roleError) {
-        console.error("Error assigning member role:", roleError);
-        return res.status(500).json({ error: "Failed to approve request" });
-      }
+        if (!participantResult.success) {
+          console.error("Error syncing participant:", participantResult.error);
+          await supabaseAdmin.from("user_roles")
+            .delete()
+            .eq("user_id", request.user_id)
+            .eq("tenant_id", request.tenant_id);
 
-      // Sync user to participants table
-      const participantResult = await syncUserToParticipants({
-        user_id: request.user_id,
-        tenant_id: request.tenant_id,
-        role: "member",
-      });
-
-      if (!participantResult.success) {
-        console.error("Error syncing participant:", participantResult.error);
-        // Rollback: delete user_roles
-        await supabaseAdmin.from("user_roles")
-          .delete()
-          .eq("user_id", request.user_id)
-          .eq("tenant_id", request.tenant_id);
-
-        return res.status(500).json({ 
-          error: "Failed to create participant record",
-          message: participantResult.error
-        });
+          return res.status(500).json({ 
+            error: "Failed to create participant record",
+            message: participantResult.error
+          });
+        }
       }
     }
 
@@ -766,6 +811,37 @@ router.post("/join-request/:requestId/:action", verifySupabaseAuth, async (req: 
       .eq("request_id", requestId);
 
     if (updateError) throw updateError;
+
+    // Send LINE notification to applicant if they have LINE account
+    if (isParticipantRequest) {
+      try {
+        const { data: participant } = await supabaseAdmin
+          .from("participants")
+          .select("line_user_id, full_name_th")
+          .eq("participant_id", request.participant_id)
+          .single();
+
+        if (participant?.line_user_id) {
+          const credentials = await getLineCredentials(request.tenant_id);
+          if (credentials?.channelAccessToken) {
+            const lineClient = new LineClient(credentials.channelAccessToken);
+            
+            const notificationMessage = action === "approve"
+              ? `ยินดีด้วย! คำขอสมัครสมาชิกของคุณได้รับการอนุมัติแล้ว\n\nยินดีต้อนรับสู่ ${tenant?.tenant_name || "Chapter"}`
+              : `ขออภัย คำขอสมัครสมาชิกของคุณไม่ได้รับการอนุมัติ\n\nหากมีข้อสงสัย กรุณาติดต่อผู้ดูแลระบบ`;
+
+            await lineClient.pushMessage(participant.line_user_id, {
+              type: "text",
+              text: notificationMessage
+            });
+            console.log(`Sent ${action} notification to LINE user: ${participant.line_user_id}`);
+          }
+        }
+      } catch (lineError) {
+        console.error("Error sending LINE notification:", lineError);
+        // Don't fail the request if LINE notification fails
+      }
+    }
 
     return res.status(200).json({
       success: true,
