@@ -1,0 +1,512 @@
+import { supabaseAdmin } from "../../../utils/supabaseClient";
+import { LineClient } from "../lineClient";
+import { getLineCredentials } from "../credentials";
+
+interface MemberApplicationResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function handleApplyMember(
+  event: any,
+  participantId: string,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<MemberApplicationResult> {
+  const userId = event.source.userId;
+  if (!userId) {
+    console.error(`${logPrefix} No userId in event`);
+    return { success: false, error: "No user ID" };
+  }
+
+  const lineClient = new LineClient(accessToken);
+
+  try {
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th, phone, company, status, tenant_id, line_user_id")
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (participantError || !participant) {
+      console.error(`${logPrefix} Participant not found:`, participantError);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ ไม่พบข้อมูลของคุณในระบบ กรุณาติดต่อผู้ดูแลระบบ"
+      });
+      return { success: false, error: "Participant not found" };
+    }
+
+    // Security: Verify the LINE user matches the participant's linked account
+    if (participant.line_user_id !== userId) {
+      console.warn(`${logPrefix} Security: LINE user ${userId} attempted to apply as participant ${participantId} (owned by ${participant.line_user_id})`);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ ไม่สามารถดำเนินการได้ กรุณาติดต่อผู้ดูแลระบบ"
+      });
+      return { success: false, error: "Identity mismatch" };
+    }
+
+    if (participant.status === "member") {
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "✅ คุณเป็นสมาชิกอยู่แล้ว!"
+      });
+      return { success: true };
+    }
+
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (tenantError || !tenant) {
+      console.error(`${logPrefix} Tenant not found:`, tenantError);
+      return { success: false, error: "Tenant not found" };
+    }
+
+    const { data: admins, error: adminsError } = await supabaseAdmin
+      .from("user_roles")
+      .select(`
+        user_id,
+        users:user_id (
+          id
+        ),
+        participants!inner (
+          line_user_id,
+          full_name_th
+        )
+      `)
+      .eq("tenant_id", tenantId)
+      .eq("role", "chapter_admin");
+
+    if (adminsError) {
+      console.error(`${logPrefix} Error fetching admins:`, adminsError);
+    }
+
+    const adminLineUserIds: string[] = [];
+    if (admins) {
+      for (const admin of admins) {
+        const participants = admin.participants as any;
+        if (Array.isArray(participants)) {
+          for (const p of participants) {
+            if (p.line_user_id) {
+              adminLineUserIds.push(p.line_user_id);
+            }
+          }
+        } else if (participants?.line_user_id) {
+          adminLineUserIds.push(participants.line_user_id);
+        }
+      }
+    }
+
+    console.log(`${logPrefix} Found ${adminLineUserIds.length} admin LINE users to notify`);
+
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: `📨 ส่งคำขอสมัครสมาชิกแล้ว!\n\nชื่อ: ${participant.full_name_th}\n\nกรุณารอการอนุมัติจากผู้ดูแลระบบ`
+    });
+
+    if (adminLineUserIds.length > 0) {
+      const adminFlexMessage = {
+        type: "flex" as const,
+        altText: `คำขอสมัครสมาชิกใหม่: ${participant.full_name_th}`,
+        contents: {
+          type: "bubble",
+          header: {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#1DB446",
+            paddingAll: "md",
+            contents: [
+              {
+                type: "text",
+                text: "📋 คำขอสมัครสมาชิกใหม่",
+                color: "#FFFFFF",
+                weight: "bold",
+                size: "md"
+              }
+            ]
+          },
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "md",
+            contents: [
+              {
+                type: "text",
+                text: participant.full_name_th,
+                weight: "bold",
+                size: "lg"
+              },
+              {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                  ...(participant.nickname_th ? [{
+                    type: "text" as const,
+                    text: `ชื่อเล่น: ${participant.nickname_th}`,
+                    size: "sm" as const,
+                    color: "#666666"
+                  }] : []),
+                  ...(participant.phone ? [{
+                    type: "text" as const,
+                    text: `เบอร์โทร: ${participant.phone}`,
+                    size: "sm" as const,
+                    color: "#666666"
+                  }] : []),
+                  ...(participant.company ? [{
+                    type: "text" as const,
+                    text: `บริษัท: ${participant.company}`,
+                    size: "sm" as const,
+                    color: "#666666"
+                  }] : [])
+                ]
+              },
+              {
+                type: "separator",
+                margin: "lg"
+              },
+              {
+                type: "text",
+                text: tenant.tenant_name,
+                size: "sm",
+                color: "#888888",
+                margin: "md"
+              }
+            ]
+          },
+          footer: {
+            type: "box",
+            layout: "horizontal",
+            spacing: "md",
+            contents: [
+              {
+                type: "button",
+                style: "primary",
+                color: "#1DB446",
+                action: {
+                  type: "postback",
+                  label: "อนุมัติ",
+                  data: `action=approve_member&participant_id=${participantId}&tenant_id=${tenantId}`
+                }
+              },
+              {
+                type: "button",
+                style: "secondary",
+                action: {
+                  type: "postback",
+                  label: "ปฏิเสธ",
+                  data: `action=reject_member&participant_id=${participantId}&tenant_id=${tenantId}`
+                }
+              }
+            ]
+          }
+        }
+      };
+
+      for (const adminLineUserId of adminLineUserIds) {
+        try {
+          await lineClient.pushMessage(adminLineUserId, adminFlexMessage);
+          console.log(`${logPrefix} Sent member application notification to admin: ${adminLineUserId}`);
+        } catch (pushError) {
+          console.error(`${logPrefix} Failed to notify admin ${adminLineUserId}:`, pushError);
+        }
+      }
+    } else {
+      console.log(`${logPrefix} No admin LINE users found to notify`);
+    }
+
+    return { success: true };
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error in handleApplyMember:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function handleSkipApply(
+  event: any,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  const lineClient = new LineClient(accessToken);
+  
+  await lineClient.replyMessage(event.replyToken, {
+    type: "text",
+    text: "👍 ไม่เป็นไร! เมื่อพร้อมสมัครสมาชิก สามารถพิมพ์ 'สมัครสมาชิก' ได้เลย"
+  });
+}
+
+async function verifyAdminRole(lineUserId: string, tenantId: string): Promise<boolean> {
+  // Find participant by LINE user ID
+  const { data: adminParticipant, error: participantError } = await supabaseAdmin
+    .from("participants")
+    .select("user_id")
+    .eq("line_user_id", lineUserId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  if (participantError || !adminParticipant?.user_id) {
+    return false;
+  }
+
+  // Check if user has admin role
+  const { data: role, error: roleError } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", adminParticipant.user_id)
+    .eq("tenant_id", tenantId)
+    .eq("role", "chapter_admin")
+    .maybeSingle();
+
+  return !roleError && !!role;
+}
+
+export async function handleApproveMember(
+  event: any,
+  participantId: string,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<MemberApplicationResult> {
+  const adminUserId = event.source.userId;
+  if (!adminUserId) {
+    console.error(`${logPrefix} No admin userId in event`);
+    return { success: false, error: "No admin user ID" };
+  }
+
+  const lineClient = new LineClient(accessToken);
+
+  try {
+    // Security: Verify caller is a chapter admin
+    const isAdmin = await verifyAdminRole(adminUserId, tenantId);
+    if (!isAdmin) {
+      console.warn(`${logPrefix} Security: Non-admin LINE user ${adminUserId} attempted to approve member ${participantId}`);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ คุณไม่มีสิทธิ์ดำเนินการนี้"
+      });
+      return { success: false, error: "Not authorized" };
+    }
+
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, line_user_id, status, tenant_id")
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (participantError || !participant) {
+      console.error(`${logPrefix} Participant not found:`, participantError);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ ไม่พบข้อมูลผู้สมัครในระบบ"
+      });
+      return { success: false, error: "Participant not found" };
+    }
+
+    if (participant.status === "member") {
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: `ℹ️ ${participant.full_name_th} เป็นสมาชิกอยู่แล้ว`
+      });
+      return { success: true };
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from("participants")
+      .update({ 
+        status: "member",
+        joined_date: new Date().toISOString().split('T')[0]
+      })
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId);
+
+    if (updateError) {
+      console.error(`${logPrefix} Error updating participant status:`, updateError);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ เกิดข้อผิดพลาดในการอนุมัติ กรุณาลองใหม่"
+      });
+      return { success: false, error: "Update failed" };
+    }
+
+    console.log(`${logPrefix} Successfully approved member: ${participantId}`);
+
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: `✅ อนุมัติแล้ว!\n\n${participant.full_name_th} เป็นสมาชิกเรียบร้อย`
+    });
+
+    if (participant.line_user_id) {
+      try {
+        const { data: tenant } = await supabaseAdmin
+          .from("tenants")
+          .select("tenant_name")
+          .eq("tenant_id", tenantId)
+          .single();
+
+        const welcomeMessage = {
+          type: "flex" as const,
+          altText: "ยินดีต้อนรับเข้าเป็นสมาชิก!",
+          contents: {
+            type: "bubble",
+            body: {
+              type: "box",
+              layout: "vertical",
+              spacing: "md",
+              contents: [
+                {
+                  type: "text",
+                  text: "🎉 ยินดีต้อนรับ!",
+                  weight: "bold",
+                  size: "xl",
+                  color: "#1DB446",
+                  align: "center"
+                },
+                {
+                  type: "separator",
+                  margin: "lg"
+                },
+                {
+                  type: "text",
+                  text: "คุณได้รับการอนุมัติเป็นสมาชิกแล้ว",
+                  size: "md",
+                  align: "center",
+                  margin: "lg"
+                },
+                {
+                  type: "text",
+                  text: tenant?.tenant_name || "Chapter",
+                  size: "lg",
+                  weight: "bold",
+                  align: "center",
+                  margin: "sm"
+                },
+                {
+                  type: "separator",
+                  margin: "lg"
+                },
+                {
+                  type: "text",
+                  text: "ตอนนี้คุณสามารถ:",
+                  size: "sm",
+                  margin: "lg",
+                  color: "#666666"
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  margin: "sm",
+                  spacing: "xs",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "• เช็คอินเข้าประชุม",
+                      size: "sm",
+                      color: "#666666"
+                    },
+                    {
+                      type: "text",
+                      text: "• ส่งตัวแทนเข้าประชุม",
+                      size: "sm",
+                      color: "#666666"
+                    },
+                    {
+                      type: "text",
+                      text: "• รับการแจ้งเตือนต่างๆ",
+                      size: "sm",
+                      color: "#666666"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        };
+
+        await lineClient.pushMessage(participant.line_user_id, welcomeMessage);
+        console.log(`${logPrefix} Sent welcome message to new member: ${participant.line_user_id}`);
+      } catch (pushError) {
+        console.error(`${logPrefix} Failed to send welcome message:`, pushError);
+      }
+    }
+
+    return { success: true };
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error in handleApproveMember:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function handleRejectMember(
+  event: any,
+  participantId: string,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<MemberApplicationResult> {
+  const adminUserId = event.source.userId;
+  if (!adminUserId) {
+    console.error(`${logPrefix} No admin userId in event`);
+    return { success: false, error: "No admin user ID" };
+  }
+
+  const lineClient = new LineClient(accessToken);
+
+  try {
+    // Security: Verify caller is a chapter admin
+    const isAdmin = await verifyAdminRole(adminUserId, tenantId);
+    if (!isAdmin) {
+      console.warn(`${logPrefix} Security: Non-admin LINE user ${adminUserId} attempted to reject member ${participantId}`);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ คุณไม่มีสิทธิ์ดำเนินการนี้"
+      });
+      return { success: false, error: "Not authorized" };
+    }
+
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, line_user_id")
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (participantError || !participant) {
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ ไม่พบข้อมูลผู้สมัครในระบบ"
+      });
+      return { success: false, error: "Participant not found" };
+    }
+
+    await lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: `❌ ปฏิเสธคำขอของ ${participant.full_name_th} แล้ว`
+    });
+
+    if (participant.line_user_id) {
+      try {
+        await lineClient.pushMessage(participant.line_user_id, {
+          type: "text",
+          text: "ขออภัย คำขอสมัครสมาชิกของคุณยังไม่ได้รับการอนุมัติในขณะนี้\n\nหากมีข้อสงสัย กรุณาติดต่อผู้ดูแลระบบ"
+        });
+      } catch (pushError) {
+        console.error(`${logPrefix} Failed to notify rejected member:`, pushError);
+      }
+    }
+
+    return { success: true };
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error in handleRejectMember:`, error);
+    return { success: false, error: error.message };
+  }
+}

@@ -1,6 +1,5 @@
 import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
-import { sendActivationLink } from "../../activation/sendActivationLink";
 
 interface ConversationState {
   step: "awaiting_phone" | "idle";
@@ -165,31 +164,105 @@ export async function handlePhoneLinking(
             `ตอนนี้คุณสามารถใช้งานผ่าน LINE ได้แล้ว 🎉`
     });
     return true;
-  } else {
-    console.log(`${logPrefix} Participant has no account, auto-sending activation link`);
-    
+  } else if (participant.status === "member") {
+    console.log(`${logPrefix} Participant is already a member, sending welcome message`);
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: `✅ เชื่อมโยงสำเร็จ!\n\nชื่อ: ${participant.full_name_th}\n\nกำลังส่งลิงก์ลงทะเบียนให้คุณ...`
+      text: `✅ เชื่อมโยงสำเร็จ!\n\n` +
+            `ชื่อ: ${participant.full_name_th}\n` +
+            `สถานะ: ${getStatusLabel(participant.status)}\n\n` +
+            `ยินดีต้อนรับกลับ! ตอนนี้คุณสามารถใช้งานผ่าน LINE ได้แล้ว 🎉`
     });
+    return true;
+  } else {
+    console.log(`${logPrefix} Visitor/Prospect linked, showing membership application options`);
+    
+    // Show Flex Message with buttons for membership application
+    const flexMessage = {
+      type: "flex" as const,
+      altText: "เชื่อมโยงสำเร็จ - สมัครสมาชิก",
+      contents: {
+        type: "bubble",
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            {
+              type: "text",
+              text: "✅ เชื่อมโยงสำเร็จ!",
+              weight: "bold",
+              size: "lg",
+              color: "#1DB446"
+            },
+            {
+              type: "separator",
+              margin: "md"
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              margin: "md",
+              spacing: "sm",
+              contents: [
+                {
+                  type: "text",
+                  text: `ชื่อ: ${participant.full_name_th}`,
+                  size: "md",
+                  color: "#555555"
+                },
+                {
+                  type: "text",
+                  text: `สถานะ: ${getStatusLabel(participant.status)}`,
+                  size: "sm",
+                  color: "#888888"
+                }
+              ]
+            },
+            {
+              type: "separator",
+              margin: "lg"
+            },
+            {
+              type: "text",
+              text: "ต้องการสมัครเป็นสมาชิกไหม?",
+              size: "md",
+              margin: "lg",
+              weight: "bold",
+              align: "center"
+            }
+          ]
+        },
+        footer: {
+          type: "box",
+          layout: "horizontal",
+          spacing: "md",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#1DB446",
+              action: {
+                type: "postback",
+                label: "สมัครสมาชิก",
+                data: `action=apply_member&participant_id=${participant.participant_id}&tenant_id=${tenantId}`
+              }
+            },
+            {
+              type: "button",
+              style: "secondary",
+              action: {
+                type: "postback",
+                label: "ยังไม่",
+                data: `action=skip_apply&participant_id=${participant.participant_id}`
+              }
+            }
+          ]
+        }
+      }
+    };
 
-    const result = await sendActivationLink({
-      participantId: participant.participant_id,
-      tenantId: tenantId,
-      lineUserId: userId,
-      fullName: participant.full_name_th,
-      logPrefix
-    });
-
-    if (!result.success) {
-      console.error(`${logPrefix} Failed to send activation link:`, result.error);
-      await lineClient.pushMessage(userId, {
-        type: "text",
-        text: "⚠️ เกิดข้อผิดพลาดในการส่งลิงก์ลงทะเบียน\n\nกรุณาติดต่อผู้ดูแลระบบ"
-      });
-    } else {
-      console.log(`${logPrefix} Successfully auto-sent activation link`);
-    }
+    await lineClient.replyMessage(event.replyToken, flexMessage);
     return true;
   }
 }

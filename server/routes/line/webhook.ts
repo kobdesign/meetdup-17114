@@ -7,6 +7,7 @@ import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfile
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSummaryHandler";
+import { handleApplyMember, handleSkipApply, handleApproveMember, handleRejectMember } from "../../services/line/handlers/memberApplicationHandler";
 
 const router = Router();
 
@@ -373,6 +374,43 @@ async function processEvent(
         const categoryCode = params.get("category");
         if (categoryCode) {
           await handleCategorySelection(event, tenantId, accessToken, categoryCode, logPrefix);
+        }
+        break;
+      
+      case "apply_member":
+        const applyParticipantId = params.get("participant_id");
+        const applyPostbackTenantId = params.get("tenant_id");
+        // Security: Verify postback tenant_id matches server-resolved tenant
+        if (applyParticipantId && applyPostbackTenantId === tenantId) {
+          await handleApplyMember(event, applyParticipantId, tenantId, accessToken, logPrefix);
+        } else if (applyPostbackTenantId !== tenantId) {
+          console.warn(`${logPrefix} Security: tenant_id mismatch in apply_member postback. Expected ${tenantId}, got ${applyPostbackTenantId}`);
+        }
+        break;
+      
+      case "skip_apply":
+        await handleSkipApply(event, accessToken, logPrefix);
+        break;
+      
+      case "approve_member":
+        const approveParticipantId = params.get("participant_id");
+        const approvePostbackTenantId = params.get("tenant_id");
+        // Security: Verify postback tenant_id matches server-resolved tenant
+        if (approveParticipantId && approvePostbackTenantId === tenantId) {
+          await handleApproveMember(event, approveParticipantId, tenantId, accessToken, logPrefix);
+        } else if (approvePostbackTenantId !== tenantId) {
+          console.warn(`${logPrefix} Security: tenant_id mismatch in approve_member postback. Expected ${tenantId}, got ${approvePostbackTenantId}`);
+        }
+        break;
+      
+      case "reject_member":
+        const rejectParticipantId = params.get("participant_id");
+        const rejectPostbackTenantId = params.get("tenant_id");
+        // Security: Verify postback tenant_id matches server-resolved tenant
+        if (rejectParticipantId && rejectPostbackTenantId === tenantId) {
+          await handleRejectMember(event, rejectParticipantId, tenantId, accessToken, logPrefix);
+        } else if (rejectPostbackTenantId !== tenantId) {
+          console.warn(`${logPrefix} Security: tenant_id mismatch in reject_member postback. Expected ${tenantId}, got ${rejectPostbackTenantId}`);
         }
         break;
       
