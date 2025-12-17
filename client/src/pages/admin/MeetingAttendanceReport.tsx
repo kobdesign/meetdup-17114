@@ -138,8 +138,8 @@ export default function MeetingAttendanceReport() {
   const [repeatVisitorList, setRepeatVisitorList] = useState<RepeatVisitor[]>([]);
   const [loadingVisitorStats, setLoadingVisitorStats] = useState(false);
   const [repeatVisitorsOpen, setRepeatVisitorsOpen] = useState(false);
-  const [membersListOpen, setMembersListOpen] = useState(true);
-  const [visitorsListOpen, setVisitorsListOpen] = useState(true);
+  const [membersListOpen, setMembersListOpen] = useState(false);
+  const [visitorsListOpen, setVisitorsListOpen] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId) {
