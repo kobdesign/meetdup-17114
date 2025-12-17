@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../../utils/auth";
+import { supabaseAdmin } from "../../utils/supabaseClient";
 import { getCredentialsByBotUserId } from "../../services/line/credentials";
 import { validateLineSignature, processWebhookEvents, LineWebhookPayload } from "../../services/line/webhook";
 import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfileRequest, handleCategorySearch, handleCategorySelection, handleBusinessCardPagePostback, handleCategoryPagePostback, replyMessage } from "../../services/line/handlers/businessCardHandler";
@@ -238,6 +239,41 @@ async function processEvent(
     if (goalsSummaryPattern.test(textLower.trim())) {
       console.log(`${logPrefix} Command: GOALS_SUMMARY`);
       await handleGoalsSummaryRequest(event, tenantId, accessToken, logPrefix);
+      return;
+    }
+
+    // Priority 8: Apply for membership command - for prospects/visitors to apply
+    // Support variations with Thai polite particles: สมัครสมาชิก, สมัครสมาชิกครับ, สมัครสมาชิกค่ะ, etc.
+    const applyMemberPattern = /^(สมัครสมาชิก|apply\s*member|apply)(ค่ะ|ครับ|นะ|คะ)?$/i;
+    if (applyMemberPattern.test(textLower.trim())) {
+      console.log(`${logPrefix} Command: APPLY_MEMBER_TEXT`);
+      const lineUserId = event.source.userId;
+      
+      if (!lineUserId) {
+        await replyMessage(event.replyToken, {
+          type: "text",
+          text: "⚠️ ไม่สามารถระบุตัวตนได้ กรุณาลองใหม่"
+        }, accessToken, tenantId);
+        return;
+      }
+      
+      // Look up participant by LINE user ID
+      const { data: participant, error: participantError } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id, status, tenant_id")
+        .eq("line_user_id", lineUserId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      
+      if (participantError || !participant) {
+        console.log(`${logPrefix} No participant found for LINE user - asking to link phone first`);
+        // Start phone linking flow - this will send the prompt message
+        await startPhoneLinkingFlow(event, tenantId, accessToken, logPrefix);
+        return;
+      }
+      
+      // Call handleApplyMember with the participant info
+      await handleApplyMember(event, participant.participant_id, tenantId, accessToken, logPrefix);
       return;
     }
 
