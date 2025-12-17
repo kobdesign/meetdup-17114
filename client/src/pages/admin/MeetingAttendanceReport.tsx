@@ -29,13 +29,20 @@ import {
   Loader2,
   FileSpreadsheet,
   TrendingUp,
+  TrendingDown,
   ArrowLeft,
   Lock,
   LockOpen,
   Phone,
   MessageCircle,
-  UserCheck
+  UserCheck,
+  Eye,
+  Repeat,
+  UserX,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 import * as XLSX from "xlsx";
@@ -92,6 +99,27 @@ interface VisitorReport {
   checkin_time: string | null;
 }
 
+interface VisitorStats {
+  total_registered: number;
+  checked_in: number;
+  no_show: number;
+  no_show_rate: number;
+  repeat_visitors: number;
+  referred_visitors: number;
+  recent_conversions: number;
+  previous_avg: number;
+  trend_delta: number;
+}
+
+interface RepeatVisitor {
+  participant_id: string;
+  full_name_th: string;
+  nickname_th: string | null;
+  company: string | null;
+  photo_url: string | null;
+  previous_visits: number;
+}
+
 export default function MeetingAttendanceReport() {
   const navigate = useNavigate();
   const { effectiveTenantId } = useTenantContext();
@@ -105,6 +133,10 @@ export default function MeetingAttendanceReport() {
   const [closingMeeting, setClosingMeeting] = useState(false);
   const [visitors, setVisitors] = useState<VisitorReport[]>([]);
   const [loadingVisitors, setLoadingVisitors] = useState(false);
+  const [visitorStats, setVisitorStats] = useState<VisitorStats | null>(null);
+  const [repeatVisitorList, setRepeatVisitorList] = useState<RepeatVisitor[]>([]);
+  const [loadingVisitorStats, setLoadingVisitorStats] = useState(false);
+  const [repeatVisitorsOpen, setRepeatVisitorsOpen] = useState(false);
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -116,6 +148,7 @@ export default function MeetingAttendanceReport() {
     if (selectedMeetingId) {
       loadAttendanceReport();
       loadVisitors();
+      loadVisitorStats();
     }
   }, [selectedMeetingId]);
 
@@ -141,6 +174,32 @@ export default function MeetingAttendanceReport() {
       console.error("Error loading visitors:", err);
     } finally {
       setLoadingVisitors(false);
+    }
+  };
+
+  const loadVisitorStats = async () => {
+    if (!selectedMeetingId) return;
+
+    setLoadingVisitorStats(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const response = await fetch(`/api/palms/meeting/${selectedMeetingId}/visitor-stats`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setVisitorStats(data.stats);
+        setRepeatVisitorList(data.repeat_visitor_list || []);
+      }
+    } catch (err: any) {
+      console.error("Error loading visitor stats:", err);
+    } finally {
+      setLoadingVisitorStats(false);
     }
   };
 
@@ -574,6 +633,146 @@ export default function MeetingAttendanceReport() {
                 </Card>
               )}
             </div>
+
+            {/* Visitor Insights Card */}
+            <Card data-testid="card-visitor-insights">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="h-5 w-5 text-purple-500" />
+                    สถิติผู้เยี่ยมชม
+                  </CardTitle>
+                  {loadingVisitorStats && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {visitorStats ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                      <div className="p-3 rounded-lg border bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Users className="h-4 w-4 text-purple-500" />
+                          <span className="text-xs text-muted-foreground">ลงทะเบียน</span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-purple-600">{visitorStats.total_registered}</span>
+                          {visitorStats.trend_delta !== 0 && (
+                            <Badge 
+                              variant="outline" 
+                              className={visitorStats.trend_delta > 0 
+                                ? "text-green-600 border-green-300" 
+                                : "text-red-600 border-red-300"
+                              }
+                            >
+                              {visitorStats.trend_delta > 0 ? (
+                                <TrendingUp className="h-3 w-3 mr-1" />
+                              ) : (
+                                <TrendingDown className="h-3 w-3 mr-1" />
+                              )}
+                              {visitorStats.trend_delta > 0 ? "+" : ""}{visitorStats.trend_delta}%
+                            </Badge>
+                          )}
+                        </div>
+                        {visitorStats.previous_avg > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            เฉลี่ย 4 ครั้งก่อน: {visitorStats.previous_avg}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="p-3 rounded-lg border bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <span className="text-xs text-muted-foreground">เช็คอิน</span>
+                        </div>
+                        <span className="text-2xl font-bold text-green-600">{visitorStats.checked_in}</span>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          จาก {visitorStats.total_registered} ที่ลงทะเบียน
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-lg border bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
+                        <div className="flex items-center gap-2 mb-1">
+                          <UserX className="h-4 w-4 text-red-500" />
+                          <span className="text-xs text-muted-foreground">No-show</span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-red-600">{visitorStats.no_show}</span>
+                          {visitorStats.total_registered > 0 && (
+                            <span className="text-sm text-red-500">({visitorStats.no_show_rate}%)</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Repeat className="h-4 w-4 text-amber-500" />
+                          <span className="text-xs text-muted-foreground">มาซ้ำ</span>
+                        </div>
+                        <span className="text-2xl font-bold text-amber-600">{visitorStats.repeat_visitors}</span>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          เคยมาประชุมก่อน
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center gap-2 mb-1">
+                          <UserCheck className="h-4 w-4 text-blue-500" />
+                          <span className="text-xs text-muted-foreground">Conversion</span>
+                        </div>
+                        <span className="text-2xl font-bold text-blue-600">{visitorStats.recent_conversions}</span>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          สมาชิกใหม่ 90 วัน
+                        </p>
+                      </div>
+                    </div>
+
+                    {repeatVisitorList.length > 0 && (
+                      <Collapsible open={repeatVisitorsOpen} onOpenChange={setRepeatVisitorsOpen}>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" className="w-full justify-between" data-testid="button-toggle-repeat-visitors">
+                            <span className="flex items-center gap-2">
+                              <Repeat className="h-4 w-4 text-amber-500" />
+                              ผู้เยี่ยมชมที่มาซ้ำ ({repeatVisitorList.length})
+                            </span>
+                            {repeatVisitorsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-2">
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {repeatVisitorList.map((visitor) => (
+                              <div 
+                                key={visitor.participant_id}
+                                className="flex items-center gap-3 p-2 rounded-lg border bg-muted/50"
+                                data-testid={`row-repeat-visitor-${visitor.participant_id}`}
+                              >
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={visitor.photo_url || undefined} />
+                                  <AvatarFallback>{visitor.full_name_th?.charAt(0) || "?"}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">{visitor.full_name_th}</p>
+                                  {visitor.company && (
+                                    <p className="text-xs text-muted-foreground truncate">{visitor.company}</p>
+                                  )}
+                                </div>
+                                <Badge variant="secondary" className="shrink-0">
+                                  {visitor.previous_visits} ครั้งก่อน
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    {loadingVisitorStats ? "กำลังโหลด..." : "ไม่มีข้อมูลผู้เยี่ยมชม"}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader className="pb-3">

@@ -2101,4 +2101,221 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
   }
 });
 
+/**
+ * GET /api/palms/meeting/:meetingId/visitor-stats
+ * Get aggregated visitor statistics for a meeting including trends and conversions
+ */
+router.get("/meeting/:meetingId/visitor-stats", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-visitor-stats:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { meetingId } = req.params;
+
+    // Get meeting info
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id, meeting_date, theme")
+      .eq("meeting_id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Get ALL registered visitors for this meeting (including those who became members)
+    // This counts everyone who was a visitor at time of registration
+    const { data: registrations, error: regError } = await supabaseAdmin
+      .from("meeting_registrations")
+      .select(`
+        participant_id,
+        registered_at,
+        participant:participants!inner(
+          participant_id,
+          full_name_th,
+          nickname_th,
+          status,
+          company,
+          phone,
+          photo_url,
+          referred_by_participant_id,
+          updated_at
+        )
+      `)
+      .eq("meeting_id", meetingId);
+
+    if (regError) {
+      console.error(`${logPrefix} Registration query error:`, regError);
+      return res.status(500).json({ success: false, error: "Database error" });
+    }
+
+    // Filter to visitors/prospects at time of meeting (exclude members who registered as members)
+    // A member who was a visitor and converted would still be counted
+    const visitorRegistrations = (registrations || []).filter(r => {
+      const p = r.participant as any;
+      // Include visitors, prospects, AND members who recently converted (likely were visitors)
+      return p.status === "visitor" || p.status === "prospect" || p.status === "member";
+    });
+
+    const participantIds = visitorRegistrations.map(r => r.participant_id);
+
+    // Get check-ins for visitors
+    const { data: checkins } = await supabaseAdmin
+      .from("checkins")
+      .select("participant_id, checkin_time")
+      .eq("meeting_id", meetingId)
+      .in("participant_id", participantIds.length > 0 ? participantIds : ['none']);
+
+    const checkinSet = new Set((checkins || []).map(c => c.participant_id));
+    const checkedInCount = visitorRegistrations.filter(r => checkinSet.has(r.participant_id)).length;
+    const noShowCount = visitorRegistrations.length - checkedInCount;
+
+    // Get previous 4 meetings for trend comparison
+    const { data: previousMeetings } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date")
+      .eq("tenant_id", meeting.tenant_id)
+      .lt("meeting_date", meeting.meeting_date)
+      .order("meeting_date", { ascending: false })
+      .limit(4);
+
+    let previousAvg = 0;
+    let repeatVisitors: any[] = [];
+
+    if (previousMeetings && previousMeetings.length > 0) {
+      const prevMeetingIds = previousMeetings.map(m => m.meeting_id);
+
+      // Get visitor counts for previous meetings
+      const { data: prevRegs } = await supabaseAdmin
+        .from("meeting_registrations")
+        .select(`
+          meeting_id,
+          participant:participants!inner(status)
+        `)
+        .in("meeting_id", prevMeetingIds)
+        .in("participant.status", ["visitor", "prospect"]);
+
+      if (prevRegs && prevRegs.length > 0) {
+        // Divide by actual number of meetings, not fixed 4
+        previousAvg = Math.round(prevRegs.length / previousMeetings.length);
+      }
+
+      // Find repeat visitors (visitors who registered OR checked in to previous meetings)
+      if (participantIds.length > 0) {
+        // Check previous registrations
+        const { data: prevRegistrations } = await supabaseAdmin
+          .from("meeting_registrations")
+          .select("participant_id, meeting_id")
+          .in("meeting_id", prevMeetingIds)
+          .in("participant_id", participantIds);
+
+        // Also check previous check-ins for those without registrations
+        const { data: prevCheckins } = await supabaseAdmin
+          .from("checkins")
+          .select("participant_id, meeting_id")
+          .in("meeting_id", prevMeetingIds)
+          .in("participant_id", participantIds);
+
+        // Combine registrations and check-ins for visit count
+        const visitCounts = new Map<string, Set<string>>();
+        
+        // Count unique meetings per participant (from registrations)
+        (prevRegistrations || []).forEach(r => {
+          if (!visitCounts.has(r.participant_id)) {
+            visitCounts.set(r.participant_id, new Set());
+          }
+          visitCounts.get(r.participant_id)!.add(r.meeting_id);
+        });
+
+        // Add check-ins (for cases without registration)
+        (prevCheckins || []).forEach(c => {
+          if (!visitCounts.has(c.participant_id)) {
+            visitCounts.set(c.participant_id, new Set());
+          }
+          visitCounts.get(c.participant_id)!.add(c.meeting_id);
+        });
+
+        // Get participant details for repeat visitors
+        repeatVisitors = visitorRegistrations
+          .filter(r => visitCounts.has(r.participant_id))
+          .map(r => {
+            const p = r.participant as any;
+            return {
+              participant_id: p.participant_id,
+              full_name_th: p.full_name_th,
+              nickname_th: p.nickname_th,
+              company: p.company,
+              photo_url: p.photo_url,
+              previous_visits: visitCounts.get(r.participant_id)?.size || 0
+            };
+          });
+      }
+    }
+
+    // Get conversion stats (visitors who became members in last 90 days)
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const { data: recentConversions } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id")
+      .eq("tenant_id", meeting.tenant_id)
+      .eq("status", "member")
+      .gte("updated_at", ninetyDaysAgo.toISOString());
+
+    // Get visitors with referrals (indicates engagement)
+    const referredVisitors = visitorRegistrations.filter(r => {
+      const p = r.participant as any;
+      return p.referred_by_participant_id != null;
+    }).length;
+
+    // Calculate trend delta
+    const trendDelta = previousAvg > 0 
+      ? Math.round(((visitorRegistrations.length - previousAvg) / previousAvg) * 100)
+      : 0;
+
+    console.log(`${logPrefix} Visitor stats for meeting:`, meetingId, {
+      total: visitorRegistrations.length,
+      checkedIn: checkedInCount,
+      noShow: noShowCount,
+      repeatCount: repeatVisitors.length,
+      previousAvg,
+      trendDelta
+    });
+
+    return res.json({
+      success: true,
+      stats: {
+        total_registered: visitorRegistrations.length,
+        checked_in: checkedInCount,
+        no_show: noShowCount,
+        no_show_rate: visitorRegistrations.length > 0 
+          ? Math.round((noShowCount / visitorRegistrations.length) * 100) 
+          : 0,
+        repeat_visitors: repeatVisitors.length,
+        referred_visitors: referredVisitors,
+        recent_conversions: recentConversions?.length || 0,
+        previous_avg: previousAvg,
+        trend_delta: trendDelta
+      },
+      repeat_visitor_list: repeatVisitors
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 export default router;
