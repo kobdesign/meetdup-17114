@@ -2190,13 +2190,21 @@ router.get("/meeting/:meetingId/visitor-stats", verifySupabaseAuth, async (req: 
       .order("meeting_date", { ascending: false })
       .limit(4);
 
+    // Get ALL previous meetings for repeat visitor detection (no limit)
+    const { data: allPreviousMeetings } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date")
+      .eq("tenant_id", meeting.tenant_id)
+      .lt("meeting_date", meeting.meeting_date)
+      .order("meeting_date", { ascending: false });
+
     let previousAvg = 0;
     let repeatVisitors: any[] = [];
 
     if (previousMeetings && previousMeetings.length > 0) {
       const prevMeetingIds = previousMeetings.map(m => m.meeting_id);
 
-      // Get visitor counts for previous meetings
+      // Get visitor counts for previous meetings (for trend)
       const { data: prevRegs } = await supabaseAdmin
         .from("meeting_registrations")
         .select(`
@@ -2210,54 +2218,61 @@ router.get("/meeting/:meetingId/visitor-stats", verifySupabaseAuth, async (req: 
         // Divide by actual number of meetings, not fixed 4
         previousAvg = Math.round(prevRegs.length / previousMeetings.length);
       }
+    }
 
-      // Find repeat visitors (visitors who registered OR checked in to previous meetings)
-      if (participantIds.length > 0) {
-        // Check previous registrations
-        const { data: prevRegistrations } = await supabaseAdmin
-          .from("meeting_registrations")
-          .select("participant_id, meeting_id")
-          .in("meeting_id", prevMeetingIds)
-          .in("participant_id", participantIds);
+    // Find repeat visitors (ONLY from check-ins, looking at ALL previous meetings)
+    if (participantIds.length > 0 && allPreviousMeetings && allPreviousMeetings.length > 0) {
+      const allPrevMeetingIds = allPreviousMeetings.map(m => m.meeting_id);
+      
+      // Create meeting date lookup for last visit date
+      const meetingDateMap = new Map<string, string>();
+      allPreviousMeetings.forEach(m => {
+        meetingDateMap.set(m.meeting_id, m.meeting_date);
+      });
 
-        // Also check previous check-ins for those without registrations
-        const { data: prevCheckins } = await supabaseAdmin
-          .from("checkins")
-          .select("participant_id, meeting_id")
-          .in("meeting_id", prevMeetingIds)
-          .in("participant_id", participantIds);
+      // Get previous check-ins ONLY (not registrations)
+      const { data: prevCheckins } = await supabaseAdmin
+        .from("checkins")
+        .select("participant_id, meeting_id")
+        .in("meeting_id", allPrevMeetingIds)
+        .in("participant_id", participantIds);
 
-        // Combine registrations and check-ins for visit count
-        const visitCounts = new Map<string, Set<string>>();
+      if (prevCheckins && prevCheckins.length > 0) {
+        // Count unique meetings per participant and track last visit
+        const visitData = new Map<string, { meetings: Set<string>; lastVisitDate: string | null }>();
         
-        // Count unique meetings per participant (from registrations)
-        (prevRegistrations || []).forEach(r => {
-          if (!visitCounts.has(r.participant_id)) {
-            visitCounts.set(r.participant_id, new Set());
+        prevCheckins.forEach(c => {
+          if (!visitData.has(c.participant_id)) {
+            visitData.set(c.participant_id, { meetings: new Set(), lastVisitDate: null });
           }
-          visitCounts.get(r.participant_id)!.add(r.meeting_id);
-        });
-
-        // Add check-ins (for cases without registration)
-        (prevCheckins || []).forEach(c => {
-          if (!visitCounts.has(c.participant_id)) {
-            visitCounts.set(c.participant_id, new Set());
+          const data = visitData.get(c.participant_id)!;
+          data.meetings.add(c.meeting_id);
+          
+          // Track the most recent visit date using Date objects for accurate comparison
+          const meetingDate = meetingDateMap.get(c.meeting_id);
+          if (meetingDate) {
+            const newDate = new Date(meetingDate);
+            const currentLastDate = data.lastVisitDate ? new Date(data.lastVisitDate) : null;
+            if (!currentLastDate || newDate > currentLastDate) {
+              data.lastVisitDate = meetingDate;
+            }
           }
-          visitCounts.get(c.participant_id)!.add(c.meeting_id);
         });
 
         // Get participant details for repeat visitors
         repeatVisitors = visitorRegistrations
-          .filter(r => visitCounts.has(r.participant_id))
+          .filter(r => visitData.has(r.participant_id))
           .map(r => {
             const p = r.participant as any;
+            const data = visitData.get(r.participant_id)!;
             return {
               participant_id: p.participant_id,
               full_name_th: p.full_name_th,
               nickname_th: p.nickname_th,
               company: p.company,
               photo_url: p.photo_url,
-              previous_visits: visitCounts.get(r.participant_id)?.size || 0
+              previous_visits: data.meetings.size,
+              last_visit_date: data.lastVisitDate
             };
           });
       }

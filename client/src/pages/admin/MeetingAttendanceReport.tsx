@@ -118,6 +118,7 @@ interface RepeatVisitor {
   company: string | null;
   photo_url: string | null;
   previous_visits: number;
+  last_visit_date: string | null;
 }
 
 export default function MeetingAttendanceReport() {
@@ -757,7 +758,10 @@ export default function MeetingAttendanceReport() {
                                   )}
                                 </div>
                                 <Badge variant="secondary" className="shrink-0">
-                                  {visitor.previous_visits} ครั้งก่อน
+                                  {visitor.last_visit_date 
+                                    ? new Date(visitor.last_visit_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })
+                                    : `${visitor.previous_visits} ครั้ง`
+                                  }
                                 </Badge>
                               </div>
                             ))}
