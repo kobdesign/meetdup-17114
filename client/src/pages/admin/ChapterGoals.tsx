@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTenantContext } from "@/contexts/TenantContext";
+import AdminLayout from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -342,6 +343,7 @@ export default function ChapterGoals() {
   const achievedGoals = goals.filter((g: ChapterGoal) => g.status === "achieved");
 
   return (
+    <AdminLayout>
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
@@ -666,5 +668,6 @@ export default function ChapterGoals() {
         )}
       </div>
     </div>
+    </AdminLayout>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTenantContext } from "@/contexts/TenantContext";
+import AdminLayout from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -152,13 +153,16 @@ export default function LineCommandAccess() {
 
   if (!tenantId) {
     return (
-      <div className="p-6">
-        <p className="text-muted-foreground">กรุณาเลือก Chapter ก่อน</p>
-      </div>
+      <AdminLayout>
+        <div className="p-6">
+          <p className="text-muted-foreground">กรุณาเลือก Chapter ก่อน</p>
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
+    <AdminLayout>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
@@ -355,5 +359,6 @@ export default function LineCommandAccess() {
         </CardContent>
       </Card>
     </div>
+    </AdminLayout>
   );
 }
