@@ -1323,6 +1323,7 @@ router.post("/walkin-substitute", verifySupabaseAuth, async (req: AuthenticatedR
     }
 
     // Create walk-in substitute request and immediately confirm it
+    // Note: Walk-ins are identified by having member_participant_id = null when confirmed
     const now = new Date().toISOString();
     const { data: newRequest, error: insertError } = await supabaseAdmin
       .from("substitute_requests")
@@ -1334,8 +1335,7 @@ router.post("/walkin-substitute", verifySupabaseAuth, async (req: AuthenticatedR
         substitute_phone: normalizedPhone,
         substitute_email: substitute_email || null,
         status: "confirmed",
-        confirmed_at: now,
-        is_walkin: true
+        confirmed_at: now
       })
       .select(`
         *,
@@ -1538,11 +1538,12 @@ router.get("/meeting/:meetingId/unassigned-substitutes", verifySupabaseAuth, asy
     }
 
     // Get unassigned walk-in substitutes
+    // Walk-ins are identified by: status = confirmed AND member_participant_id = null
     const { data: unassigned, error: fetchError } = await supabaseAdmin
       .from("substitute_requests")
       .select("*")
       .eq("meeting_id", meetingId)
-      .eq("is_walkin", true)
+      .eq("status", "confirmed")
       .is("member_participant_id", null)
       .order("created_at", { ascending: false });
 
