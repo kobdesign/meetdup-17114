@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { useTenantContext } from "@/contexts/TenantContext";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { 
-  ArrowLeft, 
   Shield,
   Users,
   Globe,
@@ -65,7 +63,6 @@ const accessLevelLabels: Record<AccessLevel, { label: string; icon: any; color: 
 };
 
 export default function LineCommandAccess() {
-  const navigate = useNavigate();
   const { effectiveTenantId } = useTenantContext();
   const [pendingChanges, setPendingChanges] = useState<Map<string, PermissionChange>>(new Map());
 
@@ -165,24 +162,14 @@ export default function LineCommandAccess() {
     <AdminLayout>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => navigate("/admin")}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Shield className="h-6 w-6" />
-              สิทธิ์คำสั่ง LINE Bot
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              กำหนดว่าใครสามารถใช้คำสั่งใดได้บ้าง
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Shield className="h-6 w-6" />
+            สิทธิ์คำสั่ง LINE Bot
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            กำหนดว่าใครสามารถใช้คำสั่งใดได้บ้าง
+          </p>
         </div>
 
         <div className="flex items-center gap-2">

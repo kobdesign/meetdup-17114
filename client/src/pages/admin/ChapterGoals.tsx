@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { useTenantContext } from "@/contexts/TenantContext";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { 
-  ArrowLeft, 
   Plus, 
   Target, 
   Users, 
@@ -128,7 +126,6 @@ function getDateRangeForMetric(metricType: string): { start: Date; end: Date } {
 }
 
 export default function ChapterGoals() {
-  const navigate = useNavigate();
   const { effectiveTenantId: tenantId, selectedTenant } = useTenantContext();
   const tenantName = selectedTenant?.tenant_name || "";
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -347,14 +344,6 @@ export default function ChapterGoals() {
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">เป้าหมาย Chapter</h1>
             <p className="text-muted-foreground">{tenantName}</p>
