@@ -25,8 +25,13 @@ import {
   UserCheck,
   Clock,
   LockKeyhole,
-  Unlock
+  Unlock,
+  UserPlus,
+  Link2,
+  Mail
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 import { IDetectedBarcode, Scanner } from "@yudiel/react-qr-scanner";
@@ -86,6 +91,18 @@ export default function POSCheckin() {
   const [confirmedSubstitutes, setConfirmedSubstitutes] = useState<ConfirmedSubstitute[]>([]);
   const [confirmingSubId, setConfirmingSubId] = useState<string | null>(null);
   const [togglingOntime, setTogglingOntime] = useState(false);
+
+  // Walk-in substitute state
+  const [walkinName, setWalkinName] = useState("");
+  const [walkinPhone, setWalkinPhone] = useState("");
+  const [walkinEmail, setWalkinEmail] = useState("");
+  const [walkinMemberId, setWalkinMemberId] = useState("");
+  const [walkinMemberSearch, setWalkinMemberSearch] = useState("");
+  const [walkinMemberResults, setWalkinMemberResults] = useState<ParticipantInfo[]>([]);
+  const [walkinSearching, setWalkinSearching] = useState(false);
+  const [walkinSubmitting, setWalkinSubmitting] = useState(false);
+  const [unassignedSubstitutes, setUnassignedSubstitutes] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("checkin");
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -309,6 +326,152 @@ export default function POSCheckin() {
     }
   };
 
+  // Walk-in substitute functions
+  const loadUnassignedSubstitutes = async () => {
+    if (!selectedMeetingId) return;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      
+      const response = await fetch(`/api/palms/meeting/${selectedMeetingId}/unassigned-substitutes`, {
+        headers: { "Authorization": `Bearer ${session.access_token}` }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setUnassignedSubstitutes(data.unassigned || []);
+      }
+    } catch (error) {
+      console.error("Failed to load unassigned substitutes:", error);
+    }
+  };
+
+  const searchWalkinMember = async () => {
+    if (!walkinMemberSearch.trim() || !effectiveTenantId) return;
+    
+    setWalkinSearching(true);
+    try {
+      const { data, error } = await supabase
+        .from("participants")
+        .select("participant_id, full_name_th, nickname_th, company, phone, photo_url, status")
+        .eq("tenant_id", effectiveTenantId)
+        .eq("status", "member")
+        .or(`full_name_th.ilike.%${walkinMemberSearch}%,phone.ilike.%${walkinMemberSearch}%,nickname_th.ilike.%${walkinMemberSearch}%`)
+        .order("full_name_th")
+        .limit(10);
+      
+      if (error) throw error;
+      setWalkinMemberResults(data as ParticipantInfo[]);
+    } catch (error) {
+      toast.error("ค้นหาสมาชิกล้มเหลว");
+    } finally {
+      setWalkinSearching(false);
+    }
+  };
+
+  const handleWalkinSubmit = async () => {
+    if (!walkinName.trim() || !walkinPhone.trim() || !selectedMeetingId) {
+      toast.error("กรุณากรอกชื่อและเบอร์โทรตัวแทน");
+      return;
+    }
+    
+    setWalkinSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+      
+      const response = await fetch("/api/palms/walkin-substitute", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          meeting_id: selectedMeetingId,
+          substitute_name: walkinName.trim(),
+          substitute_phone: walkinPhone.trim(),
+          substitute_email: walkinEmail.trim() || null,
+          member_participant_id: walkinMemberId || null
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(data.message || "ลงทะเบียนตัวแทนสำเร็จ");
+        
+        // Add to confirmed substitutes list
+        if (data.substitute_request) {
+          const confirmedItem: ConfirmedSubstitute = {
+            ...data.substitute_request,
+            member: data.substitute_request.member || null
+          };
+          setConfirmedSubstitutes(prev => [confirmedItem, ...prev]);
+        }
+        
+        // Reset form
+        setWalkinName("");
+        setWalkinPhone("");
+        setWalkinEmail("");
+        setWalkinMemberId("");
+        setWalkinMemberSearch("");
+        setWalkinMemberResults([]);
+        
+        // Reload unassigned if no member was selected
+        if (!walkinMemberId) {
+          loadUnassignedSubstitutes();
+        }
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาดในการลงทะเบียน");
+    } finally {
+      setWalkinSubmitting(false);
+    }
+  };
+
+  const handleAssignSubstitute = async (requestId: string, memberId: string, memberName: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+      
+      const response = await fetch(`/api/palms/walkin-substitute/${requestId}/assign`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ member_participant_id: memberId })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(data.message || "จับคู่สำเร็จ");
+        loadUnassignedSubstitutes();
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาดในการจับคู่");
+    }
+  };
+
+  // Load unassigned when tab changes
+  useEffect(() => {
+    if (activeTab === "walkin" && selectedMeetingId) {
+      loadUnassignedSubstitutes();
+    }
+  }, [activeTab, selectedMeetingId]);
+
   const handleQrScan = useCallback(async (detectedCodes: IDetectedBarcode[]) => {
     if (detectedCodes.length === 0 || validatingQr) return;
     
@@ -531,14 +694,28 @@ export default function POSCheckin() {
         {selectedMeetingId && (
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle>เช็คอิน</CardTitle>
-                <CardDescription>
-                  สแกน QR Code หรือค้นหาด้วยชื่อ/เบอร์โทร
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {mode === "idle" && (
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <CardHeader className="pb-0">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="checkin" data-testid="tab-checkin">
+                      <QrCode className="h-4 w-4 mr-2" />
+                      เช็คอิน
+                    </TabsTrigger>
+                    <TabsTrigger value="walkin" data-testid="tab-walkin">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      ตัวแทน Walk-in
+                    </TabsTrigger>
+                  </TabsList>
+                </CardHeader>
+                
+                <TabsContent value="checkin" className="mt-0">
+                  <CardHeader className="pb-2 pt-4">
+                    <CardDescription>
+                      สแกน QR Code หรือค้นหาด้วยชื่อ/เบอร์โทร
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {mode === "idle" && (
                   <div className="space-y-4">
                     <div className="flex gap-2">
                       <Button 
@@ -797,19 +974,193 @@ export default function POSCheckin() {
                 )}
 
                 {mode === "success" && (
-                  <div className="text-center py-8 space-y-4">
-                    <div className="flex justify-center">
-                      <div className="p-4 bg-green-100 dark:bg-green-900 rounded-full">
-                        <CheckCircle className="h-16 w-16 text-green-600 dark:text-green-400" />
+                      <div className="text-center py-8 space-y-4">
+                        <div className="flex justify-center">
+                          <div className="p-4 bg-green-100 dark:bg-green-900 rounded-full">
+                            <CheckCircle className="h-16 w-16 text-green-600 dark:text-green-400" />
+                          </div>
+                        </div>
+                        <h3 className="text-xl font-bold">เช็คอินสำเร็จ!</h3>
+                        {selectedParticipant && (
+                          <p className="text-muted-foreground">{selectedParticipant.full_name_th}</p>
+                        )}
                       </div>
-                    </div>
-                    <h3 className="text-xl font-bold">เช็คอินสำเร็จ!</h3>
-                    {selectedParticipant && (
-                      <p className="text-muted-foreground">{selectedParticipant.full_name_th}</p>
                     )}
-                  </div>
-                )}
-              </CardContent>
+                  </CardContent>
+                </TabsContent>
+
+                <TabsContent value="walkin" className="mt-0">
+                  <CardHeader className="pb-2 pt-4">
+                    <CardDescription>
+                      ลงทะเบียนตัวแทนที่มาถึงโดยไม่ได้ลงทะเบียนล่วงหน้า
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="walkin-name">ชื่อตัวแทน *</Label>
+                        <Input
+                          id="walkin-name"
+                          placeholder="ชื่อ-นามสกุลตัวแทน"
+                          value={walkinName}
+                          onChange={(e) => setWalkinName(e.target.value)}
+                          data-testid="input-walkin-name"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="walkin-phone">เบอร์โทรตัวแทน *</Label>
+                        <div className="flex gap-2">
+                          <Phone className="h-4 w-4 mt-3 text-muted-foreground" />
+                          <Input
+                            id="walkin-phone"
+                            placeholder="0812345678"
+                            value={walkinPhone}
+                            onChange={(e) => setWalkinPhone(e.target.value)}
+                            data-testid="input-walkin-phone"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="walkin-email">อีเมลตัวแทน (ไม่บังคับ)</Label>
+                        <div className="flex gap-2">
+                          <Mail className="h-4 w-4 mt-3 text-muted-foreground" />
+                          <Input
+                            id="walkin-email"
+                            type="email"
+                            placeholder="email@example.com"
+                            value={walkinEmail}
+                            onChange={(e) => setWalkinEmail(e.target.value)}
+                            data-testid="input-walkin-email"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="relative py-2">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-background px-2 text-muted-foreground">มาแทนใคร?</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>ค้นหาสมาชิกที่ตัวแทนมาแทน (ไม่บังคับ)</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="ค้นหาด้วยชื่อหรือเบอร์โทร"
+                            value={walkinMemberSearch}
+                            onChange={(e) => setWalkinMemberSearch(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && searchWalkinMember()}
+                            data-testid="input-walkin-member-search"
+                          />
+                          <Button 
+                            variant="outline"
+                            onClick={searchWalkinMember} 
+                            disabled={walkinSearching || !walkinMemberSearch.trim()}
+                            data-testid="button-search-member"
+                          >
+                            {walkinSearching ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Search className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        
+                        {walkinMemberId && (
+                          <div className="p-2 border rounded-lg bg-green-50 dark:bg-green-950 flex items-center justify-between">
+                            <span className="text-sm">
+                              เลือกแล้ว: <strong>{walkinMemberResults.find(m => m.participant_id === walkinMemberId)?.full_name_th}</strong>
+                            </span>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                setWalkinMemberId("");
+                                setWalkinMemberResults([]);
+                              }}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                        
+                        {walkinMemberResults.length > 0 && !walkinMemberId && (
+                          <div className="space-y-1 max-h-40 overflow-y-auto border rounded-lg p-2">
+                            {walkinMemberResults.map((member) => (
+                              <div
+                                key={member.participant_id}
+                                className="p-2 rounded-md cursor-pointer hover-elevate flex items-center gap-2"
+                                onClick={() => setWalkinMemberId(member.participant_id)}
+                                data-testid={`option-member-${member.participant_id}`}
+                              >
+                                {member.photo_url ? (
+                                  <img src={member.photo_url} alt="" className="h-8 w-8 rounded-full object-cover" />
+                                ) : (
+                                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                                    <User className="h-4 w-4" />
+                                  </div>
+                                )}
+                                <div className="text-sm">
+                                  <div className="font-medium">{member.full_name_th}</div>
+                                  {member.company && <div className="text-xs text-muted-foreground">{member.company}</div>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <Button 
+                        className="w-full"
+                        onClick={handleWalkinSubmit}
+                        disabled={walkinSubmitting || !walkinName.trim() || !walkinPhone.trim()}
+                        data-testid="button-submit-walkin"
+                      >
+                        {walkinSubmitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            กำลังลงทะเบียน...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            ลงทะเบียนตัวแทน Walk-in
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {unassignedSubstitutes.length > 0 && (
+                      <div className="space-y-2 pt-4 border-t">
+                        <h4 className="text-sm font-medium flex items-center gap-2">
+                          <Link2 className="h-4 w-4 text-orange-500" />
+                          รอจับคู่กับสมาชิก ({unassignedSubstitutes.length})
+                        </h4>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {unassignedSubstitutes.map((sub) => (
+                            <div
+                              key={sub.request_id}
+                              className="p-3 border rounded-lg bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <p className="font-medium text-sm">{sub.substitute_name}</p>
+                                  <p className="text-xs text-muted-foreground">{sub.substitute_phone}</p>
+                                </div>
+                                <Badge variant="outline" className="text-orange-600">รอจับคู่</Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </TabsContent>
+              </Tabs>
             </Card>
 
             <Card className="lg:col-span-1">

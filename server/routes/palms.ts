@@ -1265,6 +1265,306 @@ router.post("/confirm-substitute", verifySupabaseAuth, async (req: Authenticated
 });
 
 // ============================================
+// WALK-IN SUBSTITUTE ENDPOINTS
+// ============================================
+
+/**
+ * POST /api/palms/walkin-substitute
+ * Admin registers a walk-in substitute (someone who showed up without prior registration)
+ */
+router.post("/walkin-substitute", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-walkin-sub:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { 
+      meeting_id, 
+      substitute_name, 
+      substitute_phone, 
+      substitute_email,
+      member_participant_id // Optional - may be null if unknown
+    } = req.body;
+
+    if (!meeting_id || !substitute_name || !substitute_phone) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing required fields: meeting_id, substitute_name, substitute_phone" 
+      });
+    }
+
+    // Get meeting to verify tenant
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id, meeting_date")
+      .eq("meeting_id", meeting_id)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Normalize phone number
+    let normalizedPhone = substitute_phone.replace(/[\s-]/g, "");
+    if (normalizedPhone.startsWith("+66")) {
+      normalizedPhone = "0" + normalizedPhone.slice(3);
+    } else if (normalizedPhone.startsWith("66") && normalizedPhone.length === 11) {
+      normalizedPhone = "0" + normalizedPhone.slice(2);
+    }
+
+    // Create walk-in substitute request and immediately confirm it
+    const now = new Date().toISOString();
+    const { data: newRequest, error: insertError } = await supabaseAdmin
+      .from("substitute_requests")
+      .insert({
+        tenant_id: meeting.tenant_id,
+        meeting_id: meeting_id,
+        member_participant_id: member_participant_id || null,
+        substitute_name,
+        substitute_phone: normalizedPhone,
+        substitute_email: substitute_email || null,
+        status: "confirmed",
+        confirmed_at: now,
+        is_walkin: true
+      })
+      .select(`
+        *,
+        member:participants!substitute_requests_member_participant_id_fkey (
+          participant_id,
+          full_name_th,
+          nickname_th,
+          phone
+        )
+      `)
+      .single();
+
+    if (insertError) {
+      console.error(`${logPrefix} Insert error:`, insertError);
+      return res.status(500).json({ success: false, error: "Failed to create walk-in substitute" });
+    }
+
+    // If member is assigned, create attendance record with S status
+    if (member_participant_id) {
+      const { error: attendanceError } = await supabaseAdmin
+        .from("meeting_attendance")
+        .upsert({
+          tenant_id: meeting.tenant_id,
+          meeting_id: meeting_id,
+          participant_id: member_participant_id,
+          palms_status: "S",
+          substitute_request_id: newRequest.request_id,
+          source: "pos",
+          recorded_by: user.id,
+          recorded_at: now
+        }, {
+          onConflict: "meeting_id,participant_id"
+        });
+
+      if (attendanceError) {
+        console.error(`${logPrefix} Attendance error:`, attendanceError);
+        // Don't fail - the substitute is created
+      }
+    }
+
+    console.log(`${logPrefix} Walk-in substitute created:`, newRequest.request_id, 
+      member_participant_id ? `for member: ${newRequest.member?.full_name_th}` : "(unassigned)");
+
+    return res.json({
+      success: true,
+      message: member_participant_id 
+        ? `ลงทะเบียนตัวแทน ${substitute_name} แทน ${newRequest.member?.full_name_th} สำเร็จ`
+        : `ลงทะเบียนตัวแทน ${substitute_name} สำเร็จ (ยังไม่ได้จับคู่กับสมาชิก)`,
+      substitute_request: newRequest
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/palms/walkin-substitute/:requestId/assign
+ * Assign an unassigned walk-in substitute to a member
+ */
+router.patch("/walkin-substitute/:requestId/assign", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-assign-sub:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { requestId: subRequestId } = req.params;
+    const { member_participant_id } = req.body;
+
+    if (!member_participant_id) {
+      return res.status(400).json({ success: false, error: "Missing member_participant_id" });
+    }
+
+    // Get the substitute request
+    const { data: subRequest, error: fetchError } = await supabaseAdmin
+      .from("substitute_requests")
+      .select(`
+        *,
+        meeting:meetings!substitute_requests_meeting_id_fkey (
+          meeting_id,
+          tenant_id,
+          meeting_date
+        )
+      `)
+      .eq("request_id", subRequestId)
+      .single();
+
+    if (fetchError || !subRequest) {
+      return res.status(404).json({ success: false, error: "Substitute request not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, subRequest.meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Check if already assigned
+    if (subRequest.member_participant_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "This substitute is already assigned to a member" 
+      });
+    }
+
+    // Get member info
+    const { data: member, error: memberError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th")
+      .eq("participant_id", member_participant_id)
+      .eq("tenant_id", subRequest.meeting.tenant_id)
+      .single();
+
+    if (memberError || !member) {
+      return res.status(404).json({ success: false, error: "Member not found" });
+    }
+
+    // Update the substitute request
+    const { error: updateError } = await supabaseAdmin
+      .from("substitute_requests")
+      .update({ member_participant_id })
+      .eq("request_id", subRequestId);
+
+    if (updateError) {
+      console.error(`${logPrefix} Update error:`, updateError);
+      return res.status(500).json({ success: false, error: "Failed to assign substitute" });
+    }
+
+    // Create attendance record with S status
+    const { error: attendanceError } = await supabaseAdmin
+      .from("meeting_attendance")
+      .upsert({
+        tenant_id: subRequest.meeting.tenant_id,
+        meeting_id: subRequest.meeting_id,
+        participant_id: member_participant_id,
+        palms_status: "S",
+        substitute_request_id: subRequestId,
+        source: "pos",
+        recorded_by: user.id,
+        recorded_at: new Date().toISOString()
+      }, {
+        onConflict: "meeting_id,participant_id"
+      });
+
+    if (attendanceError) {
+      console.error(`${logPrefix} Attendance error:`, attendanceError);
+      // Don't fail - assignment is done
+    }
+
+    console.log(`${logPrefix} Walk-in substitute assigned:`, subRequestId, "to member:", member.full_name_th);
+
+    return res.json({
+      success: true,
+      message: `จับคู่ตัวแทน ${subRequest.substitute_name} กับ ${member.full_name_th} สำเร็จ`,
+      member
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/palms/meeting/:meetingId/unassigned-substitutes
+ * Get list of walk-in substitutes that haven't been assigned to a member
+ */
+router.get("/meeting/:meetingId/unassigned-substitutes", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-unassigned-subs:${requestId}]`;
+
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { meetingId } = req.params;
+
+    // Get meeting to verify tenant
+    const { data: meeting, error: meetingError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, tenant_id")
+      .eq("meeting_id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ success: false, error: "Meeting not found" });
+    }
+
+    // Verify admin access
+    const hasAccess = await checkAdminAccess(user.id, meeting.tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Get unassigned walk-in substitutes
+    const { data: unassigned, error: fetchError } = await supabaseAdmin
+      .from("substitute_requests")
+      .select("*")
+      .eq("meeting_id", meetingId)
+      .eq("is_walkin", true)
+      .is("member_participant_id", null)
+      .order("created_at", { ascending: false });
+
+    if (fetchError) {
+      console.error(`${logPrefix} Fetch error:`, fetchError);
+      return res.status(500).json({ success: false, error: "Failed to fetch unassigned substitutes" });
+    }
+
+    console.log(`${logPrefix} Found ${unassigned?.length || 0} unassigned walk-in substitutes`);
+
+    return res.json({
+      success: true,
+      unassigned: unassigned || []
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// ============================================
 // ON-TIME CHECK-IN MANAGEMENT
 // ============================================
 
