@@ -99,6 +99,7 @@ interface VisitorReport {
   registered_at: string | null;
   checked_in: boolean;
   checkin_time: string | null;
+  is_late: boolean;
 }
 
 interface VisitorStats {
@@ -143,6 +144,7 @@ export default function MeetingAttendanceReport() {
   const [membersListOpen, setMembersListOpen] = useState(false);
   const [visitorsListOpen, setVisitorsListOpen] = useState(false);
   const [togglingOntime, setTogglingOntime] = useState(false);
+  const [visitorStatusFilter, setVisitorStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     if (effectiveTenantId) {
@@ -446,6 +448,32 @@ export default function MeetingAttendanceReport() {
     if (statusFilter === "all") return true;
     return member.attendance_status === statusFilter;
   }) || [];
+
+  // Calculate visitor summary stats
+  const visitorSummary = {
+    total: visitors.length,
+    on_time: visitors.filter(v => v.checked_in && !v.is_late).length,
+    late: visitors.filter(v => v.checked_in && v.is_late).length,
+    absent: visitors.filter(v => !v.checked_in).length
+  };
+
+  const filteredVisitors = visitors.filter(visitor => {
+    if (visitorStatusFilter === "all") return true;
+    if (visitorStatusFilter === "on_time") return visitor.checked_in && !visitor.is_late;
+    if (visitorStatusFilter === "late") return visitor.checked_in && visitor.is_late;
+    if (visitorStatusFilter === "absent") return !visitor.checked_in;
+    return true;
+  });
+
+  const getVisitorStatusBadge = (visitor: VisitorReport) => {
+    if (visitor.checked_in && visitor.is_late) {
+      return <Badge variant="secondary" className="bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">สาย</Badge>;
+    }
+    if (visitor.checked_in) {
+      return <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">มา</Badge>;
+    }
+    return <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">ขาด</Badge>;
+  };
 
   if (!effectiveTenantId) {
     return (
@@ -960,24 +988,29 @@ export default function MeetingAttendanceReport() {
               </Card>
             </Collapsible>
 
-            {/* Visitor Section - Show only visitors who registered but haven't checked in */}
+            {/* Visitor Section - Show all registered visitors with status */}
             <Collapsible open={visitorsListOpen} onOpenChange={setVisitorsListOpen}>
               <Card data-testid="card-visitors">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" className="gap-2 p-0 h-auto hover:bg-transparent" data-testid="button-toggle-visitors">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-yellow-500" />
-                          Visitor ที่ลงทะเบียนแต่ยังไม่มา ({visitors.filter(v => !v.checked_in).length})
-                        </CardTitle>
+                        <CardTitle className="text-base">รายชื่อผู้เยี่ยมชม ({visitors.length})</CardTitle>
                         <ChevronDown className={`h-4 w-4 transition-transform ${visitorsListOpen ? "" : "-rotate-90"}`} />
                       </Button>
                     </CollapsibleTrigger>
+                    <Select value={visitorStatusFilter} onValueChange={setVisitorStatusFilter}>
+                      <SelectTrigger className="w-[180px]" data-testid="select-visitor-status-filter">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">ทั้งหมด ({visitorSummary.total})</SelectItem>
+                        <SelectItem value="on_time">ตรงเวลา ({visitorSummary.on_time})</SelectItem>
+                        <SelectItem value="late">สาย ({visitorSummary.late})</SelectItem>
+                        <SelectItem value="absent">ขาด ({visitorSummary.absent})</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <CardDescription>
-                    รายชื่อ Visitor ที่ลงทะเบียนไว้แต่ยังไม่ได้เช็คอิน สามารถติดต่อติดตามได้
-                  </CardDescription>
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="pt-0">
@@ -985,11 +1018,11 @@ export default function MeetingAttendanceReport() {
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
-                    ) : visitors.filter(v => !v.checked_in).length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">ไม่มี Visitor ที่ลงทะเบียนแต่ยังไม่มา</p>
+                    ) : filteredVisitors.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">ไม่พบข้อมูล</p>
                     ) : (
                       <div className="space-y-2">
-                        {visitors.filter(v => !v.checked_in).map((visitor) => (
+                        {filteredVisitors.map((visitor) => (
                           <div 
                             key={visitor.participant_id}
                             className="flex items-center gap-3 p-3 rounded-lg border"
@@ -1012,9 +1045,9 @@ export default function MeetingAttendanceReport() {
                               <div className="text-sm text-muted-foreground truncate">
                                 {visitor.company || visitor.phone || "-"}
                               </div>
-                              {visitor.registered_at && (
+                              {visitor.checkin_time && (
                                 <div className="text-sm text-muted-foreground">
-                                  ลงทะเบียน: {new Date(visitor.registered_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                                  เช็คอิน: {new Date(visitor.checkin_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
                                 </div>
                               )}
                             </div>
@@ -1048,10 +1081,7 @@ export default function MeetingAttendanceReport() {
                                   </a>
                                 </Button>
                               )}
-                              <Badge variant="default" className="bg-yellow-500">
-                                <Clock className="h-3 w-3 mr-1" />
-                                ยังไม่มา
-                              </Badge>
+                              {getVisitorStatusBadge(visitor)}
                             </div>
                           </div>
                         ))}

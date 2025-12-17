@@ -2041,7 +2041,7 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
     // Get check-ins for these registered visitors
     const { data: checkins, error: checkinsError } = await supabaseAdmin
       .from("checkins")
-      .select("participant_id, checkin_time")
+      .select("participant_id, checkin_time, is_late")
       .eq("meeting_id", meetingId)
       .in("participant_id", participantIds);
 
@@ -2058,7 +2058,7 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
     // Build visitor list with check-in status
     const registeredVisitors = registrations.map(reg => {
       const participant = reg.participant as any;
-      const checkin = checkinMap.get(reg.participant_id);
+      const checkin = checkinMap.get(reg.participant_id) as any;
       return {
         participant_id: participant.participant_id,
         full_name_th: participant.full_name_th,
@@ -2069,7 +2069,8 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
         photo_url: participant.photo_url,
         registered_at: reg.registered_at,
         checked_in: !!checkin,
-        checkin_time: checkin?.checkin_time || null
+        checkin_time: checkin?.checkin_time || null,
+        is_late: checkin?.is_late || false
       };
     });
 
