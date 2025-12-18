@@ -9,6 +9,7 @@ import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearC
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSummaryHandler";
 import { handleApplyMember, handleSkipApply } from "../../services/line/handlers/memberApplicationHandler";
+import { handleRsvpConfirm, handleRsvpSubstitute, handleRsvpLeave, handleLeaveReason, getLeaveConversationState, clearLeaveConversationState } from "../../services/line/handlers/rsvpHandler";
 
 const router = Router();
 
@@ -134,6 +135,7 @@ async function processEvent(
     
     // Check conversation state first (for multi-step flows)
     if (userId) {
+      // Check phone linking conversation state
       const state = getConversationState(tenantId, userId);
       
       if (state && state.step === "awaiting_phone" && state.action === "link_line") {
@@ -147,6 +149,16 @@ async function processEvent(
           console.log(`${logPrefix} Phone linking failed or needs retry, keeping conversation state`);
         }
         return;
+      }
+
+      // Check leave reason conversation state
+      const leaveState = getLeaveConversationState(tenantId, userId);
+      if (leaveState && leaveState.step === "awaiting_leave_reason") {
+        console.log(`${logPrefix} Processing leave reason in conversation flow`);
+        const handled = await handleLeaveReason(event, text, tenantId, accessToken, logPrefix);
+        if (handled) {
+          return;
+        }
       }
     }
     
@@ -287,6 +299,38 @@ async function processEvent(
     console.log(`${logPrefix} ========== POSTBACK EVENT RECEIVED ==========`);
     console.log(`${logPrefix} Raw postback data: "${postbackData}"`);
     console.log(`${logPrefix} Postback data length: ${postbackData.length}`);
+
+    // Parse action-based postback data (format: action=xxx&param=value)
+    const rsvpParams = new URLSearchParams(postbackData);
+    const rsvpAction = rsvpParams.get("action");
+
+    // RSVP postback handlers
+    if (rsvpAction === "rsvp_confirm") {
+      const meetingId = rsvpParams.get("meeting_id");
+      if (meetingId) {
+        console.log(`${logPrefix} RSVP Confirm for meeting: ${meetingId}`);
+        await handleRsvpConfirm(event, meetingId, tenantId, accessToken, logPrefix);
+        return;
+      }
+    }
+
+    if (rsvpAction === "rsvp_substitute") {
+      const meetingId = rsvpParams.get("meeting_id");
+      if (meetingId) {
+        console.log(`${logPrefix} RSVP Substitute for meeting: ${meetingId}`);
+        await handleRsvpSubstitute(event, meetingId, tenantId, accessToken, logPrefix);
+        return;
+      }
+    }
+
+    if (rsvpAction === "rsvp_leave") {
+      const meetingId = rsvpParams.get("meeting_id");
+      if (meetingId) {
+        console.log(`${logPrefix} RSVP Leave for meeting: ${meetingId}`);
+        await handleRsvpLeave(event, meetingId, tenantId, accessToken, logPrefix);
+        return;
+      }
+    }
     
     // Check for category_page pagination postback (format: category_page:pageNum:categoryCode)
     if (postbackData.startsWith("category_page:")) {

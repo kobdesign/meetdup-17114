@@ -32,7 +32,8 @@ import {
   Smartphone,
   Trophy,
   Briefcase,
-  ClipboardList
+  ClipboardList,
+  Bell
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -100,6 +101,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       { icon: <UserPlus className="h-4 w-4" />, label: "จัดการสมาชิก", href: "/admin/members-management" },
       { icon: <Upload className="h-4 w-4" />, label: "นำเข้าสมาชิก", href: "/admin/import-members" },
       { icon: <Trophy className="h-4 w-4" />, label: "เป้าหมาย", href: "/admin/goals" },
+      { icon: <Bell className="h-4 w-4" />, label: "แจ้งเตือนประชุม", href: "/admin/notifications" },
       { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
       { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
       { icon: <QrCode className="h-4 w-4" />, label: "POS Check-In", href: "/admin/pos-checkin" },

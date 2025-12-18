@@ -28,6 +28,7 @@ import RichMenuPage from "./pages/admin/RichMenuPage";
 import MembersManagement from "./pages/admin/MembersManagement";
 import ImportMembers from "./pages/admin/ImportMembers";
 import ChapterGoals from "./pages/admin/ChapterGoals";
+import NotificationSettings from "./pages/admin/NotificationSettings";
 import LineCommandAccess from "./pages/admin/LineCommandAccess";
 import POSCheckin from "./pages/admin/POSCheckin";
 import MeetingAttendanceReport from "./pages/admin/MeetingAttendanceReport";
@@ -174,6 +175,11 @@ const App = () => (
           <Route path="/admin/goals" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <ChapterGoals />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/notifications" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <NotificationSettings />
             </ProtectedRoute>
           } />
           

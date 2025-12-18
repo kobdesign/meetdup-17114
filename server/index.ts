@@ -9,6 +9,7 @@ import systemSettingsRouter from "./routes/system-settings";
 import goalsRouter from "./routes/goals";
 import businessCategoriesRouter from "./routes/business-categories";
 import palmsRouter from "./routes/palms";
+import notificationsRouter from "./routes/notifications";
 import { performHealthCheck, printHealthCheckReport } from "./utils/dbHealthCheck";
 import { setupRichMenuStorage } from "./utils/setupStorage";
 
@@ -257,6 +258,8 @@ app.use("/api/goals", goalsRouter);
 app.use("/api/business-categories", businessCategoriesRouter);
 
 app.use("/api/palms", palmsRouter);
+
+app.use("/api/notifications", notificationsRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();
