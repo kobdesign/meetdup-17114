@@ -2405,17 +2405,11 @@ router.get("/members-for-referral", async (req: Request, res: Response) => {
       });
     }
 
-    // Return members with display_name (nickname_th or full_name_th)
-    const membersWithDisplay = (members || []).map(m => ({
-      participant_id: m.participant_id,
-      full_name_th: m.full_name_th,
-      nickname_th: m.nickname_th,
-      display_name: m.nickname_th || m.full_name_th
-    }));
-
+    // Return members without display_name - let MemberSearchSelect construct
+    // the proper "nickname (full_name)" format on the frontend
     return res.json({
       success: true,
-      members: membersWithDisplay
+      members: members || []
     });
 
   } catch (error: any) {
