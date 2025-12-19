@@ -712,7 +712,7 @@ export default function Meetings() {
 
                 <div className="space-y-2">
                   <Label htmlFor="description">รายละเอียดการประชุม</Label>
-                  <div className="border rounded-md [&_.ql-editor]:min-h-[150px]">
+                  <div className="border rounded-md">
                     <ReactQuill
                       key={showAddDialog ? 'add-quill' : 'add-quill-hidden'}
                       ref={quillRef}
@@ -930,7 +930,7 @@ export default function Meetings() {
 
                   <div className="space-y-2">
                     <Label htmlFor="edit_description">รายละเอียดการประชุม</Label>
-                    <div className="border rounded-md overflow-hidden [&_.ql-editor]:min-h-[150px]">
+                    <div className="border rounded-md overflow-hidden">
                       <ReactQuill
                         key={`edit-quill-${editingMeeting?.meeting_id}`}
                         ref={editQuillRef}

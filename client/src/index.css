@@ -146,7 +146,7 @@ All colors MUST be HSL.
 }
 
 .ql-editor {
-  min-height: 150px;
+  min-height: 150px !important;
   max-height: 300px;
   overflow-y: auto;
 }
