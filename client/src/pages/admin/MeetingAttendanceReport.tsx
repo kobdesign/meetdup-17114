@@ -295,6 +295,9 @@ export default function MeetingAttendanceReport() {
         day: "numeric"
       });
 
+      const isClosed = !!reportData.meeting.meeting_closed_at;
+
+      // Member export data
       const exportData = reportData.members.map((member, index) => ({
         "ลำดับ": index + 1,
         "ชื่อ-นามสกุล": member.full_name_th,
@@ -310,6 +313,7 @@ export default function MeetingAttendanceReport() {
         "เบอร์ตัวแทน": member.substitute_phone || "-"
       }));
 
+      // Member summary
       const summaryData = [
         { "สรุป": "จำนวนสมาชิกทั้งหมด", "จำนวน": reportData.summary.total_members },
         { "สรุป": "มา (ตรงเวลา)", "จำนวน": reportData.summary.on_time },
@@ -326,13 +330,58 @@ export default function MeetingAttendanceReport() {
         )
       ];
 
+      // Helper function to get visitor status label
+      const getVisitorStatus = (visitor: VisitorReport) => {
+        if (visitor.checked_in && visitor.is_late) return "สาย";
+        if (visitor.checked_in) return "มา";
+        if (!isClosed) return "รอเข้าร่วม";
+        return "ขาด";
+      };
+
+      // Visitor export data
+      const visitorExportData = visitors.map((visitor, index) => ({
+        "ลำดับ": index + 1,
+        "ชื่อ-นามสกุล": visitor.full_name_th,
+        "ชื่อเล่น": visitor.nickname_th || "-",
+        "บริษัท": visitor.company || "-",
+        "เบอร์โทร": visitor.phone || "-",
+        "สถานะ": getVisitorStatus(visitor),
+        "เวลาเช็คอิน": visitor.checkin_time 
+          ? new Date(visitor.checkin_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
+          : "-"
+      }));
+
+      // Visitor summary
+      const notCheckedIn = visitors.filter(v => !v.checked_in).length;
+      const visitorSummaryExport = [
+        { "สรุป": "จำนวนผู้เยี่ยมชมทั้งหมด", "จำนวน": visitors.length },
+        { "สรุป": "มา (ตรงเวลา)", "จำนวน": visitors.filter(v => v.checked_in && !v.is_late).length },
+        { "สรุป": "มา (สาย)", "จำนวน": visitors.filter(v => v.checked_in && v.is_late).length },
+        ...(isClosed
+          ? [{ "สรุป": "ขาด", "จำนวน": notCheckedIn }]
+          : [{ "สรุป": "รอเข้าร่วม", "จำนวน": notCheckedIn }]
+        )
+      ];
+
       const wb = XLSX.utils.book_new();
       
+      // Sheet 1: Member list
       const wsMembers = XLSX.utils.json_to_sheet(exportData);
-      XLSX.utils.book_append_sheet(wb, wsMembers, "รายชื่อ");
+      XLSX.utils.book_append_sheet(wb, wsMembers, "รายชื่อสมาชิก");
       
+      // Sheet 2: Member summary
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(wb, wsSummary, "สรุป");
+      XLSX.utils.book_append_sheet(wb, wsSummary, "สรุปสมาชิก");
+
+      // Sheet 3: Visitor list (only if there are visitors)
+      if (visitors.length > 0) {
+        const wsVisitors = XLSX.utils.json_to_sheet(visitorExportData);
+        XLSX.utils.book_append_sheet(wb, wsVisitors, "ผู้เยี่ยมชม");
+        
+        // Sheet 4: Visitor summary
+        const wsVisitorSummary = XLSX.utils.json_to_sheet(visitorSummaryExport);
+        XLSX.utils.book_append_sheet(wb, wsVisitorSummary, "สรุปผู้เยี่ยมชม");
+      }
 
       const dateStr = reportData.meeting.meeting_date.replace(/-/g, "");
       XLSX.writeFile(wb, `รายงานเข้าร่วม_${dateStr}.xlsx`);
