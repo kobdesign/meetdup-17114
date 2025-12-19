@@ -712,7 +712,7 @@ export default function Meetings() {
 
                 <div className="space-y-2">
                   <Label htmlFor="description">รายละเอียดการประชุม</Label>
-                  <div className="border rounded-md">
+                  <div className="border rounded-md [&_.ql-editor]:min-h-[150px]">
                     <ReactQuill
                       key={showAddDialog ? 'add-quill' : 'add-quill-hidden'}
                       ref={quillRef}
@@ -722,7 +722,6 @@ export default function Meetings() {
                       placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
                       modules={quillModules}
                       className="bg-background"
-                      style={{ minHeight: '200px' }}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -931,7 +930,7 @@ export default function Meetings() {
 
                   <div className="space-y-2">
                     <Label htmlFor="edit_description">รายละเอียดการประชุม</Label>
-                    <div className="border rounded-md overflow-hidden">
+                    <div className="border rounded-md overflow-hidden [&_.ql-editor]:min-h-[150px]">
                       <ReactQuill
                         key={`edit-quill-${editingMeeting?.meeting_id}`}
                         ref={editQuillRef}
