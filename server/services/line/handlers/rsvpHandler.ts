@@ -276,7 +276,51 @@ export async function handleRsvpLeave(
 
     await lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: `กรุณาพิมพ์เหตุผลในการลา\n\nตัวอย่าง:\n- ติดประชุมงาน\n- ธุระส่วนตัว\n- ไม่สบาย\n\n(หมดเวลาใน 5 นาที)`
+      text: `กรุณาเลือกหรือพิมพ์เหตุผลในการลา\n\n(หมดเวลาใน 5 นาที)`,
+      quickReply: {
+        items: [
+          {
+            type: "action",
+            action: {
+              type: "message",
+              label: "ติดประชุมงาน",
+              text: "ติดประชุมงาน"
+            }
+          },
+          {
+            type: "action",
+            action: {
+              type: "message",
+              label: "ธุระส่วนตัว",
+              text: "ธุระส่วนตัว"
+            }
+          },
+          {
+            type: "action",
+            action: {
+              type: "message",
+              label: "ไม่สบาย",
+              text: "ไม่สบาย"
+            }
+          },
+          {
+            type: "action",
+            action: {
+              type: "message",
+              label: "ติดงานด่วน",
+              text: "ติดงานด่วน"
+            }
+          },
+          {
+            type: "action",
+            action: {
+              type: "message",
+              label: "เดินทางต่างจังหวัด",
+              text: "เดินทางต่างจังหวัด"
+            }
+          }
+        ]
+      }
     });
 
   } catch (error) {

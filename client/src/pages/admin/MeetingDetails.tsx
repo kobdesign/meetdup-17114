@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Calendar, MapPin, Clock, Users, ArrowLeft, DollarSign, QrCode } from "lucide-react";
+import { Calendar, MapPin, Clock, Users, ArrowLeft, DollarSign, QrCode, UserX, CheckCircle, XCircle } from "lucide-react";
 import MapDisplay from "@/components/MapDisplay";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ export default function MeetingDetails() {
   const [meeting, setMeeting] = useState<any>(null);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [attendees, setAttendees] = useState<any[]>([]);
+  const [rsvpData, setRsvpData] = useState<any[]>([]);
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
@@ -112,6 +113,44 @@ export default function MeetingDetails() {
 
       if (checkinsError) throw checkinsError;
       setAttendees(checkinsData || []);
+
+      // Load RSVP data (including leave requests)
+      // Note: meeting_rsvp table may not be in TypeScript types yet
+      const { data: rsvpResponse, error: rsvpError } = await supabase
+        .from("meeting_rsvp" as any)
+        .select(`
+          rsvp_id,
+          rsvp_status,
+          responded_at,
+          responded_via,
+          leave_reason,
+          substitute_participant_id,
+          participant_id
+        `)
+        .eq("meeting_id", meetingId)
+        .order("responded_at", { ascending: false });
+
+      if (!rsvpError && rsvpResponse) {
+        // Fetch participant details separately for each RSVP entry
+        const participantIds = rsvpResponse.map((r: any) => r.participant_id).filter(Boolean);
+        const substituteIds = rsvpResponse.map((r: any) => r.substitute_participant_id).filter(Boolean);
+        const allIds = [...new Set([...participantIds, ...substituteIds])];
+
+        const { data: participantsData } = await supabase
+          .from("participants")
+          .select("participant_id, full_name_th, company, phone, status")
+          .in("participant_id", allIds.length > 0 ? allIds : ['00000000-0000-0000-0000-000000000000']);
+
+        const participantsMap = new Map((participantsData || []).map((p: any) => [p.participant_id, p]));
+
+        const enrichedRsvp = rsvpResponse.map((r: any) => ({
+          ...r,
+          participant: participantsMap.get(r.participant_id) || null,
+          substitute: r.substitute_participant_id ? participantsMap.get(r.substitute_participant_id) || null : null
+        }));
+
+        setRsvpData(enrichedRsvp);
+      }
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
       console.error(error);
@@ -464,6 +503,121 @@ export default function MeetingDetails() {
             )}
           </CardContent>
         </Card>
+
+        {/* RSVP Summary */}
+        {rsvpData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                การตอบรับ RSVP ({rsvpData.length})
+              </CardTitle>
+              <CardDescription>สถานะการตอบรับเข้าร่วมประชุมจากสมาชิก</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Confirmed */}
+                {rsvpData.filter(r => r.rsvp_status === 'confirmed').length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-3 flex items-center gap-2 text-green-600 dark:text-green-400">
+                      <CheckCircle className="h-4 w-4" />
+                      ยืนยันเข้าร่วม ({rsvpData.filter(r => r.rsvp_status === 'confirmed').length})
+                    </h4>
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                      {rsvpData.filter(r => r.rsvp_status === 'confirmed').map((rsvp) => (
+                        <div key={rsvp.rsvp_id} className="flex items-center gap-3 p-3 border rounded-lg bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+                          <Avatar>
+                            <AvatarFallback className="bg-green-500 text-white">
+                              {getInitials(rsvp.participant?.full_name_th || "")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{rsvp.participant?.full_name_th || "ไม่ระบุชื่อ"}</p>
+                            {rsvp.participant?.company && (
+                              <p className="text-sm text-muted-foreground truncate">{rsvp.participant.company}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              ตอบรับ: {rsvp.responded_at ? new Date(rsvp.responded_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Leave requests */}
+                {rsvpData.filter(r => r.rsvp_status === 'leave').length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-3 flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                      <UserX className="h-4 w-4" />
+                      ขอลา ({rsvpData.filter(r => r.rsvp_status === 'leave').length})
+                    </h4>
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                      {rsvpData.filter(r => r.rsvp_status === 'leave').map((rsvp) => (
+                        <div key={rsvp.rsvp_id} className="flex items-start gap-3 p-3 border rounded-lg bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
+                          <Avatar className="mt-0.5">
+                            <AvatarFallback className="bg-orange-500 text-white">
+                              {getInitials(rsvp.participant?.full_name_th || "")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{rsvp.participant?.full_name_th || "ไม่ระบุชื่อ"}</p>
+                            {rsvp.participant?.company && (
+                              <p className="text-sm text-muted-foreground truncate">{rsvp.participant.company}</p>
+                            )}
+                            {rsvp.leave_reason && (
+                              <p className="text-sm mt-1 p-2 rounded bg-background border">
+                                <span className="text-muted-foreground">เหตุผล: </span>
+                                {rsvp.leave_reason}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              แจ้งลา: {rsvp.responded_at ? new Date(rsvp.responded_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Declined / Sending substitute */}
+                {rsvpData.filter(r => r.rsvp_status === 'declined').length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-3 flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                      <Users className="h-4 w-4" />
+                      ส่งตัวแทน ({rsvpData.filter(r => r.rsvp_status === 'declined').length})
+                    </h4>
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                      {rsvpData.filter(r => r.rsvp_status === 'declined').map((rsvp) => (
+                        <div key={rsvp.rsvp_id} className="flex items-start gap-3 p-3 border rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+                          <Avatar className="mt-0.5">
+                            <AvatarFallback className="bg-blue-500 text-white">
+                              {getInitials(rsvp.participant?.full_name_th || "")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{rsvp.participant?.full_name_th || "ไม่ระบุชื่อ"}</p>
+                            {rsvp.participant?.company && (
+                              <p className="text-sm text-muted-foreground truncate">{rsvp.participant.company}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              แจ้ง: {rsvp.responded_at ? new Date(rsvp.responded_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                            </p>
+                            <p className="text-xs text-muted-foreground italic">
+                              กำลังกรอกข้อมูลตัวแทน
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Attendees List (Checked-in) */}
         <Card>
