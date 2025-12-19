@@ -28,8 +28,8 @@ const techFeatures = [
   },
   {
     icon: RefreshCw,
-    title: "99.9% Uptime",
-    description: "We understand your meetings can't wait. That's why we guarantee maximum availability.",
+    title: "High Availability",
+    description: "We understand your meetings can't wait. Built for reliability when you need it most.",
   },
 ];
 
