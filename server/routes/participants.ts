@@ -1325,7 +1325,7 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
     if (referredByIds.length > 0) {
       const { data: referredByParticipants } = await supabaseAdmin
         .from("participants")
-        .select("participant_id, full_name_th, nickname")
+        .select("participant_id, full_name_th, nickname_th, nickname")
         .in("participant_id", referredByIds);
 
       if (referredByParticipants) {
@@ -1416,11 +1416,25 @@ router.get("/visitor-pipeline", verifySupabaseAuth, async (req: AuthenticatedReq
         ? referredByMap.get(p.referred_by_participant_id)
         : null;
       
+      // Format referrer name as "nickname (full_name)" for clarity when nicknames are duplicated
+      let referredByName: string | null = null;
+      if (referredBy) {
+        const nickname = referredBy.nickname_th || referredBy.nickname;
+        const fullName = referredBy.full_name_th;
+        if (nickname && fullName) {
+          referredByName = `${nickname} (${fullName})`;
+        } else if (fullName) {
+          referredByName = fullName;
+        } else if (nickname) {
+          referredByName = nickname;
+        }
+      }
+      
       return {
         ...p,
         upcoming_meeting_date: upcomingMeeting?.meeting_date || null,
         upcoming_meeting_time: upcomingMeeting?.meeting_time || null,
-        referred_by_name: referredBy?.nickname || referredBy?.full_name_th || null,
+        referred_by_name: referredByName,
         checkins_count: checkinCounts.get(p.participant_id) || 0
       };
     });
