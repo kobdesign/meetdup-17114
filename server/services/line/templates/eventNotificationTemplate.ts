@@ -165,10 +165,9 @@ export function createEventNotificationFlex(params: EventNotificationParams): an
                   {
                     type: "text",
                     text: chapterName,
-                    color: "#FFFFFF",
+                    color: "#E8E8E8",
                     size: "sm",
-                    margin: "sm",
-                    opacity: 0.8
+                    margin: "sm"
                   }
                 ]
               },
