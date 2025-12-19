@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, Download, ExternalLink, Share2 } from "lucide-react";
+import { Upload, Download, ExternalLink, Share2, MessageCircle } from "lucide-react";
+import { SiLine } from "react-icons/si";
 import QRCode from "react-qr-code";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -20,6 +21,7 @@ export default function Settings() {
   const [uploading, setUploading] = useState(false);
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("");
+  const [lineOfficialUrl, setLineOfficialUrl] = useState<string>("");
   const [settings, setSettings] = useState({
     logo_url: "",
     branding_color: "#1e40af",
@@ -42,7 +44,7 @@ export default function Settings() {
     try {
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
-        .select("subdomain, tenant_name")
+        .select("subdomain, tenant_name, line_official_url")
         .eq("tenant_id", effectiveTenantId)
         .maybeSingle();
 
@@ -51,6 +53,7 @@ export default function Settings() {
       if (tenantData) {
         setTenantSlug(tenantData.subdomain);
         setTenantName(tenantData.tenant_name);
+        setLineOfficialUrl(tenantData.line_official_url || "");
       }
 
       const { data, error } = await supabase
@@ -132,7 +135,10 @@ export default function Settings() {
     try {
       const { error: tenantError } = await supabase
         .from("tenants")
-        .update({ tenant_name: tenantName })
+        .update({ 
+          tenant_name: tenantName,
+          line_official_url: lineOfficialUrl || null
+        })
         .eq("tenant_id", effectiveTenantId);
 
       if (tenantError) throw tenantError;
@@ -225,7 +231,25 @@ export default function Settings() {
                 onChange={(e) => setTenantName(e.target.value)}
                 placeholder="Meetdup Bangkok Central"
                 className="mt-2"
+                data-testid="input-tenant-name"
               />
+            </div>
+
+            <div>
+              <Label htmlFor="line_official_url">LINE Official Account URL</Label>
+              <div className="flex items-center gap-2 mt-2">
+                <SiLine className="h-5 w-5 text-[#06C755] flex-shrink-0" />
+                <Input
+                  id="line_official_url"
+                  value={lineOfficialUrl}
+                  onChange={(e) => setLineOfficialUrl(e.target.value)}
+                  placeholder="https://line.me/R/ti/p/@yourchapter"
+                  data-testid="input-line-official-url"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                ใส่ URL ของ LINE Official Account ของ Chapter เพื่อให้สมาชิกสามารถติดตามได้
+              </p>
             </div>
 
             <div>
