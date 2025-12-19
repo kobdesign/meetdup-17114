@@ -47,6 +47,12 @@ All colors MUST be HSL.
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
 
+    --navy: 213 51% 24%;
+    --navy-foreground: 0 0% 100%;
+    
+    --gold: 30 52% 64%;
+    --gold-foreground: 213 51% 15%;
+
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 217 91% 60%;
@@ -94,6 +100,12 @@ All colors MUST be HSL.
     
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
+
+    --navy: 213 51% 20%;
+    --navy-foreground: 0 0% 100%;
+    
+    --gold: 30 52% 64%;
+    --gold-foreground: 213 51% 15%;
 
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
