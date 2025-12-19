@@ -2405,11 +2405,30 @@ router.get("/members-for-referral", async (req: Request, res: Response) => {
       });
     }
 
-    // Return members without display_name - let MemberSearchSelect construct
-    // the proper "nickname (full_name)" format on the frontend
+    // Return members with display_name formatted as "nickname (full_name)"
+    // This format prevents confusion when multiple members share the same nickname
+    const membersWithDisplay = (members || []).map(m => {
+      let displayName: string;
+      if (m.nickname_th && m.full_name_th) {
+        displayName = `${m.nickname_th} (${m.full_name_th})`;
+      } else if (m.full_name_th) {
+        displayName = m.full_name_th;
+      } else if (m.nickname_th) {
+        displayName = m.nickname_th;
+      } else {
+        displayName = "Unknown";
+      }
+      return {
+        participant_id: m.participant_id,
+        full_name_th: m.full_name_th,
+        nickname_th: m.nickname_th,
+        display_name: displayName
+      };
+    });
+
     return res.json({
       success: true,
-      members: members || []
+      members: membersWithDisplay
     });
 
   } catch (error: any) {
