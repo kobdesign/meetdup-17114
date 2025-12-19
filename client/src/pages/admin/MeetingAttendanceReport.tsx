@@ -399,6 +399,7 @@ export default function MeetingAttendanceReport() {
 
   const selectedMeeting = meetings.find(m => m.meeting_id === selectedMeetingId);
   const isOntimeClosed = !!selectedMeeting?.ontime_closed_at;
+  const isMeetingClosed = !!reportData?.meeting.meeting_closed_at;
 
   const handleToggleOntime = async () => {
     if (!selectedMeetingId) return;
@@ -449,19 +450,22 @@ export default function MeetingAttendanceReport() {
     return member.attendance_status === statusFilter;
   }) || [];
 
-  // Calculate visitor summary stats
+  // Calculate visitor summary stats (pending if meeting not closed, absent if closed)
+  const notCheckedInVisitors = visitors.filter(v => !v.checked_in).length;
   const visitorSummary = {
     total: visitors.length,
     on_time: visitors.filter(v => v.checked_in && !v.is_late).length,
     late: visitors.filter(v => v.checked_in && v.is_late).length,
-    absent: visitors.filter(v => !v.checked_in).length
+    pending: isMeetingClosed ? 0 : notCheckedInVisitors,
+    absent: isMeetingClosed ? notCheckedInVisitors : 0
   };
 
   const filteredVisitors = visitors.filter(visitor => {
     if (visitorStatusFilter === "all") return true;
     if (visitorStatusFilter === "on_time") return visitor.checked_in && !visitor.is_late;
     if (visitorStatusFilter === "late") return visitor.checked_in && visitor.is_late;
-    if (visitorStatusFilter === "absent") return !visitor.checked_in;
+    if (visitorStatusFilter === "pending") return !visitor.checked_in && !isMeetingClosed;
+    if (visitorStatusFilter === "absent") return !visitor.checked_in && isMeetingClosed;
     return true;
   });
 
@@ -471,6 +475,9 @@ export default function MeetingAttendanceReport() {
     }
     if (visitor.checked_in) {
       return <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">มา</Badge>;
+    }
+    if (!isMeetingClosed) {
+      return <Badge variant="secondary">รอเข้าร่วม</Badge>;
     }
     return <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">ขาด</Badge>;
   };
@@ -1007,7 +1014,12 @@ export default function MeetingAttendanceReport() {
                         <SelectItem value="all">ทั้งหมด ({visitorSummary.total})</SelectItem>
                         <SelectItem value="on_time">ตรงเวลา ({visitorSummary.on_time})</SelectItem>
                         <SelectItem value="late">สาย ({visitorSummary.late})</SelectItem>
-                        <SelectItem value="absent">ขาด ({visitorSummary.absent})</SelectItem>
+                        {!isMeetingClosed && (
+                          <SelectItem value="pending">รอเข้าร่วม ({visitorSummary.pending})</SelectItem>
+                        )}
+                        {isMeetingClosed && (
+                          <SelectItem value="absent">ขาด ({visitorSummary.absent})</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
