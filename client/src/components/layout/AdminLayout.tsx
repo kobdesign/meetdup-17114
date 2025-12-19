@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   LayoutDashboard, 
   Users, 
@@ -33,7 +34,9 @@ import {
   Trophy,
   Briefcase,
   ClipboardList,
-  Bell
+  Bell,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -80,55 +83,148 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     return name.substring(0, 2).toUpperCase();
   };
 
-  // Role-based navigation items
-  const getNavItemsByRole = (role: string | null) => {
-    // Base items for all users
-    const baseItems = [
+  // Navigation menu structure with collapsible groups
+  interface NavItem {
+    icon: ReactNode;
+    label: string;
+    href: string;
+  }
+
+  interface NavGroup {
+    id: string;
+    label: string;
+    icon: ReactNode;
+    items: NavItem[];
+    defaultOpen?: boolean;
+  }
+
+  // Collapsible state for nav groups
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    members: true,
+    meetings: true,
+    line: false,
+    settings: false,
+  });
+
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  // Role-based navigation structure
+  const getNavStructureByRole = (role: string | null): { quickAccess: NavItem[]; groups: NavGroup[] } => {
+    // Quick access items (always visible at top)
+    const quickAccess: NavItem[] = [
       { icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard", href: "/admin" },
     ];
 
-    // Member-only items
-    const memberItems = [
-      ...baseItems,
-      { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
-    ];
-
-    // Admin items (for both chapter_admin and super_admin)
-    const adminItems = [
-      ...baseItems,
-      { icon: <Users className="h-4 w-4" />, label: "สมาชิก", href: "/admin/participants" },
-      { icon: <UserPlus className="h-4 w-4" />, label: "Visitor Pipeline", href: "/admin/visitors" },
-      { icon: <UserPlus className="h-4 w-4" />, label: "จัดการสมาชิก", href: "/admin/members-management" },
-      { icon: <Upload className="h-4 w-4" />, label: "นำเข้าสมาชิก", href: "/admin/import-members" },
-      { icon: <Trophy className="h-4 w-4" />, label: "เป้าหมาย", href: "/admin/goals" },
-      { icon: <Bell className="h-4 w-4" />, label: "แจ้งเตือนประชุม", href: "/admin/notifications" },
-      { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
-      { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
-      { icon: <QrCode className="h-4 w-4" />, label: "POS Check-In", href: "/admin/pos-checkin" },
-      { icon: <ClipboardList className="h-4 w-4" />, label: "รายงานเข้าร่วม", href: "/admin/attendance-report" },
-      { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/admin/line-config" },
-      { icon: <LayoutGrid className="h-4 w-4" />, label: "LINE Rich Menu", href: "/admin/rich-menu" },
-      { icon: <Shield className="h-4 w-4" />, label: "สิทธิ์คำสั่ง LINE", href: "/admin/line-command-access" },
-      { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า", href: "/admin/settings" },
-    ];
-
-    // Return appropriate items based on role
-    if (role === "super_admin" || role === "chapter_admin") {
-      return adminItems;
+    // Member-only structure
+    if (role !== "super_admin" && role !== "chapter_admin") {
+      return {
+        quickAccess,
+        groups: [
+          {
+            id: "meetings",
+            label: "การประชุม",
+            icon: <Calendar className="h-4 w-4" />,
+            defaultOpen: true,
+            items: [
+              { icon: <Calendar className="h-4 w-4" />, label: "การประชุม", href: "/admin/meetings" },
+            ],
+          },
+        ],
+      };
     }
-    
-    // Default to member items
-    return memberItems;
+
+    // Admin structure (chapter_admin and super_admin)
+    return {
+      quickAccess,
+      groups: [
+        {
+          id: "members",
+          label: "สมาชิก",
+          icon: <Users className="h-4 w-4" />,
+          defaultOpen: true,
+          items: [
+            { icon: <Users className="h-4 w-4" />, label: "รายชื่อสมาชิก", href: "/admin/participants" },
+            { icon: <UserPlus className="h-4 w-4" />, label: "Visitor Pipeline", href: "/admin/visitors" },
+            { icon: <UserPlus className="h-4 w-4" />, label: "จัดการสมาชิก", href: "/admin/members-management" },
+            { icon: <Upload className="h-4 w-4" />, label: "นำเข้าสมาชิก", href: "/admin/import-members" },
+          ],
+        },
+        {
+          id: "meetings",
+          label: "การประชุม",
+          icon: <Calendar className="h-4 w-4" />,
+          defaultOpen: true,
+          items: [
+            { icon: <Calendar className="h-4 w-4" />, label: "รายการประชุม", href: "/admin/meetings" },
+            { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
+            { icon: <QrCode className="h-4 w-4" />, label: "POS Check-In", href: "/admin/pos-checkin" },
+            { icon: <ClipboardList className="h-4 w-4" />, label: "รายงานเข้าร่วม", href: "/admin/attendance-report" },
+            { icon: <Bell className="h-4 w-4" />, label: "แจ้งเตือนประชุม", href: "/admin/notifications" },
+          ],
+        },
+        {
+          id: "line",
+          label: "LINE Bot",
+          icon: <MessageSquare className="h-4 w-4" />,
+          defaultOpen: false,
+          items: [
+            { icon: <MessageSquare className="h-4 w-4" />, label: "LINE Config", href: "/admin/line-config" },
+            { icon: <LayoutGrid className="h-4 w-4" />, label: "Rich Menu", href: "/admin/rich-menu" },
+            { icon: <Shield className="h-4 w-4" />, label: "สิทธิ์คำสั่ง", href: "/admin/line-command-access" },
+          ],
+        },
+        {
+          id: "settings",
+          label: "ตั้งค่า",
+          icon: <Settings className="h-4 w-4" />,
+          defaultOpen: false,
+          items: [
+            { icon: <Trophy className="h-4 w-4" />, label: "เป้าหมาย", href: "/admin/goals" },
+            { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า Chapter", href: "/admin/settings" },
+          ],
+        },
+      ],
+    };
   };
 
-  const navItems = getNavItemsByRole(userRole);
+  const navStructure = getNavStructureByRole(userRole);
 
   const superAdminNavItems = [
     { icon: <Building2 className="h-4 w-4" />, label: "จัดการ Tenants", href: "/super-admin/tenants" },
     { icon: <Shield className="h-4 w-4" />, label: "จัดการสิทธิ์", href: "/admin/authorization" },
     { icon: <Smartphone className="h-4 w-4" />, label: "LIFF Settings", href: "/super-admin/liff-settings" },
-    { icon: <Briefcase className="h-4 w-4" />, label: "จัดการหมวดหมู่ธุรกิจ", href: "/super-admin/business-categories" },
+    { icon: <Briefcase className="h-4 w-4" />, label: "หมวดหมู่ธุรกิจ", href: "/super-admin/business-categories" },
   ];
+
+  // Render collapsible nav group
+  const renderNavGroup = (group: NavGroup) => (
+    <Collapsible
+      key={group.id}
+      open={openGroups[group.id]}
+      onOpenChange={() => toggleGroup(group.id)}
+    >
+      <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium text-muted-foreground hover-elevate rounded-md">
+        <div className="flex items-center gap-2">
+          {group.icon}
+          <span>{group.label}</span>
+        </div>
+        {openGroups[group.id] ? (
+          <ChevronDown className="h-4 w-4" />
+        ) : (
+          <ChevronRight className="h-4 w-4" />
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pl-4 mt-1 space-y-1">
+        {group.items.map((item) => (
+          <NavLink key={item.href} to={item.href} icon={item.icon}>
+            {item.label}
+          </NavLink>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -152,15 +248,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   </div>
                 ) : null}
                 
-                <nav className="flex flex-col gap-2 mt-8">
-                  {isContentReady && navItems.map((item) => (
+                <nav className="flex flex-col gap-1 mt-8">
+                  {isContentReady && navStructure.quickAccess.map((item) => (
                     <NavLink key={item.href} to={item.href} icon={item.icon}>
                       {item.label}
                     </NavLink>
                   ))}
+                  {isContentReady && (
+                    <div className="mt-2 space-y-1">
+                      {navStructure.groups.map(renderNavGroup)}
+                    </div>
+                  )}
                   {isContentReady && userRole === "super_admin" && (
                     <>
                       <div className="my-2 border-t" />
+                      <div className="text-xs font-semibold text-muted-foreground px-3 mb-2">
+                        Super Admin
+                      </div>
                       {superAdminNavItems.map((item) => (
                         <NavLink key={item.href} to={item.href} icon={item.icon}>
                           {item.label}
@@ -246,12 +350,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             ) : null}
           </div>
           
-          <nav className="flex flex-col gap-2 px-4">
-            {isContentReady && navItems.map((item) => (
+          <nav className="flex flex-col gap-1 px-4">
+            {isContentReady && navStructure.quickAccess.map((item) => (
               <NavLink key={item.href} to={item.href} icon={item.icon}>
                 {item.label}
               </NavLink>
             ))}
+            {isContentReady && (
+              <div className="mt-2 space-y-1">
+                {navStructure.groups.map(renderNavGroup)}
+              </div>
+            )}
             {isContentReady && userRole === "super_admin" && (
               <>
                 <div className="my-2 border-t" />
