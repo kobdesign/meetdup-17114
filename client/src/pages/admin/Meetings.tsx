@@ -924,9 +924,10 @@ export default function Meetings() {
                 {previewContent.description && (
                   <div>
                     <Label className="text-base font-semibold">📝 รายละเอียดการประชุม</Label>
-                    <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
-                      {previewContent.description}
-                    </p>
+                    <div 
+                      className="mt-3 prose prose-sm dark:prose-invert max-w-none text-muted-foreground"
+                      dangerouslySetInnerHTML={{ __html: previewContent.description }}
+                    />
                   </div>
                 )}
 
