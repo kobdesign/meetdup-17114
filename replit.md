@@ -27,7 +27,7 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 ### Core Architectural Decisions
 - **Multi-Tenancy**: Implemented with tenant-based data isolation, chapter-specific branding, and settings.
 - **Role-Based Access Control (RBAC)**: Supports Super Admin, Chapter Admin, and Member roles with progressive disclosure navigation and route-level guards.
-- **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface, including an image cropper for profile photos.
+- **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface, including an image cropper for profile photos. Admin sidebar uses collapsible navigation groups (สมาชิก, การประชุม, LINE Bot, ตั้งค่า) with Radix Collapsible for better UX organization.
 - **Landing Page**: Professional Trust theme with Navy Blue (#1e3a5f) + Soft Gold (#d4a574) color scheme. World-class SaaS landing page with 8 sections: LandingNavbar (sticky navigation), HeroSection (value proposition + CTA), TrustBar (stats + partners), ProblemSolutionSection, FeatureShowcase (9 key features), SocialProofSection (testimonials), TechnologySection (security + trust), LandingFooter (CTA + links). Uses custom `variant="gold"` button for CTAs.
 - **LINE Integration**: Comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and message-based interaction flows (e.g., phone linking, business card search, automated LIFF activation). Includes a LIFF-based member search system with tenant branding.
 - **Check-In System**: QR code-based check-ins integrated with LINE webhooks, primarily using phone number for identification.
