@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../../../utils/supabaseClient";
 import { LineClient } from "../lineClient";
 import { createRsvpConfirmationFlex } from "../templates/eventNotificationTemplate";
 import { generateSubstituteToken } from "../../../utils/profileToken";
+import { getLineCredentials } from "../credentials";
 
 interface ConversationState {
   step: "awaiting_leave_reason";
@@ -151,7 +152,7 @@ export async function handleRsvpSubstitute(
       ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
       : process.env.APP_URL || 'https://meetdup.replit.app';
 
-    const substituteUrl = `${baseUrl}/substitute/${token}`;
+    const substituteUrl = `${baseUrl}/liff/substitute?token=${encodeURIComponent(token)}`;
 
     const { error: upsertError } = await supabaseAdmin
       .from("meeting_rsvp")
@@ -396,15 +397,13 @@ async function notifyAdminsAboutLeave(
 
     if (!admins || admins.length === 0) return;
 
-    const { data: tenant } = await supabaseAdmin
-      .from("tenants")
-      .select("line_channel_access_token")
-      .eq("tenant_id", tenantId)
-      .single();
+    const lineCredentials = await getLineCredentials(tenantId);
+    if (!lineCredentials) {
+      console.error(`${logPrefix} LINE credentials not found for tenant`);
+      return;
+    }
 
-    if (!tenant?.line_channel_access_token) return;
-
-    const lineClient = new LineClient(tenant.line_channel_access_token);
+    const lineClient = new LineClient(lineCredentials.channelAccessToken);
 
     const dateStr = meeting?.meeting_date 
       ? new Date(meeting.meeting_date).toLocaleDateString('th-TH', { 
