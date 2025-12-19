@@ -53,9 +53,9 @@ export default function NotificationSettings() {
 
   // Fetch upcoming meetings
   const { data: meetingsData } = useQuery({
-    queryKey: ["/api/meetings", selectedTenantId, "upcoming"],
+    queryKey: ["/api/notifications/meetings", selectedTenantId, "upcoming"],
     queryFn: async () => {
-      const response = await apiRequest(`/api/meetings?tenant_id=${selectedTenantId}&upcoming=true`, "GET");
+      const response = await apiRequest(`/api/notifications/meetings?tenant_id=${selectedTenantId}&upcoming=true`, "GET");
       if (response.success) {
         return response.meetings as Meeting[];
       }

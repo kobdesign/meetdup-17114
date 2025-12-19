@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import crypto from "crypto";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
+import { getLineCredentials } from "../services/line/credentials";
 
 const router = Router();
 
@@ -206,17 +207,26 @@ router.post("/test/:tenantId", verifySupabaseAuth, async (req: AuthenticatedRequ
       return res.status(403).json({ success: false, error: "Access denied" });
     }
 
-    // Get tenant info with LINE credentials
-    const { data: tenant, error: tenantError } = await supabaseAdmin
-      .from("tenants")
-      .select("tenant_id, name, line_channel_access_token")
-      .eq("tenant_id", tenantId)
-      .single();
-
-    if (tenantError || !tenant || !tenant.line_channel_access_token) {
+    // Get LINE credentials from tenant_secrets (encrypted)
+    const lineCredentials = await getLineCredentials(tenantId);
+    if (!lineCredentials) {
       return res.status(400).json({ 
         success: false, 
         error: "ยังไม่ได้ตั้งค่า LINE Channel Access Token" 
+      });
+    }
+
+    // Get tenant info
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_id, tenant_name")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (tenantError || !tenant) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "ไม่พบข้อมูล Chapter" 
       });
     }
 
@@ -250,7 +260,7 @@ router.post("/test/:tenantId", verifySupabaseAuth, async (req: AuthenticatedRequ
     const { createEventNotificationFlex } = await import("../services/line/templates/eventNotificationTemplate");
     const { LineClient } = await import("../services/line/lineClient");
 
-    const lineClient = new LineClient(tenant.line_channel_access_token);
+    const lineClient = new LineClient(lineCredentials.channelAccessToken);
 
     const testMeeting = meeting || {
       meeting_id: "test-meeting",
@@ -266,7 +276,7 @@ router.post("/test/:tenantId", verifySupabaseAuth, async (req: AuthenticatedRequ
       meetingTime: testMeeting.meeting_time || "07:00:00",
       theme: testMeeting.theme || "ประชุมประจำสัปดาห์ (ทดสอบ)",
       venue: testMeeting.venue || "สถานที่ประชุม",
-      chapterName: tenant.name,
+      chapterName: tenant.tenant_name,
       memberName: adminParticipant.full_name_th,
       notificationType: "manual",
       confirmedCount: 5,
@@ -300,10 +310,10 @@ router.post("/send/:meetingId", verifySupabaseAuth, async (req: AuthenticatedReq
     const userId = req.user!.id;
     const { notification_type = "manual" } = req.body;
 
-    // Get meeting details
+    // Get meeting details with tenant info
     const { data: meeting, error: meetingError } = await supabaseAdmin
       .from("meetings")
-      .select("*, tenant:tenants(name, line_channel_access_token)")
+      .select("*, tenant:tenants(tenant_name)")
       .eq("meeting_id", meetingId)
       .single();
 
@@ -313,6 +323,15 @@ router.post("/send/:meetingId", verifySupabaseAuth, async (req: AuthenticatedReq
 
     if (!await checkAdminAccess(userId, meeting.tenant_id)) {
       return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Verify LINE credentials exist
+    const lineCredentials = await getLineCredentials(meeting.tenant_id);
+    if (!lineCredentials) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "ยังไม่ได้ตั้งค่า LINE Channel Access Token สำหรับ Chapter นี้" 
+      });
     }
 
     // Import notification service
@@ -331,6 +350,55 @@ router.post("/send/:meetingId", verifySupabaseAuth, async (req: AuthenticatedReq
       failed: result.failed,
       message: `Sent ${result.sent} notifications, ${result.failed} failed`
     });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/notifications/meetings
+ * Get upcoming meetings for a tenant (for notification UI)
+ */
+router.get("/meetings", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[notification-meetings:${requestId}]`;
+
+  try {
+    const tenantId = req.query.tenant_id as string;
+    const upcoming = req.query.upcoming === "true";
+    const userId = req.user!.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ success: false, error: "tenant_id is required" });
+    }
+
+    if (!await checkAdminAccess(userId, tenantId)) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    let query = supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue")
+      .eq("tenant_id", tenantId)
+      .order("meeting_date", { ascending: true });
+
+    // Filter to only upcoming meetings if requested
+    if (upcoming) {
+      const today = new Date().toISOString().split('T')[0];
+      query = query.gte("meeting_date", today);
+    }
+
+    const { data: meetings, error } = await query.limit(20);
+
+    if (error) {
+      console.error(`${logPrefix} Query error:`, error);
+      return res.status(500).json({ success: false, error: "Database error" });
+    }
+
+    console.log(`${logPrefix} Found ${meetings?.length || 0} meetings for tenant ${tenantId}`);
+    return res.json({ success: true, meetings: meetings || [] });
 
   } catch (error: any) {
     console.error(`${logPrefix} Error:`, error);
