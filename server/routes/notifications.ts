@@ -165,7 +165,7 @@ router.get("/rsvp/:meetingId", verifySupabaseAuth, async (req: AuthenticatedRequ
       .from("meeting_rsvp")
       .select(`
         *,
-        participant:participants(participant_id, full_name_th, full_name_en, phone, profile_image_url, company, status)
+        participant:participants(participant_id, full_name_th, full_name_en, phone, company, status)
       `)
       .eq("meeting_id", meetingId);
 

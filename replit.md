@@ -60,7 +60,7 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - **LIFF Business Card Share System**: Allows members to share their business card as a Flex Message via LINE Share Target Picker, with robust LINE OAuth compliant architecture, URL normalization, and Super Admin toggle for share button visibility.
 - **LIFF Profile Components**: Reusable `MemberProfileCard` (detailed view) and `MemberListCard` (compact list view) for displaying member profiles across LIFF pages, including LINE Chat links.
 - **Event RSVP System**: Meeting notification with RSVP buttons (Confirm, Substitute, Leave). Data stored in `meeting_rsvp` table with statuses: pending, confirmed, declined, leave. Leave flow captures reason via Quick Reply options or free-text input.
-- **RSVP Summary in Admin**: Meeting Details page displays RSVP responses grouped by status (Confirmed=green, Leave=orange, Substitute/Declined=blue) with participant names, companies, and leave reasons.
+- **RSVP Summary in Admin**: Meeting Details page displays RSVP responses grouped by status (Confirmed=green, Leave=orange, Substitute/Declined=blue, Pending=gray) with participant names, companies, and leave reasons. Data fetched via API endpoint `/api/notifications/rsvp/:meetingId` using supabaseAdmin to bypass RLS.
 
 ### Future Improvements (TODO)
 - **Substitute Flow Enhancement**: Add `substitute_participant_id` column to `meeting_rsvp` table and update status constraint to include "substitute" value. LIFF form submission should sync back to `meeting_rsvp` with substitute details.
