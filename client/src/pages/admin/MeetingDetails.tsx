@@ -114,42 +114,28 @@ export default function MeetingDetails() {
       if (checkinsError) throw checkinsError;
       setAttendees(checkinsData || []);
 
-      // Load RSVP data (including leave requests)
-      // Note: meeting_rsvp table may not be in TypeScript types yet
-      const { data: rsvpResponse, error: rsvpError } = await supabase
-        .from("meeting_rsvp" as any)
-        .select(`
-          rsvp_id,
-          rsvp_status,
-          responded_at,
-          responded_via,
-          leave_reason,
-          substitute_participant_id,
-          participant_id
-        `)
-        .eq("meeting_id", meetingId)
-        .order("responded_at", { ascending: false });
-
-      if (!rsvpError && rsvpResponse) {
-        // Fetch participant details separately for each RSVP entry
-        const participantIds = rsvpResponse.map((r: any) => r.participant_id).filter(Boolean);
-        const substituteIds = rsvpResponse.map((r: any) => r.substitute_participant_id).filter(Boolean);
-        const allIds = [...new Set([...participantIds, ...substituteIds])];
-
-        const { data: participantsData } = await supabase
-          .from("participants")
-          .select("participant_id, full_name_th, company, phone, status")
-          .in("participant_id", allIds.length > 0 ? allIds : ['00000000-0000-0000-0000-000000000000']);
-
-        const participantsMap = new Map((participantsData || []).map((p: any) => [p.participant_id, p]));
-
-        const enrichedRsvp = rsvpResponse.map((r: any) => ({
-          ...r,
-          participant: participantsMap.get(r.participant_id) || null,
-          substitute: r.substitute_participant_id ? participantsMap.get(r.substitute_participant_id) || null : null
-        }));
-
-        setRsvpData(enrichedRsvp);
+      // Load RSVP data via API endpoint (bypasses RLS)
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        
+        if (token) {
+          const rsvpResponse = await fetch(`/api/notifications/rsvp/${meetingId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (rsvpResponse.ok) {
+            const rsvpResult = await rsvpResponse.json();
+            if (rsvpResult.success && rsvpResult.rsvps) {
+              setRsvpData(rsvpResult.rsvps);
+            }
+          }
+        }
+      } catch (rsvpError) {
+        console.error("Failed to load RSVP data:", rsvpError);
       }
     } catch (error: any) {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
@@ -607,6 +593,36 @@ export default function MeetingDetails() {
                             </p>
                             <p className="text-xs text-muted-foreground italic">
                               กำลังกรอกข้อมูลตัวแทน
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pending - received notification but not responded */}
+                {rsvpData.filter(r => r.rsvp_status === 'pending').length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-3 flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                      <Clock className="h-4 w-4" />
+                      รอตอบรับ ({rsvpData.filter(r => r.rsvp_status === 'pending').length})
+                    </h4>
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                      {rsvpData.filter(r => r.rsvp_status === 'pending').map((rsvp) => (
+                        <div key={rsvp.rsvp_id} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50/50 dark:bg-gray-950/20 border-gray-200 dark:border-gray-700">
+                          <Avatar>
+                            <AvatarFallback className="bg-gray-400 text-white">
+                              {getInitials(rsvp.participant?.full_name_th || "")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{rsvp.participant?.full_name_th || "ไม่ระบุชื่อ"}</p>
+                            {rsvp.participant?.company && (
+                              <p className="text-sm text-muted-foreground truncate">{rsvp.participant.company}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              ส่งแจ้งเตือน: {rsvp.last_notified_at ? new Date(rsvp.last_notified_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
                             </p>
                           </div>
                         </div>
