@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../../utils/supabaseClient";
 import { LineClient } from "../line/lineClient";
 import { createEventNotificationFlex } from "../line/templates/eventNotificationTemplate";
+import { getLineCredentials } from "../line/credentials";
 
 interface SendResult {
   sent: number;
@@ -28,15 +29,22 @@ export async function sendEventNotifications(
       return result;
     }
 
-    // Get tenant info with LINE credentials
+    // Get tenant info
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from("tenants")
-      .select("tenant_id, name, line_channel_access_token")
+      .select("tenant_id, tenant_name")
       .eq("tenant_id", tenantId)
       .single();
 
-    if (tenantError || !tenant || !tenant.line_channel_access_token) {
-      console.error(`${logPrefix} Tenant or LINE token not found:`, tenantId);
+    if (tenantError || !tenant) {
+      console.error(`${logPrefix} Tenant not found:`, tenantId);
+      return result;
+    }
+
+    // Get LINE credentials from encrypted tenant_secrets
+    const lineCredentials = await getLineCredentials(tenantId);
+    if (!lineCredentials) {
+      console.error(`${logPrefix} LINE credentials not found for tenant:`, tenantId);
       return result;
     }
 
@@ -63,7 +71,7 @@ export async function sendEventNotifications(
 
     const confirmedCount = rsvps?.filter(r => r.rsvp_status === "confirmed").length || 0;
 
-    const lineClient = new LineClient(tenant.line_channel_access_token);
+    const lineClient = new LineClient(lineCredentials.channelAccessToken);
 
     // Send to each member
     for (const member of members) {
@@ -74,7 +82,7 @@ export async function sendEventNotifications(
           meetingTime: meeting.meeting_time || "",
           theme: meeting.theme || "ประชุมประจำสัปดาห์",
           venue: meeting.venue || "",
-          chapterName: tenant.name,
+          chapterName: tenant.tenant_name,
           memberName: member.full_name_th,
           notificationType,
           confirmedCount,
