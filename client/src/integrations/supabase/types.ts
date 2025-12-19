@@ -809,6 +809,7 @@ export type Database = {
         Row: {
           created_at: string
           line_bot_basic_id: string | null
+          line_official_url: string | null
           logo_url: string | null
           subdomain: string
           tenant_id: string
@@ -818,6 +819,7 @@ export type Database = {
         Insert: {
           created_at?: string
           line_bot_basic_id?: string | null
+          line_official_url?: string | null
           logo_url?: string | null
           subdomain: string
           tenant_id?: string
@@ -827,6 +829,7 @@ export type Database = {
         Update: {
           created_at?: string
           line_bot_basic_id?: string | null
+          line_official_url?: string | null
           logo_url?: string | null
           subdomain?: string
           tenant_id?: string
