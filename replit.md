@@ -44,6 +44,7 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching during registration.
 - **Activation Flow**: Secure token-based self-registration for imported members with single-use, expiring tokens.
 - **User Journey Status Transitions**: `prospect` → `visitor` → `member`.
+- **Referrer Name Display Format**: Consistently shows "nickname (full_name)" format across all pages to prevent confusion when multiple members share the same nickname.
 - **Business Card Search**: Enhanced multi-field search across various participant data fields with input sanitization and SQL injection prevention.
 - **Participant Deletion**: Comprehensive participant deletion with cleanup of related records and proper handling of multi-tenant scenarios.
 - **Database Management & Health Monitoring**: Includes a health check system for database status and schema sync verification.
