@@ -41,6 +41,7 @@ interface NextMeeting {
   meeting_time?: string;
   theme?: string;
   venue?: string;
+  visitor_fee?: number | null;
 }
 
 interface ChapterResponse {
@@ -311,12 +312,16 @@ export default function ChapterProfile() {
                     </div>
                   )}
 
-                  {/* Fee */}
-                  {chapter.visitor_fee != null && (
+                  {/* Fee - from meeting or fallback to chapter default */}
+                  {(nextMeeting.visitor_fee != null || chapter.visitor_fee != null) && (
                     <div className="pt-2 border-t">
                       <p className="text-sm text-muted-foreground">Visitor Fee</p>
                       <p className="font-medium">
-                        {chapter.visitor_fee === 0 ? "Free" : `${chapter.visitor_fee.toLocaleString()} THB`}
+                        {(() => {
+                          const fee = nextMeeting.visitor_fee ?? chapter.visitor_fee;
+                          if (fee === 0 || fee === null) return "Free";
+                          return `${fee.toLocaleString()} THB`;
+                        })()}
                       </p>
                     </div>
                   )}
