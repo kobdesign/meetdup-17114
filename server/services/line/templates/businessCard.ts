@@ -610,12 +610,18 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
   const lineOfficialUrl = sanitizeUrl(data.tenants?.line_official_url);
   if (lineOfficialUrl && data.tenants?.tenant_name) {
     footerContents.push({
-      type: "text",
-      text: `LINE Official: ${data.tenants.tenant_name}`,
-      size: "xxs",
-      color: "#06C755",
-      decoration: "underline",
-      align: "center",
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `LINE Official: ${data.tenants.tenant_name}`,
+          size: "xxs",
+          color: "#06C755",
+          decoration: "underline",
+          align: "center"
+        }
+      ],
       margin: "sm",
       action: {
         type: "uri",
@@ -1254,15 +1260,15 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
           size: "xs",
           color: "#06C755",
           decoration: "underline",
-          align: "center",
-          action: {
-            type: "uri",
-            uri: lineOfficialUrl
-          }
+          align: "center"
         }
       ],
       margin: "md",
-      justifyContent: "center"
+      justifyContent: "center",
+      action: {
+        type: "uri",
+        uri: lineOfficialUrl
+      }
     });
   }
 
