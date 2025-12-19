@@ -48,19 +48,90 @@ export function createEventNotificationFlex(params: EventNotificationParams): an
     }
   };
 
-  const getUrgencyColor = () => {
+  const getCountdownBadge = () => {
     switch (notificationType) {
       case '2_hours':
-        return '#FF6B6B';
+        return 'อีก 2 ชม.';
       case '1_day':
-        return '#FFB347';
+        return 'พรุ่งนี้';
       case '7_days':
-        return '#4ECDC4';
+        return 'อีก 7 วัน';
       case 'manual':
-        return '#6C5CE7';
+        return '';
       default:
-        return '#4ECDC4';
+        return '';
     }
+  };
+
+  const getUrgencyColors = () => {
+    switch (notificationType) {
+      case '2_hours':
+        return { primary: '#E74C3C', secondary: '#C0392B', badge: '#FADBD8' };
+      case '1_day':
+        return { primary: '#F39C12', secondary: '#D68910', badge: '#FCF3CF' };
+      case '7_days':
+        return { primary: '#27AE60', secondary: '#1E8449', badge: '#D5F5E3' };
+      case 'manual':
+        return { primary: '#8E44AD', secondary: '#6C3483', badge: '#E8DAEF' };
+      default:
+        return { primary: '#27AE60', secondary: '#1E8449', badge: '#D5F5E3' };
+    }
+  };
+
+  const colors = getUrgencyColors();
+  const countdownBadge = getCountdownBadge();
+  const progressPercent = totalMembers > 0 ? Math.round((confirmedCount / totalMembers) * 100) : 0;
+
+  const createProgressBar = () => {
+    if (totalMembers === 0) return [];
+    
+    return [{
+      type: "box",
+      layout: "vertical",
+      margin: "lg",
+      contents: [
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "text",
+              text: "ยืนยันเข้าร่วมแล้ว",
+              size: "xs",
+              color: "#888888",
+              flex: 1
+            },
+            {
+              type: "text",
+              text: `${confirmedCount}/${totalMembers} คน`,
+              size: "xs",
+              color: colors.primary,
+              align: "end",
+              weight: "bold"
+            }
+          ]
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          margin: "sm",
+          height: "8px",
+          backgroundColor: "#E8E8E8",
+          cornerRadius: "4px",
+          contents: [
+            {
+              type: "box",
+              layout: "vertical",
+              height: "8px",
+              width: `${Math.min(progressPercent, 100)}%`,
+              backgroundColor: colors.primary,
+              cornerRadius: "4px",
+              contents: []
+            }
+          ]
+        }
+      ]
+    }];
   };
 
   return {
@@ -72,172 +143,298 @@ export function createEventNotificationFlex(params: EventNotificationParams): an
       header: {
         type: "box",
         layout: "vertical",
-        backgroundColor: getUrgencyColor(),
-        paddingAll: "15px",
+        backgroundColor: colors.primary,
+        paddingAll: "20px",
         contents: [
           {
-            type: "text",
-            text: getNotificationTitle(),
-            color: "#FFFFFF",
-            size: "lg",
-            weight: "bold"
-          },
-          {
-            type: "text",
-            text: chapterName,
-            color: "#FFFFFF",
-            size: "sm",
-            margin: "xs"
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "box",
+                layout: "vertical",
+                flex: 1,
+                contents: [
+                  {
+                    type: "text",
+                    text: getNotificationTitle(),
+                    color: "#FFFFFF",
+                    size: "xl",
+                    weight: "bold"
+                  },
+                  {
+                    type: "text",
+                    text: chapterName,
+                    color: "#FFFFFF",
+                    size: "sm",
+                    margin: "sm",
+                    opacity: 0.8
+                  }
+                ]
+              },
+              ...(countdownBadge ? [{
+                type: "box",
+                layout: "vertical",
+                backgroundColor: colors.badge,
+                cornerRadius: "md",
+                paddingAll: "8px",
+                justifyContent: "center",
+                contents: [
+                  {
+                    type: "text",
+                    text: countdownBadge,
+                    color: colors.secondary,
+                    size: "sm",
+                    weight: "bold",
+                    align: "center"
+                  }
+                ]
+              }] : [])
+            ]
           }
         ]
       },
       body: {
         type: "box",
         layout: "vertical",
-        paddingAll: "15px",
+        paddingAll: "20px",
         spacing: "md",
         contents: [
           {
             type: "text",
-            text: `สวัสดี ${memberName}`,
+            text: `สวัสดีครับ คุณ${memberName}`,
             size: "md",
-            weight: "bold"
+            weight: "bold",
+            color: "#333333"
           },
           {
             type: "separator",
-            margin: "md"
+            margin: "lg",
+            color: "#EEEEEE"
           },
           {
             type: "box",
             layout: "vertical",
-            spacing: "sm",
-            margin: "md",
+            spacing: "md",
+            margin: "lg",
             contents: [
               {
                 type: "box",
                 layout: "horizontal",
-                spacing: "sm",
+                spacing: "md",
                 contents: [
                   {
-                    type: "text",
-                    text: "หัวข้อ",
-                    color: "#888888",
-                    size: "sm",
-                    flex: 2
+                    type: "box",
+                    layout: "vertical",
+                    width: "24px",
+                    height: "24px",
+                    backgroundColor: "#F0F4F8",
+                    cornerRadius: "12px",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    contents: [
+                      {
+                        type: "text",
+                        text: "T",
+                        size: "xxs",
+                        color: colors.primary,
+                        weight: "bold"
+                      }
+                    ]
                   },
                   {
-                    type: "text",
-                    text: theme || "ประชุมประจำสัปดาห์",
-                    size: "sm",
-                    flex: 5,
-                    wrap: true
+                    type: "box",
+                    layout: "vertical",
+                    flex: 1,
+                    contents: [
+                      {
+                        type: "text",
+                        text: "หัวข้อ",
+                        color: "#888888",
+                        size: "xs"
+                      },
+                      {
+                        type: "text",
+                        text: theme || "ประชุมประจำสัปดาห์",
+                        size: "sm",
+                        weight: "bold",
+                        wrap: true,
+                        margin: "xs"
+                      }
+                    ]
                   }
                 ]
               },
               {
                 type: "box",
                 layout: "horizontal",
-                spacing: "sm",
+                spacing: "md",
                 contents: [
                   {
-                    type: "text",
-                    text: "วันที่",
-                    color: "#888888",
-                    size: "sm",
-                    flex: 2
+                    type: "box",
+                    layout: "vertical",
+                    width: "24px",
+                    height: "24px",
+                    backgroundColor: "#F0F4F8",
+                    cornerRadius: "12px",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    contents: [
+                      {
+                        type: "text",
+                        text: "D",
+                        size: "xxs",
+                        color: colors.primary,
+                        weight: "bold"
+                      }
+                    ]
                   },
                   {
-                    type: "text",
-                    text: formattedDate,
-                    size: "sm",
-                    flex: 5,
-                    wrap: true
+                    type: "box",
+                    layout: "vertical",
+                    flex: 1,
+                    contents: [
+                      {
+                        type: "text",
+                        text: "วันที่",
+                        color: "#888888",
+                        size: "xs"
+                      },
+                      {
+                        type: "text",
+                        text: formattedDate,
+                        size: "sm",
+                        weight: "bold",
+                        wrap: true,
+                        margin: "xs"
+                      }
+                    ]
                   }
                 ]
               },
               {
                 type: "box",
                 layout: "horizontal",
-                spacing: "sm",
+                spacing: "md",
                 contents: [
                   {
-                    type: "text",
-                    text: "เวลา",
-                    color: "#888888",
-                    size: "sm",
-                    flex: 2
+                    type: "box",
+                    layout: "vertical",
+                    width: "24px",
+                    height: "24px",
+                    backgroundColor: "#F0F4F8",
+                    cornerRadius: "12px",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    contents: [
+                      {
+                        type: "text",
+                        text: "C",
+                        size: "xxs",
+                        color: colors.primary,
+                        weight: "bold"
+                      }
+                    ]
                   },
                   {
-                    type: "text",
-                    text: meetingTime || "ตามกำหนด",
-                    size: "sm",
-                    flex: 5
+                    type: "box",
+                    layout: "vertical",
+                    flex: 1,
+                    contents: [
+                      {
+                        type: "text",
+                        text: "เวลา",
+                        color: "#888888",
+                        size: "xs"
+                      },
+                      {
+                        type: "text",
+                        text: meetingTime || "ตามกำหนด",
+                        size: "sm",
+                        weight: "bold",
+                        margin: "xs"
+                      }
+                    ]
                   }
                 ]
               },
               {
                 type: "box",
                 layout: "horizontal",
-                spacing: "sm",
+                spacing: "md",
                 contents: [
                   {
-                    type: "text",
-                    text: "สถานที่",
-                    color: "#888888",
-                    size: "sm",
-                    flex: 2
+                    type: "box",
+                    layout: "vertical",
+                    width: "24px",
+                    height: "24px",
+                    backgroundColor: "#F0F4F8",
+                    cornerRadius: "12px",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    contents: [
+                      {
+                        type: "text",
+                        text: "P",
+                        size: "xxs",
+                        color: colors.primary,
+                        weight: "bold"
+                      }
+                    ]
                   },
                   {
-                    type: "text",
-                    text: venue || "TBA",
-                    size: "sm",
-                    flex: 5,
-                    wrap: true
+                    type: "box",
+                    layout: "vertical",
+                    flex: 1,
+                    contents: [
+                      {
+                        type: "text",
+                        text: "สถานที่",
+                        color: "#888888",
+                        size: "xs"
+                      },
+                      {
+                        type: "text",
+                        text: venue || "TBA",
+                        size: "sm",
+                        weight: "bold",
+                        wrap: true,
+                        margin: "xs"
+                      }
+                    ]
                   }
                 ]
               }
             ]
           },
-          ...(totalMembers > 0 ? [{
-            type: "box",
-            layout: "horizontal",
-            margin: "md",
-            contents: [
-              {
-                type: "text",
-                text: `ยืนยันแล้ว ${confirmedCount}/${totalMembers} คน`,
-                size: "sm",
-                color: "#4ECDC4",
-                align: "center"
-              }
-            ]
-          }] : [])
+          ...createProgressBar()
         ]
       },
       footer: {
         type: "box",
         layout: "vertical",
-        spacing: "sm",
-        paddingAll: "15px",
+        spacing: "md",
+        paddingAll: "20px",
+        backgroundColor: "#FAFAFA",
         contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: colors.primary,
+            height: "md",
+            action: {
+              type: "postback",
+              label: "ยืนยันเข้าร่วม",
+              data: `action=rsvp_confirm&meeting_id=${meetingId}`,
+              displayText: "ยืนยันเข้าร่วม Meeting"
+            }
+          },
           {
             type: "box",
             layout: "horizontal",
             spacing: "sm",
+            margin: "md",
             contents: [
-              {
-                type: "button",
-                style: "primary",
-                color: "#4ECDC4",
-                height: "sm",
-                action: {
-                  type: "postback",
-                  label: "เข้าร่วม",
-                  data: `action=rsvp_confirm&meeting_id=${meetingId}`,
-                  displayText: "ยืนยันเข้าร่วม"
-                },
-                flex: 1
-              },
               {
                 type: "button",
                 style: "secondary",
@@ -249,20 +446,20 @@ export function createEventNotificationFlex(params: EventNotificationParams): an
                   displayText: "ขอหาตัวแทน"
                 },
                 flex: 1
+              },
+              {
+                type: "button",
+                style: "secondary",
+                height: "sm",
+                action: {
+                  type: "postback",
+                  label: "ขอลา",
+                  data: `action=rsvp_leave&meeting_id=${meetingId}`,
+                  displayText: "ขอลา"
+                },
+                flex: 1
               }
             ]
-          },
-          {
-            type: "button",
-            style: "secondary",
-            height: "sm",
-            margin: "sm",
-            action: {
-              type: "postback",
-              label: "ขอลา",
-              data: `action=rsvp_leave&meeting_id=${meetingId}`,
-              displayText: "ขอลา"
-            }
           }
         ]
       }
@@ -291,26 +488,32 @@ export function createRsvpConfirmationFlex(params: {
     switch (action) {
       case 'confirmed':
         return {
-          icon: '',
+          icon: 'O',
+          iconBg: '#27AE60',
           title: 'ยืนยันเข้าร่วมแล้ว',
-          color: '#4ECDC4',
-          message: `ขอบคุณที่ยืนยันเข้าร่วม Meeting\nวันที่ ${formattedDate}\n\nแล้วพบกันนะครับ`
+          color: '#27AE60',
+          message: `ขอบคุณที่ยืนยันเข้าร่วม Meeting\nวันที่ ${formattedDate}`,
+          footer: 'แล้วพบกันนะครับ'
         };
       case 'substitute':
         return {
-          icon: '',
-          title: 'ส่งหาตัวแทนแล้ว',
-          color: '#FFB347',
+          icon: 'S',
+          iconBg: '#F39C12',
+          title: 'บันทึกตัวแทนแล้ว',
+          color: '#F39C12',
           message: substituteInfo 
-            ? `บันทึกตัวแทนสำเร็จ\nชื่อ: ${substituteInfo.name}\nเบอร์: ${substituteInfo.phone}`
-            : 'กำลังเปิดหน้าลงทะเบียนตัวแทน...'
+            ? `ชื่อตัวแทน: ${substituteInfo.name}\nเบอร์โทร: ${substituteInfo.phone}`
+            : 'กำลังเปิดหน้าลงทะเบียนตัวแทน...',
+          footer: substituteInfo ? 'ระบบได้บันทึกข้อมูลแล้ว' : ''
         };
       case 'leave':
         return {
-          icon: '',
+          icon: 'L',
+          iconBg: '#E74C3C',
           title: 'บันทึกการลาแล้ว',
-          color: '#FF6B6B',
-          message: `บันทึกการลาสำหรับ Meeting\nวันที่ ${formattedDate}\n\n${leaveReason ? `เหตุผล: ${leaveReason}` : 'ได้แจ้งผู้ดูแลแล้ว'}`
+          color: '#E74C3C',
+          message: `Meeting วันที่ ${formattedDate}\n${leaveReason ? `เหตุผล: ${leaveReason}` : ''}`,
+          footer: 'ได้แจ้งผู้ดูแลแล้ว'
         };
     }
   };
@@ -323,33 +526,73 @@ export function createRsvpConfirmationFlex(params: {
     contents: {
       type: "bubble",
       size: "kilo",
-      header: {
-        type: "box",
-        layout: "vertical",
-        backgroundColor: content.color,
-        paddingAll: "12px",
-        contents: [
-          {
-            type: "text",
-            text: content.title,
-            color: "#FFFFFF",
-            size: "md",
-            weight: "bold",
-            align: "center"
-          }
-        ]
-      },
       body: {
         type: "box",
         layout: "vertical",
-        paddingAll: "15px",
+        paddingAll: "24px",
         contents: [
           {
-            type: "text",
-            text: content.message,
-            size: "sm",
-            wrap: true,
-            align: "center"
+            type: "box",
+            layout: "vertical",
+            alignItems: "center",
+            contents: [
+              {
+                type: "box",
+                layout: "vertical",
+                width: "56px",
+                height: "56px",
+                backgroundColor: content.iconBg,
+                cornerRadius: "28px",
+                justifyContent: "center",
+                alignItems: "center",
+                contents: [
+                  {
+                    type: "text",
+                    text: content.icon,
+                    color: "#FFFFFF",
+                    size: "xl",
+                    weight: "bold"
+                  }
+                ]
+              },
+              {
+                type: "text",
+                text: content.title,
+                size: "lg",
+                weight: "bold",
+                color: content.color,
+                margin: "lg",
+                align: "center"
+              }
+            ]
+          },
+          {
+            type: "separator",
+            margin: "xl",
+            color: "#EEEEEE"
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            margin: "xl",
+            contents: [
+              {
+                type: "text",
+                text: content.message,
+                size: "sm",
+                color: "#555555",
+                wrap: true,
+                align: "center"
+              },
+              ...(content.footer ? [{
+                type: "text",
+                text: content.footer,
+                size: "xs",
+                color: "#888888",
+                margin: "lg",
+                align: "center"
+              }] : [])
+            ]
           }
         ]
       }
