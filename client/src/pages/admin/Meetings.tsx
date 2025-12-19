@@ -35,10 +35,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import LocationSearch from "@/components/LocationSearch";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState<any[]>([]);
@@ -249,35 +250,11 @@ export default function Meetings() {
     }
   };
 
-  // Helper to strip HTML tags from rich text content, preserving line breaks
-  const stripHtml = (html: string | null | undefined): string => {
-    if (!html) return "";
-    return html
-      .replace(/<br\s*\/?>/gi, '\n')           // Convert <br> to newline
-      .replace(/<\/p>/gi, '\n')                 // Convert </p> to newline
-      .replace(/<\/div>/gi, '\n')               // Convert </div> to newline
-      .replace(/<\/li>/gi, '\n')                // Convert </li> to newline
-      .replace(/<[^>]*>/g, '')                  // Remove all other HTML tags
-      .replace(/&nbsp;/g, ' ')                  // Convert &nbsp; to space
-      .replace(/&amp;/g, '&')                   // Decode &amp;
-      .replace(/&lt;/g, '<')                    // Decode &lt;
-      .replace(/&gt;/g, '>')                    // Decode &gt;
-      .replace(/&quot;/g, '"')                  // Decode &quot;
-      .replace(/\n{3,}/g, '\n\n')               // Collapse multiple newlines
-      .trim();
-  };
-
   const startEditMeeting = (meeting: any) => {
-    // Strip HTML from description for plain text editing
-    const cleanedMeeting = {
-      ...meeting,
-      description: stripHtml(meeting.description),
-    };
-    
     // Prevent editing recurrence for child instances
     if (meeting.parent_meeting_id) {
       setEditingMeeting({
-        ...cleanedMeeting,
+        ...meeting,
         recurrence_pattern: "none",
         recurrence_interval: 1,
         recurrence_end_date: "",
@@ -286,7 +263,7 @@ export default function Meetings() {
         recurrence_occurrence_count: 10,
       });
     } else {
-      setEditingMeeting(cleanedMeeting);
+      setEditingMeeting(meeting);
     }
     setShowEditDialog(true);
     // Set advanced section visibility based on whether coordinates exist
@@ -634,14 +611,23 @@ export default function Meetings() {
 
                 <div className="space-y-2">
                   <Label htmlFor="description">รายละเอียดการประชุม</Label>
-                  <Textarea
-                    id="description"
-                    value={newMeeting.description || ""}
-                    onChange={(e) => setNewMeeting(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
-                    rows={5}
-                    className="resize-none"
-                  />
+                  <div className="min-h-[200px] [&_.ql-container]:min-h-[150px] [&_.ql-editor]:min-h-[150px]">
+                    <ReactQuill
+                      theme="snow"
+                      value={newMeeting.description || ""}
+                      onChange={(value) => setNewMeeting(prev => ({ ...prev, description: value }))}
+                      placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
+                      modules={{
+                        toolbar: [
+                          [{ 'header': [1, 2, 3, false] }],
+                          ['bold', 'italic', 'underline'],
+                          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                          ['link'],
+                          ['clean']
+                        ]
+                      }}
+                    />
+                  </div>
                 </div>
                 
                 {/* Preview Button */}
@@ -845,14 +831,24 @@ export default function Meetings() {
 
                   <div className="space-y-2">
                     <Label htmlFor="edit_description">รายละเอียดการประชุม</Label>
-                    <Textarea
-                      id="edit_description"
-                      value={editingMeeting.description || ""}
-                      onChange={(e) => setEditingMeeting(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="รายละเอียดเพิ่มเติม..."
-                      rows={5}
-                      className="resize-none"
-                    />
+                    <div className="min-h-[200px] [&_.ql-container]:min-h-[150px] [&_.ql-editor]:min-h-[150px]">
+                      <ReactQuill
+                        key={editingMeeting?.meeting_id || 'new'}
+                        theme="snow"
+                        value={editingMeeting.description || ""}
+                        onChange={(value) => setEditingMeeting(prev => ({ ...prev, description: value }))}
+                        placeholder="รายละเอียดเพิ่มเติม..."
+                        modules={{
+                          toolbar: [
+                            [{ 'header': [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline'],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            ['link'],
+                            ['clean']
+                          ]
+                        }}
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">

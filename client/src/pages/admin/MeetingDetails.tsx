@@ -324,18 +324,10 @@ export default function MeetingDetails() {
                   <div className="h-5 w-5 text-muted-foreground mt-0.5">📝</div>
                   <div className="flex-1">
                     <p className="font-medium mb-2">รายละเอียดการประชุม</p>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {meeting.description
-                        .replace(/<br\s*\/?>/gi, '\n')
-                        .replace(/<\/p>/gi, '\n')
-                        .replace(/<\/div>/gi, '\n')
-                        .replace(/<\/li>/gi, '\n')
-                        .replace(/<[^>]*>/g, '')
-                        .replace(/&nbsp;/g, ' ')
-                        .replace(/&amp;/g, '&')
-                        .replace(/\n{3,}/g, '\n\n')
-                        .trim()}
-                    </p>
+                    <div 
+                      className="text-sm text-muted-foreground prose prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1"
+                      dangerouslySetInnerHTML={{ __html: meeting.description }}
+                    />
                   </div>
                 </div>
               )}
