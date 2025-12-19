@@ -348,6 +348,13 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
       return res.status(404).json({ success: false, error: "Member not found" });
     }
 
+    // Fetch tenant info including LINE Official URL
+    const { data: tenantInfo } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_name, logo_url, line_official_url")
+      .eq("tenant_id", tenantId)
+      .single();
+
     // Generate signed URLs for private storage images
     let signedPhotoUrl = member.photo_url;
     let signedCompanyLogoUrl = member.company_logo_url;
@@ -392,7 +399,7 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
       }
     }
 
-    // Prepare business card data
+    // Prepare business card data (including tenant info for LINE Official link)
     const cardData: BusinessCardData = {
       participant_id: member.participant_id,
       tenant_id: member.tenant_id,
@@ -412,7 +419,8 @@ router.get("/share-flex/:participantId", async (req: Request, res: Response) => 
       line_id: member.line_id,
       business_address: member.business_address,
       tags: member.tags,
-      onepage_url: member.onepage_url
+      onepage_url: member.onepage_url,
+      tenants: tenantInfo || undefined
     };
 
     // Use production URL for sharing - consistent with LINE bot
