@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { Calendar, MapPin, Clock, ArrowLeft, UserPlus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Calendar, 
+  MapPin, 
+  Clock, 
+  ArrowLeft, 
+  UserPlus, 
+  Users, 
+  TrendingUp, 
+  Briefcase,
+  CheckCircle,
+  ExternalLink
+} from "lucide-react";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import VisitorRegistrationDialog from "@/components/dialogs/VisitorRegistrationDialog";
@@ -13,14 +24,30 @@ interface ChapterData {
   name: string;
   subdomain: string;
   logo_url?: string;
-  branding_color?: string;
+  branding_color: string;
+  visitor_fee?: number | null;
 }
 
-interface Meeting {
+interface ChapterStats {
+  member_count: number;
+  referral_count: number;
+  checkin_count: number;
+  category_count: number;
+}
+
+interface NextMeeting {
   meeting_id: string;
   meeting_date: string;
+  meeting_time?: string;
   theme?: string;
   venue?: string;
+}
+
+interface ChapterResponse {
+  success: boolean;
+  chapter: ChapterData;
+  stats: ChapterStats;
+  next_meeting: NextMeeting | null;
 }
 
 export default function ChapterProfile() {
@@ -28,7 +55,8 @@ export default function ChapterProfile() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [chapter, setChapter] = useState<ChapterData | null>(null);
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [stats, setStats] = useState<ChapterStats | null>(null);
+  const [nextMeeting, setNextMeeting] = useState<NextMeeting | null>(null);
   const [showRegistrationDialog, setShowRegistrationDialog] = useState(false);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | undefined>();
 
@@ -49,48 +77,18 @@ export default function ChapterProfile() {
 
   const loadChapterData = async () => {
     try {
-      // Fetch tenant/chapter data
-      const { data: tenantData, error: tenantError } = await supabase
-        .from("tenants")
-        .select("tenant_id, tenant_name, subdomain")
-        .eq("subdomain", subdomain)
-        .single();
-
-      if (tenantError) throw tenantError;
-      if (!tenantData) {
-        setLoading(false);
-        return;
+      const response = await fetch(`/api/public/chapter-stats/${subdomain}`);
+      if (!response.ok) {
+        throw new Error("Failed to load chapter data");
       }
-
-      // Fetch tenant settings for branding
-      const { data: settingsData } = await supabase
-        .from("tenant_settings")
-        .select("logo_url, branding_color")
-        .eq("tenant_id", tenantData.tenant_id)
-        .single();
-
-      setChapter({
-        tenant_id: tenantData.tenant_id,
-        name: tenantData.tenant_name,
-        subdomain: tenantData.subdomain,
-        logo_url: settingsData?.logo_url || undefined,
-        branding_color: settingsData?.branding_color || "#1e40af",
-      });
-
-      // Fetch upcoming meetings (next 3 months)
-      const today = new Date();
-      const threeMonthsLater = new Date();
-      threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
-
-      const { data: meetingsData } = await supabase
-        .from("meetings")
-        .select("meeting_id, meeting_date, theme, venue")
-        .eq("tenant_id", tenantData.tenant_id)
-        .gte("meeting_date", today.toISOString().split("T")[0])
-        .lte("meeting_date", threeMonthsLater.toISOString().split("T")[0])
-        .order("meeting_date", { ascending: true });
-
-      setMeetings(meetingsData || []);
+      
+      const data: ChapterResponse = await response.json();
+      
+      if (data.success) {
+        setChapter(data.chapter);
+        setStats(data.stats);
+        setNextMeeting(data.next_meeting);
+      }
     } catch (error: any) {
       console.error("Error loading chapter data:", error);
     } finally {
@@ -98,11 +96,21 @@ export default function ChapterProfile() {
     }
   };
 
+  const handleRegisterClick = (meetingId?: string) => {
+    setSelectedMeetingId(meetingId);
+    setShowRegistrationDialog(true);
+  };
+
+  const formatMeetingTime = (time?: string) => {
+    if (!time) return "07:00";
+    return time.substring(0, 5);
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="text-lg text-muted-foreground">กำลังโหลด...</div>
+          <div className="text-lg text-muted-foreground">Loading...</div>
         </div>
       </div>
     );
@@ -110,14 +118,14 @@ export default function ChapterProfile() {
 
   if (!chapter) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold">ไม่พบ Chapter</h1>
-          <p className="text-muted-foreground">Chapter ที่คุณค้นหาไม่มีอยู่ในระบบ</p>
+          <h1 className="text-2xl font-bold">Chapter Not Found</h1>
+          <p className="text-muted-foreground">The chapter you're looking for doesn't exist.</p>
           <Button asChild>
             <Link to="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              กลับหน้าหลัก
+              Back to Home
             </Link>
           </Button>
         </div>
@@ -125,149 +133,294 @@ export default function ChapterProfile() {
     );
   }
 
+  const brandColor = chapter.branding_color || "#1e3a5f";
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-4">
-            {chapter.logo_url && (
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
+      {/* Hero Section */}
+      <section 
+        className="relative py-12 md:py-16"
+        style={{ backgroundColor: brandColor }}
+      >
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center gap-6 text-white">
+            {/* Logo */}
+            {chapter.logo_url ? (
               <img
                 src={chapter.logo_url}
                 alt={`${chapter.name} logo`}
-                className="w-16 h-16 rounded-lg object-cover border"
+                className="w-24 h-24 md:w-32 md:h-32 rounded-xl object-cover bg-white/10 border-2 border-white/20"
               />
+            ) : (
+              <div 
+                className="w-24 h-24 md:w-32 md:h-32 rounded-xl bg-white/10 border-2 border-white/20 flex items-center justify-center"
+              >
+                <Users className="w-12 h-12 text-white/60" />
+              </div>
             )}
-            <div>
-              <h1 className="text-3xl font-bold">{chapter.name}</h1>
-              <p className="text-muted-foreground">
-                Meetdup Chapter
-              </p>
+
+            {/* Chapter Info */}
+            <div className="flex-1 text-center md:text-left">
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">{chapter.name}</h1>
+              <p className="text-white/80 text-lg mb-4">Business Networking Chapter</p>
+              
+              {/* Next Meeting Highlight */}
+              {nextMeeting && (
+                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 text-sm md:text-base">
+                  <Calendar className="h-5 w-5" />
+                  <span>Next Meeting:</span>
+                  <span className="font-semibold">
+                    {format(new Date(nextMeeting.meeting_date), "d MMM yyyy", { locale: th })}
+                  </span>
+                  <span className="text-white/60">|</span>
+                  <Clock className="h-4 w-4" />
+                  <span>{formatMeetingTime(nextMeeting.meeting_time)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Primary CTA */}
+            <div className="flex-shrink-0">
+              <Button 
+                size="lg" 
+                className="bg-white text-foreground hover:bg-white/90 shadow-lg"
+                onClick={() => handleRegisterClick(nextMeeting?.meeting_id)}
+                data-testid="button-register-visitor-hero"
+              >
+                <UserPlus className="mr-2 h-5 w-5" />
+                Register as Visitor
+              </Button>
             </div>
           </div>
         </div>
-      </header>
+      </section>
 
-      {/* Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Chapter Info Card */}
-          <Card className="md:col-span-2 lg:col-span-1">
-            <CardHeader>
-              <CardTitle>ข้อมูล Chapter</CardTitle>
-              <CardDescription>รายละเอียดของ {chapter.name}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Meetdup เป็นแพลตฟอร์มจัดการองค์กรเครือข่ายธุรกิจ
-                ที่ช่วยให้ผู้ประกอบการสร้างโอกาสทางธุรกิจผ่านการแนะนำลูกค้าและความร่วมมือ
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Upcoming Meetings */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>ปฏิทินการประชุม</CardTitle>
-              <CardDescription>การประชุมที่กำลังจะมาถึง</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {meetings.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  ยังไม่มีการประชุมที่กำลังจะมาถึง
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {meetings.map((meeting) => (
-                    <div
-                      key={meeting.meeting_id}
-                      className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent transition-colors"
-                    >
-                      <div className="flex-shrink-0 w-16 text-center">
-                        <div className="text-2xl font-bold" style={{ color: chapter.branding_color }}>
-                          {format(new Date(meeting.meeting_date), "dd", { locale: th })}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {format(new Date(meeting.meeting_date), "MMM", { locale: th })}
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
-                            {format(new Date(meeting.meeting_date), "EEEE, dd MMMM yyyy", { locale: th })}
-                          </span>
-                        </div>
-                        {meeting.theme && (
-                          <p className="text-sm text-muted-foreground mb-1">
-                            หัวข้อ: {meeting.theme}
-                          </p>
-                        )}
-                        {meeting.venue && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
-                            <span>{meeting.venue}</span>
-                          </div>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setSelectedMeetingId(meeting.meeting_id);
-                          setShowRegistrationDialog(true);
-                        }}
-                        style={{ backgroundColor: chapter.branding_color }}
-                      >
-                        <UserPlus className="h-4 w-4 mr-1" />
-                        ลงทะเบียน
-                      </Button>
-                    </div>
-                  ))}
+      {/* Social Proof Strip */}
+      {stats && (
+        <section className="border-b bg-card">
+          <div className="container mx-auto px-4 py-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-2xl font-bold" style={{ color: brandColor }}>
+                    {stats.member_count}
+                  </span>
                 </div>
-              )}
+                <span className="text-sm text-muted-foreground">Members</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-2xl font-bold" style={{ color: brandColor }}>
+                    {stats.referral_count}
+                  </span>
+                </div>
+                <span className="text-sm text-muted-foreground">Referrals</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-2xl font-bold" style={{ color: brandColor }}>
+                    {stats.checkin_count}
+                  </span>
+                </div>
+                <span className="text-sm text-muted-foreground">Check-ins</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-2xl font-bold" style={{ color: brandColor }}>
+                    {stats.category_count}
+                  </span>
+                </div>
+                <span className="text-sm text-muted-foreground">Industries</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Meeting Details Card */}
+          {nextMeeting && (
+            <Card className="md:col-span-1">
+              <CardContent className="p-6">
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <Calendar className="h-5 w-5" style={{ color: brandColor }} />
+                  Next Meeting
+                </h2>
+                
+                <div className="space-y-4">
+                  {/* Date & Time */}
+                  <div className="flex items-start gap-3">
+                    <div 
+                      className="flex-shrink-0 w-14 h-14 rounded-lg flex flex-col items-center justify-center text-white"
+                      style={{ backgroundColor: brandColor }}
+                    >
+                      <span className="text-xl font-bold leading-none">
+                        {format(new Date(nextMeeting.meeting_date), "d")}
+                      </span>
+                      <span className="text-xs uppercase">
+                        {format(new Date(nextMeeting.meeting_date), "MMM", { locale: th })}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {format(new Date(nextMeeting.meeting_date), "EEEE", { locale: th })}
+                      </p>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatMeetingTime(nextMeeting.meeting_time)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Venue */}
+                  {nextMeeting.venue && (
+                    <div className="flex items-start gap-3">
+                      <MapPin className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">{nextMeeting.venue}</p>
+                        <Button 
+                          variant="link" 
+                          size="sm" 
+                          className="h-auto p-0 text-xs"
+                          asChild
+                        >
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nextMeeting.venue)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-testid="link-view-map"
+                          >
+                            View on Map <ExternalLink className="h-3 w-3 ml-1" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Theme */}
+                  {nextMeeting.theme && (
+                    <div className="pt-2 border-t">
+                      <p className="text-sm text-muted-foreground">Theme</p>
+                      <p className="font-medium">{nextMeeting.theme}</p>
+                    </div>
+                  )}
+
+                  {/* Fee */}
+                  {chapter.visitor_fee != null && (
+                    <div className="pt-2 border-t">
+                      <p className="text-sm text-muted-foreground">Visitor Fee</p>
+                      <p className="font-medium">
+                        {chapter.visitor_fee === 0 ? "Free" : `${chapter.visitor_fee.toLocaleString()} THB`}
+                      </p>
+                    </div>
+                  )}
+
+                  <Button 
+                    className="w-full mt-4"
+                    style={{ backgroundColor: brandColor }}
+                    onClick={() => handleRegisterClick(nextMeeting.meeting_id)}
+                    data-testid="button-register-visitor-meeting"
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Register for This Meeting
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Visitor Journey Card */}
+          <Card className="md:col-span-1">
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold mb-4">What to Expect</h2>
+              
+              <div className="space-y-4">
+                {[
+                  { step: 1, title: "Register Online", desc: "Fill out the form before meeting day" },
+                  { step: 2, title: "Arrive Early", desc: "Come 10-15 minutes before start time" },
+                  { step: 3, title: "30-Second Intro", desc: "Prepare a brief introduction about yourself" },
+                  { step: 4, title: "Network", desc: "Connect with members during open networking" },
+                ].map((item) => (
+                  <div key={item.step} className="flex items-start gap-3">
+                    <div 
+                      className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold"
+                      style={{ backgroundColor: brandColor }}
+                    >
+                      {item.step}
+                    </div>
+                    <div>
+                      <p className="font-medium">{item.title}</p>
+                      <p className="text-sm text-muted-foreground">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 pt-4 border-t">
+                <h3 className="font-medium mb-2">Dress Code</h3>
+                <Badge variant="secondary">Business Casual</Badge>
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* CTA Section */}
+        {/* About Chapter */}
         <Card className="mt-6">
-          <CardContent className="py-8 text-center">
-            <h2 className="text-2xl font-bold mb-2">สนใจเข้าร่วม {chapter.name}?</h2>
-            <p className="text-muted-foreground mb-6">
-              ติดต่อสอบถามข้อมูลเพิ่มเติมหรือเข้าร่วมการประชุมในฐานะผู้เยี่ยมชม
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">About {chapter.name}</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              We are a business networking chapter that meets regularly to share referrals, 
+              build relationships, and grow our businesses together. Our members represent 
+              diverse industries and are committed to helping each other succeed through 
+              the power of word-of-mouth marketing.
             </p>
-            <div className="flex gap-4 justify-center">
-              <Button 
-                size="lg" 
-                style={{ backgroundColor: chapter.branding_color }}
-                onClick={() => {
-                  setSelectedMeetingId(undefined);
-                  setShowRegistrationDialog(true);
-                }}
-              >
-                <UserPlus className="mr-2 h-5 w-5" />
-                ลงทะเบียนผู้เยี่ยมชม
-              </Button>
-            </div>
+            
+            {stats && stats.category_count > 0 && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Our chapter includes professionals from <span className="font-medium text-foreground">{stats.category_count} different industries</span>, 
+                  creating a diverse network of business connections.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
-
-        {/* Registration Dialog */}
-        <VisitorRegistrationDialog
-          open={showRegistrationDialog}
-          onOpenChange={setShowRegistrationDialog}
-          tenantId={chapter.tenant_id}
-          meetingId={selectedMeetingId}
-        />
       </main>
 
       {/* Footer */}
-      <footer className="border-t mt-12 py-6">
+      <footer className="border-t py-6 mb-16 md:mb-0">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>&copy; 2024 {chapter.name}. All rights reserved.</p>
-          <p className="mt-1">Powered by Meetdup</p>
+          <p>Powered by Meetdup</p>
         </div>
       </footer>
+
+      {/* Sticky Mobile CTA */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t md:hidden z-50">
+        <Button 
+          className="w-full"
+          size="lg"
+          style={{ backgroundColor: brandColor }}
+          onClick={() => handleRegisterClick(nextMeeting?.meeting_id)}
+          data-testid="button-register-visitor-sticky"
+        >
+          <UserPlus className="mr-2 h-5 w-5" />
+          Register as Visitor
+        </Button>
+      </div>
+
+      {/* Registration Dialog */}
+      <VisitorRegistrationDialog
+        open={showRegistrationDialog}
+        onOpenChange={setShowRegistrationDialog}
+        tenantId={chapter.tenant_id}
+        meetingId={selectedMeetingId}
+      />
     </div>
   );
 }

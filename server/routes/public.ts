@@ -1309,4 +1309,110 @@ router.get("/verify-substitute-token", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Get public chapter stats for the chapter profile page
+ * Returns member count, referral count, and other useful stats
+ */
+router.get("/chapter-stats/:subdomain", async (req: Request, res: Response) => {
+  try {
+    const { subdomain } = req.params;
+
+    if (!subdomain) {
+      return res.status(400).json({ error: "Missing subdomain parameter" });
+    }
+
+    // Sanitize subdomain
+    const sanitizedSubdomain = subdomain.replace(/[^a-zA-Z0-9-_]/g, '');
+    if (sanitizedSubdomain !== subdomain) {
+      return res.status(400).json({ error: "Invalid subdomain format" });
+    }
+
+    // Get tenant by subdomain
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_id, tenant_name, subdomain")
+      .eq("subdomain", sanitizedSubdomain)
+      .single();
+
+    if (tenantError || !tenant) {
+      return res.status(404).json({ error: "Chapter not found" });
+    }
+
+    // Get tenant settings for additional info
+    const { data: settings } = await supabaseAdmin
+      .from("tenant_settings")
+      .select("logo_url, branding_color, default_visitor_fee")
+      .eq("tenant_id", tenant.tenant_id)
+      .single();
+
+    // Get member count
+    const { count: memberCount } = await supabaseAdmin
+      .from("participants")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenant.tenant_id)
+      .eq("status", "member");
+
+    // Get referral count (visitors with referrer)
+    const { count: referralCount } = await supabaseAdmin
+      .from("participants")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenant.tenant_id)
+      .not("referred_by_participant_id", "is", null);
+
+    // Get total check-ins this year
+    const startOfYear = new Date();
+    startOfYear.setMonth(0, 1);
+    startOfYear.setHours(0, 0, 0, 0);
+
+    const { count: checkInCount } = await supabaseAdmin
+      .from("check_ins")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenant.tenant_id)
+      .gte("check_in_time", startOfYear.toISOString());
+
+    // Get business categories represented
+    const { data: categories } = await supabaseAdmin
+      .from("participants")
+      .select("business_type_code")
+      .eq("tenant_id", tenant.tenant_id)
+      .eq("status", "member")
+      .not("business_type_code", "is", null);
+
+    const uniqueCategories = new Set((categories || []).map(c => c.business_type_code));
+
+    // Get next upcoming meeting
+    const today = new Date().toISOString().split("T")[0];
+    const { data: nextMeeting } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue")
+      .eq("tenant_id", tenant.tenant_id)
+      .gte("meeting_date", today)
+      .order("meeting_date", { ascending: true })
+      .limit(1)
+      .single();
+
+    return res.json({
+      success: true,
+      chapter: {
+        tenant_id: tenant.tenant_id,
+        name: tenant.tenant_name,
+        subdomain: tenant.subdomain,
+        logo_url: settings?.logo_url,
+        branding_color: settings?.branding_color || "#1e3a5f",
+        visitor_fee: settings?.default_visitor_fee || null
+      },
+      stats: {
+        member_count: memberCount || 0,
+        referral_count: referralCount || 0,
+        checkin_count: checkInCount || 0,
+        category_count: uniqueCategories.size
+      },
+      next_meeting: nextMeeting || null
+    });
+  } catch (error: any) {
+    console.error("[Public/ChapterStats] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
