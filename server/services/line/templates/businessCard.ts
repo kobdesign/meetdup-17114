@@ -26,6 +26,11 @@ export interface BusinessCardData {
   line_id?: string | null;
   tags?: string[] | null;
   onepage_url?: string | null;
+  tenants?: {
+    tenant_name?: string | null;
+    logo_url?: string | null;
+    line_official_url?: string | null;
+  } | null;
 }
 
 const COLORS = {
@@ -598,6 +603,24 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
       contents: secondaryActions,
       spacing: "sm",
       margin: primaryActions.length > 0 ? "sm" : "none"
+    });
+  }
+
+  // LINE Official Account link - show if tenant has configured it
+  const lineOfficialUrl = sanitizeUrl(data.tenants?.line_official_url);
+  if (lineOfficialUrl && data.tenants?.tenant_name) {
+    footerContents.push({
+      type: "text",
+      text: `LINE Official: ${data.tenants.tenant_name}`,
+      size: "xxs",
+      color: "#06C755",
+      decoration: "underline",
+      align: "center",
+      margin: "sm",
+      action: {
+        type: "uri",
+        uri: lineOfficialUrl
+      }
     });
   }
 
@@ -1208,6 +1231,36 @@ export function createBusinessCardFlexMessage(data: BusinessCardData, baseUrl: s
       layout: "horizontal",
       contents: extraLinks,
       spacing: "lg",
+      margin: "md",
+      justifyContent: "center"
+    });
+  }
+
+  // LINE Official Account link - show if tenant has configured it
+  const lineOfficialUrl = sanitizeUrl(data.tenants?.line_official_url);
+  if (lineOfficialUrl && data.tenants?.tenant_name) {
+    footerContents.push({
+      type: "separator",
+      margin: "md",
+      color: COLORS.separator
+    });
+    footerContents.push({
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "text",
+          text: `LINE Official ของ ${data.tenants.tenant_name}`,
+          size: "xs",
+          color: "#06C755",
+          decoration: "underline",
+          align: "center",
+          action: {
+            type: "uri",
+            uri: lineOfficialUrl
+          }
+        }
+      ],
       margin: "md",
       justifyContent: "center"
     });

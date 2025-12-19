@@ -52,7 +52,7 @@ export async function handleViewCard(
       return;
     }
 
-    // Fetch business card data
+    // Fetch business card data with tenant info for LINE Official URL
     const { data: cardData, error: cardError } = await supabaseAdmin
       .from("participants")
       .select(`
@@ -75,7 +75,8 @@ export async function handleViewCard(
         line_user_id,
         line_id,
         tags,
-        onepage_url
+        onepage_url,
+        tenants!inner (tenant_name, logo_url, line_official_url)
       `)
       .eq("participant_id", targetParticipantId)
       .eq("tenant_id", tenantId)
@@ -293,10 +294,10 @@ export async function handleCardSearch(
     const baseUrl = getBaseUrl();
     console.log(`${logPrefix} Base URL: ${baseUrl}`);
 
-    // Get tenant info for branding
+    // Get tenant info for branding (including LINE Official URL)
     const { data: tenantInfo } = await supabaseAdmin
       .from("tenants")
-      .select("tenant_name, logo_url")
+      .select("tenant_name, logo_url, line_official_url")
       .eq("tenant_id", tenantId)
       .single();
     
@@ -446,10 +447,10 @@ export async function handleBusinessCardPagePostback(
     // Get base URL
     const baseUrl = getBaseUrl();
 
-    // Get tenant info
+    // Get tenant info (including LINE Official URL)
     const { data: tenantInfo } = await supabaseAdmin
       .from("tenants")
-      .select("tenant_name, logo_url")
+      .select("tenant_name, logo_url, line_official_url")
       .eq("tenant_id", tenantId)
       .single();
 
@@ -604,10 +605,10 @@ export async function handleCategoryPagePostback(
     
     const baseUrl = getBaseUrl();
     
-    // Get tenant info
+    // Get tenant info (including LINE Official URL)
     const { data: tenantInfo } = await supabaseAdmin
       .from("tenants")
-      .select("tenant_name, logo_url")
+      .select("tenant_name, logo_url, line_official_url")
       .eq("tenant_id", tenantId)
       .single();
     
@@ -1058,10 +1059,10 @@ export async function handleCategorySelection(
       return;
     }
     
-    // Get tenant info for branding
+    // Get tenant info for branding (including LINE Official URL)
     const { data: tenantInfo } = await supabaseAdmin
       .from("tenants")
-      .select("tenant_name, logo_url")
+      .select("tenant_name, logo_url, line_official_url")
       .eq("tenant_id", tenantId)
       .single();
     
