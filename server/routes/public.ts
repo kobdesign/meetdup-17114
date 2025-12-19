@@ -188,7 +188,7 @@ router.get("/member/:participantId", async (req: Request, res: Response) => {
         notes,
         tags,
         onepage_url,
-        tenants!inner (tenant_name, logo_url)
+        tenants!inner (tenant_name, logo_url, line_official_url)
       `)
       .eq("participant_id", participantId)
       .eq("tenant_id", tenantId)

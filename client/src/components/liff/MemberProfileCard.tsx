@@ -41,6 +41,7 @@ export interface MemberData {
   tenants?: {
     tenant_name: string;
     logo_url: string | null;
+    line_official_url?: string | null;
   };
 }
 
@@ -226,6 +227,19 @@ export default function MemberProfileCard({
             </a>
           )}
         </div>
+
+        {member.tenants?.line_official_url && (
+          <a
+            href={member.tenants.line_official_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 mt-4 p-3 border border-[#00B900]/30 rounded-lg text-sm text-muted-foreground hover-elevate"
+            data-testid="link-line-official"
+          >
+            <SiLine className="h-4 w-4 text-[#00B900]" />
+            <span>ติดตาม LINE Official ของ {member.tenants.tenant_name}</span>
+          </a>
+        )}
 
         {member.tags && member.tags.length > 0 && (
           <div className="mt-4 pt-4 border-t">
