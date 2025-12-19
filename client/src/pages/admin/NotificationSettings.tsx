@@ -7,10 +7,11 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Bell, Clock, Users, Send, Settings, MessageSquare } from "lucide-react";
+import { Bell, Clock, Users, Send, Settings, MessageSquare, Calendar, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface NotificationSettingsData {
@@ -24,10 +25,18 @@ interface NotificationSettingsData {
   custom_message_template: string | null;
 }
 
+interface Meeting {
+  meeting_id: string;
+  meeting_date: string;
+  meeting_time: string | null;
+  theme: string | null;
+}
+
 export default function NotificationSettings() {
   const { toast } = useToast();
   const { selectedTenantId } = useTenantContext();
   const [localSettings, setLocalSettings] = useState<NotificationSettingsData | null>(null);
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/notifications/settings", selectedTenantId],
@@ -42,12 +51,32 @@ export default function NotificationSettings() {
     staleTime: 0
   });
 
+  // Fetch upcoming meetings
+  const { data: meetingsData } = useQuery({
+    queryKey: ["/api/meetings", selectedTenantId, "upcoming"],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/meetings?tenant_id=${selectedTenantId}&upcoming=true`, "GET");
+      if (response.success) {
+        return response.meetings as Meeting[];
+      }
+      return [];
+    },
+    enabled: !!selectedTenantId
+  });
+
   // Sync local state with query data
   useEffect(() => {
     if (data) {
       setLocalSettings(data);
     }
   }, [data]);
+
+  // Auto-select first meeting if none selected
+  useEffect(() => {
+    if (meetingsData && meetingsData.length > 0 && !selectedMeetingId) {
+      setSelectedMeetingId(meetingsData[0].meeting_id);
+    }
+  }, [meetingsData, selectedMeetingId]);
 
   const updateMutation = useMutation({
     mutationFn: async (newSettings: Partial<NotificationSettingsData>) => {
@@ -64,6 +93,46 @@ export default function NotificationSettings() {
       toast({
         title: "เกิดข้อผิดพลาด",
         description: error.message || "ไม่สามารถบันทึกการตั้งค่าได้",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Test notification mutation (send to admin only)
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/notifications/test/${selectedTenantId}`, "POST", {});
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "ส่งทดสอบสำเร็จ",
+        description: data.message || "กรุณาตรวจสอบ LINE ของคุณ"
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "ส่งไม่สำเร็จ",
+        description: error.message || "ไม่สามารถส่งแจ้งเตือนทดสอบได้",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Manual trigger mutation (send to all members)
+  const sendMutation = useMutation({
+    mutationFn: async (meetingId: string) => {
+      return apiRequest(`/api/notifications/send/${meetingId}`, "POST", { notification_type: "manual" });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "ส่งแจ้งเตือนสำเร็จ",
+        description: data.message || `ส่ง ${data.sent} รายการ, ล้มเหลว ${data.failed} รายการ`
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "ส่งไม่สำเร็จ",
+        description: error.message || "ไม่สามารถส่งแจ้งเตือนได้",
         variant: "destructive"
       });
     }
@@ -273,24 +342,95 @@ export default function NotificationSettings() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5" />
-            ส่งแจ้งเตือนทดสอบ
-          </CardTitle>
-          <CardDescription>ทดสอบส่งแจ้งเตือนไปยังสมาชิกทั้งหมด (ใช้สำหรับ debug)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            หมายเหตุ: การส่งทดสอบจะส่งไปยังสมาชิกทุกคนที่เชื่อมต่อ LINE แล้ว
-          </p>
-          <Button variant="outline" disabled data-testid="button-test-notification">
-            <Send className="h-4 w-4 mr-2" />
-            ส่งทดสอบ (เร็วๆ นี้)
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              ส่งแจ้งเตือนทดสอบ
+            </CardTitle>
+            <CardDescription>ส่ง Flex Message ทดสอบไปยัง LINE ของคุณ (Admin)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              กดปุ่มเพื่อรับตัวอย่างแจ้งเตือนใน LINE ของคุณ
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => testMutation.mutate()}
+              disabled={testMutation.isPending}
+              data-testid="button-test-notification"
+            >
+              {testMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              {testMutation.isPending ? "กำลังส่ง..." : "ส่งทดสอบ"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              ส่งแจ้งเตือน Meeting
+            </CardTitle>
+            <CardDescription>เลือก Meeting แล้วส่งแจ้งเตือนให้สมาชิกทุกคน</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>เลือก Meeting</Label>
+              <Select 
+                value={selectedMeetingId} 
+                onValueChange={setSelectedMeetingId}
+              >
+                <SelectTrigger className="mt-2" data-testid="select-meeting">
+                  <SelectValue placeholder="เลือก Meeting..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {meetingsData && meetingsData.length > 0 ? (
+                    meetingsData.map((meeting) => {
+                      const dateObj = new Date(meeting.meeting_date);
+                      const formattedDate = dateObj.toLocaleDateString('th-TH', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short'
+                      });
+                      return (
+                        <SelectItem 
+                          key={meeting.meeting_id} 
+                          value={meeting.meeting_id}
+                        >
+                          {formattedDate} - {meeting.theme || "ประชุมประจำสัปดาห์"}
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <SelectItem value="none" disabled>ไม่มี Meeting ที่กำลังจะมาถึง</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              onClick={() => selectedMeetingId && sendMutation.mutate(selectedMeetingId)}
+              disabled={!selectedMeetingId || sendMutation.isPending}
+              data-testid="button-send-notification"
+            >
+              {sendMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              {sendMutation.isPending ? "กำลังส่ง..." : "ส่งแจ้งเตือนทุกคน"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              จะส่งแจ้งเตือนไปยังสมาชิกทุกคนที่เชื่อมต่อ LINE แล้ว
+            </p>
+          </CardContent>
+        </Card>
+      </div>
       </div>
     </AdminLayout>
   );

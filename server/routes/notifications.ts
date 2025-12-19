@@ -191,6 +191,103 @@ router.get("/rsvp/:meetingId", verifySupabaseAuth, async (req: AuthenticatedRequ
 });
 
 /**
+ * POST /api/notifications/test/:tenantId
+ * Send test notification to the admin user only
+ */
+router.post("/test/:tenantId", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[notification-test:${requestId}]`;
+
+  try {
+    const { tenantId } = req.params;
+    const userId = req.user!.id;
+
+    if (!await checkAdminAccess(userId, tenantId)) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Get tenant info with LINE credentials
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("tenant_id, name, line_channel_access_token")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (tenantError || !tenant || !tenant.line_channel_access_token) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "ยังไม่ได้ตั้งค่า LINE Channel Access Token" 
+      });
+    }
+
+    // Get admin's participant record with LINE user ID
+    const { data: adminParticipant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, line_user_id")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (participantError || !adminParticipant || !adminParticipant.line_user_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "บัญชีของคุณยังไม่ได้เชื่อมต่อ LINE หรือไม่มี Participant record" 
+      });
+    }
+
+    // Get upcoming meeting for demo
+    const today = new Date().toISOString().split('T')[0];
+    const { data: meeting } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", today)
+      .order("meeting_date", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    // Import template and LINE client
+    const { createEventNotificationFlex } = await import("../services/line/templates/eventNotificationTemplate");
+    const { LineClient } = await import("../services/line/lineClient");
+
+    const lineClient = new LineClient(tenant.line_channel_access_token);
+
+    const testMeeting = meeting || {
+      meeting_id: "test-meeting",
+      meeting_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      meeting_time: "07:00:00",
+      theme: "ประชุมประจำสัปดาห์ (ทดสอบ)",
+      venue: "สถานที่ประชุม (ทดสอบ)"
+    };
+
+    const flexMessage = createEventNotificationFlex({
+      meetingId: testMeeting.meeting_id,
+      meetingDate: testMeeting.meeting_date,
+      meetingTime: testMeeting.meeting_time || "07:00:00",
+      theme: testMeeting.theme || "ประชุมประจำสัปดาห์ (ทดสอบ)",
+      venue: testMeeting.venue || "สถานที่ประชุม",
+      chapterName: tenant.name,
+      memberName: adminParticipant.full_name_th,
+      notificationType: "manual",
+      confirmedCount: 5,
+      totalMembers: 10
+    });
+
+    await lineClient.pushMessage(adminParticipant.line_user_id, flexMessage);
+
+    console.log(`${logPrefix} Test notification sent to: ${adminParticipant.full_name_th}`);
+    return res.json({ 
+      success: true, 
+      message: `ส่งแจ้งเตือนทดสอบไปยัง LINE ของ ${adminParticipant.full_name_th} แล้ว` 
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/notifications/send/:meetingId
  * Manually send event notification for a meeting
  */
