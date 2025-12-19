@@ -43,8 +43,8 @@ const LandingFooter = () => {
               Ready to Transform Your Chapter?
             </h2>
             <p className="text-lg text-white/70 mb-8 max-w-2xl mx-auto">
-              Join 50+ business chapters already using Meetdup to streamline their operations 
-              and grow their membership.
+              Be among the first chapters to streamline operations and grow membership 
+              with Meetdup's powerful management tools.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button
@@ -162,9 +162,22 @@ const LandingFooter = () => {
         </div>
 
         <div className="py-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-white/50 text-sm" data-testid="text-copyright">
-            2024 Meetdup. All rights reserved.
-          </p>
+          <div className="flex flex-col items-center md:items-start gap-1">
+            <p className="text-white/50 text-sm" data-testid="text-copyright">
+              © 2024 Meetdup. All rights reserved.
+            </p>
+            <p className="text-white/40 text-xs" data-testid="text-powered-by">
+              Powered by{" "}
+              <a
+                href="https://ipassion.co.th"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold/70 hover:text-gold transition-colors"
+              >
+                iPassion Co., Ltd.
+              </a>
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-6">
             {footerLinks.legal.map((link) => (
               <a
