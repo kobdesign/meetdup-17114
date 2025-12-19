@@ -1384,7 +1384,7 @@ router.get("/chapter-stats/:subdomain", async (req: Request, res: Response) => {
     const today = new Date().toISOString().split("T")[0];
     const { data: nextMeeting } = await supabaseAdmin
       .from("meetings")
-      .select("meeting_id, meeting_date, meeting_time, theme, venue")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue, visitor_fee")
       .eq("tenant_id", tenant.tenant_id)
       .gte("meeting_date", today)
       .order("meeting_date", { ascending: true })
