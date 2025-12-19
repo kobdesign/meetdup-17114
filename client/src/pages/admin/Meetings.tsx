@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,6 @@ import MeetingsCalendar from "@/components/MeetingsCalendar";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
-import { uploadMeetingImage } from "@/lib/imageUploadHandler";
 import { generateRecurringMeetings } from "@/lib/meetingUtils";
 import {
   Dialog,
@@ -50,13 +47,8 @@ export default function Meetings() {
   const [adding, setAdding] = useState(false);
   const { effectiveTenantId, isSuperAdmin } = useTenantContext();
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
-  const [quillKey, setQuillKey] = useState(0);
   
   const navigate = useNavigate();
-  
-  // Refs for ReactQuill
-  const quillRef = useRef<any>(null);
-  const editQuillRef = useRef<any>(null);
   
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
@@ -127,100 +119,6 @@ export default function Meetings() {
     }
   };
 
-  // Image handler for Add Dialog
-  const imageHandler = async () => {
-    const input = document.createElement('input');
-    input.setAttribute('type', 'file');
-    input.setAttribute('accept', 'image/jpeg,image/jpg,image/png,image/gif,image/webp');
-    input.click();
-
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-
-      toast.loading('กำลังอัปโหลดรูปภาพ...', { id: 'image-upload' });
-
-      const result = await uploadMeetingImage(file);
-
-      if (!result.success) {
-        toast.error(result.error || 'อัปโหลดล้มเหลว', { id: 'image-upload' });
-        return;
-      }
-
-      const quill = quillRef.current?.getEditor();
-      if (quill) {
-        const range = quill.getSelection(true);
-        quill.insertEmbed(range.index, 'image', result.url);
-        quill.setSelection(range.index + 1);
-      }
-
-      toast.success('อัปโหลดรูปภาพสำเร็จ!', { id: 'image-upload' });
-    };
-  };
-  
-  // Image handler for Edit Dialog
-  const editImageHandler = async () => {
-    const input = document.createElement('input');
-    input.setAttribute('type', 'file');
-    input.setAttribute('accept', 'image/jpeg,image/jpg,image/png,image/gif,image/webp');
-    input.click();
-
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-
-      toast.loading('กำลังอัปโหลดรูปภาพ...', { id: 'image-upload-edit' });
-
-      const result = await uploadMeetingImage(file);
-
-      if (!result.success) {
-        toast.error(result.error || 'อัปโหลดล้มเหลว', { id: 'image-upload-edit' });
-        return;
-      }
-
-      const quill = editQuillRef.current?.getEditor();
-      if (quill) {
-        const range = quill.getSelection(true);
-        quill.insertEmbed(range.index, 'image', result.url);
-        quill.setSelection(range.index + 1);
-      }
-
-      toast.success('อัปโหลดรูปภาพสำเร็จ!', { id: 'image-upload-edit' });
-    };
-  };
-  
-  // Quill modules for Add Dialog
-  const quillModules = useMemo(() => ({
-    toolbar: {
-      container: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link', 'image', 'blockquote'],
-        ['clean']
-      ],
-      handlers: {
-        image: imageHandler
-      }
-    }
-  }), []);
-  
-  // Quill modules for Edit Dialog
-  const editQuillModules = useMemo(() => ({
-    toolbar: {
-      container: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link', 'image', 'blockquote'],
-        ['clean']
-      ],
-      handlers: {
-        image: editImageHandler
-      }
-    }
-  }), [editImageHandler]);
-  
   // Preview handler
   const handlePreview = () => {
     setPreviewContent({
@@ -351,11 +249,35 @@ export default function Meetings() {
     }
   };
 
+  // Helper to strip HTML tags from rich text content, preserving line breaks
+  const stripHtml = (html: string | null | undefined): string => {
+    if (!html) return "";
+    return html
+      .replace(/<br\s*\/?>/gi, '\n')           // Convert <br> to newline
+      .replace(/<\/p>/gi, '\n')                 // Convert </p> to newline
+      .replace(/<\/div>/gi, '\n')               // Convert </div> to newline
+      .replace(/<\/li>/gi, '\n')                // Convert </li> to newline
+      .replace(/<[^>]*>/g, '')                  // Remove all other HTML tags
+      .replace(/&nbsp;/g, ' ')                  // Convert &nbsp; to space
+      .replace(/&amp;/g, '&')                   // Decode &amp;
+      .replace(/&lt;/g, '<')                    // Decode &lt;
+      .replace(/&gt;/g, '>')                    // Decode &gt;
+      .replace(/&quot;/g, '"')                  // Decode &quot;
+      .replace(/\n{3,}/g, '\n\n')               // Collapse multiple newlines
+      .trim();
+  };
+
   const startEditMeeting = (meeting: any) => {
+    // Strip HTML from description for plain text editing
+    const cleanedMeeting = {
+      ...meeting,
+      description: stripHtml(meeting.description),
+    };
+    
     // Prevent editing recurrence for child instances
     if (meeting.parent_meeting_id) {
       setEditingMeeting({
-        ...meeting,
+        ...cleanedMeeting,
         recurrence_pattern: "none",
         recurrence_interval: 1,
         recurrence_end_date: "",
@@ -364,7 +286,7 @@ export default function Meetings() {
         recurrence_occurrence_count: 10,
       });
     } else {
-      setEditingMeeting(meeting);
+      setEditingMeeting(cleanedMeeting);
     }
     setShowEditDialog(true);
     // Set advanced section visibility based on whether coordinates exist
@@ -712,21 +634,14 @@ export default function Meetings() {
 
                 <div className="space-y-2">
                   <Label htmlFor="description">รายละเอียดการประชุม</Label>
-                  <div className="border rounded-md">
-                    <ReactQuill
-                      key={showAddDialog ? 'add-quill' : 'add-quill-hidden'}
-                      ref={quillRef}
-                      theme="snow"
-                      value={newMeeting.description || ""}
-                      onChange={(content) => setNewMeeting(prev => ({ ...prev, description: content }))}
-                      placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
-                      modules={quillModules}
-                      className="bg-background"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    รองรับ: หัวข้อ, ตัวหนา, ตัวเอียง, lists, links, 🖼️รูปภาพ
-                  </p>
+                  <Textarea
+                    id="description"
+                    value={newMeeting.description || ""}
+                    onChange={(e) => setNewMeeting(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="รายละเอียดเพิ่มเติม เช่น วิทยากร, agenda, หัวข้อพิเศษ..."
+                    rows={5}
+                    className="resize-none"
+                  />
                 </div>
                 
                 {/* Preview Button */}
@@ -930,21 +845,14 @@ export default function Meetings() {
 
                   <div className="space-y-2">
                     <Label htmlFor="edit_description">รายละเอียดการประชุม</Label>
-                    <div className="border rounded-md overflow-hidden">
-                      <ReactQuill
-                        key={`edit-quill-${editingMeeting?.meeting_id}`}
-                        ref={editQuillRef}
-                        theme="snow"
-                        value={editingMeeting.description || ""}
-                        onChange={(content) => setEditingMeeting(prev => ({ ...prev, description: content }))}
-                        placeholder="รายละเอียดเพิ่มเติม..."
-                        modules={editQuillModules}
-                        className="bg-background"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      รองรับ: หัวข้อ, ตัวหนา, ตัวเอียง, lists, links, 🖼️ รูปภาพ
-                    </p>
+                    <Textarea
+                      id="edit_description"
+                      value={editingMeeting.description || ""}
+                      onChange={(e) => setEditingMeeting(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="รายละเอียดเพิ่มเติม..."
+                      rows={5}
+                      className="resize-none"
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -1020,13 +928,9 @@ export default function Meetings() {
                 {previewContent.description && (
                   <div>
                     <Label className="text-base font-semibold">📝 รายละเอียดการประชุม</Label>
-                    <div 
-                      className="mt-3 prose prose-sm max-w-none dark:prose-invert
-                                 prose-headings:text-foreground prose-p:text-muted-foreground
-                                 prose-li:text-muted-foreground prose-a:text-primary
-                                 prose-img:rounded-lg prose-img:shadow-md"
-                      dangerouslySetInnerHTML={{ __html: previewContent.description }}
-                    />
+                    <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
+                      {previewContent.description}
+                    </p>
                   </div>
                 )}
 
