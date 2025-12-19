@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Bell, Clock, Users, Send, Settings, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface NotificationSettings {
+interface NotificationSettingsData {
   tenant_id: string;
   notify_7_days_before: boolean;
   notify_1_day_before: boolean;
@@ -27,23 +27,30 @@ interface NotificationSettings {
 export default function NotificationSettings() {
   const { toast } = useToast();
   const { selectedTenantId } = useTenantContext();
-  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  const [localSettings, setLocalSettings] = useState<NotificationSettingsData | null>(null);
 
-  const { isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["/api/notifications/settings", selectedTenantId],
     queryFn: async () => {
-      const data = await apiRequest(`/api/notifications/settings/${selectedTenantId}`, "GET");
-      if (data.success) {
-        setSettings(data.settings);
-        return data.settings;
+      const response = await apiRequest(`/api/notifications/settings/${selectedTenantId}`, "GET");
+      if (response.success) {
+        return response.settings as NotificationSettingsData;
       }
-      throw new Error(data.error);
+      throw new Error(response.error);
     },
-    enabled: !!selectedTenantId
+    enabled: !!selectedTenantId,
+    staleTime: 0
   });
 
+  // Sync local state with query data
+  useEffect(() => {
+    if (data) {
+      setLocalSettings(data);
+    }
+  }, [data]);
+
   const updateMutation = useMutation({
-    mutationFn: async (newSettings: Partial<NotificationSettings>) => {
+    mutationFn: async (newSettings: Partial<NotificationSettingsData>) => {
       return apiRequest(`/api/notifications/settings/${selectedTenantId}`, "PUT", newSettings);
     },
     onSuccess: () => {
@@ -63,22 +70,25 @@ export default function NotificationSettings() {
   });
 
   const handleSave = () => {
-    if (settings) {
-      updateMutation.mutate(settings);
+    if (localSettings) {
+      updateMutation.mutate(localSettings);
     }
   };
 
-  const handleToggle = (key: keyof NotificationSettings, value: boolean) => {
-    if (settings) {
-      setSettings({ ...settings, [key]: value });
+  const handleToggle = (key: keyof NotificationSettingsData, value: boolean) => {
+    if (localSettings) {
+      setLocalSettings({ ...localSettings, [key]: value });
     }
   };
 
-  const handleInputChange = (key: keyof NotificationSettings, value: string) => {
-    if (settings) {
-      setSettings({ ...settings, [key]: value });
+  const handleInputChange = (key: keyof NotificationSettingsData, value: string) => {
+    if (localSettings) {
+      setLocalSettings({ ...localSettings, [key]: value });
     }
   };
+
+  // Use data from query OR local state for rendering
+  const settings = localSettings || data;
 
   if (isLoading) {
     return (
@@ -94,15 +104,29 @@ export default function NotificationSettings() {
     );
   }
 
-  if (error || !settings) {
+  if (error) {
     return (
       <AdminLayout>
         <div className="p-6">
           <Card>
             <CardContent className="p-6">
-              <p className="text-muted-foreground">ไม่สามารถโหลดการตั้งค่าได้</p>
+              <p className="text-muted-foreground">ไม่สามารถโหลดการตั้งค่าได้: {error.message}</p>
             </CardContent>
           </Card>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <AdminLayout>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-10 w-64" />
+          <div className="grid gap-6 md:grid-cols-2">
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
+          </div>
         </div>
       </AdminLayout>
     );
