@@ -55,6 +55,7 @@ import LiffBusinessCard from "./pages/liff/LiffBusinessCard";
 import LiffShareCard from "./pages/liff/LiffShareCard";
 import LiffCards from "./pages/liff/LiffCards";
 import LiffSubstituteRequest from "./pages/liff/LiffSubstituteRequest";
+import BOQEstimator from "./pages/apps/BOQEstimator";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -90,6 +91,9 @@ const App = () => (
           <Route path="/activate/:token" element={<Activate />} />
           <Route path="/line-activate" element={<LineActivate />} />
           <Route path="/complete-profile" element={<CompleteProfile />} />
+          
+          {/* Chapter Apps / Mini-Apps */}
+          <Route path="/apps/boq-estimator" element={<BOQEstimator />} />
           
           {/* Protected Routes */}
           <Route path="/profile" element={

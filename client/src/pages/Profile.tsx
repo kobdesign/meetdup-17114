@@ -9,8 +9,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, User, Lock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, User, Lock, CheckCircle2, AlertCircle, LayoutGrid, Calculator, ArrowRight } from "lucide-react";
 import AdminLayout from "@/components/layout/AdminLayout";
+import { Link } from "react-router-dom";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -251,14 +252,18 @@ export default function Profile() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="profile">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="profile" data-testid="tab-profile">
                     <User className="mr-2 h-4 w-4" />
                     ข้อมูลส่วนตัว
                   </TabsTrigger>
-                  <TabsTrigger value="password">
+                  <TabsTrigger value="password" data-testid="tab-password">
                     <Lock className="mr-2 h-4 w-4" />
                     เปลี่ยนรหัสผ่าน
+                  </TabsTrigger>
+                  <TabsTrigger value="apps" data-testid="tab-apps">
+                    <LayoutGrid className="mr-2 h-4 w-4" />
+                    Apps
                   </TabsTrigger>
                 </TabsList>
 
@@ -364,6 +369,31 @@ export default function Profile() {
                       เปลี่ยนรหัสผ่าน
                     </Button>
                   </form>
+                </TabsContent>
+
+                <TabsContent value="apps" className="space-y-4">
+                  <div className="text-sm text-muted-foreground mb-4">
+                    เครื่องมือและแอปพลิเคชันที่พร้อมใช้งาน
+                  </div>
+                  
+                  <div className="grid gap-4">
+                    <Link to="/apps/boq-estimator" data-testid="link-app-boq">
+                      <Card className="hover-elevate cursor-pointer">
+                        <CardContent className="flex items-center gap-4 p-4">
+                          <div className="h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                            <Calculator className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold">BOQ Estimator</h3>
+                            <p className="text-sm text-muted-foreground">
+                              ประเมินราคางานก่อสร้างเบื้องต้น
+                            </p>
+                          </div>
+                          <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  </div>
                 </TabsContent>
               </Tabs>
             </CardContent>
