@@ -289,6 +289,14 @@ async function processEvent(
       return;
     }
 
+    // Priority 9: Apps list command - show available apps for chapter members
+    const appsPattern = /^(apps|แอป|แอพ|app)(ค่ะ|ครับ|นะ|คะ)?$/i;
+    if (appsPattern.test(textLower.trim())) {
+      console.log(`${logPrefix} Command: APPS_LIST`);
+      await handleAppsListRequest(event, tenantId, accessToken, logPrefix);
+      return;
+    }
+
     // Handle other text messages
     console.log(`${logPrefix} No matching command handler for: "${text}"`);
   }
@@ -836,6 +844,14 @@ async function sendGroupMenu(event: any, accessToken: string): Promise<void> {
             label: "แก้ไขโปรไฟล์",
             text: "แก้ไขโปรไฟล์"
           }
+        },
+        {
+          type: "action",
+          action: {
+            type: "message",
+            label: "แอป",
+            text: "แอป"
+          }
         }
       ]
     }
@@ -856,6 +872,160 @@ async function sendGroupMenu(event: any, accessToken: string): Promise<void> {
   if (!response.ok) {
     const error = await response.text();
     console.error("[GroupMenu] Failed to send menu:", error);
+  }
+}
+
+async function handleAppsListRequest(
+  event: any,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  const lineUserId = event.source.userId;
+  
+  console.log(`${logPrefix} Apps list request from:`, lineUserId);
+  
+  try {
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, status, full_name_th, nickname_th")
+      .eq("line_user_id", lineUserId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    
+    if (participantError || !participant || participant.status !== "member") {
+      console.log(`${logPrefix} Non-member trying to access apps:`, lineUserId);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "แอปพลิเคชันเหล่านี้สำหรับสมาชิกเท่านั้น\n\nหากคุณเป็นสมาชิก กรุณาลงทะเบียนก่อนโดยพิมพ์ \"ลงทะเบียน\""
+      }, accessToken, tenantId);
+      return;
+    }
+    
+    const { data: enabledApps, error: appsError } = await supabaseAdmin
+      .from("chapter_apps")
+      .select(`
+        app_id,
+        apps:app_id (
+          app_id,
+          name,
+          description,
+          icon,
+          route
+        )
+      `)
+      .eq("tenant_id", tenantId)
+      .eq("is_enabled", true);
+    
+    if (appsError) {
+      console.error(`${logPrefix} Error fetching apps:`, appsError);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "เกิดข้อผิดพลาดในการโหลดรายการแอป กรุณาลองใหม่ภายหลัง"
+      }, accessToken, tenantId);
+      return;
+    }
+    
+    const apps = (enabledApps || [])
+      .map(item => item.apps)
+      .filter(app => app !== null);
+    
+    if (apps.length === 0) {
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ยังไม่มีแอปพลิเคชันที่เปิดใช้งานใน Chapter นี้"
+      }, accessToken, tenantId);
+      return;
+    }
+    
+    const { data: settings } = await supabaseAdmin
+      .from("system_settings")
+      .select("liff_id")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    
+    const liffId = settings?.liff_id || process.env.VITE_LIFF_ID;
+    
+    const appBubbles = apps.map((app: any) => {
+      const appSlug = app.route?.replace("/apps/", "") || app.app_id;
+      const liffUrl = `https://liff.line.me/${liffId}/liff/apps/${appSlug}?tenant=${tenantId}`;
+      
+      return {
+        type: "bubble",
+        size: "kilo",
+        body: {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "text",
+                  text: app.icon || "App",
+                  size: "xl",
+                  align: "center"
+                }
+              ],
+              width: "50px",
+              height: "50px",
+              backgroundColor: "#F0F4F8",
+              cornerRadius: "8px",
+              justifyContent: "center",
+              alignItems: "center"
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "text",
+                  text: app.name,
+                  weight: "bold",
+                  size: "md",
+                  wrap: true
+                },
+                {
+                  type: "text",
+                  text: app.description || "",
+                  size: "xs",
+                  color: "#8C8C8C",
+                  wrap: true
+                }
+              ],
+              flex: 1,
+              paddingStart: "12px"
+            }
+          ],
+          paddingAll: "12px",
+          action: {
+            type: "uri",
+            label: app.name,
+            uri: liffUrl
+          }
+        }
+      };
+    });
+    
+    const flexMessage = {
+      type: "flex",
+      altText: "Chapter Apps",
+      contents: {
+        type: "carousel",
+        contents: appBubbles
+      }
+    };
+    
+    await replyMessage(event.replyToken, flexMessage, accessToken, tenantId);
+    console.log(`${logPrefix} Sent apps list with ${apps.length} apps`);
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error in handleAppsListRequest:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "เกิดข้อผิดพลาด กรุณาลองใหม่ภายหลัง"
+    }, accessToken, tenantId);
   }
 }
 
