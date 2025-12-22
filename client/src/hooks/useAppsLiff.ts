@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import liff from "@line/liff";
 
 interface LiffConfig {
@@ -21,6 +21,10 @@ interface UseAppsLiffReturn {
   closeWindow: () => void;
 }
 
+// Global flag to prevent multiple LIFF initializations across component remounts
+let liffInitialized = false;
+let liffInitPromise: Promise<void> | null = null;
+
 export function useAppsLiff(): UseAppsLiffReturn {
   const [isLiffReady, setIsLiffReady] = useState(false);
   const [isInLiff, setIsInLiff] = useState(false);
@@ -28,61 +32,117 @@ export function useAppsLiff(): UseAppsLiffReturn {
   const [liffError, setLiffError] = useState<string | null>(null);
   const [profile, setProfile] = useState<UseAppsLiffReturn["profile"]>(null);
   const [liffConfig, setLiffConfig] = useState<LiffConfig | null>(null);
+  const initAttempted = useRef(false);
 
   useEffect(() => {
+    // Prevent double initialization from React StrictMode or fast remounts
+    if (initAttempted.current) {
+      return;
+    }
+    initAttempted.current = true;
+
     let isMounted = true;
     
     const initLiff = async () => {
       try {
-        const response = await fetch("/api/public/apps-liff-config");
-        if (!response.ok) {
-          throw new Error("Failed to fetch LIFF config");
-        }
-        const config: LiffConfig = await response.json();
-        
-        if (!isMounted) return;
-        setLiffConfig(config);
-
-        if (!config.liff_id) {
-          console.log("[Apps LIFF] No Apps LIFF ID configured - apps will work without LIFF features");
-          setIsLiffReady(true);
+        // If LIFF is already initialized, just read the state
+        if (liffInitialized) {
+          console.log("[Apps LIFF] Already initialized, reading state");
+          if (isMounted) {
+            setIsInLiff(liff.isInClient());
+            setIsLoggedIn(liff.isLoggedIn());
+            setIsLiffReady(true);
+            
+            if (liff.isLoggedIn()) {
+              try {
+                const userProfile = await liff.getProfile();
+                if (isMounted) {
+                  setProfile({
+                    userId: userProfile.userId,
+                    displayName: userProfile.displayName,
+                    pictureUrl: userProfile.pictureUrl
+                  });
+                }
+              } catch (e) {
+                console.error("[Apps LIFF] Error getting profile:", e);
+              }
+            }
+          }
           return;
         }
 
-        console.log("[Apps LIFF] Initializing with Apps LIFF ID:", config.liff_id, "(independent from Share LIFF)");
-
-        await liff.init({ liffId: config.liff_id });
-        
-        if (!isMounted) return;
-        
-        const inClient = liff.isInClient();
-        const loggedIn = liff.isLoggedIn();
-        
-        setIsInLiff(inClient);
-        setIsLoggedIn(loggedIn);
-        setIsLiffReady(true);
-
-        console.log("[Apps LIFF] Initialized successfully", {
-          isInClient: inClient,
-          isLoggedIn: loggedIn
-        });
-
-        if (loggedIn) {
-          try {
-            const userProfile = await liff.getProfile();
-            if (isMounted) {
-              setProfile({
-                userId: userProfile.userId,
-                displayName: userProfile.displayName,
-                pictureUrl: userProfile.pictureUrl
-              });
-            }
-          } catch (profileError) {
-            console.error("[Apps LIFF] Error getting profile:", profileError);
+        // If init is in progress, wait for it
+        if (liffInitPromise) {
+          console.log("[Apps LIFF] Init in progress, waiting...");
+          await liffInitPromise;
+          if (isMounted && liffInitialized) {
+            setIsInLiff(liff.isInClient());
+            setIsLoggedIn(liff.isLoggedIn());
+            setIsLiffReady(true);
           }
+          return;
         }
+
+        // Start new initialization
+        liffInitPromise = (async () => {
+          const response = await fetch("/api/public/apps-liff-config");
+          if (!response.ok) {
+            throw new Error("Failed to fetch LIFF config");
+          }
+          const config: LiffConfig = await response.json();
+          
+          if (isMounted) {
+            setLiffConfig(config);
+          }
+
+          if (!config.liff_id) {
+            console.log("[Apps LIFF] No Apps LIFF ID configured - apps will work without LIFF features");
+            liffInitialized = true;
+            if (isMounted) {
+              setIsLiffReady(true);
+            }
+            return;
+          }
+
+          console.log("[Apps LIFF] Initializing with Apps LIFF ID:", config.liff_id);
+
+          await liff.init({ liffId: config.liff_id });
+          liffInitialized = true;
+          
+          const inClient = liff.isInClient();
+          const loggedIn = liff.isLoggedIn();
+          
+          console.log("[Apps LIFF] Initialized successfully", {
+            isInClient: inClient,
+            isLoggedIn: loggedIn
+          });
+
+          if (isMounted) {
+            setIsInLiff(inClient);
+            setIsLoggedIn(loggedIn);
+            setIsLiffReady(true);
+
+            if (loggedIn) {
+              try {
+                const userProfile = await liff.getProfile();
+                if (isMounted) {
+                  setProfile({
+                    userId: userProfile.userId,
+                    displayName: userProfile.displayName,
+                    pictureUrl: userProfile.pictureUrl
+                  });
+                }
+              } catch (profileError) {
+                console.error("[Apps LIFF] Error getting profile:", profileError);
+              }
+            }
+          }
+        })();
+
+        await liffInitPromise;
       } catch (error: any) {
         console.error("[Apps LIFF] Initialization error:", error);
+        liffInitPromise = null;
         if (isMounted) {
           setLiffError(error.message || "Failed to initialize LIFF");
           setIsLiffReady(true);
