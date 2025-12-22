@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
-import liff from "@line/liff";
-
-interface LiffConfig {
-  liff_id: string | null;
-  liff_enabled: boolean;
-}
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  initializeLiff,
+  getLiffState,
+  subscribeLiffState,
+  liffLogin,
+  liffCloseWindow,
+  liffShareTargetPicker,
+  isShareApiAvailable,
+} from "@/lib/liffManager";
 
 interface ShareResult {
   success: boolean;
@@ -29,146 +32,58 @@ interface UseLiffReturn {
 }
 
 export function useLiff(): UseLiffReturn {
-  const [isLiffReady, setIsLiffReady] = useState(false);
-  const [isInLiff, setIsInLiff] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [liffError, setLiffError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<UseLiffReturn["profile"]>(null);
-  const [liffConfig, setLiffConfig] = useState<LiffConfig | null>(null);
+  const [state, setState] = useState(() => getLiffState());
+  const initAttempted = useRef(false);
 
   useEffect(() => {
-    const initLiff = async () => {
-      try {
-        const response = await fetch("/api/public/liff-config");
-        const config: LiffConfig = await response.json();
-        setLiffConfig(config);
+    const unsubscribe = subscribeLiffState(() => {
+      setState(getLiffState());
+    });
 
-        if (!config.liff_enabled || !config.liff_id) {
-          console.log("[LIFF] LIFF is not enabled or no LIFF ID configured");
-          setIsLiffReady(true);
-          return;
-        }
+    if (!initAttempted.current) {
+      initAttempted.current = true;
+      initializeLiff("share", "/api/public/liff-config").then(() => {
+        setState(getLiffState());
+      });
+    }
 
-        console.log("[LIFF] Initializing with ID:", config.liff_id);
-
-        await liff.init({ liffId: config.liff_id });
-        
-        setIsLiffReady(true);
-        setIsInLiff(liff.isInClient());
-        setIsLoggedIn(liff.isLoggedIn());
-
-        console.log("[LIFF] Initialized successfully", {
-          isInClient: liff.isInClient(),
-          isLoggedIn: liff.isLoggedIn()
-        });
-
-        if (liff.isLoggedIn()) {
-          try {
-            const userProfile = await liff.getProfile();
-            setProfile({
-              userId: userProfile.userId,
-              displayName: userProfile.displayName,
-              pictureUrl: userProfile.pictureUrl
-            });
-          } catch (profileError) {
-            console.error("[LIFF] Error getting profile:", profileError);
-          }
-        }
-      } catch (error: any) {
-        console.error("[LIFF] Initialization error:", error);
-        setLiffError(error.message || "Failed to initialize LIFF");
-        setIsLiffReady(true);
-      }
-    };
-
-    initLiff();
+    return unsubscribe;
   }, []);
 
-  // Check if user needs to login (for External browser)
-  // In LINE app, login is automatic. In External browser, need to call liff.login()
-  const needsLogin = isLiffReady && !isInLiff && !isLoggedIn && liffConfig?.liff_enabled === true;
+  const needsLogin =
+    state.initialized &&
+    !state.isInClient &&
+    !state.isLoggedIn &&
+    !!state.liffId;
 
-  // Check if shareTargetPicker is available
-  // This API is available in LINE app and in some External browsers after login
-  const canShare = isLiffReady && isLoggedIn && liffConfig?.liff_enabled === true && 
-    (typeof liff !== 'undefined' && liff.isApiAvailable?.('shareTargetPicker'));
+  const canShare = isShareApiAvailable();
 
-  // Login function for External browser
   const login = useCallback(() => {
-    if (!liffConfig?.liff_enabled || !liffConfig?.liff_id) {
-      console.log("[LIFF] Cannot login - LIFF not configured");
-      return;
-    }
+    liffLogin();
+  }, []);
 
-    console.log("[LIFF] Calling liff.login() for External browser");
-    // After login, LINE will redirect back to the current URL
-    liff.login({ redirectUri: window.location.href });
-  }, [liffConfig]);
-
-  const shareTargetPicker = useCallback(async (messages: any[]): Promise<{ success: boolean; cancelled: boolean }> => {
-    if (!liffConfig?.liff_enabled || !liffConfig?.liff_id) {
-      console.log("[LIFF] Share not available - LIFF not configured");
-      throw new Error("LIFF is not configured");
-    }
-
-    if (!liff.isApiAvailable("shareTargetPicker")) {
-      console.log("[LIFF] shareTargetPicker API not available");
-      throw new Error("Share feature is not available in this context");
-    }
-
-    // Validate messages (max 5 bubbles per LINE API spec)
-    if (!messages || messages.length === 0) {
-      throw new Error("No messages to share");
-    }
-    
-    if (messages.length > 5) {
-      console.warn("[LIFF] More than 5 messages provided, only first 5 will be sent");
-      messages = messages.slice(0, 5);
-    }
-
-    try {
-      const result = await liff.shareTargetPicker(messages);
-      
-      if (result) {
-        // User selected targets and shared successfully
-        console.log("[LIFF] Share successful", result);
-        return { success: true, cancelled: false };
-      } else {
-        // User cancelled the share (closed picker without selecting)
-        console.log("[LIFF] Share cancelled by user");
-        throw new Error("Share cancelled by user");
-      }
-    } catch (error: any) {
-      console.error("[LIFF] Share error:", error);
-      
-      // Enhance error message for common cases
-      if (error.code === "FORBIDDEN") {
-        throw new Error("Share permission denied. Please check LINE app permissions.");
-      }
-      
-      throw error;
-    }
-  }, [liffConfig]);
+  const shareTargetPicker = useCallback(
+    async (messages: any[]): Promise<ShareResult> => {
+      return liffShareTargetPicker(messages);
+    },
+    []
+  );
 
   const closeWindow = useCallback(() => {
-    if (liff.isInClient()) {
-      liff.closeWindow();
-    } else {
-      window.close();
-    }
+    liffCloseWindow();
   }, []);
 
   return {
-    isLiffReady,
-    isInLiff,
-    isLoggedIn,
+    isLiffReady: state.initialized,
+    isInLiff: state.isInClient,
+    isLoggedIn: state.isLoggedIn,
     needsLogin,
     canShare,
-    liffError,
-    profile,
+    liffError: state.error,
+    profile: state.profile,
     login,
     shareTargetPicker,
-    closeWindow
+    closeWindow,
   };
 }
 
