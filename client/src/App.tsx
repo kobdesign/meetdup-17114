@@ -55,6 +55,7 @@ import LiffBusinessCard from "./pages/liff/LiffBusinessCard";
 import LiffShareCard from "./pages/liff/LiffShareCard";
 import LiffCards from "./pages/liff/LiffCards";
 import LiffSubstituteRequest from "./pages/liff/LiffSubstituteRequest";
+import LiffAppShell from "./pages/liff/LiffAppShell";
 import BOQEstimator from "./pages/apps/BOQEstimator";
 import AppCenter from "./pages/admin/AppCenter";
 
@@ -223,6 +224,7 @@ const App = () => (
           <Route path="/liff/card/:participantId" element={<LiffBusinessCard />} />
           <Route path="/liff/share" element={<LiffShareCard />} />
           <Route path="/liff/substitute" element={<LiffSubstituteRequest />} />
+          <Route path="/liff/apps/:appSlug" element={<LiffAppShell />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

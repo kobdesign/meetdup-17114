@@ -1415,4 +1415,70 @@ router.get("/chapter-stats/:subdomain", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/verify-line-member", async (req: Request, res: Response) => {
+  try {
+    const lineUserId = req.query.lineUserId as string;
+    const tenantId = req.query.tenantId as string | undefined;
+
+    if (!lineUserId) {
+      return res.status(400).json({ error: "Missing lineUserId parameter" });
+    }
+
+    let query = supabaseAdmin
+      .from("participants")
+      .select(`
+        participant_id,
+        full_name_th,
+        nickname_th,
+        tenant_id,
+        status,
+        tenants:tenant_id (
+          tenant_id,
+          tenant_name
+        )
+      `)
+      .eq("line_user_id", lineUserId)
+      .eq("status", "member");
+
+    if (tenantId) {
+      query = query.eq("tenant_id", tenantId);
+    }
+
+    const { data: participants, error } = await query.limit(1);
+
+    if (error) {
+      console.error("[verify-line-member] Database error:", error);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    if (!participants || participants.length === 0) {
+      return res.json({
+        isMember: false,
+        participant: null,
+        tenant: null
+      });
+    }
+
+    const participant = participants[0];
+    const tenant = participant.tenants as any;
+
+    return res.json({
+      isMember: true,
+      participant: {
+        participant_id: participant.participant_id,
+        full_name_th: participant.full_name_th,
+        nickname_th: participant.nickname_th,
+        tenant_id: participant.tenant_id
+      },
+      tenant: tenant ? {
+        tenant_id: tenant.tenant_id,
+        name: tenant.tenant_name
+      } : null
+    });
+  } catch (error: any) {
+    console.error("[verify-line-member] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
