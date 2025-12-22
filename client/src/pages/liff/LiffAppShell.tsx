@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ export default function LiffAppShell() {
   const [verifying, setVerifying] = useState(false);
   const [verification, setVerification] = useState<MemberVerification | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const verificationDoneRef = useRef(false);
 
   const searchParams = new URLSearchParams(location.search);
   const tenantId = searchParams.get("tenant");
@@ -63,8 +64,10 @@ export default function LiffAppShell() {
   const AppComponent = effectiveAppSlug && appComponents[effectiveAppSlug] ? appComponents[effectiveAppSlug] : null;
 
   useEffect(() => {
-    setError(null);
-    setVerification(null);
+    // Prevent re-running verification if already done for this app
+    if (verificationDoneRef.current) {
+      return;
+    }
 
     if (!effectiveAppSlug || !appConfig) {
       return;
@@ -72,6 +75,7 @@ export default function LiffAppShell() {
 
     // Public apps don't need LIFF or verification - set immediately
     if (appConfig.access_level === "public") {
+      verificationDoneRef.current = true;
       setVerification({ isMember: false, isAdmin: false });
       return;
     }
@@ -90,6 +94,7 @@ export default function LiffAppShell() {
       return;
     }
 
+    verificationDoneRef.current = true;
     setVerifying(true);
     fetch(`/api/public/verify-line-member?lineUserId=${profile.userId}&tenantId=${tenantId}`)
       .then((res) => res.json())
