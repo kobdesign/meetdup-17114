@@ -947,26 +947,21 @@ async function handleAppsListRequest(
       return;
     }
     
-    const { data: settings } = await supabaseAdmin
-      .from("system_settings")
-      .select("liff_id")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
+    const { getAppsLiffId } = await import("../../utils/liffConfig");
+    const appsLiffId = await getAppsLiffId();
     
-    const liffId = settings?.liff_id || process.env.VITE_LIFF_ID;
-    
-    if (!liffId) {
-      console.error(`${logPrefix} No LIFF ID configured for tenant:`, tenantId);
+    if (!appsLiffId) {
+      console.error(`${logPrefix} No Apps LIFF ID configured`);
       await replyMessage(event.replyToken, {
         type: "text",
-        text: "ระบบยังไม่ได้ตั้งค่า LIFF กรุณาติดต่อผู้ดูแลระบบ"
+        text: "ระบบยังไม่ได้ตั้งค่า LIFF สำหรับ Apps กรุณาติดต่อผู้ดูแลระบบ"
       }, accessToken, tenantId);
       return;
     }
     
     const appBubbles = apps.map((app: any) => {
       const appSlug = app.route?.replace("/apps/", "") || app.app_id;
-      const liffUrl = `https://liff.line.me/${liffId}/liff/apps/${appSlug}?tenant=${tenantId}`;
+      const liffUrl = `https://liff.line.me/${appsLiffId}/liff/apps/${appSlug}?tenant=${tenantId}`;
       
       return {
         type: "bubble",

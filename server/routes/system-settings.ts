@@ -29,7 +29,7 @@ router.get("/liff", verifySupabaseAuth, async (req: AuthenticatedRequest, res: R
     const { data: settings, error } = await supabaseAdmin
       .from("system_settings")
       .select("setting_key, setting_value, description")
-      .in("setting_key", ["liff_id", "liff_channel_id", "liff_enabled", "liff_share_enabled", "liff_share_service_url"]);
+      .in("setting_key", ["liff_id", "liff_channel_id", "liff_enabled", "liff_share_enabled", "liff_share_service_url", "apps_liff_id"]);
 
     if (error) {
       console.error("Error fetching LIFF settings:", error);
@@ -46,7 +46,8 @@ router.get("/liff", verifySupabaseAuth, async (req: AuthenticatedRequest, res: R
       liff_channel_id: settingsMap.liff_channel_id || "",
       liff_enabled: settingsMap.liff_enabled === "true",
       liff_share_enabled: settingsMap.liff_share_enabled !== "false",
-      liff_share_service_url: settingsMap.liff_share_service_url || ""
+      liff_share_service_url: settingsMap.liff_share_service_url || "",
+      apps_liff_id: settingsMap.apps_liff_id || ""
     });
   } catch (error: any) {
     console.error("Error in getLiffSettings:", error);
@@ -118,6 +119,16 @@ router.put("/liff", verifySupabaseAuth, async (req: AuthenticatedRequest, res: R
         .upsert({
           setting_key: "liff_share_service_url",
           setting_value: req.body.liff_share_service_url || "",
+          updated_at: new Date().toISOString()
+        }, { onConflict: "setting_key" });
+    }
+
+    if (req.body.apps_liff_id !== undefined) {
+      await supabaseAdmin
+        .from("system_settings")
+        .upsert({
+          setting_key: "apps_liff_id",
+          setting_value: req.body.apps_liff_id || "",
           updated_at: new Date().toISOString()
         }, { onConflict: "setting_key" });
     }

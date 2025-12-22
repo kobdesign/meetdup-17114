@@ -7,15 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Loader2, Save, ExternalLink, Info } from "lucide-react";
+import { ArrowLeft, Loader2, Save, ExternalLink, Info, Share2, AppWindow } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface LiffSettings {
+interface LiffSettingsData {
   liff_id: string;
   liff_channel_id: string;
   liff_enabled: boolean;
   liff_share_enabled: boolean;
   liff_share_service_url: string;
+  apps_liff_id: string;
 }
 
 export default function LiffSettings() {
@@ -23,12 +24,13 @@ export default function LiffSettings() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState<LiffSettings>({
+  const [settings, setSettings] = useState<LiffSettingsData>({
     liff_id: "",
     liff_channel_id: "",
     liff_enabled: false,
     liff_share_enabled: true,
-    liff_share_service_url: ""
+    liff_share_service_url: "",
+    apps_liff_id: ""
   });
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export default function LiffSettings() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">LIFF Settings</h1>
-          <p className="text-muted-foreground">Configure LINE LIFF application for all tenants</p>
+          <p className="text-muted-foreground">Configure LINE LIFF applications for all tenants</p>
         </div>
       </div>
 
@@ -139,7 +141,7 @@ export default function LiffSettings() {
         <Info className="h-4 w-4" />
         <AlertDescription>
           LIFF (LINE Front-end Framework) allows users to interact with your app directly within LINE. 
-          One LIFF app is shared across all tenants. Get your LIFF ID from{" "}
+          You can configure separate LIFF apps for Share Card and Mini-apps. Get your LIFF IDs from{" "}
           <a 
             href="https://developers.line.biz/console/" 
             target="_blank" 
@@ -154,10 +156,15 @@ export default function LiffSettings() {
 
       <Card>
         <CardHeader>
-          <CardTitle>LIFF Configuration</CardTitle>
-          <CardDescription>
-            Configure LIFF app settings. Changes will apply to all chapters.
-          </CardDescription>
+          <div className="flex items-center gap-2">
+            <Share2 className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <CardTitle>LIFF Share Configuration</CardTitle>
+              <CardDescription>
+                Settings for Share Card feature (share business cards via LINE)
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
@@ -191,7 +198,7 @@ export default function LiffSettings() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="liff-id">LIFF ID</Label>
+            <Label htmlFor="liff-id">Share LIFF ID</Label>
             <Input
               id="liff-id"
               placeholder="1234567890-abcdefgh"
@@ -200,7 +207,7 @@ export default function LiffSettings() {
               data-testid="input-liff-id"
             />
             <p className="text-xs text-muted-foreground">
-              Found in LINE Developers Console under your LIFF app
+              LIFF ID for Share Card feature. Endpoint should point to your share service.
             </p>
           </div>
 
@@ -231,22 +238,63 @@ export default function LiffSettings() {
               URL of the external LINE Share Target Picker service. Leave empty to use default.
             </p>
           </div>
-
-          <Button 
-            onClick={handleSave} 
-            disabled={saving}
-            className="w-full"
-            data-testid="button-save-liff"
-          >
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            Save Settings
-          </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <AppWindow className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <CardTitle>LIFF Apps Configuration</CardTitle>
+              <CardDescription>
+                Settings for Mini-apps (Chapter Apps accessible via LINE Bot)
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="apps-liff-id">Apps LIFF ID</Label>
+            <Input
+              id="apps-liff-id"
+              placeholder="1234567890-xxxxxxxx"
+              value={settings.apps_liff_id}
+              onChange={(e) => setSettings({ ...settings, apps_liff_id: e.target.value })}
+              data-testid="input-apps-liff-id"
+            />
+            <p className="text-xs text-muted-foreground">
+              LIFF ID for Mini-apps. Endpoint should point to: <code className="bg-muted px-1 py-0.5 rounded">https://meetdup.com/liff/apps</code>
+            </p>
+          </div>
+
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              <strong>Setup Guide:</strong> Create a separate LIFF app in LINE Developer Console with:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Endpoint URL: <code className="bg-muted px-1 py-0.5 rounded text-xs">https://meetdup.com/liff/apps</code></li>
+                <li>Size: Full</li>
+                <li>Scopes: openid, profile</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+
+      <Button 
+        onClick={handleSave} 
+        disabled={saving}
+        className="w-full"
+        data-testid="button-save-liff"
+      >
+        {saving ? (
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        ) : (
+          <Save className="h-4 w-4 mr-2" />
+        )}
+        Save Settings
+      </Button>
 
       <Card>
         <CardHeader>
@@ -258,10 +306,9 @@ export default function LiffSettings() {
             <li>Create or select your LINE Login channel</li>
             <li>Navigate to "LIFF" tab</li>
             <li>Click "Add" to create a new LIFF app</li>
-            <li>Set Endpoint URL to: <code className="bg-muted px-1 py-0.5 rounded text-xs">https://your-domain.com/liff/search</code></li>
-            <li>Set Size to "Tall" or "Full"</li>
-            <li>Enable "shareTargetPicker" in Scopes</li>
-            <li>Copy the LIFF ID and paste it above</li>
+            <li>For <strong>Share Card</strong>: Set Endpoint URL to your share service, enable shareTargetPicker scope</li>
+            <li>For <strong>Mini-apps</strong>: Set Endpoint URL to <code className="bg-muted px-1 py-0.5 rounded text-xs">https://meetdup.com/liff/apps</code></li>
+            <li>Copy the LIFF IDs and paste them above</li>
           </ol>
         </CardContent>
       </Card>

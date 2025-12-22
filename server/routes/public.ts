@@ -480,6 +480,23 @@ router.get("/liff-config", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/apps-liff-config", async (req: Request, res: Response) => {
+  try {
+    const { getAppsLiffId, getLiffConfig } = await import("../utils/liffConfig");
+    const appsLiffId = await getAppsLiffId();
+    const config = await getLiffConfig();
+
+    return res.json({
+      liff_id: appsLiffId,
+      liff_enabled: !!appsLiffId,
+      environment: config.environment
+    });
+  } catch (error: any) {
+    console.error("Error in getAppsLiffConfig:", error);
+    return res.json({ liff_id: null, liff_enabled: false, environment: "unknown" });
+  }
+});
+
 router.get("/tenant/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;

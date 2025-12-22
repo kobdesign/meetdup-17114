@@ -112,6 +112,31 @@ function normalizeUrl(url: string): string {
 }
 
 /**
+ * Get Apps LIFF ID for mini-apps (separate from Share LIFF)
+ * This is a dedicated LIFF app for Chapter Apps
+ */
+export async function getAppsLiffId(): Promise<string | null> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("system_settings")
+      .select("setting_value")
+      .eq("setting_key", "apps_liff_id")
+      .single();
+
+    if (error || !data || !data.setting_value) {
+      console.log("[LIFF Config] No apps_liff_id configured");
+      return null;
+    }
+
+    console.log("[LIFF Config] Using apps LIFF ID:", data.setting_value);
+    return data.setting_value;
+  } catch (error) {
+    console.error("[LIFF Config] Error getting apps LIFF ID:", error);
+    return null;
+  }
+}
+
+/**
  * Get share service URL from system_settings
  * This is the external LINE Share Target Picker service URL
  * Configurable by Super Admin to allow changing the service without code changes

@@ -3,7 +3,7 @@ import { useParams, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, Lock, ArrowLeft } from "lucide-react";
-import { useLiff } from "@/hooks/useLiff";
+import { useAppsLiff } from "@/hooks/useAppsLiff";
 
 interface AppConfig {
   app_id: string;
@@ -47,7 +47,7 @@ const appConfigs: Record<string, AppConfig> = {
 export default function LiffAppShell() {
   const { appSlug } = useParams<{ appSlug: string }>();
   const location = useLocation();
-  const { isLiffReady, isLoggedIn, needsLogin, profile, login, liffError, isInLiff, closeWindow } = useLiff();
+  const { isLiffReady, isLoggedIn, needsLogin, profile, login, liffError, isInLiff, closeWindow } = useAppsLiff();
   
   const [verifying, setVerifying] = useState(false);
   const [verification, setVerification] = useState<MemberVerification | null>(null);
