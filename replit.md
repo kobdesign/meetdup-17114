@@ -67,6 +67,48 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 ### Future Improvements (TODO)
 - **Substitute Flow Enhancement**: Add `substitute_participant_id` column to `meeting_rsvp` table and update status constraint to include "substitute" value. LIFF form submission should sync back to `meeting_rsvp` with substitute details.
 
+### Chapter Apps Marketplace (Planned Feature)
+ระบบ Extension/Marketplace สำหรับ mini-applications ที่ช่วยสนับสนุนสมาชิกใน chapter
+
+**แนวคิด:**
+- เพิ่ม mini-apps ที่เฉพาะทางสำหรับธุรกิจต่างๆ ใน chapter
+- สมาชิกเข้าถึงผ่าน Profile > Apps Tab
+- Chapter Admin จัดการเปิด/ปิด apps ผ่าน App Center
+
+**UX Pattern:**
+- **Profile Apps Tab**: สมาชิกเห็น apps ที่ตัวเองเข้าถึงได้ พร้อมปุ่ม quick-launch
+- **Admin App Center**: Chapter Admin browse และติดตั้ง apps สำหรับ chapter
+- **Marketplace Page**: หน้า browse apps ทั้งหมดพร้อม description และ reviews
+
+**Architecture:**
+- **Extension Registry**: Postgres tables เก็บ app manifests (name, scopes, UI type, launch URL, permissions)
+- **Runtime Broker**: ออก signed launch tokens, proxy data calls, enforce role/tenant scope
+- **Delivery Modes**: 
+  - Embedded widgets (iframe/micro-frontend)
+  - External deep links with SSO handoff
+
+**Security & Multi-tenancy:**
+- ใช้ Supabase RLS กับ tenant_id isolation
+- Per-extension scoped API keys
+- Iframe sandbox สำหรับ embedded apps
+- Audit logs สำหรับ installs/launches
+- Third-party submission review workflow
+
+**Phased Roadmap:**
+| Phase | เป้าหมาย |
+|-------|----------|
+| Phase 1 | สร้าง internal mini-apps (BOQ Estimator) เป็น embedded widget |
+| Phase 2 | สร้าง App Center UI + ระบบเปิด/ปิด apps ระดับ chapter |
+| Phase 3 | เปิดให้ partner submit apps + review workflow |
+| Phase 4 | Analytics, billing entitlements, compliance checks |
+
+**ตัวอย่าง Mini-Apps:**
+- BOQ/Cost Estimator (ก่อสร้าง)
+- Invoice Generator (ทุกธุรกิจ)
+- Quote Calculator (บริการ)
+- Lead Tracker (Sales)
+- Business Card Scanner (Networking)
+
 ## External Dependencies
 
 - **Supabase** (`sbknunooplaezvwtyooi`):
