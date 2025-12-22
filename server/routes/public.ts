@@ -1418,13 +1418,21 @@ router.get("/chapter-stats/:subdomain", async (req: Request, res: Response) => {
 router.get("/verify-line-member", async (req: Request, res: Response) => {
   try {
     const lineUserId = req.query.lineUserId as string;
-    const tenantId = req.query.tenantId as string | undefined;
+    const tenantId = req.query.tenantId as string;
 
     if (!lineUserId) {
       return res.status(400).json({ error: "Missing lineUserId parameter" });
     }
 
-    let query = supabaseAdmin
+    if (!tenantId) {
+      return res.status(400).json({ error: "Missing tenantId parameter" });
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      return res.status(400).json({ error: "Invalid tenantId format" });
+    }
+
+    const { data: participants, error } = await supabaseAdmin
       .from("participants")
       .select(`
         participant_id,
@@ -1432,19 +1440,16 @@ router.get("/verify-line-member", async (req: Request, res: Response) => {
         nickname_th,
         tenant_id,
         status,
+        user_id,
         tenants:tenant_id (
           tenant_id,
           tenant_name
         )
       `)
       .eq("line_user_id", lineUserId)
-      .eq("status", "member");
-
-    if (tenantId) {
-      query = query.eq("tenant_id", tenantId);
-    }
-
-    const { data: participants, error } = await query.limit(1);
+      .eq("tenant_id", tenantId)
+      .eq("status", "member")
+      .limit(1);
 
     if (error) {
       console.error("[verify-line-member] Database error:", error);
@@ -1454,6 +1459,7 @@ router.get("/verify-line-member", async (req: Request, res: Response) => {
     if (!participants || participants.length === 0) {
       return res.json({
         isMember: false,
+        isAdmin: false,
         participant: null,
         tenant: null
       });
@@ -1462,8 +1468,22 @@ router.get("/verify-line-member", async (req: Request, res: Response) => {
     const participant = participants[0];
     const tenant = participant.tenants as any;
 
+    let isAdmin = false;
+    if (participant.user_id) {
+      const { data: roles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", participant.user_id)
+        .eq("tenant_id", tenantId)
+        .in("role", ["admin", "super_admin"])
+        .limit(1);
+      
+      isAdmin = (roles && roles.length > 0) || false;
+    }
+
     return res.json({
       isMember: true,
+      isAdmin,
       participant: {
         participant_id: participant.participant_id,
         full_name_th: participant.full_name_th,

@@ -16,6 +16,7 @@ interface AppConfig {
 
 interface MemberVerification {
   isMember: boolean;
+  isAdmin: boolean;
   participant?: {
     participant_id: string;
     full_name_th: string;
@@ -59,7 +60,7 @@ export default function LiffAppShell() {
   const AppComponent = appSlug && appComponents[appSlug] ? appComponents[appSlug] : null;
 
   useEffect(() => {
-    if (!isLiffReady || !isLoggedIn || !profile?.userId) {
+    if (!isLiffReady) {
       return;
     }
 
@@ -69,12 +70,21 @@ export default function LiffAppShell() {
     }
 
     if (appConfig.access_level === "public") {
-      setVerification({ isMember: true });
+      setVerification({ isMember: false, isAdmin: false });
+      return;
+    }
+
+    if (!isLoggedIn || !profile?.userId) {
+      return;
+    }
+
+    if (!tenantId) {
+      setError("Missing tenant context");
       return;
     }
 
     setVerifying(true);
-    fetch(`/api/public/verify-line-member?lineUserId=${profile.userId}${tenantId ? `&tenantId=${tenantId}` : ""}`)
+    fetch(`/api/public/verify-line-member?lineUserId=${profile.userId}&tenantId=${tenantId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.error) {
@@ -147,7 +157,7 @@ export default function LiffAppShell() {
     );
   }
 
-  if (needsLogin) {
+  if (appConfig.access_level !== "public" && needsLogin) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -195,7 +205,35 @@ export default function LiffAppShell() {
     );
   }
 
-  if (appConfig.access_level !== "public" && !verification?.isMember) {
+  const hasRequiredAccess = () => {
+    if (appConfig?.access_level === "public") return true;
+    if (!verification) return false;
+    if (appConfig?.access_level === "member") return verification.isMember;
+    if (appConfig?.access_level === "admin") return verification.isAdmin;
+    return false;
+  };
+
+  if (appConfig.access_level === "admin" && verification && !verification.isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <Lock className="h-12 w-12 mx-auto text-muted-foreground" />
+            <h2 className="text-lg font-semibold">สำหรับผู้ดูแลระบบเท่านั้น</h2>
+            <p className="text-sm text-muted-foreground">
+              แอปพลิเคชันนี้สำหรับผู้ดูแลระบบ Chapter เท่านั้น
+            </p>
+            <Button onClick={handleBack} variant="outline" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              กลับ
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (appConfig.access_level === "member" && verification && !verification.isMember) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
