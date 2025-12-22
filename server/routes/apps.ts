@@ -35,16 +35,28 @@ router.get("/chapter/:tenantId", verifySupabaseAuth, async (req: AuthenticatedRe
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Verify user has access to this chapter
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is super admin (can access any chapter)
+    const { data: superAdminRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("tenant_id", tenantId)
-      .single();
+      .eq("role", "super_admin")
+      .limit(1);
 
-    if (!userRole) {
-      return res.status(403).json({ error: "Access denied to this chapter" });
+    const isSuperAdmin = superAdminRoles && superAdminRoles.length > 0;
+
+    // If not super admin, verify user has access to this specific chapter
+    if (!isSuperAdmin) {
+      const { data: userRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      if (!userRole) {
+        return res.status(403).json({ error: "Access denied to this chapter" });
+      }
     }
 
     // Get all active apps with their enabled status for this chapter
@@ -98,16 +110,28 @@ router.get("/chapter/:tenantId/enabled", verifySupabaseAuth, async (req: Authent
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Verify user has access to this chapter
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is super admin (can access any chapter)
+    const { data: superAdminRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("tenant_id", tenantId)
-      .single();
+      .eq("role", "super_admin")
+      .limit(1);
 
-    if (!userRole) {
-      return res.status(403).json({ error: "Access denied to this chapter" });
+    const isSuperAdmin = superAdminRoles && superAdminRoles.length > 0;
+
+    // If not super admin, verify user has access to this specific chapter
+    if (!isSuperAdmin) {
+      const { data: userRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      if (!userRole) {
+        return res.status(403).json({ error: "Access denied to this chapter" });
+      }
     }
 
     // Get enabled apps for this chapter
@@ -155,17 +179,29 @@ router.post("/chapter/:tenantId/:appId/enable", verifySupabaseAuth, async (req: 
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Verify user is admin for this chapter
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is super admin (can manage any chapter)
+    const { data: superAdminRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("tenant_id", tenantId)
-      .in("role", ["chapter_admin", "super_admin"])
-      .single();
+      .eq("role", "super_admin")
+      .limit(1);
 
-    if (!userRole) {
-      return res.status(403).json({ error: "Admin access required" });
+    const isSuperAdmin = superAdminRoles && superAdminRoles.length > 0;
+
+    // If not super admin, verify user is chapter admin for this specific chapter
+    if (!isSuperAdmin) {
+      const { data: userRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
+        .eq("role", "chapter_admin")
+        .maybeSingle();
+
+      if (!userRole) {
+        return res.status(403).json({ error: "Admin access required" });
+      }
     }
 
     // Verify app exists
@@ -218,17 +254,29 @@ router.post("/chapter/:tenantId/:appId/disable", verifySupabaseAuth, async (req:
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Verify user is admin for this chapter
-    const { data: userRole } = await supabaseAdmin
+    // Check if user is super admin (can manage any chapter)
+    const { data: superAdminRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("tenant_id", tenantId)
-      .in("role", ["chapter_admin", "super_admin"])
-      .single();
+      .eq("role", "super_admin")
+      .limit(1);
 
-    if (!userRole) {
-      return res.status(403).json({ error: "Admin access required" });
+    const isSuperAdmin = superAdminRoles && superAdminRoles.length > 0;
+
+    // If not super admin, verify user is chapter admin for this specific chapter
+    if (!isSuperAdmin) {
+      const { data: userRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
+        .eq("role", "chapter_admin")
+        .maybeSingle();
+
+      if (!userRole) {
+        return res.status(403).json({ error: "Admin access required" });
+      }
     }
 
     // Update chapter_apps record
