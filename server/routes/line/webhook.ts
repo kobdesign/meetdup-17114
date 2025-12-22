@@ -881,7 +881,16 @@ async function handleAppsListRequest(
   accessToken: string,
   logPrefix: string
 ): Promise<void> {
-  const lineUserId = event.source.userId;
+  const lineUserId = event.source?.userId;
+  
+  if (!lineUserId) {
+    console.log(`${logPrefix} Apps command received without userId - cannot identify user`);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "ไม่สามารถระบุตัวตนได้ กรุณาส่งข้อความจากแชทส่วนตัวกับ LINE Official Account"
+    }, accessToken, tenantId);
+    return;
+  }
   
   console.log(`${logPrefix} Apps list request from:`, lineUserId);
   
@@ -946,6 +955,15 @@ async function handleAppsListRequest(
     
     const liffId = settings?.liff_id || process.env.VITE_LIFF_ID;
     
+    if (!liffId) {
+      console.error(`${logPrefix} No LIFF ID configured for tenant:`, tenantId);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: "ระบบยังไม่ได้ตั้งค่า LIFF กรุณาติดต่อผู้ดูแลระบบ"
+      }, accessToken, tenantId);
+      return;
+    }
+    
     const appBubbles = apps.map((app: any) => {
       const appSlug = app.route?.replace("/apps/", "") || app.app_id;
       const liffUrl = `https://liff.line.me/${liffId}/liff/apps/${appSlug}?tenant=${tenantId}`;
@@ -965,15 +983,14 @@ async function handleAppsListRequest(
                   type: "text",
                   text: app.icon || "App",
                   size: "xl",
-                  align: "center"
+                  align: "center",
+                  gravity: "center"
                 }
               ],
               width: "50px",
               height: "50px",
               backgroundColor: "#F0F4F8",
-              cornerRadius: "8px",
-              justifyContent: "center",
-              alignItems: "center"
+              cornerRadius: "8px"
             },
             {
               type: "box",
