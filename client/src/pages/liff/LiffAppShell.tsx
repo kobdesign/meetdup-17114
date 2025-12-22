@@ -1,8 +1,8 @@
 import { useEffect, useState, lazy, Suspense } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, Lock, ArrowLeft } from "lucide-react";
+import { Loader2, AlertCircle, Lock, ArrowLeft, AppWindow } from "lucide-react";
 import { useAppsLiff } from "@/hooks/useAppsLiff";
 
 interface AppConfig {
@@ -47,6 +47,7 @@ const appConfigs: Record<string, AppConfig> = {
 export default function LiffAppShell() {
   const { appSlug } = useParams<{ appSlug: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const { isLiffReady, isLoggedIn, needsLogin, profile, login, liffError, isInLiff, closeWindow } = useAppsLiff();
   
   const [verifying, setVerifying] = useState(false);
@@ -55,17 +56,21 @@ export default function LiffAppShell() {
 
   const searchParams = new URLSearchParams(location.search);
   const tenantId = searchParams.get("tenant");
+  const appFromQuery = searchParams.get("app");
 
-  const appConfig = appSlug ? appConfigs[appSlug] : null;
-  const AppComponent = appSlug && appComponents[appSlug] ? appComponents[appSlug] : null;
+  const effectiveAppSlug = appSlug || appFromQuery;
+  const appConfig = effectiveAppSlug ? appConfigs[effectiveAppSlug] : null;
+  const AppComponent = effectiveAppSlug && appComponents[effectiveAppSlug] ? appComponents[effectiveAppSlug] : null;
 
   useEffect(() => {
+    setError(null);
+    setVerification(null);
+
     if (!isLiffReady) {
       return;
     }
 
-    if (!appConfig) {
-      setError("App not found");
+    if (!effectiveAppSlug || !appConfig) {
       return;
     }
 
@@ -98,7 +103,7 @@ export default function LiffAppShell() {
         setError("Failed to verify membership");
       })
       .finally(() => setVerifying(false));
-  }, [isLiffReady, isLoggedIn, profile, appConfig, tenantId]);
+  }, [isLiffReady, isLoggedIn, profile, appConfig, tenantId, effectiveAppSlug]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -108,22 +113,54 @@ export default function LiffAppShell() {
     }
   };
 
-  if (!appSlug || !appConfig) {
+  if (!effectiveAppSlug || !appConfig) {
+    const availableApps = Object.values(appConfigs);
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
-            <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
-            <h2 className="text-lg font-semibold">ไม่พบแอปพลิเคชัน</h2>
+      <div className="min-h-screen bg-background p-4">
+        <div className="max-w-md mx-auto space-y-4">
+          <div className="text-center space-y-2 py-4">
+            <AppWindow className="h-12 w-12 mx-auto text-primary" />
+            <h1 className="text-xl font-semibold">Chapter Apps</h1>
             <p className="text-sm text-muted-foreground">
-              แอปพลิเคชันที่คุณต้องการเข้าถึงไม่มีอยู่ในระบบ
+              เลือกแอปพลิเคชันที่ต้องการใช้งาน
             </p>
-            <Button onClick={handleBack} variant="outline" data-testid="button-back">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              กลับ
-            </Button>
-          </CardContent>
-        </Card>
+          </div>
+          
+          <div className="space-y-3">
+            {availableApps.map((app) => (
+              <Card 
+                key={app.app_id} 
+                className="hover-elevate cursor-pointer"
+                onClick={() => {
+                  const newUrl = `/liff/apps/${app.app_id}${tenantId ? `?tenant=${tenantId}` : ''}`;
+                  navigate(newUrl);
+                }}
+                data-testid={`card-app-${app.app_id}`}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
+                    <AppWindow className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium">{app.name}</h3>
+                    <p className="text-sm text-muted-foreground">{app.description}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {availableApps.length === 0 && (
+            <Card>
+              <CardContent className="pt-6 text-center space-y-4">
+                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  ยังไม่มีแอปพลิเคชันที่เปิดใช้งาน
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     );
   }

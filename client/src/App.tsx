@@ -224,6 +224,7 @@ const App = () => (
           <Route path="/liff/card/:participantId" element={<LiffBusinessCard />} />
           <Route path="/liff/share" element={<LiffShareCard />} />
           <Route path="/liff/substitute" element={<LiffSubstituteRequest />} />
+          <Route path="/liff/apps" element={<LiffAppShell />} />
           <Route path="/liff/apps/:appSlug" element={<LiffAppShell />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
