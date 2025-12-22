@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,14 +8,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, User, Lock, CheckCircle2, AlertCircle, LayoutGrid, Calculator, ArrowRight } from "lucide-react";
 import AdminLayout from "@/components/layout/AdminLayout";
-import { Link } from "react-router-dom";
+import { useTenantContext } from "@/contexts/TenantContext";
+
+interface EnabledApp {
+  app_id: string;
+  name: string;
+  description: string | null;
+  icon: string;
+  route: string;
+  category: string;
+}
+
+const iconMap: Record<string, any> = {
+  calculator: Calculator,
+  "layout-grid": LayoutGrid,
+};
+
+const fallbackApps: EnabledApp[] = [
+  {
+    app_id: "boq-estimator",
+    name: "BOQ Estimator",
+    description: "ประเมินราคางานก่อสร้างเบื้องต้น",
+    icon: "calculator",
+    route: "/apps/boq-estimator",
+    category: "construction"
+  }
+];
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { effectiveTenantId } = useTenantContext();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [fullName, setFullName] = useState("");
@@ -26,6 +54,31 @@ export default function Profile() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Fetch enabled apps for this chapter
+  const { data: enabledApps, isLoading: appsLoading } = useQuery<EnabledApp[]>({
+    queryKey: ["/api/apps/chapter", effectiveTenantId, "enabled"],
+    queryFn: async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) return fallbackApps;
+      
+      try {
+        const response = await fetch(`/api/apps/chapter/${effectiveTenantId}/enabled`, {
+          headers: {
+            "Authorization": `Bearer ${sessionData.session.access_token}`,
+          },
+        });
+        if (!response.ok) return fallbackApps;
+        const data = await response.json();
+        return data.length > 0 ? data : fallbackApps;
+      } catch {
+        return fallbackApps;
+      }
+    },
+    enabled: !!effectiveTenantId,
+  });
+
+  const displayApps = enabledApps || fallbackApps;
 
   useEffect(() => {
     loadProfile();
@@ -376,24 +429,58 @@ export default function Profile() {
                     เครื่องมือและแอปพลิเคชันที่พร้อมใช้งาน
                   </div>
                   
-                  <div className="grid gap-4">
-                    <Link to="/apps/boq-estimator" data-testid="link-app-boq">
-                      <Card className="hover-elevate cursor-pointer">
-                        <CardContent className="flex items-center gap-4 p-4">
-                          <div className="h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                            <Calculator className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold">BOQ Estimator</h3>
-                            <p className="text-sm text-muted-foreground">
-                              ประเมินราคางานก่อสร้างเบื้องต้น
-                            </p>
-                          </div>
-                          <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  </div>
+                  {appsLoading ? (
+                    <div className="grid gap-4">
+                      {[1, 2].map((i) => (
+                        <Card key={i}>
+                          <CardContent className="flex items-center gap-4 p-4">
+                            <Skeleton className="h-12 w-12 rounded-lg" />
+                            <div className="flex-1 space-y-2">
+                              <Skeleton className="h-5 w-32" />
+                              <Skeleton className="h-4 w-48" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : displayApps.length > 0 ? (
+                    <div className="grid gap-4">
+                      {displayApps.map((app) => {
+                        const IconComponent = iconMap[app.icon] || LayoutGrid;
+                        return (
+                          <Link 
+                            key={app.app_id} 
+                            to={app.route} 
+                            data-testid={`link-app-${app.app_id}`}
+                          >
+                            <Card className="hover-elevate cursor-pointer">
+                              <CardContent className="flex items-center gap-4 p-4">
+                                <div className="h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                                  <IconComponent className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div className="flex-1">
+                                  <h3 className="font-semibold">{app.name}</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    {app.description}
+                                  </p>
+                                </div>
+                                <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                              </CardContent>
+                            </Card>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Card>
+                      <CardContent className="flex flex-col items-center justify-center py-8">
+                        <LayoutGrid className="h-10 w-10 text-muted-foreground mb-3" />
+                        <p className="text-sm text-muted-foreground">
+                          ยังไม่มีแอปพลิเคชันที่เปิดใช้งาน
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
                 </TabsContent>
               </Tabs>
             </CardContent>

@@ -183,6 +183,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           items: [
             { icon: <Trophy className="h-4 w-4" />, label: "เป้าหมาย", href: "/admin/goals" },
             { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า Chapter", href: "/admin/settings" },
+            { icon: <LayoutGrid className="h-4 w-4" />, label: "App Center", href: "/admin/app-center" },
           ],
         },
       ],

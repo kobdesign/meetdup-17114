@@ -56,6 +56,7 @@ import LiffShareCard from "./pages/liff/LiffShareCard";
 import LiffCards from "./pages/liff/LiffCards";
 import LiffSubstituteRequest from "./pages/liff/LiffSubstituteRequest";
 import BOQEstimator from "./pages/apps/BOQEstimator";
+import AppCenter from "./pages/admin/AppCenter";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -184,6 +185,11 @@ const App = () => (
           <Route path="/admin/notifications" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <NotificationSettings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/app-center" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <AppCenter />
             </ProtectedRoute>
           } />
           

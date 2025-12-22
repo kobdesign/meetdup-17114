@@ -67,43 +67,45 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 ### Future Improvements (TODO)
 - **Substitute Flow Enhancement**: Add `substitute_participant_id` column to `meeting_rsvp` table and update status constraint to include "substitute" value. LIFF form submission should sync back to `meeting_rsvp` with substitute details.
 
-### Chapter Apps Marketplace (Planned Feature)
+### Chapter Apps Marketplace
 ระบบ Extension/Marketplace สำหรับ mini-applications ที่ช่วยสนับสนุนสมาชิกใน chapter
+
+**สถานะ:** Phase 1 และ Phase 2 เสร็จแล้ว
 
 **แนวคิด:**
 - เพิ่ม mini-apps ที่เฉพาะทางสำหรับธุรกิจต่างๆ ใน chapter
 - สมาชิกเข้าถึงผ่าน Profile > Apps Tab
-- Chapter Admin จัดการเปิด/ปิด apps ผ่าน App Center
+- Chapter Admin จัดการเปิด/ปิด apps ผ่าน App Center (/admin/app-center)
+
+**Database Schema:**
+- `apps` table: app registry (app_id, name, description, icon, route, category, is_active)
+- `chapter_apps` table: per-chapter app settings (tenant_id, app_id, is_enabled, enabled_at, enabled_by)
+- RLS policies with WITH CHECK clauses for proper authorization
+- Auto-update triggers for updated_at timestamps
+
+**API Endpoints (server/routes/apps.ts):**
+- `GET /api/apps` - list all active apps
+- `GET /api/apps/chapter/:tenantId` - apps with enabled status for chapter
+- `GET /api/apps/chapter/:tenantId/enabled` - only enabled apps (for member view)
+- `POST /api/apps/chapter/:tenantId/:appId/enable` - enable app for chapter
+- `POST /api/apps/chapter/:tenantId/:appId/disable` - disable app for chapter
+
+**Implemented Apps:**
+- BOQ Estimator (/apps/boq-estimator): ประเมินราคางานก่อสร้าง 5 หมวด 40+ รายการ พร้อม export Excel
 
 **UX Pattern:**
-- **Profile Apps Tab**: สมาชิกเห็น apps ที่ตัวเองเข้าถึงได้ พร้อมปุ่ม quick-launch
-- **Admin App Center**: Chapter Admin browse และติดตั้ง apps สำหรับ chapter
-- **Marketplace Page**: หน้า browse apps ทั้งหมดพร้อม description และ reviews
-
-**Architecture:**
-- **Extension Registry**: Postgres tables เก็บ app manifests (name, scopes, UI type, launch URL, permissions)
-- **Runtime Broker**: ออก signed launch tokens, proxy data calls, enforce role/tenant scope
-- **Delivery Modes**: 
-  - Embedded widgets (iframe/micro-frontend)
-  - External deep links with SSO handoff
-
-**Security & Multi-tenancy:**
-- ใช้ Supabase RLS กับ tenant_id isolation
-- Per-extension scoped API keys
-- Iframe sandbox สำหรับ embedded apps
-- Audit logs สำหรับ installs/launches
-- Third-party submission review workflow
+- **Profile Apps Tab**: สมาชิกเห็นเฉพาะ apps ที่เปิดใช้งานใน chapter (หรือ fallback ถ้ายังไม่มีข้อมูล)
+- **Admin App Center**: Chapter Admin toggle เปิด/ปิด apps สำหรับ chapter
 
 **Phased Roadmap:**
-| Phase | เป้าหมาย |
-|-------|----------|
-| Phase 1 | สร้าง internal mini-apps (BOQ Estimator) เป็น embedded widget |
-| Phase 2 | สร้าง App Center UI + ระบบเปิด/ปิด apps ระดับ chapter |
-| Phase 3 | เปิดให้ partner submit apps + review workflow |
-| Phase 4 | Analytics, billing entitlements, compliance checks |
+| Phase | เป้าหมาย | สถานะ |
+|-------|----------|-------|
+| Phase 1 | สร้าง internal mini-apps (BOQ Estimator) | Done |
+| Phase 2 | สร้าง App Center UI + ระบบเปิด/ปิด apps ระดับ chapter | Done |
+| Phase 3 | เปิดให้ partner submit apps + review workflow | Planned |
+| Phase 4 | Analytics, billing entitlements, compliance checks | Planned |
 
-**ตัวอย่าง Mini-Apps:**
-- BOQ/Cost Estimator (ก่อสร้าง)
+**ตัวอย่าง Mini-Apps สำหรับอนาคต:**
 - Invoice Generator (ทุกธุรกิจ)
 - Quote Calculator (บริการ)
 - Lead Tracker (Sales)
