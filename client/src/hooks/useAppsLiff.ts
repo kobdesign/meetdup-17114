@@ -30,10 +30,17 @@ export function useAppsLiff(): UseAppsLiffReturn {
   const [liffConfig, setLiffConfig] = useState<LiffConfig | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const initLiff = async () => {
       try {
         const response = await fetch("/api/public/apps-liff-config");
+        if (!response.ok) {
+          throw new Error("Failed to fetch LIFF config");
+        }
         const config: LiffConfig = await response.json();
+        
+        if (!isMounted) return;
         setLiffConfig(config);
 
         if (!config.liff_id) {
@@ -46,35 +53,48 @@ export function useAppsLiff(): UseAppsLiffReturn {
 
         await liff.init({ liffId: config.liff_id });
         
+        if (!isMounted) return;
+        
+        const inClient = liff.isInClient();
+        const loggedIn = liff.isLoggedIn();
+        
+        setIsInLiff(inClient);
+        setIsLoggedIn(loggedIn);
         setIsLiffReady(true);
-        setIsInLiff(liff.isInClient());
-        setIsLoggedIn(liff.isLoggedIn());
 
         console.log("[Apps LIFF] Initialized successfully", {
-          isInClient: liff.isInClient(),
-          isLoggedIn: liff.isLoggedIn()
+          isInClient: inClient,
+          isLoggedIn: loggedIn
         });
 
-        if (liff.isLoggedIn()) {
+        if (loggedIn) {
           try {
             const userProfile = await liff.getProfile();
-            setProfile({
-              userId: userProfile.userId,
-              displayName: userProfile.displayName,
-              pictureUrl: userProfile.pictureUrl
-            });
+            if (isMounted) {
+              setProfile({
+                userId: userProfile.userId,
+                displayName: userProfile.displayName,
+                pictureUrl: userProfile.pictureUrl
+              });
+            }
           } catch (profileError) {
             console.error("[Apps LIFF] Error getting profile:", profileError);
           }
         }
       } catch (error: any) {
         console.error("[Apps LIFF] Initialization error:", error);
-        setLiffError(error.message || "Failed to initialize LIFF");
-        setIsLiffReady(true);
+        if (isMounted) {
+          setLiffError(error.message || "Failed to initialize LIFF");
+          setIsLiffReady(true);
+        }
       }
     };
 
     initLiff();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // needsLogin is true when:
