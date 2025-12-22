@@ -39,7 +39,7 @@ const appConfigs: Record<string, AppConfig> = {
     name: "BOQ Estimator",
     description: "ประเมินราคางานก่อสร้างเบื้องต้น",
     route: "/apps/boq-estimator",
-    access_level: "member",
+    access_level: "public",
     component: "boq-estimator",
   },
 };
@@ -66,16 +66,18 @@ export default function LiffAppShell() {
     setError(null);
     setVerification(null);
 
-    if (!isLiffReady) {
-      return;
-    }
-
     if (!effectiveAppSlug || !appConfig) {
       return;
     }
 
+    // Public apps don't need LIFF or verification - set immediately
     if (appConfig.access_level === "public") {
       setVerification({ isMember: false, isAdmin: false });
+      return;
+    }
+
+    // Non-public apps need LIFF to be ready
+    if (!isLiffReady) {
       return;
     }
 
@@ -165,7 +167,10 @@ export default function LiffAppShell() {
     );
   }
 
-  if (!isLiffReady) {
+  // For public apps, skip LIFF loading states and errors - render immediately
+  const isPublicApp = appConfig?.access_level === "public";
+  
+  if (!isLiffReady && !isPublicApp) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -176,7 +181,8 @@ export default function LiffAppShell() {
     );
   }
 
-  if (liffError) {
+  // For non-public apps, show LIFF error
+  if (liffError && !isPublicApp) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -341,7 +347,7 @@ export default function LiffAppShell() {
         }
       >
         <AppComponent 
-          isLiff={true} 
+          isLiff={isLiffReady && isInLiff} 
           tenantId={verification?.tenant?.tenant_id || tenantId}
           participantId={verification?.participant?.participant_id}
         />
