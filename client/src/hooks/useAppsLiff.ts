@@ -77,7 +77,12 @@ export function useAppsLiff(): UseAppsLiffReturn {
     initLiff();
   }, []);
 
-  const needsLogin = isLiffReady && !isInLiff && !isLoggedIn && !!liffConfig?.liff_id;
+  // needsLogin is true when:
+  // 1. LIFF is ready
+  // 2. User is NOT logged in
+  // 3. Apps LIFF ID is configured
+  // Note: In LIFF client, user might still need to login if not logged in
+  const needsLogin = isLiffReady && !isLoggedIn && !!liffConfig?.liff_id;
 
   const login = useCallback(() => {
     if (!liffConfig?.liff_id) {
