@@ -1,9 +1,8 @@
-import { useEffect, useState, useRef, lazy, Suspense } from "react";
+import { useEffect, useState, useRef, lazy, Suspense, useMemo } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, Lock, ArrowLeft, AppWindow } from "lucide-react";
-import { useAppsLiff } from "@/hooks/useAppsLiff";
 
 interface AppConfig {
   app_id: string;
@@ -44,10 +43,65 @@ const appConfigs: Record<string, AppConfig> = {
   },
 };
 
-export default function LiffAppShell() {
-  const { appSlug } = useParams<{ appSlug: string }>();
-  const location = useLocation();
-  const navigate = useNavigate();
+function LiffAppShellPublic({ 
+  appConfig, 
+  AppComponent, 
+  tenantId 
+}: { 
+  appConfig: AppConfig; 
+  AppComponent: React.LazyExoticComponent<React.ComponentType<any>>; 
+  tenantId: string | null;
+}) {
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="bg-primary text-primary-foreground p-3 flex items-center gap-3 sticky top-0 z-50">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleBack}
+          className="text-primary-foreground hover:bg-primary/80"
+          data-testid="button-back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1">
+          <h1 className="font-semibold" data-testid="text-app-name">{appConfig.name}</h1>
+        </div>
+      </div>
+      
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        }
+      >
+        <AppComponent 
+          isLiff={false} 
+          tenantId={tenantId}
+          participantId={undefined}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+function LiffAppShellProtected({ 
+  appConfig, 
+  AppComponent,
+  tenantId 
+}: { 
+  appConfig: AppConfig; 
+  AppComponent: React.LazyExoticComponent<React.ComponentType<any>>;
+  tenantId: string | null;
+}) {
+  const { useAppsLiff } = require("@/hooks/useAppsLiff");
   const { isLiffReady, isLoggedIn, needsLogin, profile, login, liffError, isInLiff, closeWindow } = useAppsLiff();
   
   const [verifying, setVerifying] = useState(false);
@@ -55,32 +109,11 @@ export default function LiffAppShell() {
   const [error, setError] = useState<string | null>(null);
   const verificationDoneRef = useRef(false);
 
-  const searchParams = new URLSearchParams(location.search);
-  const tenantId = searchParams.get("tenant");
-  const appFromQuery = searchParams.get("app");
-
-  const effectiveAppSlug = appSlug || appFromQuery;
-  const appConfig = effectiveAppSlug ? appConfigs[effectiveAppSlug] : null;
-  const AppComponent = effectiveAppSlug && appComponents[effectiveAppSlug] ? appComponents[effectiveAppSlug] : null;
-
   useEffect(() => {
-    // Prevent re-running verification if already done for this app
     if (verificationDoneRef.current) {
       return;
     }
 
-    if (!effectiveAppSlug || !appConfig) {
-      return;
-    }
-
-    // Public apps don't need LIFF or verification - set immediately
-    if (appConfig.access_level === "public") {
-      verificationDoneRef.current = true;
-      setVerification({ isMember: false, isAdmin: false });
-      return;
-    }
-
-    // Non-public apps need LIFF to be ready
     if (!isLiffReady) {
       return;
     }
@@ -110,7 +143,7 @@ export default function LiffAppShell() {
         setError("Failed to verify membership");
       })
       .finally(() => setVerifying(false));
-  }, [isLiffReady, isLoggedIn, profile, appConfig, tenantId, effectiveAppSlug]);
+  }, [isLiffReady, isLoggedIn, profile, tenantId]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -119,6 +152,176 @@ export default function LiffAppShell() {
       closeWindow();
     }
   };
+
+  if (!isLiffReady) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-sm text-muted-foreground">กำลังเชื่อมต่อกับ LINE...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (liffError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
+            <h2 className="text-lg font-semibold">เกิดข้อผิดพลาด</h2>
+            <p className="text-sm text-muted-foreground">{liffError}</p>
+            <Button onClick={handleBack} variant="outline" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              กลับ
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <Lock className="h-12 w-12 mx-auto text-primary" />
+            <h2 className="text-lg font-semibold">{appConfig.name}</h2>
+            <p className="text-sm text-muted-foreground">
+              กรุณาเข้าสู่ระบบด้วย LINE เพื่อใช้งานแอปพลิเคชันนี้
+            </p>
+            <Button onClick={login} className="w-full" data-testid="button-line-login">
+              เข้าสู่ระบบด้วย LINE
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (verifying) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-sm text-muted-foreground">กำลังตรวจสอบสิทธิ์...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
+            <h2 className="text-lg font-semibold">เกิดข้อผิดพลาด</h2>
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <Button onClick={handleBack} variant="outline" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              กลับ
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (appConfig.access_level === "admin" && verification && !verification.isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <Lock className="h-12 w-12 mx-auto text-muted-foreground" />
+            <h2 className="text-lg font-semibold">สำหรับผู้ดูแลระบบเท่านั้น</h2>
+            <p className="text-sm text-muted-foreground">
+              แอปพลิเคชันนี้สำหรับผู้ดูแลระบบ Chapter เท่านั้น
+            </p>
+            <Button onClick={handleBack} variant="outline" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              กลับ
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (appConfig.access_level === "member" && verification && !verification.isMember) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <Lock className="h-12 w-12 mx-auto text-muted-foreground" />
+            <h2 className="text-lg font-semibold">สำหรับสมาชิกเท่านั้น</h2>
+            <p className="text-sm text-muted-foreground">
+              แอปพลิเคชันนี้สำหรับสมาชิก Chapter เท่านั้น
+              กรุณาติดต่อ Admin เพื่อลงทะเบียนเป็นสมาชิก
+            </p>
+            <Button onClick={handleBack} variant="outline" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              กลับ
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="bg-primary text-primary-foreground p-3 flex items-center gap-3 sticky top-0 z-50">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleBack}
+          className="text-primary-foreground hover:bg-primary/80"
+          data-testid="button-back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1">
+          <h1 className="font-semibold" data-testid="text-app-name">{appConfig.name}</h1>
+          {verification?.participant && (
+            <p className="text-xs opacity-80">
+              {verification.participant.nickname_th || verification.participant.full_name_th}
+            </p>
+          )}
+        </div>
+      </div>
+      
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        }
+      >
+        <AppComponent 
+          isLiff={isLiffReady && isInLiff} 
+          tenantId={verification?.tenant?.tenant_id || tenantId}
+          participantId={verification?.participant?.participant_id}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+export default function LiffAppShell() {
+  const { appSlug } = useParams<{ appSlug: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const searchParams = new URLSearchParams(location.search);
+  const tenantId = searchParams.get("tenant");
+  const appFromQuery = searchParams.get("app");
+
+  const effectiveAppSlug = appSlug || appFromQuery;
+  const appConfig = effectiveAppSlug ? appConfigs[effectiveAppSlug] : null;
+  const AppComponent = effectiveAppSlug && appComponents[effectiveAppSlug] ? appComponents[effectiveAppSlug] : null;
 
   if (!effectiveAppSlug || !appConfig) {
     const availableApps = Object.values(appConfigs);
@@ -172,137 +375,12 @@ export default function LiffAppShell() {
     );
   }
 
-  // For public apps, skip LIFF loading states and errors - render immediately
-  const isPublicApp = appConfig?.access_level === "public";
-  
-  if (!isLiffReady && !isPublicApp) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-sm text-muted-foreground">กำลังเชื่อมต่อกับ LINE...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // For non-public apps, show LIFF error
-  if (liffError && !isPublicApp) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
-            <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
-            <h2 className="text-lg font-semibold">เกิดข้อผิดพลาด</h2>
-            <p className="text-sm text-muted-foreground">{liffError}</p>
-            <Button onClick={handleBack} variant="outline" data-testid="button-back">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              กลับ
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (appConfig.access_level !== "public" && needsLogin) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
-            <Lock className="h-12 w-12 mx-auto text-primary" />
-            <h2 className="text-lg font-semibold">{appConfig.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              กรุณาเข้าสู่ระบบด้วย LINE เพื่อใช้งานแอปพลิเคชันนี้
-            </p>
-            <Button onClick={login} className="w-full" data-testid="button-line-login">
-              เข้าสู่ระบบด้วย LINE
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (verifying) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-sm text-muted-foreground">กำลังตรวจสอบสิทธิ์...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
-            <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
-            <h2 className="text-lg font-semibold">เกิดข้อผิดพลาด</h2>
-            <p className="text-sm text-muted-foreground">{error}</p>
-            <Button onClick={handleBack} variant="outline" data-testid="button-back">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              กลับ
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const hasRequiredAccess = () => {
-    if (appConfig?.access_level === "public") return true;
-    if (!verification) return false;
-    if (appConfig?.access_level === "member") return verification.isMember;
-    if (appConfig?.access_level === "admin") return verification.isAdmin;
-    return false;
-  };
-
-  if (appConfig.access_level === "admin" && verification && !verification.isAdmin) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
-            <Lock className="h-12 w-12 mx-auto text-muted-foreground" />
-            <h2 className="text-lg font-semibold">สำหรับผู้ดูแลระบบเท่านั้น</h2>
-            <p className="text-sm text-muted-foreground">
-              แอปพลิเคชันนี้สำหรับผู้ดูแลระบบ Chapter เท่านั้น
-            </p>
-            <Button onClick={handleBack} variant="outline" data-testid="button-back">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              กลับ
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (appConfig.access_level === "member" && verification && !verification.isMember) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
-            <Lock className="h-12 w-12 mx-auto text-muted-foreground" />
-            <h2 className="text-lg font-semibold">สำหรับสมาชิกเท่านั้น</h2>
-            <p className="text-sm text-muted-foreground">
-              แอปพลิเคชันนี้สำหรับสมาชิก Chapter เท่านั้น
-              กรุณาติดต่อ Admin เพื่อลงทะเบียนเป็นสมาชิก
-            </p>
-            <Button onClick={handleBack} variant="outline" data-testid="button-back">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              กลับ
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   if (!AppComponent) {
+    const handleBack = () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      }
+    };
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -322,41 +400,21 @@ export default function LiffAppShell() {
     );
   }
 
+  if (appConfig.access_level === "public") {
+    return (
+      <LiffAppShellPublic 
+        appConfig={appConfig} 
+        AppComponent={AppComponent} 
+        tenantId={tenantId} 
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      <div className="bg-primary text-primary-foreground p-3 flex items-center gap-3 sticky top-0 z-50">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleBack}
-          className="text-primary-foreground hover:bg-primary/80"
-          data-testid="button-back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="font-semibold" data-testid="text-app-name">{appConfig.name}</h1>
-          {verification?.participant && (
-            <p className="text-xs opacity-80">
-              {verification.participant.nickname_th || verification.participant.full_name_th}
-            </p>
-          )}
-        </div>
-      </div>
-      
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        }
-      >
-        <AppComponent 
-          isLiff={isLiffReady && isInLiff} 
-          tenantId={verification?.tenant?.tenant_id || tenantId}
-          participantId={verification?.participant?.participant_id}
-        />
-      </Suspense>
-    </div>
+    <LiffAppShellProtected 
+      appConfig={appConfig} 
+      AppComponent={AppComponent} 
+      tenantId={tenantId} 
+    />
   );
 }
