@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   initializeLiff,
-  getLiffState,
+  getLiffStateForType,
   subscribeLiffState,
   liffLogin,
   liffCloseWindow,
@@ -23,18 +23,18 @@ interface UseAppsLiffReturn {
 }
 
 export function useAppsLiff(): UseAppsLiffReturn {
-  const [state, setState] = useState(() => getLiffState());
+  const [state, setState] = useState(() => getLiffStateForType("apps"));
   const initAttempted = useRef(false);
 
   useEffect(() => {
     const unsubscribe = subscribeLiffState(() => {
-      setState(getLiffState());
+      setState(getLiffStateForType("apps"));
     });
 
     if (!initAttempted.current) {
       initAttempted.current = true;
       initializeLiff("apps", "/api/public/apps-liff-config").then(() => {
-        setState(getLiffState());
+        setState(getLiffStateForType("apps"));
       });
     }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   initializeLiff,
-  getLiffState,
+  getLiffStateForType,
   subscribeLiffState,
   liffLogin,
   liffCloseWindow,
@@ -32,18 +32,18 @@ interface UseLiffReturn {
 }
 
 export function useLiff(): UseLiffReturn {
-  const [state, setState] = useState(() => getLiffState());
+  const [state, setState] = useState(() => getLiffStateForType("share"));
   const initAttempted = useRef(false);
 
   useEffect(() => {
     const unsubscribe = subscribeLiffState(() => {
-      setState(getLiffState());
+      setState(getLiffStateForType("share"));
     });
 
     if (!initAttempted.current) {
       initAttempted.current = true;
       initializeLiff("share", "/api/public/liff-config").then(() => {
-        setState(getLiffState());
+        setState(getLiffStateForType("share"));
       });
     }
 

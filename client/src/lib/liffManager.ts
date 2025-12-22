@@ -1,12 +1,14 @@
 import liff from "@line/liff";
 
-type LiffType = "share" | "apps";
+export type LiffType = "share" | "apps";
 
-interface LiffState {
-  initialized: boolean;
-  initializingPromise: Promise<void> | null;
-  initializedWith: LiffType | null;
+interface LiffTypeState {
+  configFetched: boolean;
   liffId: string | null;
+  noLiffConfigured: boolean;
+}
+
+interface LiffRuntimeState {
   isInClient: boolean;
   isLoggedIn: boolean;
   profile: {
@@ -17,11 +19,35 @@ interface LiffState {
   error: string | null;
 }
 
-const globalState: LiffState = {
-  initialized: false,
-  initializingPromise: null,
-  initializedWith: null,
-  liffId: null,
+interface LiffState extends LiffRuntimeState {
+  initialized: boolean;
+  liffId: string | null;
+  activeType: LiffType | null;
+}
+
+const CONFIG_ENDPOINTS: Record<LiffType, string> = {
+  share: "/api/public/liff-config",
+  apps: "/api/public/apps-liff-config",
+};
+
+const typeConfigs: Record<LiffType, LiffTypeState> = {
+  share: {
+    configFetched: false,
+    liffId: null,
+    noLiffConfigured: false,
+  },
+  apps: {
+    configFetched: false,
+    liffId: null,
+    noLiffConfigured: false,
+  },
+};
+
+let sdkInitialized = false;
+let sdkInitializing: Promise<void> | null = null;
+let activeType: LiffType | null = null;
+
+const runtimeState: LiffRuntimeState = {
   isInClient: false,
   isLoggedIn: false,
   profile: null,
@@ -43,103 +69,149 @@ export function subscribeLiffState(listener: StateListener): () => void {
 }
 
 export function getLiffState(): LiffState {
-  return { ...globalState };
+  return {
+    initialized: sdkInitialized || Object.values(typeConfigs).some(tc => tc.configFetched),
+    liffId: activeType ? typeConfigs[activeType].liffId : null,
+    activeType,
+    ...runtimeState,
+  };
+}
+
+export function getLiffStateForType(type: LiffType): LiffState {
+  const tc = typeConfigs[type];
+  const isReady = tc.configFetched || sdkInitialized;
+  
+  return {
+    initialized: isReady,
+    liffId: tc.liffId,
+    activeType: sdkInitialized ? activeType : null,
+    ...runtimeState,
+  };
 }
 
 export function isLiffInitialized(): boolean {
-  return globalState.initialized;
+  return sdkInitialized;
 }
 
-export function getInitializedLiffType(): LiffType | null {
-  return globalState.initializedWith;
+export function getActiveType(): LiffType | null {
+  return activeType;
 }
 
 async function fetchProfile(): Promise<void> {
   if (!liff.isLoggedIn()) return;
-  
+
   try {
     const userProfile = await liff.getProfile();
-    globalState.profile = {
+    runtimeState.profile = {
       userId: userProfile.userId,
       displayName: userProfile.displayName,
       pictureUrl: userProfile.pictureUrl,
     };
-    notifyListeners();
   } catch (e) {
     console.error("[LIFF Manager] Error getting profile:", e);
   }
+}
+
+async function fetchConfigForType(type: LiffType): Promise<void> {
+  const tc = typeConfigs[type];
+  if (tc.configFetched) return;
+
+  try {
+    const endpoint = CONFIG_ENDPOINTS[type];
+    console.log(`[LIFF Manager] (${type}) Fetching config from ${endpoint}`);
+    const response = await fetch(endpoint);
+    if (response.ok) {
+      const config = await response.json();
+      tc.liffId = config.liff_id || null;
+      tc.noLiffConfigured = !config.liff_id;
+    } else {
+      tc.noLiffConfigured = true;
+    }
+  } catch (e) {
+    console.error(`[LIFF Manager] (${type}) Config fetch error:`, e);
+    tc.noLiffConfigured = true;
+  }
+  tc.configFetched = true;
 }
 
 export async function initializeLiff(
   type: LiffType,
   configEndpoint: string
 ): Promise<LiffState> {
-  if (globalState.initialized) {
-    if (globalState.initializedWith !== type) {
-      console.log(
-        `[LIFF Manager] Already initialized with ${globalState.initializedWith}, requested ${type}. Reusing existing session.`
-      );
-    }
-    return getLiffState();
+  const tc = typeConfigs[type];
+
+  if (tc.configFetched) {
+    console.log(`[LIFF Manager] (${type}) Config already fetched, returning state`);
+    return getLiffStateForType(type);
   }
 
-  if (globalState.initializingPromise) {
-    console.log("[LIFF Manager] Init in progress, waiting...");
-    await globalState.initializingPromise;
-    return getLiffState();
+  if (sdkInitializing) {
+    console.log(`[LIFF Manager] (${type}) SDK init in progress, waiting then fetching own config...`);
+    await sdkInitializing;
+    
+    await fetchConfigForType(type);
+    notifyListeners();
+    return getLiffStateForType(type);
   }
 
-  globalState.initializingPromise = (async () => {
+  if (sdkInitialized) {
+    console.log(`[LIFF Manager] (${type}) SDK already initialized by ${activeType}, fetching config only`);
+    await fetchConfigForType(type);
+    notifyListeners();
+    return getLiffStateForType(type);
+  }
+
+  tc.configFetched = true;
+
+  sdkInitializing = (async () => {
     try {
-      console.log(`[LIFF Manager] Fetching config from ${configEndpoint}`);
+      console.log(`[LIFF Manager] (${type}) Fetching config from ${configEndpoint}`);
       const response = await fetch(configEndpoint);
       if (!response.ok) {
         throw new Error("Failed to fetch LIFF config");
       }
       const config = await response.json();
+      tc.liffId = config.liff_id || null;
 
       if (!config.liff_id) {
-        console.log(`[LIFF Manager] No LIFF ID configured for ${type}`);
-        globalState.initialized = true;
-        globalState.initializedWith = type;
-        notifyListeners();
+        console.log(`[LIFF Manager] (${type}) No LIFF ID configured - proceeding without LIFF`);
+        tc.noLiffConfigured = true;
         return;
       }
 
-      globalState.liffId = config.liff_id;
-      console.log(`[LIFF Manager] Initializing LIFF (${type}) with ID:`, config.liff_id);
+      console.log(`[LIFF Manager] (${type}) Initializing LIFF SDK with ID:`, config.liff_id);
 
       await liff.init({ liffId: config.liff_id });
 
-      globalState.initialized = true;
-      globalState.initializedWith = type;
-      globalState.isInClient = liff.isInClient();
-      globalState.isLoggedIn = liff.isLoggedIn();
+      sdkInitialized = true;
+      activeType = type;
 
-      console.log(`[LIFF Manager] Initialized successfully (${type})`, {
-        isInClient: globalState.isInClient,
-        isLoggedIn: globalState.isLoggedIn,
+      runtimeState.isInClient = liff.isInClient();
+      runtimeState.isLoggedIn = liff.isLoggedIn();
+
+      console.log(`[LIFF Manager] (${type}) SDK initialized successfully`, {
+        isInClient: runtimeState.isInClient,
+        isLoggedIn: runtimeState.isLoggedIn,
       });
 
       await fetchProfile();
-      notifyListeners();
     } catch (error: any) {
-      console.error(`[LIFF Manager] Initialization error (${type}):`, error);
-      globalState.error = error.message || "Failed to initialize LIFF";
-      globalState.initialized = true;
-      globalState.initializedWith = type;
+      console.error(`[LIFF Manager] (${type}) Initialization error:`, error);
+      runtimeState.error = error.message || "Failed to initialize LIFF";
+    } finally {
       notifyListeners();
     }
   })();
 
-  await globalState.initializingPromise;
-  globalState.initializingPromise = null;
-  return getLiffState();
+  await sdkInitializing;
+  sdkInitializing = null;
+  
+  return getLiffStateForType(type);
 }
 
 export function liffLogin(redirectUri?: string): void {
-  if (!globalState.liffId) {
-    console.log("[LIFF Manager] Cannot login - no LIFF ID configured");
+  if (!sdkInitialized) {
+    console.log("[LIFF Manager] Cannot login - LIFF SDK not initialized");
     return;
   }
   liff.login({ redirectUri: redirectUri || window.location.href });
@@ -156,8 +228,8 @@ export function liffCloseWindow(): void {
 export async function liffShareTargetPicker(
   messages: any[]
 ): Promise<{ success: boolean; cancelled: boolean }> {
-  if (!globalState.liffId) {
-    throw new Error("LIFF is not configured");
+  if (!sdkInitialized) {
+    throw new Error("LIFF is not initialized");
   }
 
   if (!liff.isApiAvailable("shareTargetPicker")) {
@@ -196,9 +268,8 @@ export async function liffShareTargetPicker(
 
 export function isShareApiAvailable(): boolean {
   return (
-    globalState.initialized &&
-    globalState.isLoggedIn &&
-    !!globalState.liffId &&
+    sdkInitialized &&
+    runtimeState.isLoggedIn &&
     typeof liff !== "undefined" &&
     liff.isApiAvailable?.("shareTargetPicker")
   );
