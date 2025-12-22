@@ -96,6 +96,7 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 **UX Pattern:**
 - **Profile Apps Tab**: สมาชิกเห็นเฉพาะ apps ที่เปิดใช้งานใน chapter (หรือ fallback ถ้ายังไม่มีข้อมูล)
 - **Admin App Center**: Chapter Admin toggle เปิด/ปิด apps สำหรับ chapter
+- **LINE Bot Command**: สมาชิกพิมพ์ "apps" หรือ "แอป" เพื่อดูรายการ apps ในรูปแบบ Flex Message carousel พร้อม LIFF URL สำหรับเปิด app โดยตรง
 
 **Phased Roadmap:**
 | Phase | เป้าหมาย | สถานะ |
