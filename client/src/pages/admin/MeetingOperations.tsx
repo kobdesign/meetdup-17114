@@ -935,105 +935,237 @@ export default function MeetingOperations() {
         </div>
 
         {selectedMeetingId && (
-          <div className="grid gap-4 lg:grid-cols-5">
-            <div className="lg:col-span-2 space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                        <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">สมาชิก</p>
-                        <p className="text-lg font-bold">{stats.membersCheckedIn}/{stats.totalMembers}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                        <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">ผู้เยี่ยมชม</p>
-                        <p className="text-lg font-bold">{stats.visitorsCheckedIn}/{stats.totalVisitors}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
-                        <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">มาสาย</p>
-                        <p className="text-lg font-bold">{stats.late}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-emerald-100 dark:bg-emerald-900 rounded-lg">
-                        <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">ค้างจ่าย</p>
-                        <p className="text-lg font-bold">{stats.unpaidVisitors}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <QrCode className="h-4 w-4" />
-                    QR Code สำหรับปริ้น
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    ให้สมาชิกสแกนเพื่อเช็คอิน
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-center p-4 bg-white rounded-lg border" ref={qrRef}>
-                    <QRCode
-                      id="meeting-checkin-qr"
-                      value={checkinUrl}
-                      size={180}
-                      level="H"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button onClick={downloadQRCode} size="sm" data-testid="button-download-qr">
-                      <Download className="mr-1 h-4 w-4" />
-                      ดาวน์โหลด
-                    </Button>
-                    <Button onClick={copyCheckinLink} variant="outline" size="sm" data-testid="button-copy-link">
-                      <Copy className="mr-1 h-4 w-4" />
-                      คัดลอก
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => window.open(checkinUrl, "_blank")}
-                      data-testid="button-open-checkin"
-                    >
-                      <ExternalLink className="mr-1 h-4 w-4" />
-                      เปิด
-                    </Button>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                      <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">สมาชิก</p>
+                      <p className="text-lg font-bold">{stats.membersCheckedIn}/{stats.totalMembers}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-
               <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                      <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">ผู้เยี่ยมชม</p>
+                      <p className="text-lg font-bold">{stats.visitorsCheckedIn}/{stats.totalVisitors}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
+                      <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">มาสาย</p>
+                      <p className="text-lg font-bold">{stats.late}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900 rounded-lg">
+                      <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">ค้างจ่าย</p>
+                      <p className="text-lg font-bold">{stats.unpaidVisitors}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base">รายชื่อผู้เข้าร่วม</CardTitle>
+                      <span className="text-xs text-muted-foreground">({filteredParticipants.length})</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={selectAllFiltered}
+                        disabled={filteredParticipants.length === 0}
+                        data-testid="button-select-all"
+                      >
+                        เลือกทั้งหมด
+                      </Button>
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="ค้นหา..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-8 w-[150px]"
+                          data-testid="input-roster-search"
+                        />
+                      </div>
+                      <Select value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
+                        <SelectTrigger className="w-[130px]" data-testid="select-filter">
+                          <Filter className="h-3 w-3 mr-1" />
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">ทั้งหมด</SelectItem>
+                          <SelectItem value="members">สมาชิก</SelectItem>
+                          <SelectItem value="visitors">ผู้เยี่ยมชม</SelectItem>
+                          <SelectItem value="not_checked_in">ยังไม่เช็คอิน</SelectItem>
+                          <SelectItem value="unpaid">ค้างจ่าย</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {selectedIds.length > 0 && (
+                    <div className="flex items-center gap-2 mb-3 p-2 bg-muted rounded-lg flex-wrap">
+                      <span className="text-sm">เลือก {selectedIds.length} คน</span>
+                      <Button size="sm" variant="outline" onClick={() => handleBulkCheckin(false)} data-testid="button-bulk-checkin">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        เช็คอิน
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleBulkCheckin(true)} data-testid="button-bulk-late">
+                        <Clock className="h-3 w-3 mr-1" />
+                        มาสาย
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={handleBulkMarkPaid} data-testid="button-bulk-paid">
+                        <DollarSign className="h-3 w-3 mr-1" />
+                        จ่ายแล้ว
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])} data-testid="button-clear-selection">
+                        ยกเลิก
+                      </Button>
+                    </div>
+                  )}
+                  <ScrollArea className="h-[300px]">
+                    <div className="space-y-2">
+                      {filteredParticipants.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          ไม่พบข้อมูล
+                        </div>
+                      ) : (
+                        filteredParticipants.map((p) => (
+                          <div
+                            key={p.participant_id}
+                            className={`flex items-center gap-2 p-2 border rounded-lg ${p.is_checked_in ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800" : ""}`}
+                            data-testid={`row-participant-${p.participant_id}`}
+                          >
+                            <Checkbox
+                              checked={selectedIds.includes(p.participant_id)}
+                              onCheckedChange={() => toggleSelect(p.participant_id)}
+                              data-testid={`checkbox-${p.participant_id}`}
+                            />
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={p.photo_url || undefined} />
+                              <AvatarFallback>{getInitials(p.full_name_th)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-sm font-medium truncate">{p.nickname_th || p.full_name_th}</span>
+                                <Badge variant={p.status === "member" ? "default" : "secondary"} className="text-[10px]">
+                                  {p.status === "member" ? "สมาชิก" : "ผู้เยี่ยมชม"}
+                                </Badge>
+                                {p.is_late && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">สาย</Badge>}
+                                {p.fee_status === "paid" && <Badge variant="outline" className="text-[10px] text-green-600 border-green-300">จ่ายแล้ว</Badge>}
+                                {p.fee_status === "pending" && <Badge variant="outline" className="text-[10px] text-red-600 border-red-300">ค้างจ่าย</Badge>}
+                              </div>
+                              {p.company && <p className="text-xs text-muted-foreground truncate">{p.company}</p>}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {actionLoading === p.participant_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : p.is_checked_in ? (
+                                <>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleToggleLate(p.participant_id, p.is_late)}
+                                    title={p.is_late ? "ยกเลิกสาย" : "ทำเครื่องหมายสาย"}
+                                    data-testid={`button-toggle-late-${p.participant_id}`}
+                                  >
+                                    <Clock className={`h-4 w-4 ${p.is_late ? "text-amber-500" : ""}`} />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleUndoCheckin(p.participant_id)}
+                                    title="ยกเลิกเช็คอิน"
+                                    data-testid={`button-undo-checkin-${p.participant_id}`}
+                                  >
+                                    <Undo2 className="h-4 w-4" />
+                                  </Button>
+                                  {p.fee_id && p.fee_status === "paid" && (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => handleUnmarkPaid(p.fee_id!, p.participant_id)}
+                                      title="ยกเลิกจ่ายเงิน"
+                                      data-testid={`button-undo-paid-${p.participant_id}`}
+                                    >
+                                      <RotateCcw className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleCheckin(p.participant_id, false)}
+                                    data-testid={`button-checkin-${p.participant_id}`}
+                                  >
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    เช็คอิน
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCheckin(p.participant_id, true)}
+                                    data-testid={`button-late-${p.participant_id}`}
+                                  >
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    สาย
+                                  </Button>
+                                </>
+                              )}
+                              {p.fee_id && p.fee_status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleMarkPaid(p.fee_id!, p.participant_id)}
+                                  data-testid={`button-mark-paid-${p.participant_id}`}
+                                >
+                                  <DollarSign className="h-3 w-3 mr-1" />
+                                  จ่าย
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+
+            <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">เช็คอิน</CardTitle>
                 </CardHeader>
@@ -1238,183 +1370,47 @@ export default function MeetingOperations() {
                   </Tabs>
                 </CardContent>
               </Card>
-            </div>
 
-            <div className="lg:col-span-3">
-              <Card className="h-full">
+            <Card>
                 <CardHeader className="pb-2">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-base">รายชื่อผู้เข้าร่วม</CardTitle>
-                      <span className="text-xs text-muted-foreground">({filteredParticipants.length})</span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={selectAllFiltered}
-                        disabled={filteredParticipants.length === 0}
-                        data-testid="button-select-all"
-                      >
-                        เลือกทั้งหมด
-                      </Button>
-                      <div className="relative">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="ค้นหา..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-8 w-[150px]"
-                          data-testid="input-roster-search"
-                        />
-                      </div>
-                      <Select value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
-                        <SelectTrigger className="w-[130px]" data-testid="select-filter">
-                          <Filter className="h-3 w-3 mr-1" />
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">ทั้งหมด</SelectItem>
-                          <SelectItem value="members">สมาชิก</SelectItem>
-                          <SelectItem value="visitors">ผู้เยี่ยมชม</SelectItem>
-                          <SelectItem value="not_checked_in">ยังไม่เช็คอิน</SelectItem>
-                          <SelectItem value="unpaid">ค้างจ่าย</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <QrCode className="h-4 w-4" />
+                    QR Code สำหรับปริ้น
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    ให้สมาชิกสแกนเพื่อเช็คอิน
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {selectedIds.length > 0 && (
-                    <div className="flex items-center gap-2 mb-3 p-2 bg-muted rounded-lg flex-wrap">
-                      <span className="text-sm">เลือก {selectedIds.length} คน</span>
-                      <Button size="sm" variant="outline" onClick={() => handleBulkCheckin(false)} data-testid="button-bulk-checkin">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        เช็คอิน
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleBulkCheckin(true)} data-testid="button-bulk-late">
-                        <Clock className="h-3 w-3 mr-1" />
-                        มาสาย
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={handleBulkMarkPaid} data-testid="button-bulk-paid">
-                        <DollarSign className="h-3 w-3 mr-1" />
-                        จ่ายแล้ว
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])} data-testid="button-clear-selection">
-                        ยกเลิก
-                      </Button>
-                    </div>
-                  )}
-                  <ScrollArea className="h-[calc(100vh-380px)]">
-                    <div className="space-y-2">
-                      {filteredParticipants.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          ไม่พบข้อมูล
-                        </div>
-                      ) : (
-                        filteredParticipants.map((p) => (
-                          <div
-                            key={p.participant_id}
-                            className={`flex items-center gap-2 p-2 border rounded-lg ${p.is_checked_in ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800" : ""}`}
-                            data-testid={`row-participant-${p.participant_id}`}
-                          >
-                            <Checkbox
-                              checked={selectedIds.includes(p.participant_id)}
-                              onCheckedChange={() => toggleSelect(p.participant_id)}
-                              data-testid={`checkbox-${p.participant_id}`}
-                            />
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={p.photo_url || undefined} />
-                              <AvatarFallback>{getInitials(p.full_name_th)}</AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1 flex-wrap">
-                                <span className="text-sm font-medium truncate">{p.nickname_th || p.full_name_th}</span>
-                                <Badge variant={p.status === "member" ? "default" : "secondary"} className="text-[10px]">
-                                  {p.status === "member" ? "สมาชิก" : "ผู้เยี่ยมชม"}
-                                </Badge>
-                                {p.is_late && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">สาย</Badge>}
-                                {p.fee_status === "paid" && <Badge variant="outline" className="text-[10px] text-green-600 border-green-300">จ่ายแล้ว</Badge>}
-                                {p.fee_status === "pending" && <Badge variant="outline" className="text-[10px] text-red-600 border-red-300">ค้างจ่าย</Badge>}
-                              </div>
-                              {p.company && <p className="text-xs text-muted-foreground truncate">{p.company}</p>}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {actionLoading === p.participant_id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : p.is_checked_in ? (
-                                <>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => handleToggleLate(p.participant_id, p.is_late)}
-                                    title={p.is_late ? "ยกเลิกสาย" : "ทำเครื่องหมายสาย"}
-                                    data-testid={`button-toggle-late-${p.participant_id}`}
-                                  >
-                                    <Clock className={`h-4 w-4 ${p.is_late ? "text-amber-500" : ""}`} />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => handleUndoCheckin(p.participant_id)}
-                                    title="ยกเลิกเช็คอิน"
-                                    data-testid={`button-undo-checkin-${p.participant_id}`}
-                                  >
-                                    <Undo2 className="h-4 w-4" />
-                                  </Button>
-                                  {p.fee_id && p.fee_status === "paid" && (
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => handleUnmarkPaid(p.fee_id!, p.participant_id)}
-                                      title="ยกเลิกจ่ายเงิน"
-                                      data-testid={`button-undo-paid-${p.participant_id}`}
-                                    >
-                                      <RotateCcw className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleCheckin(p.participant_id, false)}
-                                    data-testid={`button-checkin-${p.participant_id}`}
-                                  >
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    เช็คอิน
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleCheckin(p.participant_id, true)}
-                                    data-testid={`button-late-${p.participant_id}`}
-                                  >
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    สาย
-                                  </Button>
-                                </>
-                              )}
-                              {p.fee_id && p.fee_status === "pending" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleMarkPaid(p.fee_id!, p.participant_id)}
-                                  data-testid={`button-mark-paid-${p.participant_id}`}
-                                >
-                                  <DollarSign className="h-3 w-3 mr-1" />
-                                  จ่าย
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </ScrollArea>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-center p-4 bg-white rounded-lg border" ref={qrRef}>
+                    <QRCode
+                      id="meeting-checkin-qr"
+                      value={checkinUrl}
+                      size={180}
+                      level="H"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button onClick={downloadQRCode} size="sm" data-testid="button-download-qr">
+                      <Download className="mr-1 h-4 w-4" />
+                      ดาวน์โหลด
+                    </Button>
+                    <Button onClick={copyCheckinLink} variant="outline" size="sm" data-testid="button-copy-link">
+                      <Copy className="mr-1 h-4 w-4" />
+                      คัดลอก
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => window.open(checkinUrl, "_blank")}
+                      data-testid="button-open-checkin"
+                    >
+                      <ExternalLink className="mr-1 h-4 w-4" />
+                      เปิด
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
-            </div>
           </div>
         )}
       </div>
