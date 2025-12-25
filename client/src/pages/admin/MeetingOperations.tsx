@@ -1297,6 +1297,11 @@ export default function MeetingOperations() {
                                 {p.fee_status === "pending" && <Badge variant="outline" className="text-[10px] text-red-600 border-red-300">ค้างจ่าย</Badge>}
                               </div>
                               {p.company && <p className="text-xs text-muted-foreground truncate">{p.company}</p>}
+                              {p.phone && (
+                                <p className="text-xs text-muted-foreground truncate" data-testid={`text-phone-${p.participant_id}`}>
+                                  {p.phone}
+                                </p>
+                              )}
                               {p.substitute_name && (
                                 <p className="text-xs text-blue-600 dark:text-blue-400 truncate">
                                   ตัวแทน: {p.substitute_name}
@@ -1309,6 +1314,19 @@ export default function MeetingOperations() {
                               )}
                             </div>
                             <div className="flex items-center gap-1">
+                              {p.phone && (
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  asChild
+                                  title={`โทร ${p.phone}`}
+                                  data-testid={`button-call-${p.participant_id}`}
+                                >
+                                  <a href={`tel:${p.phone}`}>
+                                    <Phone className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              )}
                               {actionLoading === p.participant_id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : p.is_checked_in ? (
