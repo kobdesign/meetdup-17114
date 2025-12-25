@@ -37,6 +37,13 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
     - Admin POS page with QR scanner (@yudiel/react-qr-scanner) and manual search fallback
     - Atomic `/pos-checkin` endpoint for QR validation
     - Auth-protected `/pos-manual-checkin` endpoint for manual check-in (requires admin role)
+- **Meeting Command Center** (`/admin/command-center`): Unified dashboard for meeting day operations with:
+    - Meeting selector with auto-select for today's meeting
+    - Stats cards: Members checked in (X/Y), Visitors checked in (X/Y), Late count, Payment totals
+    - Two operation modes via Tabs:
+      - Manual tab: Quick search, filters (all/members/visitors/not checked in/unpaid), participant list with 1-click actions (check-in, mark late, mark paid), bulk actions
+      - QR Scanner tab: Camera-based QR scanning using pos-checkin endpoint with success/error feedback
+    - Consolidates multiple admin tasks into single page for efficient meeting operations
 - **Member/Visitor Pipeline Separation**: UI separates active member management from visitor pipeline analytics, standardizing visitor progression.
 - **Multi-Path Onboarding System**: Supports Pioneer, Invite, and Discovery onboarding flows.
 - **Unified Member-Participant Architecture**: Every member has records in both `user_roles` (for access control) and `participants` (for chapter activities).
