@@ -43,6 +43,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { IDetectedBarcode, Scanner } from "@yudiel/react-qr-scanner";
 import QRCode from "react-qr-code";
 import { Label } from "@/components/ui/label";
+import VisitorRegistrationDialog from "@/components/dialogs/VisitorRegistrationDialog";
 
 type TypeFilter = "all" | "members" | "visitors";
 type StatusFilter = "all" | "not_checked_in" | "checked_in" | "late" | "unpaid" | "paid";
@@ -156,6 +157,7 @@ export default function MeetingOperations() {
   const [walkinSubmitting, setWalkinSubmitting] = useState(false);
   const [closingOntime, setClosingOntime] = useState(false);
   const [closingMeeting, setClosingMeeting] = useState(false);
+  const [visitorRegDialogOpen, setVisitorRegDialogOpen] = useState(false);
 
   const qrRef = useRef<HTMLDivElement>(null);
   const selectedMeeting = meetings.find(m => m.meeting_id === selectedMeetingId);
@@ -1519,6 +1521,18 @@ export default function MeetingOperations() {
 
                     <TabsContent value="walkin" className="mt-3">
                       <div className="space-y-3">
+                        <div className="p-3 border rounded-lg bg-muted/50">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">ลงทะเบียน Visitor Walk-in</p>
+                          <Button 
+                            className="w-full" 
+                            variant="outline"
+                            onClick={() => setVisitorRegDialogOpen(true)}
+                            data-testid="button-visitor-walkin-register"
+                          >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            ลงทะเบียน Visitor ใหม่
+                          </Button>
+                        </div>
                         {pendingSubstitutes.length > 0 && (
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-muted-foreground">รอยืนยัน ({pendingSubstitutes.length})</p>
@@ -1655,6 +1669,18 @@ export default function MeetingOperations() {
           </div>
         )}
       </div>
+
+      <VisitorRegistrationDialog
+        open={visitorRegDialogOpen}
+        onOpenChange={(open) => {
+          setVisitorRegDialogOpen(open);
+          if (!open) {
+            loadParticipantsWithStatus();
+          }
+        }}
+        tenantId={effectiveTenantId || ""}
+        meetingId={selectedMeetingId}
+      />
     </AdminLayout>
   );
 }
