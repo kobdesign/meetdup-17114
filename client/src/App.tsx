@@ -20,7 +20,6 @@ import Participants from "./pages/admin/Participants";
 import Meetings from "./pages/admin/Meetings";
 import MeetingDetails from "./pages/admin/MeetingDetails";
 import Visitors from "./pages/admin/Visitors";
-import CheckIn from "./pages/admin/CheckIn";
 import Settings from "./pages/admin/Settings";
 import Authorization from "./pages/admin/Authorization";
 import LineConfigPage from "./pages/admin/LineConfigPage";
@@ -30,8 +29,7 @@ import ImportMembers from "./pages/admin/ImportMembers";
 import ChapterGoals from "./pages/admin/ChapterGoals";
 import NotificationSettings from "./pages/admin/NotificationSettings";
 import LineCommandAccess from "./pages/admin/LineCommandAccess";
-import POSCheckin from "./pages/admin/POSCheckin";
-import MeetingCommandCenter from "./pages/admin/MeetingCommandCenter";
+import MeetingOperations from "./pages/admin/MeetingOperations";
 import MeetingAttendanceReport from "./pages/admin/MeetingAttendanceReport";
 import Tenants from "./pages/super-admin/Tenants";
 import LiffSettings from "./pages/admin/LiffSettings";
@@ -130,19 +128,9 @@ const App = () => (
               <Visitors />
             </ProtectedRoute>
           } />
-          <Route path="/admin/checkin" element={
+          <Route path="/admin/meeting-operations" element={
             <ProtectedRoute requiredRole="chapter_admin">
-              <CheckIn />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/pos-checkin" element={
-            <ProtectedRoute requiredRole="chapter_admin">
-              <POSCheckin />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/command-center" element={
-            <ProtectedRoute requiredRole="chapter_admin">
-              <MeetingCommandCenter />
+              <MeetingOperations />
             </ProtectedRoute>
           } />
           <Route path="/admin/attendance-report" element={
