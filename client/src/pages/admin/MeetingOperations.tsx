@@ -272,21 +272,26 @@ export default function MeetingOperations() {
 
       if (checkinError) throw checkinError;
 
+      const { data: { session } } = await supabase.auth.getSession();
       let substitutes: SubstituteInfo[] = [];
-      try {
-        const { data: subData, error: subError } = await (supabase as any)
-          .from("substitute_requests")
-          .select("member_participant_id, substitute_name, substitute_phone")
-          .eq("meeting_id", selectedMeetingId)
-          .eq("status", "confirmed");
-        
-        if (subError) console.error("Error loading substitutes:", subError);
-        substitutes = subData || [];
-      } catch (e) {
-        console.error("Error loading substitutes:", e);
+      if (session?.access_token) {
+        try {
+          const subsResponse = await fetch(`/api/palms/meeting/${selectedMeetingId}/substitute-requests`, {
+            headers: { "Authorization": `Bearer ${session.access_token}` }
+          });
+          const subsData = await subsResponse.json();
+          if (subsData.success && subsData.confirmed) {
+            substitutes = subsData.confirmed.map((s: any) => ({
+              member_participant_id: s.member_participant_id,
+              substitute_name: s.substitute_name,
+              substitute_phone: s.substitute_phone
+            }));
+          }
+        } catch (e) {
+          console.error("Error loading substitutes:", e);
+        }
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
       let visitorFees: VisitorFee[] = [];
       if (session?.access_token) {
         try {
