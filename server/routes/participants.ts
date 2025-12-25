@@ -1024,6 +1024,45 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
           message: "Could not register for the meeting. Please try again."
         });
       }
+
+      // Auto-generate visitor meeting fee if meeting has visitor_fee configured
+      try {
+        const { data: meetingData } = await supabaseAdmin
+          .from("meetings")
+          .select("visitor_fee, tenant_id")
+          .eq("meeting_id", meeting_id)
+          .single();
+
+        if (meetingData && meetingData.visitor_fee && meetingData.visitor_fee > 0) {
+          // Check if fee record already exists
+          const { data: existingFee } = await supabaseAdmin
+            .from("visitor_meeting_fees")
+            .select("fee_id")
+            .eq("meeting_id", meeting_id)
+            .eq("participant_id", participant.participant_id)
+            .maybeSingle();
+
+          if (!existingFee) {
+            const { error: feeError } = await supabaseAdmin
+              .from("visitor_meeting_fees")
+              .insert({
+                tenant_id: meetingData.tenant_id,
+                meeting_id,
+                participant_id: participant.participant_id,
+                amount_due: meetingData.visitor_fee,
+                status: "pending",
+              });
+
+            if (feeError) {
+              console.error(`${logPrefix} Error creating visitor fee (non-critical):`, feeError);
+            } else {
+              console.log(`${logPrefix} Visitor meeting fee created: ${meetingData.visitor_fee} THB`);
+            }
+          }
+        }
+      } catch (feeErr) {
+        console.error(`${logPrefix} Error in visitor fee creation (non-critical):`, feeErr);
+      }
     }
 
     // If auto_checkin is enabled, create check-in record immediately

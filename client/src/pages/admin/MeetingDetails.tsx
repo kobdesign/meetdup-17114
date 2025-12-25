@@ -5,13 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Calendar, MapPin, Clock, Users, ArrowLeft, DollarSign, QrCode, UserX, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, MapPin, Clock, Users, ArrowLeft, DollarSign, QrCode, UserX, CheckCircle, XCircle, Banknote, RefreshCw } from "lucide-react";
 import MapDisplay from "@/components/MapDisplay";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 import QRCodeDialog from "@/components/dialogs/QRCodeDialog";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function MeetingDetails() {
   const { meetingId } = useParams();
@@ -25,6 +27,11 @@ export default function MeetingDetails() {
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [visitorFees, setVisitorFees] = useState<any[]>([]);
+  const [visitorFeesSummary, setVisitorFeesSummary] = useState<any>(null);
+  const [loadingFees, setLoadingFees] = useState(false);
+  const [selectedFees, setSelectedFees] = useState<string[]>([]);
+  const [markingPaid, setMarkingPaid] = useState(false);
 
   useEffect(() => {
     if (!effectiveTenantId) {
@@ -144,6 +151,108 @@ export default function MeetingDetails() {
       setLoading(false);
     }
   };
+
+  // Load visitor fees
+  const loadVisitorFees = async () => {
+    if (!meetingId) return;
+    setLoadingFees(true);
+    try {
+      const response = await fetch(`/api/payments/visitor-fees/${meetingId}`);
+      const result = await response.json();
+      if (result.success) {
+        setVisitorFees(result.data || []);
+        setVisitorFeesSummary(result.summary || null);
+      }
+    } catch (error) {
+      console.error("Error loading visitor fees:", error);
+    } finally {
+      setLoadingFees(false);
+    }
+  };
+
+  // Generate visitor fees from registrations
+  const generateVisitorFees = async () => {
+    if (!meetingId) return;
+    setLoadingFees(true);
+    try {
+      const response = await apiRequest("/api/payments/visitor-fees/generate", "POST", {
+        meeting_id: meetingId,
+      });
+      if (response.success) {
+        toast.success(`สร้างรายการค่าประชุมสำเร็จ ${response.count} รายการ`);
+        loadVisitorFees();
+      } else {
+        toast.error(response.error || "ไม่สามารถสร้างรายการได้");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setLoadingFees(false);
+    }
+  };
+
+  // Mark single fee as paid
+  const markFeePaid = async (feeId: string) => {
+    setMarkingPaid(true);
+    try {
+      const response = await apiRequest(`/api/payments/visitor-fees/${feeId}/mark-paid`, "PATCH", {});
+      if (response.success) {
+        toast.success("บันทึกการชำระเงินสำเร็จ");
+        loadVisitorFees();
+      } else {
+        toast.error(response.error || "ไม่สามารถบันทึกได้");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setMarkingPaid(false);
+    }
+  };
+
+  // Bulk mark fees as paid
+  const bulkMarkPaid = async () => {
+    if (selectedFees.length === 0) {
+      toast.error("กรุณาเลือกรายการที่ต้องการ");
+      return;
+    }
+    setMarkingPaid(true);
+    try {
+      const response = await apiRequest("/api/payments/visitor-fees/bulk-mark-paid", "POST", {
+        fee_ids: selectedFees,
+      });
+      if (response.success) {
+        toast.success(`บันทึกการชำระเงินสำเร็จ ${response.count} รายการ`);
+        setSelectedFees([]);
+        loadVisitorFees();
+      } else {
+        toast.error(response.error || "ไม่สามารถบันทึกได้");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setMarkingPaid(false);
+    }
+  };
+
+  // Toggle fee selection
+  const toggleFeeSelection = (feeId: string) => {
+    setSelectedFees((prev) =>
+      prev.includes(feeId) ? prev.filter((id) => id !== feeId) : [...prev, feeId]
+    );
+  };
+
+  // Select all pending fees
+  const selectAllPending = () => {
+    const pendingIds = visitorFees.filter((f) => f.status === "pending").map((f) => f.fee_id);
+    setSelectedFees(pendingIds);
+  };
+
+  // Load visitor fees when meeting loads
+  useEffect(() => {
+    if (meeting?.meeting_id) {
+      loadVisitorFees();
+    }
+  }, [meeting?.meeting_id]);
 
   const getRecurrenceText = (pattern: string) => {
     const patterns: Record<string, string> = {
@@ -628,6 +737,168 @@ export default function MeetingDetails() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Visitor Meeting Fees */}
+        {meeting.visitor_fee && meeting.visitor_fee > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Banknote className="h-5 w-5" />
+                    ค่าประชุม Visitor
+                  </CardTitle>
+                  <CardDescription>
+                    ค่าประชุม {meeting.visitor_fee?.toLocaleString()} บาท/คน
+                    {visitorFeesSummary && (
+                      <span className="ml-2">
+                        | รวม {visitorFeesSummary.total} คน | ชำระแล้ว {visitorFeesSummary.paid} | ค้างชำระ {visitorFeesSummary.pending}
+                      </span>
+                    )}
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadVisitorFees}
+                    disabled={loadingFees}
+                    data-testid="button-refresh-fees"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-1 ${loadingFees ? "animate-spin" : ""}`} />
+                    รีเฟรช
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={generateVisitorFees}
+                    disabled={loadingFees}
+                    data-testid="button-generate-fees"
+                  >
+                    <DollarSign className="h-4 w-4 mr-1" />
+                    สร้างรายการ
+                  </Button>
+                  {selectedFees.length > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={bulkMarkPaid}
+                      disabled={markingPaid}
+                      data-testid="button-bulk-mark-paid"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      ชำระแล้ว ({selectedFees.length})
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingFees ? (
+                <div className="text-center py-8 text-muted-foreground">กำลังโหลด...</div>
+              ) : visitorFees.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  ยังไม่มีรายการค่าประชุม กดปุ่ม "สร้างรายการ" เพื่อสร้างจาก Visitor ที่ลงทะเบียน
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Select all pending */}
+                  {visitorFees.filter((f) => f.status === "pending").length > 0 && (
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <Button variant="ghost" size="sm" onClick={selectAllPending} data-testid="button-select-all">
+                        เลือกทั้งหมดที่ค้างชำระ
+                      </Button>
+                      {selectedFees.length > 0 && (
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedFees([])} data-testid="button-clear-selection">
+                          ล้างการเลือก
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Summary cards */}
+                  {visitorFeesSummary && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <p className="text-sm text-muted-foreground">รวมทั้งหมด</p>
+                        <p className="text-lg font-semibold">{visitorFeesSummary.total_amount?.toLocaleString()} บาท</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30">
+                        <p className="text-sm text-muted-foreground">ชำระแล้ว</p>
+                        <p className="text-lg font-semibold text-green-600">{visitorFeesSummary.paid_amount?.toLocaleString()} บาท</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/30">
+                        <p className="text-sm text-muted-foreground">ค้างชำระ</p>
+                        <p className="text-lg font-semibold text-orange-600">
+                          {(visitorFeesSummary.total_amount - visitorFeesSummary.paid_amount)?.toLocaleString()} บาท
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <p className="text-sm text-muted-foreground">จำนวน Visitor</p>
+                        <p className="text-lg font-semibold">{visitorFeesSummary.total} คน</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fee list */}
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    {visitorFees.map((fee) => (
+                      <div
+                        key={fee.fee_id}
+                        className={`flex items-center gap-3 p-3 border rounded-lg ${
+                          fee.status === "paid"
+                            ? "bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                            : "hover:bg-accent"
+                        }`}
+                        data-testid={`visitor-fee-${fee.fee_id}`}
+                      >
+                        {fee.status === "pending" && (
+                          <Checkbox
+                            checked={selectedFees.includes(fee.fee_id)}
+                            onCheckedChange={() => toggleFeeSelection(fee.fee_id)}
+                            data-testid={`checkbox-fee-${fee.fee_id}`}
+                          />
+                        )}
+                        <Avatar>
+                          <AvatarFallback className={fee.status === "paid" ? "bg-green-500 text-white" : "bg-orange-500 text-white"}>
+                            {getInitials(fee.participant?.full_name_th || "")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{fee.participant?.full_name_th || "ไม่ระบุชื่อ"}</p>
+                          {fee.participant?.company && (
+                            <p className="text-sm text-muted-foreground truncate">{fee.participant.company}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant={fee.status === "paid" ? "default" : "secondary"} className="text-xs">
+                              {fee.status === "paid" ? "ชำระแล้ว" : "ค้างชำระ"}
+                            </Badge>
+                            <span className="text-sm font-medium">{Number(fee.amount_due).toLocaleString()} บาท</span>
+                          </div>
+                          {fee.paid_at && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              ชำระเมื่อ: {new Date(fee.paid_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}
+                            </p>
+                          )}
+                        </div>
+                        {fee.status === "pending" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => markFeePaid(fee.fee_id)}
+                            disabled={markingPaid}
+                            data-testid={`button-mark-paid-${fee.fee_id}`}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
