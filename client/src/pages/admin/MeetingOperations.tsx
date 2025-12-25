@@ -164,6 +164,11 @@ export default function MeetingOperations() {
     if (effectiveTenantId) {
       loadMeetings();
     }
+    setManualSearchQuery("");
+    setManualSearchResults([]);
+    setWalkinMemberSearch("");
+    setWalkinMemberResults([]);
+    setScanResult(null);
   }, [effectiveTenantId]);
 
   useEffect(() => {
@@ -171,6 +176,9 @@ export default function MeetingOperations() {
       loadParticipantsWithStatus();
       loadPendingSubstitutes();
     }
+    setManualSearchQuery("");
+    setManualSearchResults([]);
+    setScanResult(null);
   }, [selectedMeetingId]);
 
   const loadMeetings = async () => {
@@ -1256,7 +1264,7 @@ export default function MeetingOperations() {
                             </Avatar>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1 flex-wrap">
-                                <span className="text-sm font-medium truncate">{p.nickname_th || p.full_name_th}</span>
+                                <span className="text-sm font-medium truncate">{p.nickname_th ? `${p.nickname_th} (${p.full_name_th})` : p.full_name_th}</span>
                                 <Badge variant={p.status === "member" ? "default" : "secondary"} className="text-[10px]">
                                   {p.status === "member" ? "สมาชิก" : "ผู้เยี่ยมชม"}
                                 </Badge>
@@ -1444,7 +1452,7 @@ export default function MeetingOperations() {
                                     <AvatarFallback>{getInitials(p.full_name_th)}</AvatarFallback>
                                   </Avatar>
                                   <div>
-                                    <p className="text-sm font-medium">{p.nickname_th || p.full_name_th}</p>
+                                    <p className="text-sm font-medium">{p.nickname_th ? `${p.nickname_th} (${p.full_name_th})` : p.full_name_th}</p>
                                     <p className="text-xs text-muted-foreground">{p.company}</p>
                                   </div>
                                 </div>
