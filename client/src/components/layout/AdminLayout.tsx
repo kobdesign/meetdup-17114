@@ -159,7 +159,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           defaultOpen: true,
           items: [
             { icon: <Calendar className="h-4 w-4" />, label: "รายการประชุม", href: "/admin/meetings" },
-            { icon: <QrCode className="h-4 w-4" />, label: "Check-In", href: "/admin/checkin" },
+            { icon: <QrCode className="h-4 w-4" />, label: "Command Center", href: "/admin/command-center" },
             { icon: <QrCode className="h-4 w-4" />, label: "POS Check-In", href: "/admin/pos-checkin" },
             { icon: <ClipboardList className="h-4 w-4" />, label: "รายงานเข้าร่วม", href: "/admin/attendance-report" },
             { icon: <Bell className="h-4 w-4" />, label: "แจ้งเตือนประชุม", href: "/admin/notifications" },

@@ -31,6 +31,7 @@ import ChapterGoals from "./pages/admin/ChapterGoals";
 import NotificationSettings from "./pages/admin/NotificationSettings";
 import LineCommandAccess from "./pages/admin/LineCommandAccess";
 import POSCheckin from "./pages/admin/POSCheckin";
+import MeetingCommandCenter from "./pages/admin/MeetingCommandCenter";
 import MeetingAttendanceReport from "./pages/admin/MeetingAttendanceReport";
 import Tenants from "./pages/super-admin/Tenants";
 import LiffSettings from "./pages/admin/LiffSettings";
@@ -137,6 +138,11 @@ const App = () => (
           <Route path="/admin/pos-checkin" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <POSCheckin />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/command-center" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <MeetingCommandCenter />
             </ProtectedRoute>
           } />
           <Route path="/admin/attendance-report" element={
