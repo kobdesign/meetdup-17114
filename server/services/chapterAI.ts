@@ -344,32 +344,12 @@ async function getVisitorSummary(tenantId: string, range: string, meetingId?: st
     const meetingIds = meetingId ? [meetingId] : meetings.map(m => m.meeting_id);
     console.log(`[ChapterAI] getVisitorSummary: tenantId=${tenantId}, range=${range}, meetingIds=`, meetingIds);
 
-    // Step 1: Get visitor participant IDs for this tenant
-    const { data: visitorParticipants } = await supabaseAdmin
-      .from("participants")
-      .select("participant_id")
-      .eq("tenant_id", tenantId)
-      .eq("status", "visitor");
-
-    const visitorIds = (visitorParticipants || []).map(p => p.participant_id);
-    console.log(`[ChapterAI] getVisitorSummary: found ${visitorIds.length} visitor participants`);
-
-    if (visitorIds.length === 0) {
-      console.log(`[ChapterAI] getVisitorSummary: No visitors found for tenant`);
-      return {
-        range: rangeLabel,
-        total_registered: 0,
-        total_checked_in: 0,
-        no_show: 0
-      };
-    }
-
-    // Step 2: Get visitor registrations using the visitor IDs
+    // Query meeting_registrations directly by meeting_id only (meetings already validated for tenant)
+    // Don't filter by participant status because some visitors might not have "visitor" status in participants table
     const { data: registrations, error } = await supabaseAdmin
       .from("meeting_registrations")
       .select("registration_id, meeting_id, participant_id")
-      .in("meeting_id", meetingIds)
-      .in("participant_id", visitorIds);
+      .in("meeting_id", meetingIds);
 
     console.log(`[ChapterAI] getVisitorSummary: found ${registrations?.length || 0} registrations`);
 
@@ -378,15 +358,15 @@ async function getVisitorSummary(tenantId: string, range: string, meetingId?: st
       return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล" };
     }
 
-    // Step 3: Get checkins for these meetings filtered by visitor IDs
+    // Get all checkins for these meetings
     const { data: checkins } = await supabaseAdmin
       .from("checkins")
       .select("participant_id")
-      .in("meeting_id", meetingIds)
-      .in("participant_id", visitorIds);
+      .in("meeting_id", meetingIds);
 
-    console.log(`[ChapterAI] getVisitorSummary: found ${checkins?.length || 0} visitor checkins`);
+    console.log(`[ChapterAI] getVisitorSummary: found ${checkins?.length || 0} total checkins`);
 
+    // Match registrations with checkins
     const checkinSet = new Set((checkins || []).map(c => c.participant_id));
 
     const totalVisitors = registrations?.length || 0;
@@ -1047,22 +1027,31 @@ export async function processChapterAIQuery(
 
 export function isChapterAIQuery(text: string): boolean {
   const aiPatterns = [
+    // Greetings
     /^สวัสดี/i,
     /^หวัดดี/i,
     /^hello/i,
     /^hi$/i,
     /^hi\s/i,
+    
+    // Help questions
     /ช่วย.*อะไร.*ได้/i,
     /ทำอะไรได้บ้าง/i,
     /ถามอะไรได้บ้าง/i,
+    
+    // Visitor summary
     /สรุป.*ผู้.*เยือน/i,
     /สรุป.*visitor/i,
     /visitor.*สรุป/i,
+    
+    // Payment queries
     /ใคร.*ไม่.*จ่าย/i,
     /ค้าง.*ชำระ/i,
     /unpaid/i,
     /visitor.*fee/i,
     /ยอด.*รวม/i,
+    
+    // Meeting stats
     /สถิติ.*meeting/i,
     /meeting.*สถิติ/i,
     /สรุป.*วันนี้/i,
@@ -1070,6 +1059,31 @@ export function isChapterAIQuery(text: string): boolean {
     /สรุป.*เดือน/i,
     /กี่.*คน.*มา/i,
     /มา.*กี่.*คน/i,
+    
+    // Attendance queries - individual person
+    /มา.*ประชุม.*ไหม/i,
+    /เข้า.*ประชุม.*ไหม/i,
+    /มา.*ประชุม.*มั้ย/i,
+    /เข้า.*ประชุม.*มั้ย/i,
+    /มา.*meeting.*ไหม/i,
+    /มา.*meeting.*มั้ย/i,
+    
+    // Attendance queries - who came/absent/late
+    /ใคร.*มา.*ประชุม/i,
+    /ใคร.*ไม่.*มา/i,
+    /ใคร.*ขาด/i,
+    /ใคร.*สาย/i,
+    /คน.*ไหน.*มา/i,
+    /คน.*ไหน.*ขาด/i,
+    /สาย.*ใน.*meeting/i,
+    /สาย.*meeting/i,
+    /ขาด.*meeting/i,
+    /มา.*ล่าสุด/i,
+    /ไม่มา.*ล่าสุด/i,
+    
+    // Member attendance check pattern (คุณ/พี่ + name)
+    /^(คุณ|พี่|น้อง).*มา/i,
+    /^(คุณ|พี่|น้อง).*ประชุม/i,
   ];
 
   return aiPatterns.some(pattern => pattern.test(text));
