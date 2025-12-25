@@ -10,6 +10,7 @@ import { handleResendActivation } from "../../services/line/handlers/resendActiv
 import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSummaryHandler";
 import { handleApplyMember, handleSkipApply } from "../../services/line/handlers/memberApplicationHandler";
 import { handleRsvpConfirm, handleRsvpSubstitute, handleRsvpLeave, handleLeaveReason, getLeaveConversationState, clearLeaveConversationState } from "../../services/line/handlers/rsvpHandler";
+import { processChapterAIQuery, isChapterAIQuery } from "../../services/chapterAI";
 
 const router = Router();
 
@@ -295,6 +296,16 @@ async function processEvent(
       console.log(`${logPrefix} Command: APPS_LIST`);
       await handleAppsListRequest(event, tenantId, accessToken, logPrefix);
       return;
+    }
+
+    // Priority 10: AI Chatbot - handle data queries for chapter
+    if (isChapterAIQuery(text)) {
+      console.log(`${logPrefix} Command: AI_CHATBOT`);
+      const userId = event.source.userId;
+      if (userId) {
+        await handleChapterAIQuery(event, text, tenantId, accessToken, logPrefix);
+        return;
+      }
     }
 
     // Handle other text messages
@@ -872,6 +883,40 @@ async function sendGroupMenu(event: any, accessToken: string): Promise<void> {
   if (!response.ok) {
     const error = await response.text();
     console.error("[GroupMenu] Failed to send menu:", error);
+  }
+}
+
+async function handleChapterAIQuery(
+  event: any,
+  text: string,
+  tenantId: string,
+  accessToken: string,
+  logPrefix: string
+): Promise<void> {
+  const lineUserId = event.source?.userId;
+
+  if (!lineUserId) {
+    console.log(`${logPrefix} AI query received without userId`);
+    return;
+  }
+
+  console.log(`${logPrefix} Processing AI query: "${text}"`);
+
+  try {
+    const response = await processChapterAIQuery(text, tenantId, lineUserId);
+
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: response
+    }, accessToken, tenantId);
+
+    console.log(`${logPrefix} AI query response sent successfully`);
+  } catch (error: any) {
+    console.error(`${logPrefix} Error processing AI query:`, error);
+    await replyMessage(event.replyToken, {
+      type: "text",
+      text: "ขออภัย เกิดข้อผิดพลาดในการประมวลผลคำถาม กรุณาลองใหม่อีกครั้ง"
+    }, accessToken, tenantId);
   }
 }
 

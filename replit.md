@@ -1,7 +1,7 @@
 # Meetdup - Chapter Management System
 
 ## Overview
-Meetdup is a multi-tenant SaaS application designed to streamline business networking chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for business chapters, offering a tailored experience through multi-tenancy and role-based access control. Key capabilities include self-service activation link requests, automated LINE LIFF activation, and bulk member import.
+Meetdup is a multi-tenant SaaS application designed to streamline business networking chapter operations. Its core purpose is to provide a robust platform for member management, meeting scheduling and attendance tracking, visitor check-ins, and various administrative tasks. The system aims to enhance efficiency and organization for business chapters, offering a tailored experience through multi-tenancy and role-based access control. Key capabilities include self-service activation link requests, automated LINE LIFF activation, and bulk member import, along with comprehensive LINE integration and an AI Chapter Data Assistant.
 
 ## User Preferences
 - **Supabase Production Query**: Agent สามารถ query Supabase Production ได้โดยใช้ environment variables:
@@ -27,110 +27,37 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 ### Core Architectural Decisions
 - **Multi-Tenancy**: Implemented with tenant-based data isolation, chapter-specific branding, and settings.
 - **Role-Based Access Control (RBAC)**: Supports Super Admin, Chapter Admin, and Member roles with progressive disclosure navigation and route-level guards.
-- **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface, including an image cropper for profile photos. Admin sidebar uses collapsible navigation groups (สมาชิก, การประชุม, LINE Bot, ตั้งค่า) with Radix Collapsible for better UX organization.
-- **Landing Page**: Professional Trust theme with Navy Blue (#1e3a5f) + Soft Gold (#d4a574) color scheme. World-class SaaS landing page with 8 sections: LandingNavbar (sticky navigation), HeroSection (value proposition + CTA), TrustBar (stats + partners), ProblemSolutionSection, FeatureShowcase (9 key features), SocialProofSection (testimonials), TechnologySection (security + trust), LandingFooter (CTA + links). Uses custom `variant="gold"` button for CTAs.
-- **LINE Integration**: Comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and message-based interaction flows (e.g., phone linking, business card search, automated LIFF activation). Includes a LIFF-based member search system with tenant branding.
-- **Check-In System**: QR code-based check-ins integrated with LINE webhooks, primarily using phone number for identification.
-- **POS Check-In System**: Secure QR-based check-in for physical meetings with:
-    - JWT tokens (15-min expiry, single-use enforcement via `used_checkin_tokens` database table)
-    - LINE Bot "QR" command for generating secure check-in QR codes
-    - Admin POS page with QR scanner (@yudiel/react-qr-scanner) and manual search fallback
-    - Atomic `/pos-checkin` endpoint for QR validation
-    - Auth-protected `/pos-manual-checkin` endpoint for manual check-in (requires admin role)
-- **Meeting Command Center** (`/admin/command-center`): Unified dashboard for meeting day operations with:
-    - Meeting selector with auto-select for today's meeting
-    - Stats cards: Members checked in (X/Y), Visitors checked in (X/Y), Late count, Payment totals
-    - Two operation modes via Tabs:
-      - Manual tab: Quick search, filters (all/members/visitors/not checked in/unpaid), participant list with 1-click actions (check-in, mark late, mark paid), bulk actions
-      - QR Scanner tab: Camera-based QR scanning using pos-checkin endpoint with success/error feedback
-    - Consolidates multiple admin tasks into single page for efficient meeting operations
-- **Member/Visitor Pipeline Separation**: UI separates active member management from visitor pipeline analytics, standardizing visitor progression.
-- **Multi-Path Onboarding System**: Supports Pioneer, Invite, and Discovery onboarding flows.
-- **Unified Member-Participant Architecture**: Every member has records in both `user_roles` (for access control) and `participants` (for chapter activities).
-- **Bulk Member Import System**: Excel-based import with validation, phone normalization, duplicate detection, and error reporting.
-- **Auto-Link System**: Automatically connects user accounts to participant records via phone number matching during registration.
-- **Activation Flow**: Secure token-based self-registration for imported members with single-use, expiring tokens.
-- **User Journey Status Transitions**: `prospect` → `visitor` → `member`.
-- **Referrer Name Display Format**: Consistently shows "nickname (full_name)" format across all pages to prevent confusion when multiple members share the same nickname.
-- **Business Card Search**: Enhanced multi-field search across various participant data fields with input sanitization and SQL injection prevention.
-- **Participant Deletion**: Comprehensive participant deletion with cleanup of related records and proper handling of multi-tenant scenarios.
-- **Database Management & Health Monitoring**: Includes a health check system for database status and schema sync verification.
-- **Schema Updates**:
-    - **Simplified Name Fields**: Unified `full_name_th` (Thai, required) and `full_name_en` (English, optional), plus `nickname_th`/`nickname_en`.
-    - **Dual-Field Referral Model**: `referral_origin` enum + conditional `referred_by_participant_id` FK.
-    - **LinkedIn Field**: Added `linkedin_url`.
-    - **Required Phone**: Phone number is now required for participant creation/update.
-    - **LINE ID Distinction**: `line_id` (user-entered) is separate from `line_user_id` (system-managed).
-- **Business Category System**: Dynamic 2-digit codes, searchable selector, member-created categories (global across chapters), and bot-driven category search via Quick Reply + Postback.
-- **LIFF Configuration**: Uses `liff_id` from `system_settings` for production; development uses Quick Reply flow due to LIFF OAuth domain restrictions.
-- **Goals & Achievements System**: Chapters can set and track goals (visitors, members, check-ins, referrals) with auto-calculated progress and LINE notifications for achievement.
-- **Daily Progress Summary**: Sends summary of active goals progress to Chapter Admins via LINE (manual trigger or bot command).
-- **LINE Command Authorization System**: Flexible access control for LINE bot commands per chapter with `public`, `member`, and `admin` levels, supporting group chats and an admin UI for management.
-- **LIFF Business Card Share System**: Allows members to share their business card as a Flex Message via LINE Share Target Picker, with robust LINE OAuth compliant architecture, URL normalization, and Super Admin toggle for share button visibility.
-- **LIFF Profile Components**: Reusable `MemberProfileCard` (detailed view) and `MemberListCard` (compact list view) for displaying member profiles across LIFF pages, including LINE Chat links.
-- **Event RSVP System**: Meeting notification with RSVP buttons (Confirm, Substitute, Leave). Data stored in `meeting_rsvp` table with statuses: pending, confirmed, declined, leave. Leave flow captures reason via Quick Reply options or free-text input.
-- **RSVP Summary in Admin**: Meeting Details page displays RSVP responses grouped by status (Confirmed=green, Leave=orange, Substitute/Declined=blue, Pending=gray) with participant names, companies, and leave reasons. Data fetched via API endpoint `/api/notifications/rsvp/:meetingId` using supabaseAdmin to bypass RLS.
+- **UI/UX**: Employs Radix UI, Shadcn/ui, and Tailwind CSS for a modern, responsive interface. The landing page uses a Professional Trust theme with Navy Blue + Soft Gold color scheme and an 8-section layout.
+- **LINE Integration**: Comprehensive multi-tenant LINE webhook system with destination-based tenant resolution, HMAC signature validation, secure credential management, rich menu management, and message-based interaction flows. Includes a LIFF-based member search system and a LIFF Business Card Share System.
+- **Check-In System**: QR code-based check-ins integrated with LINE webhooks, primarily using phone number for identification, and a secure POS Check-In System with JWT tokens.
+- **Meeting Command Center**: A unified dashboard for meeting day operations with meeting selection, stats cards, and two operation modes (Manual and QR Scanner) for efficient participant management.
+- **Member/Visitor Management**: Separated pipelines for active member management and visitor analytics, with a multi-path onboarding system (Pioneer, Invite, Discovery) and a unified member-participant architecture.
+- **Data Management**: Bulk member import from Excel, auto-linking of user accounts to participant records, secure token-based activation flow for self-registration, and comprehensive participant deletion with related record cleanup.
+- **Schema Enhancements**: Simplified name fields (`full_name_th`, `full_name_en`, `nickname_th`, `nickname_en`), dual-field referral model, added `linkedin_url`, required phone numbers, and distinct `line_id` and `line_user_id`.
+- **Business Category System**: Dynamic 2-digit codes, searchable selector, member-created categories, and bot-driven category search.
+- **Goals & Achievements System**: Chapters can set and track goals (visitors, members, check-ins, referrals) with auto-calculated progress and LINE notifications. Daily progress summaries are available.
+- **LINE Command Authorization System**: Flexible access control for LINE bot commands (public, member, admin levels) with an admin UI for management.
+- **LIFF Profile Components**: Reusable `MemberProfileCard` and `MemberListCard` for displaying member profiles across LIFF pages.
+- **Event RSVP System**: Meeting notifications with RSVP buttons (Confirm, Substitute, Leave) and an admin view displaying RSVP responses with participant details and leave reasons.
+- **Payment Tracking System**: Comprehensive tracking for member monthly dues and visitor meeting fees, including a Finance Dashboard for KPIs, dues configuration, member dues list, and bulk actions.
+- **Chapter Apps Marketplace**: An extension system for mini-applications accessible via a Profile > Apps Tab for members and manageable via an Admin App Center. Includes implemented apps like BOQ Estimator.
+- **AI Chapter Data Assistant (LINE Bot)**: An AI Chatbot integrated with OpenAI for Admin/Member queries via LINE, supporting intents like visitor summaries, unpaid visitor fees, and meeting statistics with RBAC logic.
 
-- **Payment Tracking System**: Comprehensive payment tracking for member monthly dues with:
-    - **Database Schema**: `chapter_dues_config` (chapter settings), `member_dues` (monthly records per member), `visitor_meeting_fees` (visitor payments), `payment_submissions` (slip upload workflow)
-    - **Finance Dashboard** (`/admin/finance`): KPI cards (total members, outstanding, collected, overdue count), dues config dialog with PromptPay settings, member dues list with filter, bulk mark paid
-    - **API Endpoints** (`server/routes/payments.ts`): GET/POST dues-config, GET member-dues-summary, POST generate dues, POST bulk-mark-paid
-    - **Phase 1 Flow**: PromptPay QR → Admin approval (free, no transaction fees)
-    - **Planned**: Member self-service payment submission, LINE Bot payment reminders
+### AI Chapter Data Assistant Details
+**Core Files:** `server/services/chapterAI.ts`, `server/routes/line/webhook.ts`
 
-### Future Improvements (TODO)
-- **Substitute Flow Enhancement**: Add `substitute_participant_id` column to `meeting_rsvp` table and update status constraint to include "substitute" value. LIFF form submission should sync back to `meeting_rsvp` with substitute details.
+**Supported Intents & Tools:**
+1. `visitor_summary` - via `get_visitor_summary`
+2. `unpaid_visitor_fee_today` - via `get_unpaid_visitor_fee` (RBAC protected)
+3. `visitor_fee_total_month` - via `get_visitor_fee_total`
+4. `meeting_stats` - via `get_meeting_stats`
 
-### Chapter Apps Marketplace
-ระบบ Extension/Marketplace สำหรับ mini-applications ที่ช่วยสนับสนุนสมาชิกใน chapter
+**Additional Tools:** `get_meeting_context`, `get_user_role`
 
-**สถานะ:** Phase 1 และ Phase 2 เสร็จแล้ว
-
-**แนวคิด:**
-- เพิ่ม mini-apps ที่เฉพาะทางสำหรับธุรกิจต่างๆ ใน chapter
-- สมาชิกเข้าถึงผ่าน Profile > Apps Tab
-- Chapter Admin จัดการเปิด/ปิด apps ผ่าน App Center (/admin/app-center)
-
-**Database Schema:**
-- `apps` table: app registry (app_id, name, description, icon, route, category, is_active)
-- `chapter_apps` table: per-chapter app settings (tenant_id, app_id, is_enabled, enabled_at, enabled_by)
-- RLS policies with WITH CHECK clauses for proper authorization
-- Auto-update triggers for updated_at timestamps
-
-**API Endpoints (server/routes/apps.ts):**
-- `GET /api/apps` - list all active apps
-- `GET /api/apps/chapter/:tenantId` - apps with enabled status for chapter
-- `GET /api/apps/chapter/:tenantId/enabled` - only enabled apps (for member view)
-- `POST /api/apps/chapter/:tenantId/:appId/enable` - enable app for chapter
-- `POST /api/apps/chapter/:tenantId/:appId/disable` - disable app for chapter
-
-**Implemented Apps:**
-- BOQ Estimator (/apps/boq-estimator): ประเมินราคางานก่อสร้าง 5 หมวด 40+ รายการ พร้อม export Excel
-
-**UX Pattern:**
-- **Profile Apps Tab**: สมาชิกเห็นเฉพาะ apps ที่เปิดใช้งานใน chapter (หรือ fallback ถ้ายังไม่มีข้อมูล)
-- **Admin App Center**: Chapter Admin toggle เปิด/ปิด apps สำหรับ chapter
-- **LINE Bot Command**: สมาชิกพิมพ์ "apps" หรือ "แอป" เพื่อดูรายการ apps ในรูปแบบ Flex Message carousel พร้อม LIFF URL สำหรับเปิด app โดยตรง
-
-**Phased Roadmap:**
-| Phase | เป้าหมาย | สถานะ |
-|-------|----------|-------|
-| Phase 1 | สร้าง internal mini-apps (BOQ Estimator) | Done |
-| Phase 2 | สร้าง App Center UI + ระบบเปิด/ปิด apps ระดับ chapter | Done |
-| Phase 3 | เปิดให้ partner submit apps + review workflow | Planned |
-| Phase 4 | Analytics, billing entitlements, compliance checks | Planned |
-
-**ตัวอย่าง Mini-Apps สำหรับอนาคต:**
-- Invoice Generator (ทุกธุรกิจ)
-- Quote Calculator (บริการ)
-- Lead Tracker (Sales)
-- Business Card Scanner (Networking)
+**RBAC:** Admin sees full details, Member sees counts only
 
 ## External Dependencies
 
-- **Supabase** (`sbknunooplaezvwtyooi`):
-    - **Database**: PostgreSQL
-    - **Authentication**: Supabase Auth
-    - **Storage**: Supabase Storage
-- **LINE Messaging API**: Integrated for communication, rich menus, quick replies, and webhooks.
-- **Google Maps API**: Utilized for location features.
+- **Supabase**: Used for PostgreSQL database, authentication (Supabase Auth), and storage (Supabase Storage).
+- **LINE Messaging API**: Integrated for communication, rich menus, quick replies, webhooks, and LIFF.
+- **Google Maps API**: Utilized for location-based features.

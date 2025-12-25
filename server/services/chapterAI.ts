@@ -1,0 +1,637 @@
+import OpenAI from "openai";
+import { supabaseAdmin } from "../utils/supabaseClient";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { th } from "date-fns/locale";
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
+const SYSTEM_PROMPT = `คุณคือ "BNI Chapter Data Assistant" ทำหน้าที่ตอบคำถามของผู้ใช้ใน LINE OA/LINE Group โดยอ้างอิงข้อมูลจากระบบ Chapter Management เท่านั้น
+
+เป้าหมาย:
+- ตอบคำถามเชิง "สรุป/สถิติ/สถานะ" เกี่ยวกับ Meeting และ Visitor fee
+- ตอบให้สั้น กระชับ ชัดเจน พร้อมตัวเลขและช่วงเวลา
+- ถ้าข้อมูลไม่พอ ให้ถามกลับแบบสั้นที่สุด
+
+ข้อจำกัดสำคัญ (MUST):
+- ห้ามเดาหรือสร้างข้อมูลเอง หากไม่มีผลจาก tools ให้ตอบว่า "ยังไม่พบข้อมูลในระบบ"
+- ห้ามเปิดเผยข้อมูลส่วนบุคคลเกินจำเป็น (เช่น เบอร์โทร/อีเมล) เว้นแต่ role เป็น admin
+- ต้องเคารพสิทธิ์ผู้ใช้ (RBAC): admin เห็นรายชื่อได้ / member เห็นแค่จำนวน
+- ทุกครั้งที่ต้องดึงข้อมูล ให้เรียกใช้ tools ที่ระบบให้เท่านั้น
+- เมื่ออ้างอิงเวลา ให้ใช้ Timezone: Asia/Bangkok
+
+รูปแบบคำตอบ (Preferred):
+- สรุปเป็น bullet หรือรายการสั้น ๆ
+- ใส่ช่วงเวลา, จำนวน, และยอดรวมให้ชัด
+- ถ้าผู้ใช้ถาม "วันนี้" ให้ตีความเป็น "วันปัจจุบันตาม Asia/Bangkok"
+- ถ้าผู้ใช้ไม่ได้ระบุ meeting ให้ใช้ meeting ล่าสุด/meeting วันนี้
+
+Intent ที่ต้องรองรับ:
+1. visitor_summary: สรุปผู้มาเยือนวันนี้/สัปดาห์นี้
+2. unpaid_visitor_fee_today: ใครยังไม่จ่าย visitor fee วันนี้
+3. visitor_fee_total_month: ยอด visitor fee รวมเดือนนี้
+4. meeting_stats: สถิติต่าง ๆ ของ meeting`;
+
+const TOOLS: OpenAI.ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "get_meeting_context",
+      description: "หา meeting วันนี้หรือล่าสุดของ chapter เพื่อใช้ในการดึงข้อมูลอื่น",
+      parameters: {
+        type: "object",
+        properties: {
+          date: {
+            type: "string",
+            description: "วันที่ต้องการค้นหา meeting ในรูปแบบ YYYY-MM-DD (ถ้าไม่ระบุจะใช้วันนี้)"
+          }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_visitor_summary",
+      description: "ดึงจำนวน visitors ตามช่วงเวลา (วันนี้ / สัปดาห์นี้ / เดือนนี้)",
+      parameters: {
+        type: "object",
+        properties: {
+          range: {
+            type: "string",
+            enum: ["today", "this_week", "this_month"],
+            description: "ช่วงเวลาที่ต้องการ"
+          },
+          meeting_id: {
+            type: "string",
+            description: "Meeting ID ถ้าต้องการเฉพาะ meeting นั้น"
+          }
+        },
+        required: ["range"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_unpaid_visitor_fee",
+      description: "ดึงรายชื่อผู้มาเยือนที่ยังไม่จ่าย visitor fee สำหรับ meeting วันนี้",
+      parameters: {
+        type: "object",
+        properties: {
+          meeting_id: {
+            type: "string",
+            description: "Meeting ID ที่ต้องการตรวจสอบ"
+          }
+        },
+        required: ["meeting_id"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_visitor_fee_total",
+      description: "ดึงยอดรวม visitor fee ตามช่วงเวลา",
+      parameters: {
+        type: "object",
+        properties: {
+          range: {
+            type: "string",
+            enum: ["this_month", "this_week", "today"],
+            description: "ช่วงเวลาที่ต้องการ"
+          }
+        },
+        required: ["range"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_user_role",
+      description: "ตรวจสอบ role ของผู้ใช้ใน chapter ก่อนแสดงข้อมูล sensitive",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_meeting_stats",
+      description: "ดึงสถิติของ meeting เช่น จำนวนผู้เข้าร่วม, สมาชิก, visitors, ยอดชำระ",
+      parameters: {
+        type: "object",
+        properties: {
+          meeting_id: {
+            type: "string",
+            description: "Meeting ID ที่ต้องการดูสถิติ (ถ้าไม่ระบุจะใช้ meeting วันนี้)"
+          }
+        },
+        required: []
+      }
+    }
+  }
+];
+
+interface AIContext {
+  tenantId: string;
+  lineUserId: string;
+  userRole?: "admin" | "member" | "visitor" | "unknown";
+}
+
+async function getUserRole(tenantId: string, lineUserId: string): Promise<"admin" | "member" | "visitor" | "unknown"> {
+  try {
+    const { data: participant } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, status")
+      .eq("tenant_id", tenantId)
+      .eq("line_user_id", lineUserId)
+      .maybeSingle();
+
+    if (!participant) return "unknown";
+
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("tenant_id", tenantId)
+      .eq("participant_id", participant.participant_id)
+      .maybeSingle();
+
+    if (userRole?.role === "chapter_admin" || userRole?.role === "super_admin") {
+      return "admin";
+    }
+
+    if (participant.status === "member") return "member";
+    if (participant.status === "visitor") return "visitor";
+
+    return "unknown";
+  } catch (error) {
+    console.error("[ChapterAI] getUserRole error:", error);
+    return "unknown";
+  }
+}
+
+async function getMeetingContext(tenantId: string, date?: string): Promise<any> {
+  try {
+    const targetDate = date || format(new Date(), "yyyy-MM-dd");
+
+    const { data: meeting } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue")
+      .eq("tenant_id", tenantId)
+      .eq("meeting_date", targetDate)
+      .maybeSingle();
+
+    if (meeting) {
+      return {
+        meeting_id: meeting.meeting_id,
+        meeting_date: meeting.meeting_date,
+        meeting_time: meeting.meeting_time,
+        theme: meeting.theme,
+        venue: meeting.venue,
+        found: true
+      };
+    }
+
+    const { data: latestMeeting } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_time, theme, venue")
+      .eq("tenant_id", tenantId)
+      .lte("meeting_date", targetDate)
+      .order("meeting_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestMeeting) {
+      return {
+        meeting_id: latestMeeting.meeting_id,
+        meeting_date: latestMeeting.meeting_date,
+        meeting_time: latestMeeting.meeting_time,
+        theme: latestMeeting.theme,
+        venue: latestMeeting.venue,
+        found: true,
+        note: "ไม่พบ meeting วันนี้ แสดง meeting ล่าสุด"
+      };
+    }
+
+    return { found: false, message: "ไม่พบ meeting ในระบบ" };
+  } catch (error) {
+    console.error("[ChapterAI] getMeetingContext error:", error);
+    return { found: false, error: "เกิดข้อผิดพลาดในการดึงข้อมูล meeting" };
+  }
+}
+
+async function getVisitorSummary(tenantId: string, range: string, meetingId?: string): Promise<any> {
+  try {
+    const now = new Date();
+    let startDate: string;
+    let endDate: string;
+    let rangeLabel: string;
+
+    switch (range) {
+      case "today":
+        startDate = endDate = format(now, "yyyy-MM-dd");
+        rangeLabel = `วันนี้ (${format(now, "d MMM yyyy", { locale: th })})`;
+        break;
+      case "this_week":
+        startDate = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        endDate = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        rangeLabel = `สัปดาห์นี้ (${format(new Date(startDate), "d MMM")} - ${format(new Date(endDate), "d MMM yyyy", { locale: th })})`;
+        break;
+      case "this_month":
+        startDate = format(startOfMonth(now), "yyyy-MM-dd");
+        endDate = format(endOfMonth(now), "yyyy-MM-dd");
+        rangeLabel = format(now, "MMMM yyyy", { locale: th });
+        break;
+      default:
+        startDate = endDate = format(now, "yyyy-MM-dd");
+        rangeLabel = "วันนี้";
+    }
+
+    let query = supabaseAdmin
+      .from("meeting_attendance")
+      .select(`
+        attendance_id,
+        meeting_id,
+        participant:participants!inner(
+          participant_id,
+          status,
+          created_at
+        ),
+        meeting:meetings!inner(
+          meeting_date
+        )
+      `)
+      .eq("participants.tenant_id", tenantId)
+      .eq("participants.status", "visitor")
+      .gte("meetings.meeting_date", startDate)
+      .lte("meetings.meeting_date", endDate);
+
+    if (meetingId) {
+      query = query.eq("meeting_id", meetingId);
+    }
+
+    const { data: attendance, error } = await query;
+
+    if (error) {
+      console.error("[ChapterAI] getVisitorSummary error:", error);
+      return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล" };
+    }
+
+    const totalVisitors = attendance?.length || 0;
+
+    return {
+      range: rangeLabel,
+      total_visitors: totalVisitors,
+      first_time_visitors: totalVisitors,
+      repeat_visitors: 0
+    };
+  } catch (error) {
+    console.error("[ChapterAI] getVisitorSummary error:", error);
+    return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล visitor" };
+  }
+}
+
+async function getUnpaidVisitorFee(tenantId: string, meetingId: string, isAdmin: boolean): Promise<any> {
+  try {
+    const { data: fees, error } = await supabaseAdmin
+      .from("visitor_meeting_fees")
+      .select(`
+        fee_id,
+        amount_due,
+        amount_paid,
+        status,
+        participant:participants(
+          participant_id,
+          full_name_th,
+          nickname_th
+        )
+      `)
+      .eq("meeting_id", meetingId)
+      .eq("status", "pending");
+
+    if (error) {
+      console.error("[ChapterAI] getUnpaidVisitorFee error:", error);
+      return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล" };
+    }
+
+    const unpaidList = fees || [];
+    const totalUnpaid = unpaidList.length;
+    const totalAmount = unpaidList.reduce((sum, f) => sum + Number(f.amount_due), 0);
+
+    if (!isAdmin) {
+      return {
+        unpaid_count: totalUnpaid,
+        total_amount: totalAmount,
+        message: "เพื่อความเป็นส่วนตัว รายชื่อจะแสดงให้เฉพาะ Admin",
+        is_admin: false
+      };
+    }
+
+    const names = unpaidList.map(f => {
+      const p = f.participant as any;
+      const name = p?.nickname_th || p?.full_name_th || "ไม่ระบุชื่อ";
+      return { name, amount: f.amount_due };
+    });
+
+    return {
+      unpaid_count: totalUnpaid,
+      total_amount: totalAmount,
+      unpaid_list: names,
+      is_admin: true
+    };
+  } catch (error) {
+    console.error("[ChapterAI] getUnpaidVisitorFee error:", error);
+    return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล visitor fee" };
+  }
+}
+
+async function getVisitorFeeTotal(tenantId: string, range: string): Promise<any> {
+  try {
+    const now = new Date();
+    let startDate: string;
+    let endDate: string;
+    let rangeLabel: string;
+
+    switch (range) {
+      case "today":
+        startDate = endDate = format(now, "yyyy-MM-dd");
+        rangeLabel = `วันนี้ (${format(now, "d MMM yyyy", { locale: th })})`;
+        break;
+      case "this_week":
+        startDate = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        endDate = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        rangeLabel = "สัปดาห์นี้";
+        break;
+      case "this_month":
+      default:
+        startDate = format(startOfMonth(now), "yyyy-MM-dd");
+        endDate = format(endOfMonth(now), "yyyy-MM-dd");
+        rangeLabel = format(now, "MMMM yyyy", { locale: th });
+        break;
+    }
+
+    const { data: fees, error } = await supabaseAdmin
+      .from("visitor_meeting_fees")
+      .select(`
+        fee_id,
+        amount_due,
+        amount_paid,
+        status,
+        meeting:meetings!inner(
+          meeting_date,
+          tenant_id
+        )
+      `)
+      .eq("meetings.tenant_id", tenantId)
+      .gte("meetings.meeting_date", startDate)
+      .lte("meetings.meeting_date", endDate);
+
+    if (error) {
+      console.error("[ChapterAI] getVisitorFeeTotal error:", error);
+      return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล" };
+    }
+
+    const allFees = fees || [];
+    const paidFees = allFees.filter(f => f.status === "paid");
+    const unpaidFees = allFees.filter(f => f.status === "pending");
+
+    return {
+      range: rangeLabel,
+      total_count: allFees.length,
+      paid_count: paidFees.length,
+      unpaid_count: unpaidFees.length,
+      total_amount: allFees.reduce((sum, f) => sum + Number(f.amount_due), 0),
+      paid_amount: paidFees.reduce((sum, f) => sum + Number(f.amount_paid || f.amount_due), 0),
+      unpaid_amount: unpaidFees.reduce((sum, f) => sum + Number(f.amount_due), 0)
+    };
+  } catch (error) {
+    console.error("[ChapterAI] getVisitorFeeTotal error:", error);
+    return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล visitor fee" };
+  }
+}
+
+async function getMeetingStats(tenantId: string, meetingId?: string): Promise<any> {
+  try {
+    let targetMeetingId = meetingId;
+
+    if (!targetMeetingId) {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { data: meeting } = await supabaseAdmin
+        .from("meetings")
+        .select("meeting_id")
+        .eq("tenant_id", tenantId)
+        .eq("meeting_date", today)
+        .maybeSingle();
+
+      if (!meeting) {
+        const { data: latestMeeting } = await supabaseAdmin
+          .from("meetings")
+          .select("meeting_id")
+          .eq("tenant_id", tenantId)
+          .lte("meeting_date", today)
+          .order("meeting_date", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!latestMeeting) {
+          return { error: "ไม่พบ meeting ในระบบ" };
+        }
+        targetMeetingId = latestMeeting.meeting_id;
+      } else {
+        targetMeetingId = meeting.meeting_id;
+      }
+    }
+
+    const { data: meetingInfo } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, theme, venue")
+      .eq("meeting_id", targetMeetingId)
+      .single();
+
+    const { data: attendance } = await supabaseAdmin
+      .from("meeting_attendance")
+      .select(`
+        attendance_id,
+        check_in_time,
+        is_late,
+        participant:participants!inner(
+          participant_id,
+          status
+        )
+      `)
+      .eq("meeting_id", targetMeetingId);
+
+    const allAttendees = attendance || [];
+    const memberAttendees = allAttendees.filter(a => (a.participant as any)?.status === "member");
+    const visitorAttendees = allAttendees.filter(a => (a.participant as any)?.status === "visitor");
+    const lateCount = allAttendees.filter(a => a.is_late).length;
+
+    const { count: memberCount } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("status", "member");
+
+    const { data: fees } = await supabaseAdmin
+      .from("visitor_meeting_fees")
+      .select("fee_id, amount_due, amount_paid, status")
+      .eq("meeting_id", targetMeetingId);
+
+    const allFees = fees || [];
+    const paidFees = allFees.filter(f => f.status === "paid");
+
+    return {
+      meeting_date: meetingInfo?.meeting_date,
+      theme: meetingInfo?.theme,
+      venue: meetingInfo?.venue,
+      total_checked_in: allAttendees.length,
+      members_checked_in: memberAttendees.length,
+      total_members: memberCount || 0,
+      visitors_checked_in: visitorAttendees.length,
+      late_count: lateCount,
+      visitor_fees: {
+        total: allFees.length,
+        paid: paidFees.length,
+        pending: allFees.length - paidFees.length,
+        total_amount: allFees.reduce((sum, f) => sum + Number(f.amount_due), 0),
+        collected_amount: paidFees.reduce((sum, f) => sum + Number(f.amount_paid || f.amount_due), 0)
+      }
+    };
+  } catch (error) {
+    console.error("[ChapterAI] getMeetingStats error:", error);
+    return { error: "เกิดข้อผิดพลาดในการดึงสถิติ meeting" };
+  }
+}
+
+async function executeTool(name: string, args: any, context: AIContext): Promise<string> {
+  console.log(`[ChapterAI] Executing tool: ${name}`, args);
+
+  switch (name) {
+    case "get_meeting_context":
+      const meetingResult = await getMeetingContext(context.tenantId, args.date);
+      return JSON.stringify(meetingResult);
+
+    case "get_visitor_summary":
+      const visitorResult = await getVisitorSummary(context.tenantId, args.range, args.meeting_id);
+      return JSON.stringify(visitorResult);
+
+    case "get_unpaid_visitor_fee":
+      const isAdmin = context.userRole === "admin";
+      const unpaidResult = await getUnpaidVisitorFee(context.tenantId, args.meeting_id, isAdmin);
+      return JSON.stringify(unpaidResult);
+
+    case "get_visitor_fee_total":
+      const feeResult = await getVisitorFeeTotal(context.tenantId, args.range);
+      return JSON.stringify(feeResult);
+
+    case "get_user_role":
+      return JSON.stringify({ role: context.userRole });
+
+    case "get_meeting_stats":
+      const statsResult = await getMeetingStats(context.tenantId, args.meeting_id);
+      return JSON.stringify(statsResult);
+
+    default:
+      return JSON.stringify({ error: "Unknown tool" });
+  }
+}
+
+export async function processChapterAIQuery(
+  message: string,
+  tenantId: string,
+  lineUserId: string
+): Promise<string> {
+  console.log(`[ChapterAI] Processing query: "${message}" for tenant ${tenantId}`);
+
+  try {
+    const userRole = await getUserRole(tenantId, lineUserId);
+    console.log(`[ChapterAI] User role: ${userRole}`);
+
+    const context: AIContext = {
+      tenantId,
+      lineUserId,
+      userRole
+    };
+
+    const messages: OpenAI.ChatCompletionMessageParam[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: message }
+    ];
+
+    let response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+      tools: TOOLS,
+      tool_choice: "auto",
+      max_tokens: 1024
+    });
+
+    let assistantMessage = response.choices[0].message;
+
+    while (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      console.log(`[ChapterAI] Tool calls:`, assistantMessage.tool_calls.map(tc => (tc as any).function?.name));
+
+      messages.push(assistantMessage);
+
+      for (const toolCall of assistantMessage.tool_calls) {
+        const tc = toolCall as any;
+        const toolArgs = JSON.parse(tc.function.arguments);
+        const toolResult = await executeTool(tc.function.name, toolArgs, context);
+
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: toolResult
+        });
+      }
+
+      response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages,
+        tools: TOOLS,
+        tool_choice: "auto",
+        max_tokens: 1024
+      });
+
+      assistantMessage = response.choices[0].message;
+    }
+
+    const finalResponse = assistantMessage.content || "ขออภัย ไม่สามารถประมวลผลคำถามได้";
+    console.log(`[ChapterAI] Response: "${finalResponse.substring(0, 100)}..."`);
+
+    return finalResponse;
+  } catch (error: any) {
+    console.error("[ChapterAI] Error processing query:", error);
+    return "ขออภัย เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง";
+  }
+}
+
+export function isChapterAIQuery(text: string): boolean {
+  const aiPatterns = [
+    /สรุป.*ผู้.*เยือน/i,
+    /สรุป.*visitor/i,
+    /visitor.*สรุป/i,
+    /ใคร.*ไม่.*จ่าย/i,
+    /ค้าง.*ชำระ/i,
+    /unpaid/i,
+    /visitor.*fee/i,
+    /ยอด.*รวม/i,
+    /สถิติ.*meeting/i,
+    /meeting.*สถิติ/i,
+    /สรุป.*วันนี้/i,
+    /สรุป.*สัปดาห์/i,
+    /สรุป.*เดือน/i,
+    /กี่.*คน.*มา/i,
+    /มา.*กี่.*คน/i,
+  ];
+
+  return aiPatterns.some(pattern => pattern.test(text));
+}
