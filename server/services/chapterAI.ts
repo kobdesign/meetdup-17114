@@ -43,7 +43,8 @@ Intent ที่ต้องรองรับ:
 3. unpaid_visitor_fee_today: ใครยังไม่จ่าย visitor fee วันนี้
 4. visitor_fee_total_month: ยอด visitor fee รวมเดือนนี้
 5. meeting_stats: สถิติต่าง ๆ ของ meeting
-6. attendance_query: ใครมา/ไม่มา/สาย - ใช้ get_attendance_insights`;
+6. attendance_query: ใครมา/ไม่มา/สาย - ใช้ get_attendance_insights
+7. member_attendance_check: ถามว่าคนๆหนึ่งมาประชุมไหม เช่น "คุณแคท มาไหม", "พี่โอ๋ เข้าประชุมมั้ย" - ใช้ check_member_attendance`;
 
 const TOOLS: OpenAI.ChatCompletionTool[] = [
   {
@@ -168,6 +169,27 @@ const TOOLS: OpenAI.ChatCompletionTool[] = [
           }
         },
         required: ["focus"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_member_attendance",
+      description: "ตรวจสอบว่าสมาชิกคนใดคนหนึ่งมาประชุมหรือไม่ โดยค้นหาจากชื่อ/ชื่อเล่น เช่น 'คุณแคท มาไหม', 'พี่โอ๋ เข้าประชุมมั้ย'",
+      parameters: {
+        type: "object",
+        properties: {
+          member_name: {
+            type: "string",
+            description: "ชื่อหรือชื่อเล่นของสมาชิกที่ต้องการค้นหา เช่น 'แคท', 'โอ๋', 'สมชาย'"
+          },
+          meeting_id: {
+            type: "string",
+            description: "Meeting ID ที่ต้องการตรวจสอบ (ถ้าไม่ระบุจะใช้ meeting ล่าสุด)"
+          }
+        },
+        required: ["member_name"]
       }
     }
   }
@@ -766,6 +788,135 @@ async function getAttendanceInsights(
   }
 }
 
+async function checkMemberAttendance(
+  tenantId: string,
+  memberName: string,
+  meetingId?: string
+): Promise<any> {
+  try {
+    // Clean the name - remove common prefixes
+    const cleanName = memberName
+      .replace(/^(คุณ|พี่|น้อง|นาย|นาง|นางสาว)\s*/i, "")
+      .trim()
+      .toLowerCase();
+
+    console.log(`[ChapterAI] checkMemberAttendance: searching for "${cleanName}" in tenant ${tenantId}`);
+
+    // Get target meeting
+    let targetMeetingId = meetingId;
+    if (!targetMeetingId) {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { data: latestMeeting } = await supabaseAdmin
+        .from("meetings")
+        .select("meeting_id, meeting_date, theme")
+        .eq("tenant_id", tenantId)
+        .lte("meeting_date", today)
+        .order("meeting_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!latestMeeting) {
+        return { error: "ไม่พบ meeting ในระบบ" };
+      }
+      targetMeetingId = latestMeeting.meeting_id;
+    }
+
+    // Verify meeting belongs to tenant
+    const { data: meetingInfo } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, theme")
+      .eq("meeting_id", targetMeetingId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (!meetingInfo) {
+      return { error: "ไม่พบ meeting ในระบบ" };
+    }
+
+    // Search for member by name (fuzzy match on nickname_th or full_name_th)
+    const { data: allMembers } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th")
+      .eq("tenant_id", tenantId)
+      .eq("status", "member");
+
+    if (!allMembers || allMembers.length === 0) {
+      return { error: "ไม่พบสมาชิกในระบบ" };
+    }
+
+    // Find matching members
+    const matchingMembers = allMembers.filter(m => {
+      const nickname = (m.nickname_th || "").toLowerCase();
+      const fullName = (m.full_name_th || "").toLowerCase();
+      return nickname.includes(cleanName) || 
+             cleanName.includes(nickname) ||
+             fullName.includes(cleanName) ||
+             cleanName.includes(fullName);
+    });
+
+    console.log(`[ChapterAI] checkMemberAttendance: found ${matchingMembers.length} matching members`);
+
+    if (matchingMembers.length === 0) {
+      return {
+        found: false,
+        message: `ไม่พบสมาชิกชื่อ "${memberName}" ในระบบ`,
+        meeting_date: meetingInfo.meeting_date
+      };
+    }
+
+    if (matchingMembers.length > 3) {
+      return {
+        found: false,
+        message: `พบสมาชิกหลายคนที่ชื่อคล้าย "${memberName}" กรุณาระบุชื่อให้ชัดเจนกว่านี้`,
+        matching_count: matchingMembers.length
+      };
+    }
+
+    // Get checkin status for matching members
+    const memberIds = matchingMembers.map(m => m.participant_id);
+    const { data: checkins } = await supabaseAdmin
+      .from("checkins")
+      .select("participant_id, is_late, checkin_time")
+      .eq("meeting_id", targetMeetingId)
+      .in("participant_id", memberIds);
+
+    const checkinMap = new Map((checkins || []).map(c => [c.participant_id, c]));
+
+    // Build results
+    const results = matchingMembers.map(member => {
+      const checkin = checkinMap.get(member.participant_id);
+      const displayName = member.nickname_th || member.full_name_th || "ไม่ระบุชื่อ";
+      
+      if (checkin) {
+        return {
+          name: displayName,
+          status: checkin.is_late ? "มาสาย" : "มาประชุม",
+          checkin_time: checkin.checkin_time,
+          attended: true,
+          late: checkin.is_late
+        };
+      } else {
+        return {
+          name: displayName,
+          status: "ไม่ได้เข้าประชุม",
+          attended: false,
+          late: false
+        };
+      }
+    });
+
+    return {
+      found: true,
+      meeting_date: meetingInfo.meeting_date,
+      theme: meetingInfo.theme,
+      members: results
+    };
+  } catch (error) {
+    console.error("[ChapterAI] checkMemberAttendance error:", error);
+    return { error: "เกิดข้อผิดพลาดในการค้นหาสมาชิก" };
+  }
+}
+
 async function executeTool(name: string, args: any, context: AIContext): Promise<string> {
   console.log(`[ChapterAI] Executing tool: ${name}`, args);
 
@@ -803,6 +954,14 @@ async function executeTool(name: string, args: any, context: AIContext): Promise
         attendanceIsAdmin
       );
       return JSON.stringify(attendanceResult);
+
+    case "check_member_attendance":
+      const memberResult = await checkMemberAttendance(
+        context.tenantId,
+        args.member_name,
+        args.meeting_id
+      );
+      return JSON.stringify(memberResult);
 
     default:
       return JSON.stringify({ error: "Unknown tool" });
