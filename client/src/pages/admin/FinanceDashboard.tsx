@@ -140,6 +140,7 @@ export default function FinanceDashboard() {
   // Save dues config
   const saveConfigMutation = useMutation({
     mutationFn: async () => {
+      const bankName = configForm.bank_name && configForm.bank_name !== "none" ? configForm.bank_name : null;
       return apiRequest("/api/payments/dues-config", "POST", {
         tenant_id: tenantId,
         monthly_amount: parseFloat(configForm.monthly_amount) || 0,
@@ -147,7 +148,7 @@ export default function FinanceDashboard() {
         grace_period_days: parseInt(configForm.grace_period_days) || 7,
         promptpay_number: configForm.promptpay_number || null,
         promptpay_name: configForm.promptpay_name || null,
-        bank_name: configForm.bank_name || null,
+        bank_name: bankName,
         bank_account_number: configForm.bank_account_number || null,
         bank_account_name: configForm.bank_account_name || null,
       });
@@ -471,7 +472,7 @@ export default function FinanceDashboard() {
                                   <SelectValue placeholder="เลือกธนาคาร" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">ไม่ระบุ</SelectItem>
+                                  <SelectItem value="none">ไม่ระบุ</SelectItem>
                                   <SelectItem value="SCB">ไทยพาณิชย์ (SCB)</SelectItem>
                                   <SelectItem value="KBANK">กสิกรไทย (KBANK)</SelectItem>
                                   <SelectItem value="BBL">กรุงเทพ (BBL)</SelectItem>
