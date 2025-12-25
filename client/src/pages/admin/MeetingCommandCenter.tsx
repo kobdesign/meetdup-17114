@@ -317,21 +317,26 @@ export default function MeetingCommandCenter() {
         return;
       }
 
+      const requestBody = {
+        meeting_id: selectedMeetingId,
+        participant_id: participantId,
+        is_late: isLate,
+        expected_tenant_id: effectiveTenantId
+      };
+      console.log("[handleCheckin] Request:", requestBody);
+
       const response = await fetch("/api/pos-manual-checkin", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({
-          meeting_id: selectedMeetingId,
-          participant_id: participantId,
-          is_late: isLate,
-          expected_tenant_id: effectiveTenantId
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
+      console.log("[handleCheckin] Response:", data);
+      
       if (data.success) {
         toast.success(isLate ? "บันทึกการมาสายสำเร็จ" : "เช็คอินสำเร็จ");
         setParticipants(prev => prev.map(p => 
@@ -340,9 +345,11 @@ export default function MeetingCommandCenter() {
             : p
         ));
       } else {
+        console.log("[handleCheckin] Error from API:", data.error);
         toast.error(data.error || "เกิดข้อผิดพลาด");
       }
     } catch (error) {
+      console.error("[handleCheckin] Exception:", error);
       toast.error("เกิดข้อผิดพลาดในการเช็คอิน");
     } finally {
       setActionLoading(null);
