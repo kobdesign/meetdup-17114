@@ -31,6 +31,9 @@ interface DuesConfig {
   grace_period_days: number;
   promptpay_number: string | null;
   promptpay_name: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_name: string | null;
   is_active: boolean;
 }
 
@@ -79,6 +82,9 @@ export default function FinanceDashboard() {
     grace_period_days: "7",
     promptpay_number: "",
     promptpay_name: "",
+    bank_name: "",
+    bank_account_number: "",
+    bank_account_name: "",
   });
 
   // Fetch dues config
@@ -141,6 +147,9 @@ export default function FinanceDashboard() {
         grace_period_days: parseInt(configForm.grace_period_days) || 7,
         promptpay_number: configForm.promptpay_number || null,
         promptpay_name: configForm.promptpay_name || null,
+        bank_name: configForm.bank_name || null,
+        bank_account_number: configForm.bank_account_number || null,
+        bank_account_name: configForm.bank_account_name || null,
       });
     },
     onSuccess: () => {
@@ -332,22 +341,26 @@ export default function FinanceDashboard() {
                   ) : (
                     <>
                       <div className="flex-1">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                           <div>
                             <p className="text-muted-foreground">ค่ารายเดือน</p>
                             <p className="font-medium">{config.monthly_amount.toLocaleString()} บาท</p>
                           </div>
                           <div>
                             <p className="text-muted-foreground">วันครบกำหนด</p>
-                            <p className="font-medium">วันที่ {config.due_day_of_month} ของเดือน</p>
+                            <p className="font-medium">วันที่ {config.due_day_of_month}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">ระยะผ่อนผัน</p>
+                            <p className="text-muted-foreground">ผ่อนผัน</p>
                             <p className="font-medium">{config.grace_period_days} วัน</p>
                           </div>
                           <div>
                             <p className="text-muted-foreground">PromptPay</p>
                             <p className="font-medium">{config.promptpay_number || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">ธนาคาร</p>
+                            <p className="font-medium">{config.bank_name ? `${config.bank_name}` : "-"}</p>
                           </div>
                         </div>
                       </div>
@@ -361,6 +374,9 @@ export default function FinanceDashboard() {
                         grace_period_days: config ? String(config.grace_period_days) : "7",
                         promptpay_number: config?.promptpay_number || "",
                         promptpay_name: config?.promptpay_name || "",
+                        bank_name: config?.bank_name || "",
+                        bank_account_number: config?.bank_account_number || "",
+                        bank_account_name: config?.bank_account_name || "",
                       });
                     }
                     setConfigDialogOpen(open);
@@ -440,6 +456,54 @@ export default function FinanceDashboard() {
                             onChange={(e) => setConfigForm({ ...configForm, promptpay_name: e.target.value })}
                             data-testid="input-promptpay-name"
                           />
+                        </div>
+                        
+                        <div className="pt-2 border-t">
+                          <p className="text-sm font-medium mb-3">บัญชีธนาคาร (ทางเลือก)</p>
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <Label htmlFor="bank_name">ธนาคาร</Label>
+                              <Select
+                                value={configForm.bank_name}
+                                onValueChange={(v) => setConfigForm({ ...configForm, bank_name: v })}
+                              >
+                                <SelectTrigger data-testid="select-bank">
+                                  <SelectValue placeholder="เลือกธนาคาร" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">ไม่ระบุ</SelectItem>
+                                  <SelectItem value="SCB">ไทยพาณิชย์ (SCB)</SelectItem>
+                                  <SelectItem value="KBANK">กสิกรไทย (KBANK)</SelectItem>
+                                  <SelectItem value="BBL">กรุงเทพ (BBL)</SelectItem>
+                                  <SelectItem value="KTB">กรุงไทย (KTB)</SelectItem>
+                                  <SelectItem value="TMB">ทหารไทยธนชาต (TTB)</SelectItem>
+                                  <SelectItem value="BAY">กรุงศรี (BAY)</SelectItem>
+                                  <SelectItem value="GSB">ออมสิน (GSB)</SelectItem>
+                                  <SelectItem value="BAAC">ธ.ก.ส. (BAAC)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="bank_account_number">เลขบัญชี</Label>
+                              <Input
+                                id="bank_account_number"
+                                placeholder="xxx-x-xxxxx-x"
+                                value={configForm.bank_account_number}
+                                onChange={(e) => setConfigForm({ ...configForm, bank_account_number: e.target.value })}
+                                data-testid="input-bank-account-number"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="bank_account_name">ชื่อบัญชี</Label>
+                              <Input
+                                id="bank_account_name"
+                                placeholder="ชื่อ-นามสกุล"
+                                value={configForm.bank_account_name}
+                                onChange={(e) => setConfigForm({ ...configForm, bank_account_name: e.target.value })}
+                                data-testid="input-bank-account-name"
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <DialogFooter>

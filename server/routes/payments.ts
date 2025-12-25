@@ -47,6 +47,9 @@ router.post("/dues-config", async (req: Request, res: Response) => {
     grace_period_days,
     promptpay_number,
     promptpay_name,
+    bank_name,
+    bank_account_number,
+    bank_account_name,
     reminder_days_before,
   } = req.body;
 
@@ -67,6 +70,9 @@ router.post("/dues-config", async (req: Request, res: Response) => {
         grace_period_days: grace_period_days || 7,
         promptpay_number,
         promptpay_name,
+        bank_name,
+        bank_account_number,
+        bank_account_name,
         reminder_days_before: reminder_days_before || [3, 0, -7],
         is_active: true,
       })
