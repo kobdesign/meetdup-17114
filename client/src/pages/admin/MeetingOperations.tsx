@@ -614,9 +614,19 @@ export default function MeetingOperations() {
     setScanResult(null);
     
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        setValidatingQr(false);
+        return;
+      }
+
       const response = await fetch("/api/pos-checkin", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({ 
           token: scannedData,
           meeting_id: selectedMeetingId
@@ -1001,14 +1011,23 @@ export default function MeetingOperations() {
                       level="H"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <Button onClick={downloadQRCode} size="sm" data-testid="button-download-qr">
                       <Download className="mr-1 h-4 w-4" />
                       ดาวน์โหลด
                     </Button>
                     <Button onClick={copyCheckinLink} variant="outline" size="sm" data-testid="button-copy-link">
                       <Copy className="mr-1 h-4 w-4" />
-                      คัดลอกลิงก์
+                      คัดลอก
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => window.open(checkinUrl, "_blank")}
+                      data-testid="button-open-checkin"
+                    >
+                      <ExternalLink className="mr-1 h-4 w-4" />
+                      เปิด
                     </Button>
                   </div>
                 </CardContent>
@@ -1225,8 +1244,20 @@ export default function MeetingOperations() {
               <Card className="h-full">
                 <CardHeader className="pb-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <CardTitle className="text-base">รายชื่อผู้เข้าร่วม</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base">รายชื่อผู้เข้าร่วม</CardTitle>
+                      <span className="text-xs text-muted-foreground">({filteredParticipants.length})</span>
+                    </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={selectAllFiltered}
+                        disabled={filteredParticipants.length === 0}
+                        data-testid="button-select-all"
+                      >
+                        เลือกทั้งหมด
+                      </Button>
                       <div className="relative">
                         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
