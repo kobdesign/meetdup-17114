@@ -64,6 +64,13 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - **Event RSVP System**: Meeting notification with RSVP buttons (Confirm, Substitute, Leave). Data stored in `meeting_rsvp` table with statuses: pending, confirmed, declined, leave. Leave flow captures reason via Quick Reply options or free-text input.
 - **RSVP Summary in Admin**: Meeting Details page displays RSVP responses grouped by status (Confirmed=green, Leave=orange, Substitute/Declined=blue, Pending=gray) with participant names, companies, and leave reasons. Data fetched via API endpoint `/api/notifications/rsvp/:meetingId` using supabaseAdmin to bypass RLS.
 
+- **Payment Tracking System**: Comprehensive payment tracking for member monthly dues with:
+    - **Database Schema**: `chapter_dues_config` (chapter settings), `member_dues` (monthly records per member), `visitor_meeting_fees` (visitor payments), `payment_submissions` (slip upload workflow)
+    - **Finance Dashboard** (`/admin/finance`): KPI cards (total members, outstanding, collected, overdue count), dues config dialog with PromptPay settings, member dues list with filter, bulk mark paid
+    - **API Endpoints** (`server/routes/payments.ts`): GET/POST dues-config, GET member-dues-summary, POST generate dues, POST bulk-mark-paid
+    - **Phase 1 Flow**: PromptPay QR → Admin approval (free, no transaction fees)
+    - **Planned**: Member self-service payment submission, LINE Bot payment reminders
+
 ### Future Improvements (TODO)
 - **Substitute Flow Enhancement**: Add `substitute_participant_id` column to `meeting_rsvp` table and update status constraint to include "substitute" value. LIFF form submission should sync back to `meeting_rsvp` with substitute details.
 
