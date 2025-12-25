@@ -134,16 +134,12 @@ export default function MeetingOperations() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
-  const [activeOperationTab, setActiveOperationTab] = useState<"scanner" | "search" | "walkin">("scanner");
+  const [activeOperationTab, setActiveOperationTab] = useState<"scanner" | "visitor" | "walkin">("scanner");
   const [scannerActive, setScannerActive] = useState(false);
   const [validatingQr, setValidatingQr] = useState(false);
   const [scanResult, setScanResult] = useState<{success: boolean; message: string; name?: string} | null>(null);
   
-  const [manualSearchQuery, setManualSearchQuery] = useState("");
-  const [manualSearchResults, setManualSearchResults] = useState<ParticipantSearchResult[]>([]);
-  const [manualSearchLoading, setManualSearchLoading] = useState(false);
-  const [checkingIn, setCheckingIn] = useState(false);
-
+  
   const [pendingSubstitutes, setPendingSubstitutes] = useState<SubstituteRequest[]>([]);
   const [confirmingSubId, setConfirmingSubId] = useState<string | null>(null);
 
@@ -166,8 +162,6 @@ export default function MeetingOperations() {
     if (effectiveTenantId) {
       loadMeetings();
     }
-    setManualSearchQuery("");
-    setManualSearchResults([]);
     setWalkinMemberSearch("");
     setWalkinMemberResults([]);
     setScanResult(null);
@@ -178,8 +172,6 @@ export default function MeetingOperations() {
       loadParticipantsWithStatus();
       loadPendingSubstitutes();
     }
-    setManualSearchQuery("");
-    setManualSearchResults([]);
     setScanResult(null);
   }, [selectedMeetingId]);
 
@@ -737,70 +729,6 @@ export default function MeetingOperations() {
     } finally {
       setValidatingQr(false);
       setTimeout(() => setScanResult(null), 3000);
-    }
-  };
-
-  const handleManualSearch = async () => {
-    if (!manualSearchQuery.trim() || !selectedMeetingId || !effectiveTenantId) return;
-    
-    setManualSearchLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
-
-      const response = await fetch(`/api/participants/pos-search?query=${encodeURIComponent(manualSearchQuery)}&tenant_id=${effectiveTenantId}&meeting_id=${selectedMeetingId}`, {
-        headers: { "Authorization": `Bearer ${session.access_token}` }
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setManualSearchResults(data.participants || []);
-      }
-    } catch (error) {
-      console.error("Search error:", error);
-    } finally {
-      setManualSearchLoading(false);
-    }
-  };
-
-  const handleManualCheckin = async (participant: ParticipantSearchResult) => {
-    if (!selectedMeetingId) return;
-    setCheckingIn(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast.error("กรุณาเข้าสู่ระบบใหม่");
-        return;
-      }
-
-      const response = await fetch("/api/participants/pos-manual-checkin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          meeting_id: selectedMeetingId,
-          participant_id: participant.participant_id,
-          is_late: false,
-          expected_tenant_id: effectiveTenantId
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        toast.success(`เช็คอินสำเร็จ: ${participant.full_name_th}`);
-        setManualSearchResults([]);
-        setManualSearchQuery("");
-        await loadParticipantsWithStatus();
-      } else {
-        toast.error(data.error || "เกิดข้อผิดพลาด");
-      }
-    } catch (error) {
-      toast.error("เกิดข้อผิดพลาดในการเช็คอิน");
-    } finally {
-      setCheckingIn(false);
     }
   };
 
@@ -1415,9 +1343,9 @@ export default function MeetingOperations() {
                         <Camera className="h-3 w-3 mr-1" />
                         สแกน
                       </TabsTrigger>
-                      <TabsTrigger value="search" className="text-xs" data-testid="tab-search">
-                        <Search className="h-3 w-3 mr-1" />
-                        ค้นหา
+                      <TabsTrigger value="visitor" className="text-xs" data-testid="tab-visitor">
+                        <UserPlus className="h-3 w-3 mr-1" />
+                        Visitor
                       </TabsTrigger>
                       <TabsTrigger value="walkin" className="text-xs" data-testid="tab-walkin">
                         <UserPlus className="h-3 w-3 mr-1" />
@@ -1472,67 +1400,23 @@ export default function MeetingOperations() {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="search" className="mt-3">
+                    <TabsContent value="visitor" className="mt-3">
                       <div className="space-y-3">
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="ชื่อ, เบอร์โทร..."
-                            value={manualSearchQuery}
-                            onChange={(e) => setManualSearchQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleManualSearch()}
-                            data-testid="input-manual-search"
-                          />
-                          <Button onClick={handleManualSearch} disabled={manualSearchLoading} data-testid="button-search">
-                            {manualSearchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                          </Button>
-                        </div>
-                        {manualSearchResults.length > 0 && (
-                          <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                            {manualSearchResults.map((p) => (
-                              <div key={p.participant_id} className="flex items-center justify-between p-2 border rounded-lg">
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarImage src={p.photo_url || undefined} />
-                                    <AvatarFallback>{getInitials(p.full_name_th)}</AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <p className="text-sm font-medium">{p.nickname_th ? `${p.nickname_th} (${p.full_name_th})` : p.full_name_th}</p>
-                                    <p className="text-xs text-muted-foreground">{p.company}</p>
-                                  </div>
-                                </div>
-                                {p.already_checked_in ? (
-                                  <Badge variant="secondary">เช็คอินแล้ว</Badge>
-                                ) : (
-                                  <Button 
-                                    size="sm" 
-                                    onClick={() => handleManualCheckin(p)}
-                                    disabled={checkingIn}
-                                    data-testid={`button-checkin-${p.participant_id}`}
-                                  >
-                                    {checkingIn ? <Loader2 className="h-3 w-3 animate-spin" /> : "เช็คอิน"}
-                                  </Button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="walkin" className="mt-3">
-                      <div className="space-y-3">
-                        <div className="p-3 border rounded-lg bg-muted/50">
-                          <p className="text-xs font-medium text-muted-foreground mb-2">ลงทะเบียน Visitor Walk-in</p>
+                        <div className="text-center py-4">
+                          <p className="text-sm text-muted-foreground mb-3">ลงทะเบียน Visitor ที่มาโดยไม่ได้ลงทะเบียนล่วงหน้า</p>
                           <Button 
-                            className="w-full" 
-                            variant="outline"
                             onClick={() => setVisitorRegDialogOpen(true)}
-                            data-testid="button-visitor-walkin-register"
+                            data-testid="button-visitor-register"
                           >
                             <UserPlus className="h-4 w-4 mr-2" />
                             ลงทะเบียน Visitor ใหม่
                           </Button>
                         </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="walkin" className="mt-3">
+                      <div className="space-y-3">
                         {pendingSubstitutes.length > 0 && (
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-muted-foreground">รอยืนยัน ({pendingSubstitutes.length})</p>

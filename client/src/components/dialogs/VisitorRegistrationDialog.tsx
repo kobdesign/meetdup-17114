@@ -241,8 +241,8 @@ export default function VisitorRegistrationDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate required fields only (meeting is optional now)
-    if (!formData.full_name_th || !formData.email || !formData.phone) {
+    // Validate required fields only (meeting and email are optional)
+    if (!formData.full_name_th || !formData.phone) {
       toast.error("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
       return;
     }
@@ -534,13 +534,12 @@ export default function VisitorRegistrationDialog({
           </div>
 
           <div>
-            <Label htmlFor="email">อีเมล *</Label>
+            <Label htmlFor="email">อีเมล (ไม่บังคับ)</Label>
             <Input
               id="email"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
               placeholder="example@email.com"
             />
           </div>
