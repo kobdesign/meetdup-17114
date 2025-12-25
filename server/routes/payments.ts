@@ -451,7 +451,7 @@ router.post("/visitor-fees/generate", async (req: Request, res: Response) => {
       return res.json({ success: true, data: [], count: 0 });
     }
 
-    // Generate fee records
+    // Generate fee records only for participants who don't have a fee record yet
     const feeRecords = registrations.map((r) => ({
       tenant_id: meeting.tenant_id,
       meeting_id,
@@ -460,9 +460,10 @@ router.post("/visitor-fees/generate", async (req: Request, res: Response) => {
       status: "pending",
     }));
 
+    // Use ignoreDuplicates to not overwrite existing records (preserves paid status)
     const { data, error } = await supabaseAdmin
       .from("visitor_meeting_fees")
-      .upsert(feeRecords, { onConflict: "meeting_id,participant_id" })
+      .upsert(feeRecords, { onConflict: "meeting_id,participant_id", ignoreDuplicates: true })
       .select();
 
     if (error) {
