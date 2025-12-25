@@ -1322,6 +1322,24 @@ router.post("/walkin-substitute", verifySupabaseAuth, async (req: AuthenticatedR
       normalizedPhone = "0" + normalizedPhone.slice(2);
     }
 
+    // Check if member already has a confirmed substitute for this meeting
+    if (member_participant_id) {
+      const { data: existingSub } = await supabaseAdmin
+        .from("substitute_requests")
+        .select("request_id")
+        .eq("meeting_id", meeting_id)
+        .eq("member_participant_id", member_participant_id)
+        .eq("status", "confirmed")
+        .single();
+
+      if (existingSub) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "สมาชิกนี้มีตัวแทนในการประชุมนี้แล้ว" 
+        });
+      }
+    }
+
     // Create walk-in substitute request and immediately confirm it
     const now = new Date().toISOString();
     const { data: newRequest, error: insertError } = await supabaseAdmin

@@ -151,7 +151,7 @@ export default function MeetingOperations() {
   const [walkinEmail, setWalkinEmail] = useState("");
   const [walkinMemberId, setWalkinMemberId] = useState("");
   const [walkinMemberSearch, setWalkinMemberSearch] = useState("");
-  const [walkinMemberResults, setWalkinMemberResults] = useState<{participant_id: string; full_name_th: string; nickname_th?: string; phone?: string; status: string}[]>([]);
+  const [walkinMemberResults, setWalkinMemberResults] = useState<{participant_id: string; full_name_th: string; nickname_th?: string; phone?: string; status: string; has_substitute?: boolean}[]>([]);
   const [walkinSearching, setWalkinSearching] = useState(false);
   const [walkinSubmitting, setWalkinSubmitting] = useState(false);
   const [closingOntime, setClosingOntime] = useState(false);
@@ -811,7 +811,25 @@ export default function MeetingOperations() {
         .limit(10);
 
       if (error) throw error;
-      setWalkinMemberResults(data || []);
+
+      const memberIds = (data || []).map(m => m.participant_id);
+      let existingSubMap = new Set<string>();
+      if (memberIds.length > 0 && selectedMeetingId) {
+        const { data: subs } = await (supabase as any)
+          .from("substitute_requests")
+          .select("member_participant_id")
+          .eq("meeting_id", selectedMeetingId)
+          .eq("status", "confirmed")
+          .in("member_participant_id", memberIds);
+        (subs || []).forEach((s: any) => existingSubMap.add(s.member_participant_id));
+      }
+
+      const resultsWithSubStatus = (data || []).map(m => ({
+        ...m,
+        has_substitute: existingSubMap.has(m.participant_id)
+      }));
+
+      setWalkinMemberResults(resultsWithSubStatus);
     } catch (error) {
       console.error("Search error:", error);
     } finally {
@@ -1268,6 +1286,7 @@ export default function MeetingOperations() {
                                 <Badge variant={p.status === "member" ? "default" : "secondary"} className="text-[10px]">
                                   {p.status === "member" ? "สมาชิก" : "ผู้เยี่ยมชม"}
                                 </Badge>
+                                {p.substitute_name && <Badge variant="outline" className="text-[10px] text-purple-600 border-purple-300">ส่งตัวแทน</Badge>}
                                 {p.is_late && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">สาย</Badge>}
                                 {p.fee_status === "paid" && <Badge variant="outline" className="text-[10px] text-green-600 border-green-300">จ่ายแล้ว</Badge>}
                                 {p.fee_status === "pending" && <Badge variant="outline" className="text-[10px] text-red-600 border-red-300">ค้างจ่าย</Badge>}
@@ -1520,14 +1539,18 @@ export default function MeetingOperations() {
                                   variant={walkinMemberId === m.participant_id ? "default" : "outline"}
                                   size="sm"
                                   className="w-full justify-start text-xs"
+                                  disabled={m.has_substitute}
                                   onClick={() => {
-                                    setWalkinMemberId(m.participant_id);
-                                    setWalkinMemberSearch(m.nickname_th || m.full_name_th);
-                                    setWalkinMemberResults([]);
+                                    if (!m.has_substitute) {
+                                      setWalkinMemberId(m.participant_id);
+                                      setWalkinMemberSearch(m.nickname_th || m.full_name_th);
+                                      setWalkinMemberResults([]);
+                                    }
                                   }}
                                   data-testid={`button-select-member-${m.participant_id}`}
                                 >
-                                  {m.nickname_th || m.full_name_th}
+                                  {m.nickname_th ? `${m.nickname_th} (${m.full_name_th})` : m.full_name_th}
+                                  {m.has_substitute && <Badge variant="secondary" className="ml-2 text-[10px]">มีตัวแทนแล้ว</Badge>}
                                 </Button>
                               ))}
                             </div>
