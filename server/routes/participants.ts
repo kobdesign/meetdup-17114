@@ -5596,4 +5596,131 @@ router.post("/generate-checkin-qr", verifySupabaseAuth, async (req: Authenticate
   }
 });
 
+/**
+ * Cancel/Delete a check-in record
+ * Used when admin needs to undo a check-in
+ */
+router.delete("/checkin", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[delete-checkin:${requestId}]`;
+  
+  try {
+    const { meeting_id, participant_id, expected_tenant_id } = req.body;
+    const userId = req.user?.id;
+    
+    console.log(`${logPrefix} Delete checkin request from user:`, userId);
+    
+    if (!meeting_id || !participant_id || !expected_tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+    
+    // Verify user has admin access to this tenant
+    const hasAccess = await checkTenantAccess(userId!, expected_tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        error: "ไม่มีสิทธิ์เข้าถึง Chapter นี้"
+      });
+    }
+    
+    // Delete the checkin record
+    const { error: deleteError } = await supabaseAdmin
+      .from("checkins")
+      .delete()
+      .eq("meeting_id", meeting_id)
+      .eq("participant_id", participant_id)
+      .eq("tenant_id", expected_tenant_id);
+    
+    if (deleteError) {
+      console.error(`${logPrefix} Delete failed:`, deleteError);
+      return res.status(500).json({
+        success: false,
+        error: "ไม่สามารถลบการเช็คอินได้"
+      });
+    }
+    
+    console.log(`${logPrefix} Checkin deleted for participant:`, participant_id);
+    
+    return res.json({
+      success: true,
+      message: "ยกเลิกการเช็คอินสำเร็จ"
+    });
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "เกิดข้อผิดพลาดในการยกเลิกเช็คอิน"
+    });
+  }
+});
+
+/**
+ * Update check-in status (is_late toggle)
+ * Used when admin needs to change late status
+ */
+router.patch("/checkin", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[update-checkin:${requestId}]`;
+  
+  try {
+    const { meeting_id, participant_id, expected_tenant_id, is_late } = req.body;
+    const userId = req.user?.id;
+    
+    console.log(`${logPrefix} Update checkin request from user:`, userId);
+    
+    if (!meeting_id || !participant_id || !expected_tenant_id || typeof is_late !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+    
+    // Verify user has admin access to this tenant
+    const hasAccess = await checkTenantAccess(userId!, expected_tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        error: "ไม่มีสิทธิ์เข้าถึง Chapter นี้"
+      });
+    }
+    
+    // Update the checkin record
+    const { data: checkin, error: updateError } = await supabaseAdmin
+      .from("checkins")
+      .update({ is_late })
+      .eq("meeting_id", meeting_id)
+      .eq("participant_id", participant_id)
+      .eq("tenant_id", expected_tenant_id)
+      .select()
+      .single();
+    
+    if (updateError) {
+      console.error(`${logPrefix} Update failed:`, updateError);
+      return res.status(500).json({
+        success: false,
+        error: "ไม่สามารถอัปเดตสถานะได้"
+      });
+    }
+    
+    console.log(`${logPrefix} Checkin updated, is_late:`, is_late);
+    
+    return res.json({
+      success: true,
+      checkin,
+      message: is_late ? "เปลี่ยนเป็นสายแล้ว" : "เปลี่ยนเป็นตรงเวลาแล้ว"
+    });
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "เกิดข้อผิดพลาดในการอัปเดต"
+    });
+  }
+});
+
 export default router;

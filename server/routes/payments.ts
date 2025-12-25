@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { createClient } from "@supabase/supabase-js";
+import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 
 const router = Router();
 
@@ -728,6 +729,74 @@ router.patch("/submissions/:submissionId/reject", async (req: Request, res: Resp
     return res.json({ success: true, data });
   } catch (err: any) {
     console.error("Error in reject submission:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================
+// Unmark Payment (Undo paid status)
+// ============================================
+
+// POST /api/payments/visitor-fees/:feeId/unmark-paid (authenticated with tenant verification)
+router.post("/visitor-fees/:feeId/unmark-paid", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { feeId } = req.params;
+  const { expected_tenant_id } = req.body;
+  const userId = req.user?.id;
+
+  console.log(`[unmark-paid] Request from user: ${userId} for fee: ${feeId}`);
+
+  try {
+    // First verify the fee exists and belongs to the expected tenant
+    const { data: fee, error: feeError } = await supabaseAdmin
+      .from("visitor_meeting_fees")
+      .select("fee_id, tenant_id")
+      .eq("fee_id", feeId)
+      .single();
+
+    if (feeError || !fee) {
+      return res.status(404).json({ success: false, error: "ไม่พบข้อมูลค่าธรรมเนียม" });
+    }
+
+    // Verify tenant access - fee must belong to the expected tenant
+    if (expected_tenant_id && fee.tenant_id !== expected_tenant_id) {
+      console.log(`[unmark-paid] Tenant mismatch: fee.tenant_id=${fee.tenant_id}, expected=${expected_tenant_id}`);
+      return res.status(403).json({ success: false, error: "ไม่มีสิทธิ์เข้าถึงข้อมูลนี้" });
+    }
+
+    // Verify user has admin access to this tenant
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("tenant_id", fee.tenant_id)
+      .in("role", ["super_admin", "chapter_admin"])
+      .single();
+
+    if (!userRole) {
+      return res.status(403).json({ success: false, error: "ไม่มีสิทธิ์ดำเนินการ" });
+    }
+
+    // Now safe to update
+    const { data, error } = await supabaseAdmin
+      .from("visitor_meeting_fees")
+      .update({
+        amount_paid: 0,
+        status: "pending",
+        paid_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("fee_id", feeId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error unmarking visitor fee:", error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    return res.json({ success: true, data, message: "ยกเลิกการจ่ายเงินสำเร็จ" });
+  } catch (err: any) {
+    console.error("Error in unmark visitor fee paid:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });

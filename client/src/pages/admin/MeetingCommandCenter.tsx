@@ -28,7 +28,9 @@ import {
   Camera,
   XCircle,
   QrCode,
-  Download
+  Download,
+  Undo2,
+  RotateCcw
 } from "lucide-react";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -423,6 +425,121 @@ export default function MeetingCommandCenter() {
     setSelectedIds(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+  };
+
+  // Undo check-in
+  const handleUndoCheckin = async (participantId: string) => {
+    if (!selectedMeetingId) return;
+    setActionLoading(participantId);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+
+      const response = await fetch("/api/participants/checkin", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          meeting_id: selectedMeetingId,
+          participant_id: participantId,
+          expected_tenant_id: effectiveTenantId
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success("ยกเลิกการเช็คอินสำเร็จ");
+        await loadParticipantsWithStatus();
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาดในการยกเลิกเช็คอิน");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Toggle late status
+  const handleToggleLate = async (participantId: string, currentIsLate: boolean) => {
+    if (!selectedMeetingId) return;
+    setActionLoading(participantId);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+
+      const response = await fetch("/api/participants/checkin", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          meeting_id: selectedMeetingId,
+          participant_id: participantId,
+          expected_tenant_id: effectiveTenantId,
+          is_late: !currentIsLate
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(data.message);
+        await loadParticipantsWithStatus();
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาดในการอัปเดต");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Undo payment
+  const handleUnmarkPaid = async (feeId: string, participantId: string) => {
+    setActionLoading(participantId);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+
+      const response = await fetch(`/api/payments/visitor-fees/${feeId}/unmark-paid`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          expected_tenant_id: effectiveTenantId
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        toast.success("ยกเลิกการจ่ายเงินสำเร็จ");
+        await loadParticipantsWithStatus();
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาดในการยกเลิก");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const selectAllFiltered = () => {
@@ -868,13 +985,14 @@ export default function MeetingCommandCenter() {
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          {!p.is_checked_in && (
+                          {!p.is_checked_in ? (
                             <>
                               <Button
                                 size="sm"
                                 onClick={() => handleCheckin(p.participant_id, false)}
                                 disabled={actionLoading === p.participant_id}
                                 data-testid={`button-checkin-${p.participant_id}`}
+                                title="เช็คอิน"
                               >
                                 {actionLoading === p.participant_id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -888,8 +1006,32 @@ export default function MeetingCommandCenter() {
                                 onClick={() => handleCheckin(p.participant_id, true)}
                                 disabled={actionLoading === p.participant_id}
                                 data-testid={`button-late-${p.participant_id}`}
+                                title="เช็คอิน (สาย)"
                               >
                                 <Clock className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleToggleLate(p.participant_id, p.is_late)}
+                                disabled={actionLoading === p.participant_id}
+                                data-testid={`button-toggle-late-${p.participant_id}`}
+                                title={p.is_late ? "เปลี่ยนเป็นตรงเวลา" : "เปลี่ยนเป็นสาย"}
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleUndoCheckin(p.participant_id)}
+                                disabled={actionLoading === p.participant_id}
+                                data-testid={`button-undo-checkin-${p.participant_id}`}
+                                title="ยกเลิกเช็คอิน"
+                              >
+                                <Undo2 className="h-4 w-4" />
                               </Button>
                             </>
                           )}
@@ -900,8 +1042,21 @@ export default function MeetingCommandCenter() {
                               onClick={() => handleMarkPaid(p.fee_id!, p.participant_id)}
                               disabled={actionLoading === p.participant_id}
                               data-testid={`button-paid-${p.participant_id}`}
+                              title="บันทึกจ่ายเงิน"
                             >
                               <DollarSign className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {p.fee_status === "paid" && p.fee_id && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleUnmarkPaid(p.fee_id!, p.participant_id)}
+                              disabled={actionLoading === p.participant_id}
+                              data-testid={`button-undo-paid-${p.participant_id}`}
+                              title="ยกเลิกจ่ายเงิน"
+                            >
+                              <Undo2 className="h-4 w-4" />
                             </Button>
                           )}
                           <Button
