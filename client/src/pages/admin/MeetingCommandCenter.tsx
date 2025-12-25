@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
@@ -26,12 +27,14 @@ import {
   Building,
   Camera,
   XCircle,
-  QrCode
+  QrCode,
+  Download
 } from "lucide-react";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
 import { apiRequest } from "@/lib/queryClient";
 import { IDetectedBarcode, Scanner } from "@yudiel/react-qr-scanner";
+import QRCode from "react-qr-code";
 
 type FilterType = "all" | "members" | "visitors" | "not_checked_in" | "unpaid";
 
@@ -84,6 +87,12 @@ export default function MeetingCommandCenter() {
   const [scannerActive, setScannerActive] = useState(false);
   const [validatingQr, setValidatingQr] = useState(false);
   const [scanResult, setScanResult] = useState<{success: boolean; message: string; name?: string} | null>(null);
+  
+  // QR Code generation states
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrParticipant, setQrParticipant] = useState<{id: string; name: string; token: string} | null>(null);
+  const [generatingQr, setGeneratingQr] = useState(false);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   const selectedMeeting = meetings.find(m => m.meeting_id === selectedMeetingId);
 
@@ -422,6 +431,92 @@ export default function MeetingCommandCenter() {
 
   const getInitials = (name: string) => {
     return name?.charAt(0) || "?";
+  };
+
+  // Generate QR Code for a participant
+  const handleGenerateQr = async (participant: ParticipantWithStatus) => {
+    if (!effectiveTenantId) return;
+    
+    setGeneratingQr(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+
+      const response = await fetch("/api/participants/generate-checkin-qr", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          participant_id: participant.participant_id,
+          expected_tenant_id: effectiveTenantId
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        toast.error(data.error || "ไม่สามารถสร้าง QR Code ได้");
+        return;
+      }
+
+      setQrParticipant({
+        id: participant.participant_id,
+        name: participant.full_name_th,
+        token: data.token
+      });
+      setShowQrModal(true);
+    } catch (error) {
+      console.error("Generate QR error:", error);
+      toast.error("เกิดข้อผิดพลาดในการสร้าง QR Code");
+    } finally {
+      setGeneratingQr(false);
+    }
+  };
+
+  // Download QR Code as PNG
+  const handleDownloadQr = () => {
+    if (!qrRef.current || !qrParticipant) return;
+    
+    const svg = qrRef.current.querySelector("svg");
+    if (!svg) return;
+    
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    
+    img.onload = () => {
+      canvas.width = 400;
+      canvas.height = 480;
+      
+      if (ctx) {
+        // White background
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw QR code
+        ctx.drawImage(img, 50, 50, 300, 300);
+        
+        // Draw name below QR
+        ctx.fillStyle = "black";
+        ctx.font = "bold 20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(qrParticipant.name, canvas.width / 2, 400);
+        
+        // Download
+        const link = document.createElement("a");
+        link.download = `qr-${qrParticipant.name.replace(/\s+/g, "-")}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      }
+    };
+    
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
   const handleQrScan = useCallback(async (detectedCodes: IDetectedBarcode[]) => {
@@ -809,6 +904,16 @@ export default function MeetingCommandCenter() {
                               <DollarSign className="h-4 w-4" />
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleGenerateQr(p)}
+                            disabled={generatingQr}
+                            data-testid={`button-qr-${p.participant_id}`}
+                            title="สร้าง QR Code"
+                          >
+                            <QrCode className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -821,6 +926,28 @@ export default function MeetingCommandCenter() {
           </>
         )}
       </div>
+
+      {/* QR Code Modal */}
+      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>QR Code เช็คอิน</DialogTitle>
+          </DialogHeader>
+          {qrParticipant && (
+            <div className="flex flex-col items-center gap-4 py-4">
+              <div ref={qrRef} className="bg-white p-4 rounded-lg">
+                <QRCode value={qrParticipant.token} size={256} />
+              </div>
+              <p className="font-medium text-lg">{qrParticipant.name}</p>
+              <p className="text-sm text-muted-foreground">QR Code นี้ใช้ได้ครั้งเดียว หมดอายุใน 15 นาที</p>
+              <Button onClick={handleDownloadQr} className="w-full" data-testid="button-download-qr">
+                <Download className="h-4 w-4 mr-2" />
+                ดาวน์โหลด QR Code
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }

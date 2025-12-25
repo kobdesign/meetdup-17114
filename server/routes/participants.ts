@@ -5343,6 +5343,7 @@ router.post("/pos-checkin", async (req: Request, res: Response) => {
       .insert({
         meeting_id,
         participant_id: participantId,
+        tenant_id: expected_tenant_id,
         checkin_time: new Date().toISOString(),
         checkin_method: "pos_qr",
         is_late: isLate,
@@ -5487,6 +5488,7 @@ router.post("/pos-manual-checkin", verifySupabaseAuth, async (req: Authenticated
       .insert({
         meeting_id,
         participant_id,
+        tenant_id: expected_tenant_id,
         checkin_time: new Date().toISOString(),
         checkin_method: "pos_manual",
         is_late: isLate,
@@ -5517,6 +5519,79 @@ router.post("/pos-manual-checkin", verifySupabaseAuth, async (req: Authenticated
     return res.status(500).json({
       success: false,
       error: "เกิดข้อผิดพลาดในการเช็คอิน"
+    });
+  }
+});
+
+/**
+ * Generate Check-in QR Token for a participant
+ * Used by admin to generate QR codes for members to scan at meetings
+ */
+router.post("/generate-checkin-qr", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[generate-checkin-qr:${requestId}]`;
+  
+  try {
+    const { participant_id, expected_tenant_id } = req.body;
+    const userId = req.user?.id;
+    
+    console.log(`${logPrefix} Generate QR request from user:`, userId);
+    
+    if (!participant_id || !expected_tenant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+    
+    // Verify user has admin access to this tenant
+    const hasAccess = await checkTenantAccess(userId!, expected_tenant_id);
+    if (!hasAccess) {
+      console.log(`${logPrefix} User ${userId} denied access to tenant ${expected_tenant_id}`);
+      return res.status(403).json({
+        success: false,
+        error: "ไม่มีสิทธิ์เข้าถึง Chapter นี้"
+      });
+    }
+    
+    // Verify participant belongs to this tenant
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th, tenant_id")
+      .eq("participant_id", participant_id)
+      .eq("tenant_id", expected_tenant_id)
+      .single();
+    
+    if (participantError || !participant) {
+      return res.status(404).json({
+        success: false,
+        error: "ไม่พบข้อมูลผู้เข้าร่วม"
+      });
+    }
+    
+    // Import generateCheckinToken function
+    const { generateCheckinToken } = await import("../utils/checkinToken");
+    
+    // Generate token
+    const token = generateCheckinToken(participant_id, expected_tenant_id);
+    
+    console.log(`${logPrefix} QR token generated for:`, participant.full_name_th);
+    
+    return res.json({
+      success: true,
+      token,
+      participant: {
+        participant_id: participant.participant_id,
+        full_name_th: participant.full_name_th,
+        nickname_th: participant.nickname_th
+      }
+    });
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "เกิดข้อผิดพลาดในการสร้าง QR Code"
     });
   }
 });
