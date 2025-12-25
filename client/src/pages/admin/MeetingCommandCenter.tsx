@@ -326,7 +326,8 @@ export default function MeetingCommandCenter() {
         body: JSON.stringify({
           meeting_id: selectedMeetingId,
           participant_id: participantId,
-          is_late: isLate
+          is_late: isLate,
+          expected_tenant_id: effectiveTenantId
         })
       });
 
@@ -598,7 +599,6 @@ export default function MeetingCommandCenter() {
                               paused={validatingQr}
                               components={{
                                 finder: true,
-                                audio: false,
                               }}
                               styles={{
                                 container: { width: "100%", height: "100%" },
