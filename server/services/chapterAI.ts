@@ -264,43 +264,77 @@ async function getVisitorSummary(tenantId: string, range: string, meetingId?: st
         rangeLabel = "วันนี้";
     }
 
-    let query = supabaseAdmin
-      .from("meeting_attendance")
+    // Get meetings in date range for this tenant
+    const { data: meetings, error: meetingsError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", startDate)
+      .lte("meeting_date", endDate);
+
+    if (meetingsError || !meetings?.length) {
+      return {
+        range: rangeLabel,
+        total_registered: 0,
+        total_checked_in: 0,
+        no_show: 0
+      };
+    }
+
+    // Validate meeting_id belongs to tenant if provided
+    if (meetingId) {
+      const validMeetingIds = meetings.map(m => m.meeting_id);
+      if (!validMeetingIds.includes(meetingId)) {
+        return {
+          range: rangeLabel,
+          total_registered: 0,
+          total_checked_in: 0,
+          no_show: 0,
+          error: "Meeting ไม่อยู่ในช่วงเวลาที่ระบุ"
+        };
+      }
+    }
+
+    const meetingIds = meetingId ? [meetingId] : meetings.map(m => m.meeting_id);
+
+    // Get visitor registrations
+    const { data: registrations, error } = await supabaseAdmin
+      .from("meeting_registrations")
       .select(`
-        attendance_id,
+        registration_id,
         meeting_id,
+        participant_id,
         participant:participants!inner(
           participant_id,
           status,
-          created_at
-        ),
-        meeting:meetings!inner(
-          meeting_date
+          tenant_id
         )
       `)
-      .eq("participants.tenant_id", tenantId)
-      .eq("participants.status", "visitor")
-      .gte("meetings.meeting_date", startDate)
-      .lte("meetings.meeting_date", endDate);
-
-    if (meetingId) {
-      query = query.eq("meeting_id", meetingId);
-    }
-
-    const { data: attendance, error } = await query;
+      .in("meeting_id", meetingIds)
+      .eq("participant.tenant_id", tenantId)
+      .eq("participant.status", "visitor");
 
     if (error) {
       console.error("[ChapterAI] getVisitorSummary error:", error);
       return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล" };
     }
 
-    const totalVisitors = attendance?.length || 0;
+    // Get checkins for these meetings to find who checked in
+    const { data: checkins } = await supabaseAdmin
+      .from("checkins")
+      .select("participant_id")
+      .in("meeting_id", meetingIds);
+
+    const checkinSet = new Set((checkins || []).map(c => c.participant_id));
+
+    const totalVisitors = registrations?.length || 0;
+    const checkedInVisitors = registrations?.filter(r => checkinSet.has(r.participant_id)).length || 0;
 
     return {
       range: rangeLabel,
-      total_visitors: totalVisitors,
-      first_time_visitors: totalVisitors,
-      repeat_visitors: 0
+      total_registered: totalVisitors,
+      total_checked_in: checkedInVisitors,
+      no_show: totalVisitors - checkedInVisitors
     };
   } catch (error) {
     console.error("[ChapterAI] getVisitorSummary error:", error);
@@ -459,36 +493,71 @@ async function getMeetingStats(tenantId: string, meetingId?: string): Promise<an
       }
     }
 
+    // Verify meeting belongs to this tenant
     const { data: meetingInfo } = await supabaseAdmin
       .from("meetings")
-      .select("meeting_id, meeting_date, theme, venue")
+      .select("meeting_id, meeting_date, theme, venue, tenant_id")
       .eq("meeting_id", targetMeetingId)
+      .eq("tenant_id", tenantId)
       .single();
 
-    const { data: attendance } = await supabaseAdmin
-      .from("meeting_attendance")
+    if (!meetingInfo) {
+      return { error: "ไม่พบ meeting ในระบบ" };
+    }
+
+    // Get all check-ins from checkins table with tenant scope via participants join
+    const { data: allCheckins } = await supabaseAdmin
+      .from("checkins")
       .select(`
-        attendance_id,
-        check_in_time,
+        checkin_id,
+        checkin_time,
         is_late,
+        participant_id,
         participant:participants!inner(
           participant_id,
+          tenant_id,
           status
         )
       `)
-      .eq("meeting_id", targetMeetingId);
+      .eq("meeting_id", targetMeetingId)
+      .eq("participant.tenant_id", tenantId);
 
-    const allAttendees = attendance || [];
-    const memberAttendees = allAttendees.filter(a => (a.participant as any)?.status === "member");
-    const visitorAttendees = allAttendees.filter(a => (a.participant as any)?.status === "visitor");
-    const lateCount = allAttendees.filter(a => a.is_late).length;
+    // Filter by participant status to separate members from visitors
+    const memberCheckins = (allCheckins || []).filter(c => (c.participant as any)?.status === "member");
+    const visitorCheckins = (allCheckins || []).filter(c => (c.participant as any)?.status === "visitor");
 
+    const onTimeCount = memberCheckins.filter(c => !c.is_late).length;
+    const lateCount = memberCheckins.filter(c => c.is_late).length;
+
+    // Get total member count
     const { count: memberCount } = await supabaseAdmin
       .from("participants")
       .select("participant_id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("status", "member");
 
+    // Get visitor registrations from meeting_registrations table with tenant scope
+    const { data: visitorRegistrations } = await supabaseAdmin
+      .from("meeting_registrations")
+      .select(`
+        registration_id,
+        participant_id,
+        participant:participants!inner(
+          participant_id,
+          status,
+          tenant_id
+        )
+      `)
+      .eq("meeting_id", targetMeetingId)
+      .eq("participant.tenant_id", tenantId)
+      .eq("participant.status", "visitor");
+
+    // Use visitor checkins to count checked-in visitors
+    const allVisitorRegs = visitorRegistrations || [];
+    const visitorsCheckedIn = visitorCheckins.length;
+    const visitorNoShow = allVisitorRegs.length - visitorsCheckedIn;
+
+    // Get visitor fees
     const { data: fees } = await supabaseAdmin
       .from("visitor_meeting_fees")
       .select("fee_id, amount_due, amount_paid, status")
@@ -501,11 +570,15 @@ async function getMeetingStats(tenantId: string, meetingId?: string): Promise<an
       meeting_date: meetingInfo?.meeting_date,
       theme: meetingInfo?.theme,
       venue: meetingInfo?.venue,
-      total_checked_in: allAttendees.length,
-      members_checked_in: memberAttendees.length,
       total_members: memberCount || 0,
-      visitors_checked_in: visitorAttendees.length,
-      late_count: lateCount,
+      members_checked_in: memberCheckins.length,
+      members_on_time: onTimeCount,
+      members_late: lateCount,
+      members_absent: (memberCount || 0) - memberCheckins.length,
+      attendance_rate: memberCount ? Math.round((memberCheckins.length / memberCount) * 100) : 0,
+      visitors_registered: allVisitorRegs.length,
+      visitors_checked_in: visitorsCheckedIn,
+      visitors_no_show: visitorNoShow,
       visitor_fees: {
         total: allFees.length,
         paid: paidFees.length,
