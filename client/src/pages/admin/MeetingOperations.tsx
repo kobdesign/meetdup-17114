@@ -22,7 +22,6 @@ import {
   DollarSign,
   UserX,
   RefreshCw,
-  Filter,
   Building,
   Camera,
   XCircle,
@@ -34,7 +33,9 @@ import {
   ExternalLink,
   UserPlus,
   Phone,
-  Mail
+  Mail,
+  Lock,
+  LockOpen
 } from "lucide-react";
 import { useTenantContext } from "@/contexts/TenantContext";
 import SelectTenantPrompt from "@/components/SelectTenantPrompt";
@@ -43,7 +44,8 @@ import { IDetectedBarcode, Scanner } from "@yudiel/react-qr-scanner";
 import QRCode from "react-qr-code";
 import { Label } from "@/components/ui/label";
 
-type FilterType = "all" | "members" | "visitors" | "not_checked_in" | "unpaid";
+type TypeFilter = "all" | "members" | "visitors";
+type StatusFilter = "all" | "not_checked_in" | "checked_in" | "late" | "unpaid" | "paid";
 
 interface Participant {
   participant_id: string;
@@ -54,6 +56,7 @@ interface Participant {
   company?: string;
   photo_url?: string;
   referred_by_name?: string;
+  referred_by_nickname?: string;
 }
 
 interface CheckinRecord {
@@ -70,6 +73,12 @@ interface VisitorFee {
   status: string;
 }
 
+interface SubstituteInfo {
+  member_participant_id: string;
+  substitute_name: string;
+  substitute_phone: string;
+}
+
 interface ParticipantWithStatus extends Participant {
   is_checked_in: boolean;
   is_late: boolean;
@@ -77,6 +86,8 @@ interface ParticipantWithStatus extends Participant {
   fee_status?: string;
   fee_id?: string;
   amount_due?: number;
+  substitute_name?: string;
+  substitute_phone?: string;
 }
 
 interface SubstituteRequest {
@@ -116,7 +127,8 @@ export default function MeetingOperations() {
   const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
   const [participants, setParticipants] = useState<ParticipantWithStatus[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -142,6 +154,8 @@ export default function MeetingOperations() {
   const [walkinMemberResults, setWalkinMemberResults] = useState<{participant_id: string; full_name_th: string; nickname_th?: string; phone?: string; status: string}[]>([]);
   const [walkinSearching, setWalkinSearching] = useState(false);
   const [walkinSubmitting, setWalkinSubmitting] = useState(false);
+  const [closingOntime, setClosingOntime] = useState(false);
+  const [closingMeeting, setClosingMeeting] = useState(false);
 
   const qrRef = useRef<HTMLDivElement>(null);
   const selectedMeeting = meetings.find(m => m.meeting_id === selectedMeetingId);
@@ -227,7 +241,8 @@ export default function MeetingOperations() {
             status,
             phone,
             company,
-            photo_url
+            photo_url,
+            referred_by_participant_id
           )
         `)
         .eq("meeting_id", selectedMeetingId);
@@ -248,6 +263,20 @@ export default function MeetingOperations() {
         .eq("meeting_id", selectedMeetingId);
 
       if (checkinError) throw checkinError;
+
+      let substitutes: SubstituteInfo[] = [];
+      try {
+        const { data: subData, error: subError } = await (supabase as any)
+          .from("substitute_requests")
+          .select("member_participant_id, substitute_name, substitute_phone")
+          .eq("meeting_id", selectedMeetingId)
+          .eq("status", "confirmed");
+        
+        if (subError) console.error("Error loading substitutes:", subError);
+        substitutes = subData || [];
+      } catch (e) {
+        console.error("Error loading substitutes:", e);
+      }
 
       const { data: { session } } = await supabase.auth.getSession();
       let visitorFees: VisitorFee[] = [];
@@ -271,9 +300,34 @@ export default function MeetingOperations() {
       const feeMap = new Map<string, VisitorFee>();
       visitorFees.forEach(f => feeMap.set(f.participant_id, f));
 
+      const substituteMap = new Map<string, SubstituteInfo>();
+      (substitutes || []).forEach((s: any) => substituteMap.set(s.member_participant_id, s));
+
+      const visitorReferrerIds = (registrations || [])
+        .map((r: any) => r.participant?.referred_by_participant_id)
+        .filter(Boolean);
+      
+      let referrerMap = new Map<string, {full_name_th: string; nickname_th?: string}>();
+      if (visitorReferrerIds.length > 0) {
+        const { data: referrers } = await supabase
+          .from("participants")
+          .select("participant_id, full_name_th, nickname_th")
+          .in("participant_id", visitorReferrerIds);
+        (referrers || []).forEach((r: any) => referrerMap.set(r.participant_id, r));
+      }
+
       const registeredVisitors = (registrations || [])
-        .map((r: any) => r.participant)
-        .filter((p: any) => p && (p.status === "visitor" || p.status === "prospect"));
+        .map((r: any) => {
+          const p = r.participant;
+          if (!p || (p.status !== "visitor" && p.status !== "prospect")) return null;
+          const referrer = p.referred_by_participant_id ? referrerMap.get(p.referred_by_participant_id) : null;
+          return {
+            ...p,
+            referred_by_name: referrer?.full_name_th || null,
+            referred_by_nickname: referrer?.nickname_th || null
+          };
+        })
+        .filter(Boolean);
 
       const allParticipants = [...(members || []), ...registeredVisitors];
       const uniqueParticipants = Array.from(
@@ -283,6 +337,7 @@ export default function MeetingOperations() {
       const participantsWithStatus: ParticipantWithStatus[] = uniqueParticipants.map(p => {
         const checkin = checkinMap.get(p.participant_id);
         const fee = feeMap.get(p.participant_id);
+        const substitute = substituteMap.get(p.participant_id);
         return {
           ...p,
           is_checked_in: !!checkin,
@@ -290,7 +345,9 @@ export default function MeetingOperations() {
           checkin_time: checkin?.checkin_time,
           fee_status: fee?.status,
           fee_id: fee?.fee_id,
-          amount_due: fee?.amount_due
+          amount_due: fee?.amount_due,
+          substitute_name: substitute?.substitute_name,
+          substitute_phone: substitute?.substitute_phone
         };
       });
 
@@ -368,23 +425,32 @@ export default function MeetingOperations() {
       );
     }
 
-    switch (filter) {
-      case "members":
-        result = result.filter(p => p.status === "member");
-        break;
-      case "visitors":
-        result = result.filter(p => p.status === "visitor" || p.status === "prospect");
-        break;
+    if (typeFilter === "members") {
+      result = result.filter(p => p.status === "member");
+    } else if (typeFilter === "visitors") {
+      result = result.filter(p => p.status === "visitor" || p.status === "prospect");
+    }
+
+    switch (statusFilter) {
       case "not_checked_in":
         result = result.filter(p => !p.is_checked_in);
+        break;
+      case "checked_in":
+        result = result.filter(p => p.is_checked_in);
+        break;
+      case "late":
+        result = result.filter(p => p.is_late);
         break;
       case "unpaid":
         result = result.filter(p => p.fee_status === "pending");
         break;
+      case "paid":
+        result = result.filter(p => p.fee_status === "paid");
+        break;
     }
 
     return result;
-  }, [participants, searchQuery, filter]);
+  }, [participants, searchQuery, typeFilter, statusFilter]);
 
   const handleCheckin = async (participantId: string, isLate: boolean = false) => {
     if (!selectedMeetingId) return;
@@ -660,20 +726,20 @@ export default function MeetingOperations() {
   };
 
   const handleManualSearch = async () => {
-    if (!manualSearchQuery.trim() || !selectedMeetingId) return;
+    if (!manualSearchQuery.trim() || !selectedMeetingId || !effectiveTenantId) return;
     
     setManualSearchLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return;
 
-      const response = await fetch(`/api/participants/search-for-checkin?q=${encodeURIComponent(manualSearchQuery)}&meeting_id=${selectedMeetingId}`, {
+      const response = await fetch(`/api/participants/pos-search?query=${encodeURIComponent(manualSearchQuery)}&tenant_id=${effectiveTenantId}&meeting_id=${selectedMeetingId}`, {
         headers: { "Authorization": `Bearer ${session.access_token}` }
       });
       
       const data = await response.json();
       if (data.success) {
-        setManualSearchResults(data.data || []);
+        setManualSearchResults(data.participants || []);
       }
     } catch (error) {
       console.error("Search error:", error);
@@ -869,6 +935,72 @@ export default function MeetingOperations() {
     return name?.charAt(0)?.toUpperCase() || "?";
   };
 
+  const handleCloseOntime = async () => {
+    if (!selectedMeetingId) return;
+    setClosingOntime(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+      
+      const response = await fetch(`/api/palms/meeting/${selectedMeetingId}/close-ontime`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        toast.success("ปิดรับเช็คอินตรงเวลาแล้ว - เช็คอินหลังจากนี้จะถือว่าสาย");
+        await Promise.all([loadMeetings(), loadParticipantsWithStatus()]);
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาด");
+    } finally {
+      setClosingOntime(false);
+    }
+  };
+
+  const handleCloseMeeting = async () => {
+    if (!selectedMeetingId) return;
+    setClosingMeeting(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+      
+      const response = await fetch(`/api/palms/meeting/${selectedMeetingId}/close`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        toast.success("ปิดการประชุมแล้ว");
+        await Promise.all([loadMeetings(), loadParticipantsWithStatus()]);
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาด");
+    } finally {
+      setClosingMeeting(false);
+    }
+  };
+
   if (!effectiveTenantId && isSuperAdmin) {
     return (
       <AdminLayout>
@@ -936,6 +1068,41 @@ export default function MeetingOperations() {
 
         {selectedMeetingId && (
           <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant={selectedMeeting?.ontime_closed_at ? "secondary" : "outline"}
+                onClick={handleCloseOntime}
+                disabled={closingOntime || closingMeeting || !!selectedMeeting?.ontime_closed_at}
+                data-testid="button-close-ontime"
+              >
+                {closingOntime ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : selectedMeeting?.ontime_closed_at ? (
+                  <Lock className="h-3 w-3 mr-1" />
+                ) : (
+                  <Clock className="h-3 w-3 mr-1" />
+                )}
+                {selectedMeeting?.ontime_closed_at ? "ปิดรับตรงเวลาแล้ว" : "ปิดรับเช็คอินตรงเวลา"}
+              </Button>
+              <Button
+                size="sm"
+                variant={selectedMeeting?.meeting_closed_at ? "secondary" : "destructive"}
+                onClick={handleCloseMeeting}
+                disabled={closingOntime || closingMeeting || !!selectedMeeting?.meeting_closed_at}
+                data-testid="button-close-meeting"
+              >
+                {closingMeeting ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : selectedMeeting?.meeting_closed_at ? (
+                  <Lock className="h-3 w-3 mr-1" />
+                ) : (
+                  <LockOpen className="h-3 w-3 mr-1" />
+                )}
+                {selectedMeeting?.meeting_closed_at ? "ปิดการประชุมแล้ว" : "ปิดการประชุม"}
+              </Button>
+            </div>
+            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Card>
                 <CardContent className="p-3">
@@ -1018,17 +1185,27 @@ export default function MeetingOperations() {
                           data-testid="input-roster-search"
                         />
                       </div>
-                      <Select value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
-                        <SelectTrigger className="w-[130px]" data-testid="select-filter">
-                          <Filter className="h-3 w-3 mr-1" />
+                      <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+                        <SelectTrigger className="w-[100px]" data-testid="select-type-filter">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">ทั้งหมด</SelectItem>
+                          <SelectItem value="all">ทุกประเภท</SelectItem>
                           <SelectItem value="members">สมาชิก</SelectItem>
                           <SelectItem value="visitors">ผู้เยี่ยมชม</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                        <SelectTrigger className="w-[110px]" data-testid="select-status-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">ทุกสถานะ</SelectItem>
                           <SelectItem value="not_checked_in">ยังไม่เช็คอิน</SelectItem>
+                          <SelectItem value="checked_in">เช็คอินแล้ว</SelectItem>
+                          <SelectItem value="late">มาสาย</SelectItem>
                           <SelectItem value="unpaid">ค้างจ่าย</SelectItem>
+                          <SelectItem value="paid">จ่ายแล้ว</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1088,6 +1265,16 @@ export default function MeetingOperations() {
                                 {p.fee_status === "pending" && <Badge variant="outline" className="text-[10px] text-red-600 border-red-300">ค้างจ่าย</Badge>}
                               </div>
                               {p.company && <p className="text-xs text-muted-foreground truncate">{p.company}</p>}
+                              {p.substitute_name && (
+                                <p className="text-xs text-blue-600 dark:text-blue-400 truncate">
+                                  ตัวแทน: {p.substitute_name}
+                                </p>
+                              )}
+                              {(p.status === "visitor" || p.status === "prospect") && (p.referred_by_nickname || p.referred_by_name) && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  ผู้เชิญ: {p.referred_by_nickname ? `${p.referred_by_nickname} (${p.referred_by_name})` : p.referred_by_name}
+                                </p>
+                              )}
                             </div>
                             <div className="flex items-center gap-1">
                               {actionLoading === p.participant_id ? (
