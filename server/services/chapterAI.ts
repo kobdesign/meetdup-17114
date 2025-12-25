@@ -608,17 +608,24 @@ async function getMeetingStats(tenantId: string, meetingId?: string): Promise<an
       .eq("tenant_id", tenantId)
       .eq("status", "member");
 
-    // Get visitor registrations - use visitorIds already fetched
+    // Get visitor registrations - query by meeting_id only (meeting already validated for tenant)
+    // Don't filter by visitorIds because some visitors might have different status in participants table
     const { data: visitorRegistrations } = await supabaseAdmin
       .from("meeting_registrations")
       .select("registration_id, participant_id")
-      .eq("meeting_id", targetMeetingId)
-      .in("participant_id", visitorIds.length > 0 ? visitorIds : ['00000000-0000-0000-0000-000000000000']);
+      .eq("meeting_id", targetMeetingId);
 
-    // Use visitor checkins to count checked-in visitors
     const allVisitorRegs = visitorRegistrations || [];
-    const visitorsCheckedIn = visitorCheckins.length;
+    
+    // Count visitors who checked in - match registration participant_ids with checkin participant_ids
+    const registeredParticipantIds = new Set(allVisitorRegs.map(r => r.participant_id));
+    const allCheckinParticipantIds = new Set((allCheckins || []).map(c => c.participant_id));
+    
+    // Visitors checked in = registrations where participant also has a checkin
+    const visitorsCheckedIn = allVisitorRegs.filter(r => allCheckinParticipantIds.has(r.participant_id)).length;
     const visitorNoShow = allVisitorRegs.length - visitorsCheckedIn;
+    
+    console.log(`[ChapterAI] getMeetingStats visitor counts: registered=${allVisitorRegs.length}, checkedIn=${visitorsCheckedIn}, noShow=${visitorNoShow}`);
 
     // Get visitor fees
     const { data: fees } = await supabaseAdmin
