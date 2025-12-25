@@ -11,7 +11,7 @@ const openai = new OpenAI({
 const SYSTEM_PROMPT = `คุณคือ "BNI Chapter Data Assistant" ทำหน้าที่ตอบคำถามของผู้ใช้ใน LINE OA/LINE Group โดยอ้างอิงข้อมูลจากระบบ Chapter Management
 
 เป้าหมาย:
-- ตอบคำถามเชิง "สรุป/สถิติ/สถานะ" เกี่ยวกับ Meeting และ Visitor fee
+- ตอบคำถามเชิง "สรุป/สถิติ/สถานะ" เกี่ยวกับ Meeting, การเข้าร่วม และ Visitor fee
 - ตอบให้สั้น กระชับ ชัดเจน พร้อมตัวเลขและช่วงเวลา
 - ถ้าข้อมูลไม่พอ ให้ถามกลับแบบสั้นที่สุด
 
@@ -19,16 +19,17 @@ const SYSTEM_PROMPT = `คุณคือ "BNI Chapter Data Assistant" ทำห
 - ถ้าผู้ใช้ทักทาย (สวัสดี, หวัดดี, hello, hi, ช่วยอะไรได้บ้าง) ให้ตอบกลับอย่างเป็นมิตรและแนะนำสิ่งที่ถามได้ เช่น:
   "สวัสดีครับ ผมคือ Chapter Assistant พร้อมช่วยเหลือคุณ ลองถามได้เลย เช่น:
   - สรุปผู้มาเยือนวันนี้
+  - ใครมา/ไม่มา/สาย ใน meeting ล่าสุด
   - ใครยังไม่จ่าย visitor fee
-  - สถิติ meeting วันนี้
-  - ยอดรวม visitor fee เดือนนี้"
+  - สถิติ meeting วันนี้"
 
 ข้อจำกัดสำคัญ (MUST):
-- ห้ามเดาหรือสร้างข้อมูลเอง หากไม่มีผลจาก tools ให้ตอบว่า "ยังไม่พบข้อมูลในระบบ"
+- ห้ามเดาหรือสร้างข้อมูลเอง หากไม่มีผลจาก tools ให้ตอบว่า "ยังไม่พบข้อมูลในระบบครับ กรุณาลองถามใหม่อีกครั้ง"
 - ห้ามเปิดเผยข้อมูลส่วนบุคคลเกินจำเป็น (เช่น เบอร์โทร/อีเมล) เว้นแต่ role เป็น admin
 - ต้องเคารพสิทธิ์ผู้ใช้ (RBAC): admin เห็นรายชื่อได้ / member เห็นแค่จำนวน
 - ทุกครั้งที่ต้องดึงข้อมูล ให้เรียกใช้ tools ที่ระบบให้เท่านั้น
 - เมื่ออ้างอิงเวลา ให้ใช้ Timezone: Asia/Bangkok
+- ถ้าไม่มี tool ที่เหมาะสมสำหรับคำถาม ให้ตอบว่า "ขออภัยครับ ยังไม่รองรับคำถามนี้ ลองถามแบบอื่นดูครับ"
 
 รูปแบบคำตอบ (Preferred):
 - สรุปเป็น bullet หรือรายการสั้น ๆ
@@ -41,7 +42,8 @@ Intent ที่ต้องรองรับ:
 2. visitor_summary: สรุปผู้มาเยือนวันนี้/สัปดาห์นี้
 3. unpaid_visitor_fee_today: ใครยังไม่จ่าย visitor fee วันนี้
 4. visitor_fee_total_month: ยอด visitor fee รวมเดือนนี้
-5. meeting_stats: สถิติต่าง ๆ ของ meeting`;
+5. meeting_stats: สถิติต่าง ๆ ของ meeting
+6. attendance_query: ใครมา/ไม่มา/สาย - ใช้ get_attendance_insights`;
 
 const TOOLS: OpenAI.ChatCompletionTool[] = [
   {
@@ -144,6 +146,28 @@ const TOOLS: OpenAI.ChatCompletionTool[] = [
           }
         },
         required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_attendance_insights",
+      description: "ดึงรายละเอียดการเข้าร่วม meeting ของสมาชิก - ใครมา/ไม่มา/สาย พร้อมรายชื่อ (admin เห็นรายชื่อ, member เห็นจำนวน)",
+      parameters: {
+        type: "object",
+        properties: {
+          meeting_id: {
+            type: "string",
+            description: "Meeting ID ที่ต้องการดู (ถ้าไม่ระบุจะใช้ meeting ล่าสุด)"
+          },
+          focus: {
+            type: "string",
+            enum: ["present", "absent", "late", "all"],
+            description: "ประเภทที่ต้องการดู: present=มา, absent=ไม่มา, late=สาย, all=ทั้งหมด"
+          }
+        },
+        required: ["focus"]
       }
     }
   }
@@ -296,6 +320,7 @@ async function getVisitorSummary(tenantId: string, range: string, meetingId?: st
     }
 
     const meetingIds = meetingId ? [meetingId] : meetings.map(m => m.meeting_id);
+    console.log(`[ChapterAI] getVisitorSummary: tenantId=${tenantId}, range=${range}, meetingIds=`, meetingIds);
 
     // Step 1: Get visitor participant IDs for this tenant
     const { data: visitorParticipants } = await supabaseAdmin
@@ -305,8 +330,10 @@ async function getVisitorSummary(tenantId: string, range: string, meetingId?: st
       .eq("status", "visitor");
 
     const visitorIds = (visitorParticipants || []).map(p => p.participant_id);
+    console.log(`[ChapterAI] getVisitorSummary: found ${visitorIds.length} visitor participants`);
 
     if (visitorIds.length === 0) {
+      console.log(`[ChapterAI] getVisitorSummary: No visitors found for tenant`);
       return {
         range: rangeLabel,
         total_registered: 0,
@@ -322,6 +349,8 @@ async function getVisitorSummary(tenantId: string, range: string, meetingId?: st
       .in("meeting_id", meetingIds)
       .in("participant_id", visitorIds);
 
+    console.log(`[ChapterAI] getVisitorSummary: found ${registrations?.length || 0} registrations`);
+
     if (error) {
       console.error("[ChapterAI] getVisitorSummary error:", error);
       return { error: "เกิดข้อผิดพลาดในการดึงข้อมูล" };
@@ -334,10 +363,14 @@ async function getVisitorSummary(tenantId: string, range: string, meetingId?: st
       .in("meeting_id", meetingIds)
       .in("participant_id", visitorIds);
 
+    console.log(`[ChapterAI] getVisitorSummary: found ${checkins?.length || 0} visitor checkins`);
+
     const checkinSet = new Set((checkins || []).map(c => c.participant_id));
 
     const totalVisitors = registrations?.length || 0;
     const checkedInVisitors = registrations?.filter(r => checkinSet.has(r.participant_id)).length || 0;
+
+    console.log(`[ChapterAI] getVisitorSummary result: registered=${totalVisitors}, checkedIn=${checkedInVisitors}`);
 
     return {
       range: rangeLabel,
@@ -601,6 +634,138 @@ async function getMeetingStats(tenantId: string, meetingId?: string): Promise<an
   }
 }
 
+async function getAttendanceInsights(
+  tenantId: string, 
+  meetingId: string | undefined, 
+  focus: "present" | "absent" | "late" | "all",
+  isAdmin: boolean
+): Promise<any> {
+  try {
+    let targetMeetingId = meetingId;
+
+    // If no meeting_id provided, get latest meeting
+    if (!targetMeetingId) {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { data: latestMeeting } = await supabaseAdmin
+        .from("meetings")
+        .select("meeting_id, meeting_date, theme")
+        .eq("tenant_id", tenantId)
+        .lte("meeting_date", today)
+        .order("meeting_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!latestMeeting) {
+        return { error: "ไม่พบ meeting ในระบบ" };
+      }
+      targetMeetingId = latestMeeting.meeting_id;
+    }
+
+    // Verify meeting belongs to tenant
+    const { data: meetingInfo } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, theme")
+      .eq("meeting_id", targetMeetingId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (!meetingInfo) {
+      return { error: "ไม่พบ meeting ในระบบ" };
+    }
+
+    // Get all members for this tenant
+    const { data: allMembers } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th")
+      .eq("tenant_id", tenantId)
+      .eq("status", "member");
+
+    const members = allMembers || [];
+    const memberIds = members.map(m => m.participant_id);
+
+    if (memberIds.length === 0) {
+      return {
+        meeting_date: meetingInfo.meeting_date,
+        theme: meetingInfo.theme,
+        message: "ไม่มีสมาชิกในระบบ"
+      };
+    }
+
+    // Get check-ins for this meeting
+    const { data: checkins } = await supabaseAdmin
+      .from("checkins")
+      .select("participant_id, is_late, checkin_time")
+      .eq("meeting_id", targetMeetingId)
+      .in("participant_id", memberIds);
+
+    const checkinMap = new Map((checkins || []).map(c => [c.participant_id, c]));
+
+    // Categorize members
+    const presentMembers: any[] = [];
+    const absentMembers: any[] = [];
+    const lateMembers: any[] = [];
+
+    for (const member of members) {
+      const checkin = checkinMap.get(member.participant_id);
+      const name = member.nickname_th || member.full_name_th || "ไม่ระบุชื่อ";
+      
+      if (checkin) {
+        if (checkin.is_late) {
+          lateMembers.push({ name, checkin_time: checkin.checkin_time });
+        } else {
+          presentMembers.push({ name, checkin_time: checkin.checkin_time });
+        }
+      } else {
+        absentMembers.push({ name });
+      }
+    }
+
+    const result: any = {
+      meeting_date: meetingInfo.meeting_date,
+      theme: meetingInfo.theme,
+      total_members: members.length
+    };
+
+    // Build response based on focus and RBAC
+    if (focus === "present" || focus === "all") {
+      result.present = {
+        count: presentMembers.length,
+        names: isAdmin ? presentMembers.map(m => m.name) : undefined,
+        message: isAdmin ? undefined : "เพื่อความเป็นส่วนตัว รายชื่อจะแสดงให้เฉพาะ Admin"
+      };
+    }
+
+    if (focus === "absent" || focus === "all") {
+      result.absent = {
+        count: absentMembers.length,
+        names: isAdmin ? absentMembers.map(m => m.name) : undefined,
+        message: isAdmin ? undefined : "เพื่อความเป็นส่วนตัว รายชื่อจะแสดงให้เฉพาะ Admin"
+      };
+    }
+
+    if (focus === "late" || focus === "all") {
+      result.late = {
+        count: lateMembers.length,
+        names: isAdmin ? lateMembers.map(m => m.name) : undefined,
+        message: isAdmin ? undefined : "เพื่อความเป็นส่วนตัว รายชื่อจะแสดงให้เฉพาะ Admin"
+      };
+    }
+
+    console.log(`[ChapterAI] getAttendanceInsights result:`, {
+      focus,
+      isAdmin,
+      present: presentMembers.length,
+      absent: absentMembers.length,
+      late: lateMembers.length
+    });
+
+    return result;
+  } catch (error) {
+    console.error("[ChapterAI] getAttendanceInsights error:", error);
+    return { error: "เกิดข้อผิดพลาดในการดึงข้อมูลการเข้าร่วม" };
+  }
+}
+
 async function executeTool(name: string, args: any, context: AIContext): Promise<string> {
   console.log(`[ChapterAI] Executing tool: ${name}`, args);
 
@@ -628,6 +793,16 @@ async function executeTool(name: string, args: any, context: AIContext): Promise
     case "get_meeting_stats":
       const statsResult = await getMeetingStats(context.tenantId, args.meeting_id);
       return JSON.stringify(statsResult);
+
+    case "get_attendance_insights":
+      const attendanceIsAdmin = context.userRole === "admin";
+      const attendanceResult = await getAttendanceInsights(
+        context.tenantId, 
+        args.meeting_id, 
+        args.focus || "all",
+        attendanceIsAdmin
+      );
+      return JSON.stringify(attendanceResult);
 
     default:
       return JSON.stringify({ error: "Unknown tool" });
