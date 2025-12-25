@@ -8,12 +8,20 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-const SYSTEM_PROMPT = `คุณคือ "BNI Chapter Data Assistant" ทำหน้าที่ตอบคำถามของผู้ใช้ใน LINE OA/LINE Group โดยอ้างอิงข้อมูลจากระบบ Chapter Management เท่านั้น
+const SYSTEM_PROMPT = `คุณคือ "BNI Chapter Data Assistant" ทำหน้าที่ตอบคำถามของผู้ใช้ใน LINE OA/LINE Group โดยอ้างอิงข้อมูลจากระบบ Chapter Management
 
 เป้าหมาย:
 - ตอบคำถามเชิง "สรุป/สถิติ/สถานะ" เกี่ยวกับ Meeting และ Visitor fee
 - ตอบให้สั้น กระชับ ชัดเจน พร้อมตัวเลขและช่วงเวลา
 - ถ้าข้อมูลไม่พอ ให้ถามกลับแบบสั้นที่สุด
+
+การทักทาย:
+- ถ้าผู้ใช้ทักทาย (สวัสดี, หวัดดี, hello, hi, ช่วยอะไรได้บ้าง) ให้ตอบกลับอย่างเป็นมิตรและแนะนำสิ่งที่ถามได้ เช่น:
+  "สวัสดีครับ ผมคือ Chapter Assistant พร้อมช่วยเหลือคุณ ลองถามได้เลย เช่น:
+  - สรุปผู้มาเยือนวันนี้
+  - ใครยังไม่จ่าย visitor fee
+  - สถิติ meeting วันนี้
+  - ยอดรวม visitor fee เดือนนี้"
 
 ข้อจำกัดสำคัญ (MUST):
 - ห้ามเดาหรือสร้างข้อมูลเอง หากไม่มีผลจาก tools ให้ตอบว่า "ยังไม่พบข้อมูลในระบบ"
@@ -29,10 +37,11 @@ const SYSTEM_PROMPT = `คุณคือ "BNI Chapter Data Assistant" ทำห
 - ถ้าผู้ใช้ไม่ได้ระบุ meeting ให้ใช้ meeting ล่าสุด/meeting วันนี้
 
 Intent ที่ต้องรองรับ:
-1. visitor_summary: สรุปผู้มาเยือนวันนี้/สัปดาห์นี้
-2. unpaid_visitor_fee_today: ใครยังไม่จ่าย visitor fee วันนี้
-3. visitor_fee_total_month: ยอด visitor fee รวมเดือนนี้
-4. meeting_stats: สถิติต่าง ๆ ของ meeting`;
+1. greeting: ทักทายและแนะนำสิ่งที่ช่วยได้
+2. visitor_summary: สรุปผู้มาเยือนวันนี้/สัปดาห์นี้
+3. unpaid_visitor_fee_today: ใครยังไม่จ่าย visitor fee วันนี้
+4. visitor_fee_total_month: ยอด visitor fee รวมเดือนนี้
+5. meeting_stats: สถิติต่าง ๆ ของ meeting`;
 
 const TOOLS: OpenAI.ChatCompletionTool[] = [
   {
@@ -616,6 +625,14 @@ export async function processChapterAIQuery(
 
 export function isChapterAIQuery(text: string): boolean {
   const aiPatterns = [
+    /^สวัสดี/i,
+    /^หวัดดี/i,
+    /^hello/i,
+    /^hi$/i,
+    /^hi\s/i,
+    /ช่วย.*อะไร.*ได้/i,
+    /ทำอะไรได้บ้าง/i,
+    /ถามอะไรได้บ้าง/i,
     /สรุป.*ผู้.*เยือน/i,
     /สรุป.*visitor/i,
     /visitor.*สรุป/i,
