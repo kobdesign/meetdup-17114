@@ -325,7 +325,7 @@ export default function MeetingCommandCenter() {
       };
       console.log("[handleCheckin] Request:", requestBody);
 
-      const response = await fetch("/api/pos-manual-checkin", {
+      const response = await fetch("/api/participants/pos-manual-checkin", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
