@@ -439,8 +439,8 @@ export default function MeetingCommandCenter() {
         return;
       }
 
-      const response = await fetch("/api/participants/checkin", {
-        method: "DELETE",
+      const response = await fetch("/api/participants/undo-checkin", {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`
@@ -478,8 +478,8 @@ export default function MeetingCommandCenter() {
         return;
       }
 
-      const response = await fetch("/api/participants/checkin", {
-        method: "PATCH",
+      const response = await fetch("/api/participants/update-checkin-status", {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`

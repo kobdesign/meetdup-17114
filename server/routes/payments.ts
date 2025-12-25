@@ -763,17 +763,26 @@ router.post("/visitor-fees/:feeId/unmark-paid", verifySupabaseAuth, async (req: 
       return res.status(403).json({ success: false, error: "ไม่มีสิทธิ์เข้าถึงข้อมูลนี้" });
     }
 
-    // Verify user has admin access to this tenant
-    const { data: userRole } = await supabaseAdmin
+    // Verify user has admin access to this tenant (check super_admin first, then chapter_admin)
+    const { data: superAdminRole } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("tenant_id", fee.tenant_id)
-      .in("role", ["super_admin", "chapter_admin"])
-      .single();
+      .eq("role", "super_admin")
+      .maybeSingle();
 
-    if (!userRole) {
-      return res.status(403).json({ success: false, error: "ไม่มีสิทธิ์ดำเนินการ" });
+    if (!superAdminRole) {
+      const { data: chapterAdminRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("tenant_id", fee.tenant_id)
+        .eq("role", "chapter_admin")
+        .maybeSingle();
+
+      if (!chapterAdminRole) {
+        return res.status(403).json({ success: false, error: "ไม่มีสิทธิ์ดำเนินการ" });
+      }
     }
 
     // Now safe to update

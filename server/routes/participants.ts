@@ -5600,9 +5600,9 @@ router.post("/generate-checkin-qr", verifySupabaseAuth, async (req: Authenticate
  * Cancel/Delete a check-in record
  * Used when admin needs to undo a check-in
  */
-router.delete("/checkin", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post("/undo-checkin", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   const requestId = crypto.randomUUID().slice(0, 8);
-  const logPrefix = `[delete-checkin:${requestId}]`;
+  const logPrefix = `[undo-checkin:${requestId}]`;
   
   try {
     const { meeting_id, participant_id, expected_tenant_id } = req.body;
@@ -5662,7 +5662,7 @@ router.delete("/checkin", verifySupabaseAuth, async (req: AuthenticatedRequest, 
  * Update check-in status (is_late toggle)
  * Used when admin needs to change late status
  */
-router.patch("/checkin", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post("/update-checkin-status", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const logPrefix = `[update-checkin:${requestId}]`;
   
