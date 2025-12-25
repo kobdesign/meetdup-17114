@@ -2008,7 +2008,8 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
           company,
           line_user_id,
           photo_url,
-          status
+          status,
+          referred_by_participant_id
         )
       `)
       .eq("meeting_id", meetingId)
@@ -2038,6 +2039,26 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
     // Get participant IDs from registrations
     const participantIds = registrations.map(r => r.participant_id);
 
+    // Get referrer IDs to fetch their names
+    const referrerIds = registrations
+      .map(r => (r.participant as any).referred_by_participant_id)
+      .filter((id: string | null) => id !== null) as string[];
+
+    // Get referrer names if there are any
+    let referrerMap = new Map<string, { full_name_th: string; nickname_th: string | null }>();
+    if (referrerIds.length > 0) {
+      const { data: referrers } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id, full_name_th, nickname_th")
+        .in("participant_id", referrerIds);
+      
+      if (referrers) {
+        referrerMap = new Map(
+          referrers.map(r => [r.participant_id, { full_name_th: r.full_name_th, nickname_th: r.nickname_th }])
+        );
+      }
+    }
+
     // Get check-ins for these registered visitors
     const { data: checkins, error: checkinsError } = await supabaseAdmin
       .from("checkins")
@@ -2055,10 +2076,13 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       (checkins || []).map(c => [c.participant_id, c])
     );
 
-    // Build visitor list with check-in status
+    // Build visitor list with check-in status and referrer info
     const registeredVisitors = registrations.map(reg => {
       const participant = reg.participant as any;
       const checkin = checkinMap.get(reg.participant_id) as any;
+      const referrerId = participant.referred_by_participant_id;
+      const referrer = referrerId ? referrerMap.get(referrerId) : null;
+      
       return {
         participant_id: participant.participant_id,
         full_name_th: participant.full_name_th,
@@ -2070,7 +2094,9 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
         registered_at: reg.registered_at,
         checked_in: !!checkin,
         checkin_time: checkin?.checkin_time || null,
-        is_late: checkin?.is_late || false
+        is_late: checkin?.is_late || false,
+        referred_by_name: referrer?.full_name_th || null,
+        referred_by_nickname: referrer?.nickname_th || null
       };
     });
 

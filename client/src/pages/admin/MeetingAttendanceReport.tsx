@@ -100,6 +100,8 @@ interface VisitorReport {
   checked_in: boolean;
   checkin_time: string | null;
   is_late: boolean;
+  referred_by_name: string | null;
+  referred_by_nickname: string | null;
 }
 
 interface VisitorStats {
@@ -345,6 +347,9 @@ export default function MeetingAttendanceReport() {
         "ชื่อเล่น": visitor.nickname_th || "-",
         "บริษัท": visitor.company || "-",
         "เบอร์โทร": visitor.phone || "-",
+        "ผู้แนะนำ": visitor.referred_by_nickname 
+          ? `${visitor.referred_by_nickname} (${visitor.referred_by_name})`
+          : visitor.referred_by_name || "-",
         "สถานะ": getVisitorStatus(visitor),
         "เวลาเช็คอิน": visitor.checkin_time 
           ? new Date(visitor.checkin_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
@@ -1103,8 +1108,22 @@ export default function MeetingAttendanceReport() {
                                   <span className="text-sm text-muted-foreground">({visitor.nickname_th})</span>
                                 )}
                               </div>
-                              <div className="text-sm text-muted-foreground truncate">
-                                {visitor.company || visitor.phone || "-"}
+                              <div className="text-sm text-muted-foreground space-y-0.5">
+                                {visitor.company && (
+                                  <div className="truncate">{visitor.company}</div>
+                                )}
+                                {visitor.phone && (
+                                  <div>{visitor.phone}</div>
+                                )}
+                                {visitor.referred_by_nickname || visitor.referred_by_name ? (
+                                  <div className="truncate">
+                                    <span className="text-xs">ผู้แนะนำ: </span>
+                                    {visitor.referred_by_nickname 
+                                      ? `${visitor.referred_by_nickname} (${visitor.referred_by_name})`
+                                      : visitor.referred_by_name
+                                    }
+                                  </div>
+                                ) : null}
                               </div>
                               {visitor.checkin_time && (
                                 <div className="text-sm text-muted-foreground">
