@@ -222,7 +222,6 @@ export async function approveMember(options: ApprovalOptions): Promise<ApprovalR
       .from("chapter_join_requests")
       .update({ 
         status: "approved",
-        reviewed_at: new Date().toISOString(),
         ...(approvedBy ? { approved_by: approvedBy, approved_at: new Date().toISOString() } : {})
       })
       .eq("participant_id", participantId)
@@ -261,7 +260,7 @@ export async function approveMember(options: ApprovalOptions): Promise<ApprovalR
       console.error(`${logPrefix} Error updating participant status:`, updateError);
       await supabaseAdmin
         .from("chapter_join_requests")
-        .update({ status: "pending", reviewed_at: null, approved_by: null, approved_at: null })
+        .update({ status: "pending", approved_by: null, approved_at: null })
         .eq("request_id", updatedRequest.request_id);
       
       return { success: false, error: "Update failed" };
@@ -319,7 +318,6 @@ export async function rejectMember(options: ApprovalOptions): Promise<ApprovalRe
       .from("chapter_join_requests")
       .update({ 
         status: "rejected",
-        reviewed_at: new Date().toISOString(),
         ...(approvedBy ? { approved_by: approvedBy, approved_at: new Date().toISOString() } : {})
       })
       .eq("participant_id", participantId)
