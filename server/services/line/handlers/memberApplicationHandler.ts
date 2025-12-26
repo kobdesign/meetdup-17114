@@ -371,37 +371,7 @@ export async function handleApproveMember(
       return { success: false, error: "Not authorized" };
     }
 
-    // Race condition protection: Check and update chapter_join_requests atomically
-    const { data: pendingRequest, error: requestError } = await supabaseAdmin
-      .from("chapter_join_requests")
-      .select("request_id, status")
-      .eq("participant_id", participantId)
-      .eq("tenant_id", tenantId)
-      .eq("status", "pending")
-      .maybeSingle();
-
-    if (requestError) {
-      console.error(`${logPrefix} Error checking join request:`, requestError);
-    }
-
-    if (!pendingRequest) {
-      // Already processed by another admin
-      await lineClient.replyMessage(event.replyToken, {
-        type: "text",
-        text: "คำขอนี้ได้รับการดำเนินการแล้ว"
-      });
-      return { success: true };
-    }
-
-    // Update request status to approved
-    await supabaseAdmin
-      .from("chapter_join_requests")
-      .update({ 
-        status: "approved",
-        reviewed_at: new Date().toISOString()
-      })
-      .eq("request_id", pendingRequest.request_id);
-
+    // Get participant first
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("participants")
       .select("participant_id, full_name_th, nickname_th, line_user_id, status, tenant_id")
@@ -426,6 +396,39 @@ export async function handleApproveMember(
       return { success: true };
     }
 
+    // Race condition protection: Atomic update with status='pending' filter
+    // Only one admin can successfully update the pending request
+    const { data: updatedRequest, error: requestError } = await supabaseAdmin
+      .from("chapter_join_requests")
+      .update({ 
+        status: "approved",
+        reviewed_at: new Date().toISOString()
+      })
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending")
+      .select("request_id")
+      .maybeSingle();
+
+    if (requestError) {
+      console.error(`${logPrefix} Error updating join request:`, requestError);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "เกิดข้อผิดพลาด กรุณาลองใหม่"
+      });
+      return { success: false, error: "Database error" };
+    }
+
+    if (!updatedRequest) {
+      // No row updated = already processed by another admin
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "คำขอนี้ได้รับการดำเนินการแล้ว"
+      });
+      return { success: true };
+    }
+
+    // Now update participant status
     const { error: updateError } = await supabaseAdmin
       .from("participants")
       .update({ 
@@ -437,6 +440,12 @@ export async function handleApproveMember(
 
     if (updateError) {
       console.error(`${logPrefix} Error updating participant status:`, updateError);
+      // Rollback the join request status
+      await supabaseAdmin
+        .from("chapter_join_requests")
+        .update({ status: "pending", reviewed_at: null })
+        .eq("request_id", updatedRequest.request_id);
+      
       await lineClient.replyMessage(event.replyToken, {
         type: "text",
         text: "เกิดข้อผิดพลาดในการอนุมัติ กรุณาลองใหม่"
@@ -603,37 +612,7 @@ export async function handleRejectMember(
       return { success: false, error: "Not authorized" };
     }
 
-    // Race condition protection: Check and update chapter_join_requests atomically
-    const { data: pendingRequest, error: requestError } = await supabaseAdmin
-      .from("chapter_join_requests")
-      .select("request_id, status")
-      .eq("participant_id", participantId)
-      .eq("tenant_id", tenantId)
-      .eq("status", "pending")
-      .maybeSingle();
-
-    if (requestError) {
-      console.error(`${logPrefix} Error checking join request:`, requestError);
-    }
-
-    if (!pendingRequest) {
-      // Already processed by another admin
-      await lineClient.replyMessage(event.replyToken, {
-        type: "text",
-        text: "คำขอนี้ได้รับการดำเนินการแล้ว"
-      });
-      return { success: true };
-    }
-
-    // Update request status to rejected
-    await supabaseAdmin
-      .from("chapter_join_requests")
-      .update({ 
-        status: "rejected",
-        reviewed_at: new Date().toISOString()
-      })
-      .eq("request_id", pendingRequest.request_id);
-
+    // Get participant first
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("participants")
       .select("participant_id, full_name_th, nickname_th, line_user_id")
@@ -647,6 +626,37 @@ export async function handleRejectMember(
         text: "ไม่พบข้อมูลผู้สมัครในระบบ"
       });
       return { success: false, error: "Participant not found" };
+    }
+
+    // Race condition protection: Atomic update with status='pending' filter
+    const { data: updatedRequest, error: requestError } = await supabaseAdmin
+      .from("chapter_join_requests")
+      .update({ 
+        status: "rejected",
+        reviewed_at: new Date().toISOString()
+      })
+      .eq("participant_id", participantId)
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending")
+      .select("request_id")
+      .maybeSingle();
+
+    if (requestError) {
+      console.error(`${logPrefix} Error updating join request:`, requestError);
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "เกิดข้อผิดพลาด กรุณาลองใหม่"
+      });
+      return { success: false, error: "Database error" };
+    }
+
+    if (!updatedRequest) {
+      // No row updated = already processed by another admin
+      await lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "คำขอนี้ได้รับการดำเนินการแล้ว"
+      });
+      return { success: true };
     }
 
     const applicantName = participant.nickname_th || participant.full_name_th;
