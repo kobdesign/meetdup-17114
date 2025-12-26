@@ -8,7 +8,7 @@ import { handleViewCard, handleMemberSearch, handleCardSearch, handleEditProfile
 import { startPhoneLinkingFlow, handlePhoneLinking, getConversationState, clearConversationState } from "../../services/line/handlers/phoneLinkingHandler";
 import { handleResendActivation } from "../../services/line/handlers/resendActivationHandler";
 import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSummaryHandler";
-import { handleApplyMember, handleSkipApply } from "../../services/line/handlers/memberApplicationHandler";
+import { handleApplyMember, handleSkipApply, handleApproveMember, handleRejectMember } from "../../services/line/handlers/memberApplicationHandler";
 import { handleRsvpConfirm, handleRsvpSubstitute, handleRsvpLeave, handleLeaveReason, getLeaveConversationState, clearLeaveConversationState } from "../../services/line/handlers/rsvpHandler";
 import { processChapterAIQuery, isChapterAIQuery } from "../../services/chapterAI";
 
@@ -489,6 +489,26 @@ async function processEvent(
       
       case "skip_apply":
         await handleSkipApply(event, accessToken, logPrefix);
+        break;
+      
+      case "approve_member":
+        const approveParticipantId = params.get("participant_id");
+        const approvePostbackTenantId = params.get("tenant_id");
+        if (approveParticipantId && approvePostbackTenantId === tenantId) {
+          await handleApproveMember(event, approveParticipantId, tenantId, accessToken, logPrefix);
+        } else if (approvePostbackTenantId !== tenantId) {
+          console.warn(`${logPrefix} Security: tenant_id mismatch in approve_member postback`);
+        }
+        break;
+      
+      case "reject_member":
+        const rejectParticipantId = params.get("participant_id");
+        const rejectPostbackTenantId = params.get("tenant_id");
+        if (rejectParticipantId && rejectPostbackTenantId === tenantId) {
+          await handleRejectMember(event, rejectParticipantId, tenantId, accessToken, logPrefix);
+        } else if (rejectPostbackTenantId !== tenantId) {
+          console.warn(`${logPrefix} Security: tenant_id mismatch in reject_member postback`);
+        }
         break;
       
       default:
