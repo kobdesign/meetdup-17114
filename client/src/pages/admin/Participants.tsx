@@ -1493,13 +1493,14 @@ export default function Participants() {
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Account</TableHead>
+                    <TableHead>LINE</TableHead>
                     <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredParticipants.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground">
                         No participants found
                       </TableCell>
                     </TableRow>
@@ -1534,6 +1535,19 @@ export default function Participants() {
                             <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
                               <XCircle className="h-3 w-3 mr-1" />
                               Not Activated
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {participant.line_user_id ? (
+                            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                              <MessageCircle className="h-3 w-3 mr-1" />
+                              Linked
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-muted text-muted-foreground border-muted">
+                              <MessageCircle className="h-3 w-3 mr-1" />
+                              Not Linked
                             </Badge>
                           )}
                         </TableCell>
