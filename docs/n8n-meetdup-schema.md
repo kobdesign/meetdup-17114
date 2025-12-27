@@ -110,12 +110,27 @@ created_at      TIMESTAMPTZ
 updated_at      TIMESTAMPTZ
 ```
 
+### substitute_requests
+Member substitute tracking (สำหรับติดตามผู้แทนเข้าประชุม).
+```sql
+request_id              UUID PRIMARY KEY
+tenant_id               UUID REFERENCES tenants(tenant_id)
+meeting_id              UUID REFERENCES meetings(meeting_id)
+member_participant_id   UUID REFERENCES participants(participant_id)  -- สมาชิกที่ไม่มา
+substitute_name         TEXT          -- ชื่อผู้แทน
+substitute_phone        TEXT
+substitute_email        TEXT
+status                  TEXT          -- "pending", "confirmed", "cancelled"
+confirmed_at            TIMESTAMPTZ
+```
+
 ## Important Relationships
 
 - All tables have `tenant_id` for multi-tenant isolation
 - `checkins` links `participants` to `meetings`
 - `meeting_registrations` tracks **visitor registration** for each meeting
 - `visitor_meeting_fees` tracks **visitor payment** only
+- `substitute_requests` tracks **member substitutes** (status = 'confirmed' means active)
 
 ### Critical: Counting Visitors (สำคัญมาก!)
 - **Visitor ลงทะเบียน** = นับจาก `meeting_registrations` table

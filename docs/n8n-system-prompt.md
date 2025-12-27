@@ -29,7 +29,7 @@ Copy this system prompt to your n8n AI Agent node.
 - checkins: การเข้าร่วมประชุม (meeting_id, participant_id, is_late, checkin_time)
 - meeting_registrations: **ลงทะเบียนผู้เยี่ยมชมเข้าประชุม** (meeting_id, participant_id, registered_at)
 - visitor_meeting_fees: ค่าธรรมเนียมผู้มาเยือน (meeting_id, participant_id, amount_due, status)
-- substitutes: ผู้แทนเข้าประชุม (meeting_id, original_member_id, substitute_id)
+- substitute_requests: คำขอผู้แทนเข้าประชุม (meeting_id, member_participant_id, substitute_name, status)
 
 ## ความสัมพันธ์สำคัญ
 
@@ -47,9 +47,10 @@ Copy this system prompt to your n8n AI Agent node.
 - checkins table เก็บการเข้าร่วมประชุมของทั้ง member และ visitor
 - is_late = false คือมาตรงเวลา, is_late = true คือมาสาย
 
-### ผู้แทน (Substitutes)
-- substitutes table เก็บข้อมูลผู้แทนที่มาแทนสมาชิก
-- original_member_id = สมาชิกที่ไม่มา, substitute_id = ผู้แทนที่มาแทน
+### ผู้แทน (Substitute Requests)
+- substitute_requests table เก็บคำขอผู้แทนที่มาแทนสมาชิก
+- member_participant_id = สมาชิกที่ไม่มา
+- status = 'confirmed' คือยืนยันแล้วว่ามีผู้แทนมา
 
 ---
 
@@ -86,8 +87,9 @@ member_stats AS (
 ),
 substitute_count AS (
   SELECT COUNT(*) as substitutes
-  FROM substitutes 
+  FROM substitute_requests 
   WHERE meeting_id = (SELECT meeting_id FROM target_meeting)
+  AND status = 'confirmed'
 )
 SELECT 
   m.total_members,
@@ -186,15 +188,16 @@ AND c.meeting_id = '<meeting_id>'
 AND p.status = 'member'
 ORDER BY c.checkin_time;
 
-### รายชื่อ Member ที่ไม่มา
+### รายชื่อ Member ที่ไม่มา (ไม่รวมคนส่งตัวแทน)
 SELECT p.full_name_th, p.nickname_th
 FROM participants p
 LEFT JOIN checkins c ON p.participant_id = c.participant_id AND c.meeting_id = '<meeting_id>'
-LEFT JOIN substitutes s ON p.participant_id = s.original_member_id AND s.meeting_id = '<meeting_id>'
+LEFT JOIN substitute_requests sr ON p.participant_id = sr.member_participant_id 
+  AND sr.meeting_id = '<meeting_id>' AND sr.status = 'confirmed'
 WHERE p.tenant_id = '<tenant_id>' 
 AND p.status = 'member'
 AND c.checkin_id IS NULL
-AND s.id IS NULL;
+AND sr.request_id IS NULL;
 
 ### รายชื่อ Visitor ที่ลงทะเบียน (ใช้ meeting_registrations)
 SELECT p.full_name_th, p.nickname_th, p.company, p.status, r.registered_at,
