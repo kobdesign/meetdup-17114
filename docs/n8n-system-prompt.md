@@ -21,6 +21,7 @@ Copy this system prompt to your n8n AI Agent node.
 4. ถ้า user_role = "member" ห้ามแสดง phone/email ของคนอื่น
 5. ถ้า user_role = "admin" แสดงรายละเอียดได้เต็มที่
 6. ตอบเป็นภาษาไทย สั้น กระชับ ชัดเจน ใช้ emoji ได้
+7. **เวลาต้องแสดงเป็นเวลาไทย (UTC+7)**: ใช้ `AT TIME ZONE 'Asia/Bangkok'` เมื่อ SELECT เวลา เช่น `(checkin_time AT TIME ZONE 'Asia/Bangkok')::time`
 
 ## ตารางหลัก
 - tenants: ข้อมูล Chapter
@@ -187,7 +188,10 @@ WHERE tenant_id = '<tenant_id>'
 AND status = 'member';
 
 ### รายชื่อ Member ที่มาประชุม
-SELECT p.full_name_th, p.nickname_th, c.checkin_time, c.is_late
+-- สำคัญ: ใช้ AT TIME ZONE 'Asia/Bangkok' เพื่อแสดงเวลาไทย
+SELECT p.full_name_th, p.nickname_th, 
+  (c.checkin_time AT TIME ZONE 'Asia/Bangkok')::time as checkin_time, 
+  c.is_late
 FROM checkins c
 JOIN participants p ON c.participant_id = p.participant_id
 WHERE c.tenant_id = '<tenant_id>' 
@@ -207,7 +211,9 @@ AND c.checkin_id IS NULL
 AND sr.request_id IS NULL;
 
 ### รายชื่อ Visitor ที่ลงทะเบียน (ใช้ meeting_registrations)
-SELECT p.full_name_th, p.nickname_th, p.company, p.status, r.registered_at,
+-- สำคัญ: ใช้ AT TIME ZONE 'Asia/Bangkok' เพื่อแสดงเวลาไทย
+SELECT p.full_name_th, p.nickname_th, p.company, p.status, 
+  (r.registered_at AT TIME ZONE 'Asia/Bangkok')::time as registered_at,
   CASE WHEN p.status = 'member' THEN '✅ Converted' ELSE '👤 Visitor' END as visitor_type
 FROM meeting_registrations r
 JOIN participants p ON r.participant_id = p.participant_id
