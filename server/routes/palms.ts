@@ -2129,7 +2129,7 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
     const convertedMemberCount = registeredVisitors.filter(v => v.is_converted_member).length;
 
     console.log(`${logPrefix} Found ${registeredVisitors.length} registered visitors for meeting:`, meetingId, 
-      `(checked_in: ${checkedInCount}, not_checked_in: ${notCheckedInCount}, converted_members: ${convertedMemberCount})`);
+      `(checked_in: ${checkedInCount}, not_checked_in: ${notCheckedInCount}, converted_to_member: ${convertedMemberCount})`);
 
     return res.json({
       success: true,
@@ -2144,7 +2144,7 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
         total: registeredVisitors.length,
         checked_in: checkedInCount,
         not_checked_in: notCheckedInCount,
-        converted_members: convertedMemberCount
+        converted_to_member: convertedMemberCount
       }
     });
 

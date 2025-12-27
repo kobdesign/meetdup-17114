@@ -140,7 +140,7 @@ export default function MeetingAttendanceReport() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [closingMeeting, setClosingMeeting] = useState(false);
   const [visitors, setVisitors] = useState<VisitorReport[]>([]);
-  const [visitorApiSummary, setVisitorApiSummary] = useState<{ total: number; checked_in: number; not_checked_in: number; converted_members: number } | null>(null);
+  const [visitorApiSummary, setVisitorApiSummary] = useState<{ total: number; checked_in: number; not_checked_in: number; converted_to_member: number } | null>(null);
   const [loadingVisitors, setLoadingVisitors] = useState(false);
   const [visitorStats, setVisitorStats] = useState<VisitorStats | null>(null);
   const [repeatVisitorList, setRepeatVisitorList] = useState<RepeatVisitor[]>([]);
@@ -361,18 +361,18 @@ export default function MeetingAttendanceReport() {
         "Converted": visitor.is_converted_member ? "Yes" : "-"
       }));
 
-      // Visitor summary - include converted members count
+      // Visitor summary - use visitorStats.converted_to_member for consistency with API
       const notCheckedIn = visitors.filter(v => !v.checked_in).length;
-      const convertedCount = visitors.filter(v => v.is_converted_member).length;
+      const convertedCount = visitorStats?.converted_to_member ?? visitors.filter(v => v.is_converted_member).length;
       const visitorSummaryExport = [
-        { "สรุป": "จำนวนผู้เยี่ยมชมทั้งหมด", "จำนวน": visitors.length },
+        { "สรุป": "จำนวนผู้เยี่ยมชมทั้งหมด", "จำนวน": visitorStats?.total_registered ?? visitors.length },
         { "สรุป": "มา (ตรงเวลา)", "จำนวน": visitors.filter(v => v.checked_in && !v.is_late).length },
         { "สรุป": "มา (สาย)", "จำนวน": visitors.filter(v => v.checked_in && v.is_late).length },
         ...(isClosed
-          ? [{ "สรุป": "ขาด", "จำนวน": notCheckedIn }]
+          ? [{ "สรุป": "ขาด", "จำนวน": visitorStats?.no_show ?? notCheckedIn }]
           : [{ "สรุป": "รอเข้าร่วม", "จำนวน": notCheckedIn }]
         ),
-        { "สรุป": "Convert เป็นสมาชิก", "จำนวน": convertedCount }
+        { "สรุป": "แปลงเป็นสมาชิก", "จำนวน": convertedCount }
       ];
 
       const wb = XLSX.utils.book_new();
@@ -512,16 +512,16 @@ export default function MeetingAttendanceReport() {
   }) || [];
 
   // Calculate visitor summary stats (pending if meeting not closed, absent if closed)
-  // Use API summary for converted_members to ensure consistency with backend
+  // Use API summary for converted_to_member to ensure consistency with backend
   const notCheckedInVisitors = visitors.filter(v => !v.checked_in).length;
-  const convertedMemberCount = visitorApiSummary?.converted_members ?? visitors.filter(v => v.is_converted_member).length;
+  const convertedMemberCount = visitorApiSummary?.converted_to_member ?? visitors.filter(v => v.is_converted_member).length;
   const visitorSummary = {
     total: visitorApiSummary?.total ?? visitors.length,
     on_time: visitors.filter(v => v.checked_in && !v.is_late).length,
     late: visitors.filter(v => v.checked_in && v.is_late).length,
     pending: isMeetingClosed ? 0 : notCheckedInVisitors,
     absent: isMeetingClosed ? notCheckedInVisitors : 0,
-    converted_members: convertedMemberCount
+    converted_to_member: convertedMemberCount
   };
 
   const filteredVisitors = visitors.filter(visitor => {
