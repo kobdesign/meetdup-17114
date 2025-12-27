@@ -44,15 +44,30 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - **AI Chapter Data Assistant (LINE Bot)**: An AI Chatbot integrated with OpenAI for Admin/Member queries via LINE, supporting intents like visitor summaries, unpaid visitor fees, and meeting statistics with RBAC logic.
 
 ### AI Chapter Data Assistant Details
-**Core Files:** `server/services/chapterAI.ts`, `server/routes/line/webhook.ts`
 
-**Supported Intents & Tools:**
-1. `visitor_summary` - via `get_visitor_summary`
-2. `unpaid_visitor_fee_today` - via `get_unpaid_visitor_fee` (RBAC protected)
-3. `visitor_fee_total_month` - via `get_visitor_fee_total`
-4. `meeting_stats` - via `get_meeting_stats`
+**Architecture:** Single Agent (n8n) - ทำทั้ง Text-to-SQL และ Format Response ในตัวเดียว
 
-**Additional Tools:** `get_meeting_context`, `get_user_role`
+**Core Files:** 
+- `docs/n8n-system-prompt.md` - System prompt สำหรับ n8n AI Agent
+- `docs/n8n-meetdup-schema.md` - Database schema reference
+- `server/services/n8nAIQuery.ts` - n8n webhook integration
+- `server/routes/line/webhook.ts` - LINE webhook handler
+
+**Supported Intents:**
+1. `meeting_statistics` - สถิติการประชุมแบบ Dashboard (member stats, visitor stats, conversion)
+2. `visitor_summary` - สรุปผู้เยี่ยมชม
+3. `unpaid_visitor_fee` - ผู้เยี่ยมชมที่ยังไม่จ่ายเงิน (RBAC protected)
+4. `visitor_fee_total` - ยอดรวมค่า visitor fee
+5. `member_search` - ค้นหาสมาชิกจากชื่อ
+
+**Key Metrics from Dashboard:**
+- Member: total, on_time, late, substitute, absent, attendance_rate%
+- Visitor: registered, checked_in, no_show, no_show_rate%, repeat_visitors
+- Conversion: converted_to_member (per meeting), total_converted (lifetime)
+
+**Critical Table Mapping:**
+- `meeting_registrations` = ใช้นับ visitor ลงทะเบียน (source of truth)
+- ห้ามใช้ `participants.status = 'visitor'` นับ visitor ของ meeting
 
 **RBAC:** Admin sees full details, Member sees counts only
 
