@@ -104,8 +104,13 @@ updated_at      TIMESTAMPTZ
 
 - All tables have `tenant_id` for multi-tenant isolation
 - `checkins` links `participants` to `meetings`
-- `visitor_meeting_fees` tracks visitor payments per meeting
-- `participants.status` = "member" for active members, "visitor" for guests
+- `visitor_meeting_fees` tracks visitor **registration** AND payments per meeting
+
+### Critical: Counting Visitors
+- **Visitor Registration** = records in `visitor_meeting_fees` table for a specific meeting
+- **Visitor Check-in** = visitor_meeting_fees records where participant also has a checkin record
+- **DO NOT use** `participants.status = 'visitor'` to count meeting visitors
+- `participants.status` only indicates the person's general status, NOT their registration for a specific meeting
 
 ## Common Query Patterns
 
@@ -164,15 +169,33 @@ AND v.tenant_id = $tenant_id
 AND v.status = 'pending';
 ```
 
-### Visitor count this month
+### Visitor statistics for a meeting (CORRECT WAY)
 ```sql
-SELECT COUNT(DISTINCT c.participant_id) as visitor_count
-FROM checkins c
-JOIN participants p ON c.participant_id = p.participant_id
-WHERE c.tenant_id = $tenant_id
-AND p.status = 'visitor'
-AND c.checkin_time >= DATE_TRUNC('month', CURRENT_DATE)
-AND c.status = 'approved';
+WITH visitor_stats AS (
+  SELECT 
+    COUNT(*) as registered,
+    COUNT(*) FILTER (WHERE v.participant_id IN (
+      SELECT participant_id FROM checkins WHERE meeting_id = $meeting_id
+    )) as checked_in
+  FROM visitor_meeting_fees v
+  WHERE v.tenant_id = $tenant_id AND v.meeting_id = $meeting_id
+)
+SELECT registered, checked_in, (registered - checked_in) as no_show 
+FROM visitor_stats;
+```
+
+### Visitor list with check-in status
+```sql
+SELECT 
+  p.full_name_th, 
+  p.nickname_th, 
+  v.amount_due,
+  v.status as payment_status,
+  CASE WHEN c.checkin_id IS NOT NULL THEN 'checked_in' ELSE 'not_checked_in' END as checkin_status
+FROM visitor_meeting_fees v
+JOIN participants p ON v.participant_id = p.participant_id
+LEFT JOIN checkins c ON v.participant_id = c.participant_id AND v.meeting_id = c.meeting_id
+WHERE v.tenant_id = $tenant_id AND v.meeting_id = $meeting_id;
 ```
 
 ## Security Notes
