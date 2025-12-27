@@ -11,6 +11,7 @@ import { handleGoalsSummaryRequest } from "../../services/line/handlers/goalsSum
 import { handleApplyMember, handleSkipApply, handleApproveMember, handleRejectMember } from "../../services/line/handlers/memberApplicationHandler";
 import { handleRsvpConfirm, handleRsvpSubstitute, handleRsvpLeave, handleLeaveReason, getLeaveConversationState, clearLeaveConversationState } from "../../services/line/handlers/rsvpHandler";
 import { processChapterAIQuery, isChapterAIQuery } from "../../services/chapterAI";
+import { isN8nAIEnabled, forwardToN8nAI } from "../../services/n8nAIQuery";
 
 const router = Router();
 
@@ -923,7 +924,46 @@ async function handleChapterAIQuery(
   console.log(`${logPrefix} Processing AI query: "${text}"`);
 
   try {
-    const response = await processChapterAIQuery(text, tenantId, lineUserId);
+    let response: string;
+
+    // Check if n8n Text-to-SQL is enabled
+    if (isN8nAIEnabled()) {
+      console.log(`${logPrefix} Using n8n Text-to-SQL backend`);
+      
+      // Get user info for role-based access
+      const { data: participant } = await supabaseAdmin
+        .from("participants")
+        .select("full_name_th, nickname_th, status")
+        .eq("line_user_id", lineUserId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      // Determine user role
+      let userRole: 'admin' | 'member' | 'visitor' = 'visitor';
+      if (participant?.status === 'member') {
+        // Check if admin
+        const { data: adminRole } = await supabaseAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("tenant_id", tenantId)
+          .eq("user_id", (await supabaseAdmin
+            .from("participants")
+            .select("user_id")
+            .eq("line_user_id", lineUserId)
+            .eq("tenant_id", tenantId)
+            .maybeSingle()).data?.user_id)
+          .maybeSingle();
+        
+        userRole = adminRole?.role === 'chapter_admin' ? 'admin' : 'member';
+      }
+
+      const userName = participant?.nickname_th || participant?.full_name_th || 'Unknown';
+      
+      response = await forwardToN8nAI(tenantId, lineUserId, userRole, userName, text);
+    } else {
+      // Use built-in OpenAI processing
+      response = await processChapterAIQuery(text, tenantId, lineUserId);
+    }
 
     await replyMessage(event.replyToken, {
       type: "text",
