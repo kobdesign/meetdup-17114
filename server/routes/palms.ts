@@ -2331,16 +2331,20 @@ router.get("/meeting/:meetingId/visitor-stats", verifySupabaseAuth, async (req: 
       }
     }
 
-    // Get conversion stats (visitors who became members in last 90 days)
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-    const { data: recentConversions } = await supabaseAdmin
-      .from("participants")
-      .select("participant_id")
-      .eq("tenant_id", meeting.tenant_id)
-      .eq("status", "member")
-      .gte("updated_at", ninetyDaysAgo.toISOString());
+    // Get conversion stats: visitors who registered for this meeting and are now members
+    // This counts per-meeting conversion, not lifetime
+    const registeredParticipantIds = visitorRegistrations.map(r => r.participant_id);
+    let convertedToMemberCount = 0;
+    
+    if (registeredParticipantIds.length > 0) {
+      const { count } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id", { count: "exact", head: true })
+        .in("participant_id", registeredParticipantIds)
+        .eq("status", "member");
+      
+      convertedToMemberCount = count || 0;
+    }
 
     // Get visitors with referrals (indicates engagement)
     const referredVisitors = visitorRegistrations.filter(r => {
@@ -2373,7 +2377,7 @@ router.get("/meeting/:meetingId/visitor-stats", verifySupabaseAuth, async (req: 
           : 0,
         repeat_visitors: repeatVisitors.length,
         referred_visitors: referredVisitors,
-        recent_conversions: recentConversions?.length || 0,
+        converted_to_member: convertedToMemberCount,
         previous_avg: previousAvg,
         trend_delta: trendDelta
       },

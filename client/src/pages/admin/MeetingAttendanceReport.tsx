@@ -113,7 +113,7 @@ interface VisitorStats {
   no_show_rate: number;
   repeat_visitors: number;
   referred_visitors: number;
-  recent_conversions: number;
+  converted_to_member: number;
   previous_avg: number;
   trend_delta: number;
 }
@@ -911,14 +911,14 @@ export default function MeetingAttendanceReport() {
                         </p>
                       </div>
 
-                      <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                      <div className="p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
                         <div className="flex items-center gap-2 mb-1">
-                          <UserCheck className="h-4 w-4 text-blue-500" />
+                          <UserCheck className="h-4 w-4 text-emerald-500" />
                           <span className="text-xs text-muted-foreground">Conversion</span>
                         </div>
-                        <span className="text-2xl font-bold text-blue-600">{visitorStats.recent_conversions}</span>
+                        <span className="text-2xl font-bold text-emerald-600">{visitorStats.converted_to_member}</span>
                         <p className="text-xs text-muted-foreground mt-1">
-                          สมาชิกใหม่ 90 วัน
+                          แปลงเป็นสมาชิก
                         </p>
                       </div>
                     </div>
