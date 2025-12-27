@@ -1211,6 +1211,48 @@ export function isChapterAIQuery(text: string): boolean {
     // Member attendance check pattern (คุณ/พี่ + name)
     /^(คุณ|พี่|น้อง).*มา/i,
     /^(คุณ|พี่|น้อง).*ประชุม/i,
+    
+    // Member count queries
+    /มี.*member.*กี่/i,
+    /member.*กี่.*คน/i,
+    /มี.*สมาชิก.*กี่/i,
+    /สมาชิก.*กี่.*คน/i,
+    /จำนวน.*สมาชิก/i,
+    /จำนวน.*member/i,
+    
+    // Meeting queries
+    /meeting.*ล่าสุด/i,
+    /ประชุม.*ล่าสุด/i,
+    /meeting.*วัน.*ไหน/i,
+    /meeting.*วัน.*ใหน/i,
+    /ประชุม.*วัน.*ไหน/i,
+    /ประชุม.*วัน.*ใหน/i,
+    /meeting.*ครั้ง.*หน้า/i,
+    /ประชุม.*ครั้ง.*หน้า/i,
+    /meeting.*ที่.*ผ่าน.*มา/i,
+    /ประชุม.*ที่.*ผ่าน.*มา/i,
+    
+    // General question patterns
+    /^อยากรู้/i,
+    /^อยากทราบ/i,
+    /^ขอถาม/i,
+    /^ถาม.*หน่อย/i,
+    /^บอก.*หน่อย/i,
+    
+    // Visitor queries
+    /visitor.*กี่.*คน/i,
+    /ผู้.*เยือน.*กี่.*คน/i,
+    /มี.*visitor.*เท่าไหร่/i,
+    
+    // General data queries
+    /ข้อมูล.*chapter/i,
+    /ข้อมูล.*สมาชิก/i,
+    /รายชื่อ.*สมาชิก/i,
+    /รายชื่อ.*member/i,
+    /หา.*สมาชิก/i,
+    /หา.*member/i,
+    /ค้นหา.*สมาชิก/i,
+    /ค้นหา.*member/i,
   ];
 
   return aiPatterns.some(pattern => pattern.test(text));
