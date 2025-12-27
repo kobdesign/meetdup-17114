@@ -84,8 +84,18 @@ checkin_method  TEXT          -- "qr", "manual", "pos"
 notes           TEXT
 ```
 
+### meeting_registrations (สำคัญมาก!)
+Visitor/Guest registration for meetings. **ใช้ table นี้นับจำนวน visitor ที่ลงทะเบียน**
+```sql
+registration_id     UUID PRIMARY KEY
+participant_id      UUID REFERENCES participants(participant_id)
+meeting_id          UUID REFERENCES meetings(meeting_id)
+registration_status TEXT          -- "registered", "cancelled"
+registered_at       TIMESTAMPTZ   -- When they registered
+```
+
 ### visitor_meeting_fees
-Visitor fee tracking per meeting.
+Visitor fee tracking per meeting (สำหรับติดตามการจ่ายเงินเท่านั้น).
 ```sql
 fee_id          UUID PRIMARY KEY
 tenant_id       UUID REFERENCES tenants(tenant_id)
@@ -104,13 +114,14 @@ updated_at      TIMESTAMPTZ
 
 - All tables have `tenant_id` for multi-tenant isolation
 - `checkins` links `participants` to `meetings`
-- `visitor_meeting_fees` tracks visitor **registration** AND payments per meeting
+- `meeting_registrations` tracks **visitor registration** for each meeting
+- `visitor_meeting_fees` tracks **visitor payment** only
 
-### Critical: Counting Visitors
-- **Visitor Registration** = records in `visitor_meeting_fees` table for a specific meeting
-- **Visitor Check-in** = visitor_meeting_fees records where participant also has a checkin record
-- **DO NOT use** `participants.status = 'visitor'` to count meeting visitors
-- `participants.status` only indicates the person's general status, NOT their registration for a specific meeting
+### Critical: Counting Visitors (สำคัญมาก!)
+- **Visitor ลงทะเบียน** = นับจาก `meeting_registrations` table
+- **Visitor ที่ Check-in แล้ว** = meeting_registrations JOIN checkins
+- **ห้ามใช้** `visitor_meeting_fees` นับจำนวน visitor ลงทะเบียน (เพราะไม่ครบ)
+- **ห้ามใช้** `participants.status = 'visitor'` นับ visitor ของ meeting นั้นๆ
 
 ## Common Query Patterns
 
@@ -169,16 +180,16 @@ AND v.tenant_id = $tenant_id
 AND v.status = 'pending';
 ```
 
-### Visitor statistics for a meeting (CORRECT WAY)
+### Visitor statistics for a meeting (CORRECT WAY - ใช้ meeting_registrations)
 ```sql
 WITH visitor_stats AS (
   SELECT 
     COUNT(*) as registered,
-    COUNT(*) FILTER (WHERE v.participant_id IN (
+    COUNT(*) FILTER (WHERE r.participant_id IN (
       SELECT participant_id FROM checkins WHERE meeting_id = $meeting_id
     )) as checked_in
-  FROM visitor_meeting_fees v
-  WHERE v.tenant_id = $tenant_id AND v.meeting_id = $meeting_id
+  FROM meeting_registrations r
+  WHERE r.meeting_id = $meeting_id
 )
 SELECT registered, checked_in, (registered - checked_in) as no_show 
 FROM visitor_stats;
@@ -189,13 +200,23 @@ FROM visitor_stats;
 SELECT 
   p.full_name_th, 
   p.nickname_th, 
-  v.amount_due,
-  v.status as payment_status,
+  p.company,
+  r.registered_at,
   CASE WHEN c.checkin_id IS NOT NULL THEN 'checked_in' ELSE 'not_checked_in' END as checkin_status
-FROM visitor_meeting_fees v
-JOIN participants p ON v.participant_id = p.participant_id
-LEFT JOIN checkins c ON v.participant_id = c.participant_id AND v.meeting_id = c.meeting_id
-WHERE v.tenant_id = $tenant_id AND v.meeting_id = $meeting_id;
+FROM meeting_registrations r
+JOIN participants p ON r.participant_id = p.participant_id
+LEFT JOIN checkins c ON r.participant_id = c.participant_id AND r.meeting_id = c.meeting_id
+WHERE r.meeting_id = $meeting_id;
+```
+
+### Visitor fee summary (for payment tracking only)
+```sql
+SELECT 
+  SUM(amount_due) as total_amount,
+  SUM(CASE WHEN status = 'paid' THEN amount_due ELSE 0 END) as paid_amount,
+  SUM(CASE WHEN status = 'pending' THEN amount_due ELSE 0 END) as pending_amount
+FROM visitor_meeting_fees
+WHERE tenant_id = $tenant_id AND meeting_id = $meeting_id;
 ```
 
 ## Security Notes
