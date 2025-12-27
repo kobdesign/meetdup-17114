@@ -56,7 +56,7 @@ import {
 import VisitorRegistrationDialog from "@/components/dialogs/VisitorRegistrationDialog";
 
 type TypeFilter = "all" | "members" | "visitors";
-type StatusFilter = "all" | "not_checked_in" | "checked_in" | "late" | "unpaid" | "paid";
+type StatusFilter = "all" | "not_checked_in" | "checked_in" | "late" | "unpaid" | "paid" | "converted";
 
 interface Participant {
   participant_id: string;
@@ -558,6 +558,9 @@ export default function MeetingOperations() {
         break;
       case "paid":
         result = result.filter(p => p.fee_status === "paid");
+        break;
+      case "converted":
+        result = result.filter(p => p.is_converted_member);
         break;
     }
 
@@ -1332,6 +1335,7 @@ export default function MeetingOperations() {
                           <SelectItem value="late">มาสาย</SelectItem>
                           <SelectItem value="unpaid">ค้างจ่าย</SelectItem>
                           <SelectItem value="paid">จ่ายแล้ว</SelectItem>
+                          <SelectItem value="converted">สมาชิกใหม่</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

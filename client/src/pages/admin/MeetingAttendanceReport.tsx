@@ -530,6 +530,7 @@ export default function MeetingAttendanceReport() {
     if (visitorStatusFilter === "late") return visitor.checked_in && visitor.is_late;
     if (visitorStatusFilter === "pending") return !visitor.checked_in && !isMeetingClosed;
     if (visitorStatusFilter === "absent") return !visitor.checked_in && isMeetingClosed;
+    if (visitorStatusFilter === "converted") return visitor.is_converted_member;
     return true;
   });
 
@@ -1091,6 +1092,9 @@ export default function MeetingAttendanceReport() {
                         )}
                         {isMeetingClosed && (
                           <SelectItem value="absent">ขาด ({visitorSummary.absent})</SelectItem>
+                        )}
+                        {visitorSummary.converted_to_member > 0 && (
+                          <SelectItem value="converted">สมาชิกใหม่ ({visitorSummary.converted_to_member})</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
