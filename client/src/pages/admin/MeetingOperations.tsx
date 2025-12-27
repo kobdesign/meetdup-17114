@@ -89,6 +89,7 @@ interface ParticipantWithStatus extends Participant {
   amount_due?: number;
   substitute_name?: string;
   substitute_phone?: string;
+  is_converted_member?: boolean;
 }
 
 interface SubstituteRequest {
@@ -119,6 +120,32 @@ interface ParticipantSearchResult {
   position?: string;
   photo_url?: string;
   already_checked_in?: boolean;
+}
+
+interface RegisteredVisitor {
+  participant_id: string;
+  full_name_th: string;
+  nickname_th?: string;
+  phone?: string;
+  company?: string;
+  photo_url?: string;
+  registered_at: string;
+  checked_in: boolean;
+  check_in_time?: string;
+  is_late?: boolean;
+  fee_status?: string;
+  amount_due?: number;
+  current_status?: string;
+  is_converted_member?: boolean;
+  inviter_name?: string;
+  inviter_nickname?: string;
+}
+
+interface VisitorApiSummary {
+  total: number;
+  checked_in: number;
+  not_checked_in: number;
+  converted_members: number;
 }
 
 export default function MeetingOperations() {
@@ -153,6 +180,9 @@ export default function MeetingOperations() {
   const [walkinSubmitting, setWalkinSubmitting] = useState(false);
   const [closingOntime, setClosingOntime] = useState(false);
   const [closingMeeting, setClosingMeeting] = useState(false);
+  const [registeredVisitors, setRegisteredVisitors] = useState<RegisteredVisitor[]>([]);
+  const [visitorApiSummary, setVisitorApiSummary] = useState<VisitorApiSummary | null>(null);
+  const [loadingRegisteredVisitors, setLoadingRegisteredVisitors] = useState(false);
   const [visitorRegDialogOpen, setVisitorRegDialogOpen] = useState(false);
 
   const qrRef = useRef<HTMLDivElement>(null);
@@ -171,6 +201,7 @@ export default function MeetingOperations() {
     if (selectedMeetingId) {
       loadParticipantsWithStatus();
       loadPendingSubstitutes();
+      loadRegisteredVisitors();
     }
     setScanResult(null);
   }, [selectedMeetingId]);
@@ -394,33 +425,95 @@ export default function MeetingOperations() {
     }
   };
 
+  const loadRegisteredVisitors = async () => {
+    if (!selectedMeetingId) return;
+    
+    setLoadingRegisteredVisitors(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setRegisteredVisitors([]);
+        setVisitorApiSummary(null);
+        return;
+      }
+      
+      const response = await fetch(`/api/palms/meeting/${selectedMeetingId}/registered-visitors`, {
+        headers: { "Authorization": `Bearer ${session.access_token}` }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setRegisteredVisitors(data.visitors || []);
+        setVisitorApiSummary(data.summary || null);
+      } else {
+        setRegisteredVisitors([]);
+        setVisitorApiSummary(null);
+      }
+    } catch (error: any) {
+      console.error("Error loading registered visitors:", error);
+      setRegisteredVisitors([]);
+      setVisitorApiSummary(null);
+    } finally {
+      setLoadingRegisteredVisitors(false);
+    }
+  };
+
   const stats = useMemo(() => {
     const members = participants.filter(p => p.status === "member");
-    const visitors = participants.filter(p => p.status === "visitor" || p.status === "prospect");
     const membersCheckedIn = members.filter(p => p.is_checked_in);
-    const visitorsCheckedIn = visitors.filter(p => p.is_checked_in);
     const late = participants.filter(p => p.is_late);
-    const unpaidVisitors = visitors.filter(p => p.fee_status === "pending");
-    const paidVisitors = visitors.filter(p => p.fee_status === "paid");
-    const totalFees = visitors.reduce((sum, p) => sum + (p.amount_due || 0), 0);
-    const paidFees = paidVisitors.reduce((sum, p) => sum + (p.amount_due || 0), 0);
+    
+    const visitorParticipants = participants.filter(p => p.status === "visitor" || p.status === "prospect");
+    const visitorsCheckedInFromParticipants = visitorParticipants.filter(p => p.is_checked_in).length;
+    
+    const totalVisitors = visitorApiSummary?.total ?? registeredVisitors.length;
+    const visitorsCheckedIn = registeredVisitors.length > 0 
+      ? registeredVisitors.filter(v => v.checked_in).length 
+      : visitorsCheckedInFromParticipants;
+    const convertedMembers = visitorApiSummary?.converted_members ?? registeredVisitors.filter(v => v.is_converted_member).length;
+    
+    const unpaidVisitors = registeredVisitors.length > 0 
+      ? registeredVisitors.filter(v => v.fee_status === "pending").length 
+      : visitorParticipants.filter(p => p.fee_status === "pending").length;
+    const paidVisitors = registeredVisitors.length > 0 
+      ? registeredVisitors.filter(v => v.fee_status === "paid").length 
+      : visitorParticipants.filter(p => p.fee_status === "paid").length;
+    const totalFees = registeredVisitors.length > 0 
+      ? registeredVisitors.reduce((sum, v) => sum + (v.amount_due || 0), 0) 
+      : visitorParticipants.reduce((sum, p) => sum + (p.amount_due || 0), 0);
+    const paidFees = registeredVisitors.length > 0 
+      ? registeredVisitors.filter(v => v.fee_status === "paid").reduce((sum, v) => sum + (v.amount_due || 0), 0) 
+      : visitorParticipants.filter(p => p.fee_status === "paid").reduce((sum, p) => sum + (p.amount_due || 0), 0);
 
     return {
       totalMembers: members.length,
       membersCheckedIn: membersCheckedIn.length,
-      totalVisitors: visitors.length,
-      visitorsCheckedIn: visitorsCheckedIn.length,
+      totalVisitors,
+      visitorsCheckedIn,
       late: late.length,
-      unpaidVisitors: unpaidVisitors.length,
-      paidVisitors: paidVisitors.length,
+      unpaidVisitors,
+      paidVisitors,
       totalFees,
       paidFees,
-      outstandingFees: totalFees - paidFees
+      outstandingFees: totalFees - paidFees,
+      convertedMembers
     };
-  }, [participants]);
+  }, [participants, registeredVisitors, visitorApiSummary]);
+
+  const enrichedParticipants = useMemo(() => {
+    const convertedMemberIds = new Set(
+      registeredVisitors
+        .filter(v => v.is_converted_member)
+        .map(v => v.participant_id)
+    );
+    return participants.map(p => ({
+      ...p,
+      is_converted_member: convertedMemberIds.has(p.participant_id)
+    }));
+  }, [participants, registeredVisitors]);
 
   const filteredParticipants = useMemo(() => {
-    let result = participants;
+    let result = enrichedParticipants;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -457,7 +550,7 @@ export default function MeetingOperations() {
     }
 
     return result;
-  }, [participants, searchQuery, typeFilter, statusFilter]);
+  }, [enrichedParticipants, searchQuery, typeFilter, statusFilter]);
 
   const handleCheckin = async (participantId: string, isLate: boolean = false) => {
     if (!selectedMeetingId) return;
@@ -493,6 +586,7 @@ export default function MeetingOperations() {
             ? { ...p, is_checked_in: true, is_late: isLate, checkin_time: new Date().toISOString() }
             : p
         ));
+        loadRegisteredVisitors();
       } else {
         toast.error(data.error || "เกิดข้อผิดพลาด");
       }
@@ -515,6 +609,7 @@ export default function MeetingOperations() {
             ? { ...p, fee_status: "paid" }
             : p
         ));
+        loadRegisteredVisitors();
       } else {
         toast.error("เกิดข้อผิดพลาด");
       }
@@ -553,6 +648,7 @@ export default function MeetingOperations() {
       if (data.success) {
         toast.success("ยกเลิกการเช็คอินสำเร็จ");
         await loadParticipantsWithStatus();
+        loadRegisteredVisitors();
       } else {
         toast.error(data.error || "เกิดข้อผิดพลาด");
       }
@@ -592,6 +688,7 @@ export default function MeetingOperations() {
       if (data.success) {
         toast.success(data.message);
         await loadParticipantsWithStatus();
+        loadRegisteredVisitors();
       } else {
         toast.error(data.error || "เกิดข้อผิดพลาด");
       }
@@ -627,6 +724,7 @@ export default function MeetingOperations() {
       if (data.success) {
         toast.success("ยกเลิกการจ่ายเงินสำเร็จ");
         await loadParticipantsWithStatus();
+        loadRegisteredVisitors();
       } else {
         toast.error(data.error || "เกิดข้อผิดพลาด");
       }
@@ -662,6 +760,7 @@ export default function MeetingOperations() {
       if (response.success) {
         toast.success(`บันทึกการชำระเงิน ${unpaidSelected.length} รายการ`);
         await loadParticipantsWithStatus();
+        loadRegisteredVisitors();
       }
     } catch (error) {
       toast.error("เกิดข้อผิดพลาด");
@@ -716,6 +815,7 @@ export default function MeetingOperations() {
         });
         toast.success(`เช็คอินสำเร็จ: ${data.participant?.full_name_th || ""}`);
         await loadParticipantsWithStatus();
+        loadRegisteredVisitors();
       } else {
         setScanResult({ 
           success: false, 
@@ -811,6 +911,7 @@ export default function MeetingOperations() {
         setWalkinMemberSearch("");
         setWalkinMemberResults([]);
         await loadParticipantsWithStatus();
+        loadRegisteredVisitors();
       } else {
         toast.error(data.error || "เกิดข้อผิดพลาด");
       }
@@ -845,6 +946,7 @@ export default function MeetingOperations() {
       if (data.success) {
         toast.success("ยืนยันตัวแทนเรียบร้อย");
         await loadParticipantsWithStatus();
+        loadRegisteredVisitors();
         await loadPendingSubstitutes();
       } else {
         toast.error(data.error || "ไม่สามารถยืนยันตัวแทนได้");
@@ -1085,7 +1187,14 @@ export default function MeetingOperations() {
                       <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">ผู้เยี่ยมชม</p>
+                      <p className="text-xs text-muted-foreground">
+                        ผู้เยี่ยมชม
+                        {stats.convertedMembers > 0 && (
+                          <span className="ml-1 text-emerald-600 dark:text-emerald-400">
+                            (รวม {stats.convertedMembers} สมาชิกใหม่)
+                          </span>
+                        )}
+                      </p>
                       <p className="text-lg font-bold">{stats.visitorsCheckedIn}/{stats.totalVisitors}</p>
                     </div>
                   </div>
@@ -1221,6 +1330,12 @@ export default function MeetingOperations() {
                                 <Badge variant={p.status === "member" ? "default" : "secondary"} className="text-[10px]">
                                   {p.status === "member" ? "สมาชิก" : "ผู้เยี่ยมชม"}
                                 </Badge>
+                                {p.is_converted_member && (
+                                  <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700">
+                                    <UserCheck className="h-2.5 w-2.5 mr-0.5" />
+                                    สมาชิกใหม่
+                                  </Badge>
+                                )}
                                 {p.substitute_name && <Badge variant="outline" className="text-[10px] text-purple-600 border-purple-300">ส่งตัวแทน</Badge>}
                                 {p.is_late && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">สาย</Badge>}
                                 {p.fee_status === "paid" && <Badge variant="outline" className="text-[10px] text-green-600 border-green-300">จ่ายแล้ว</Badge>}
