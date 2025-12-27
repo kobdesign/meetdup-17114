@@ -86,6 +86,7 @@ notes           TEXT
 
 ### meeting_registrations (สำคัญมาก!)
 Visitor/Guest registration for meetings. **ใช้ table นี้นับจำนวน visitor ที่ลงทะเบียน**
+**หมายเหตุ: Table นี้ไม่มี tenant_id - ต้อง JOIN กับ meetings หรือ participants เพื่อ filter by tenant**
 ```sql
 registration_id     UUID PRIMARY KEY
 participant_id      UUID REFERENCES participants(participant_id)
@@ -126,7 +127,8 @@ confirmed_at            TIMESTAMPTZ
 
 ## Important Relationships
 
-- All tables have `tenant_id` for multi-tenant isolation
+- Most tables have `tenant_id` for multi-tenant isolation
+- **ยกเว้น `meeting_registrations` ที่ไม่มี tenant_id** - ต้อง JOIN กับ `meetings` table เพื่อ filter by tenant
 - `checkins` links `participants` to `meetings`
 - `meeting_registrations` tracks **visitor registration** for each meeting
 - `visitor_meeting_fees` tracks **visitor payment** only

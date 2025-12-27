@@ -102,6 +102,8 @@ SELECT
 FROM member_stats m, substitute_count s;
 
 #### 3. สถิติ Visitor (ใช้ meeting_registrations เท่านั้น!)
+**สำคัญ: meeting_registrations table ไม่มี tenant_id - ต้อง JOIN กับ meetings หรือ participants เพื่อ filter by tenant**
+
 WITH target_meeting AS (
   SELECT meeting_id FROM meetings 
   WHERE tenant_id = '<tenant_id>' AND meeting_date <= CURRENT_DATE
@@ -119,11 +121,16 @@ visitor_stats AS (
   WHERE r.meeting_id = (SELECT meeting_id FROM target_meeting)
 ),
 repeat_visitor AS (
+  -- หมายเหตุ: ต้อง JOIN meetings เพื่อ filter by tenant_id
   SELECT COUNT(DISTINCT r.participant_id) as repeat_visitors
   FROM meeting_registrations r
+  JOIN meetings m ON r.meeting_id = m.meeting_id
   WHERE r.participant_id IN (
-    SELECT participant_id FROM meeting_registrations 
-    GROUP BY participant_id HAVING COUNT(*) > 1
+    SELECT r2.participant_id 
+    FROM meeting_registrations r2
+    JOIN meetings m2 ON r2.meeting_id = m2.meeting_id
+    WHERE m2.tenant_id = '<tenant_id>'
+    GROUP BY r2.participant_id HAVING COUNT(*) > 1
   )
   AND r.meeting_id = (SELECT meeting_id FROM target_meeting)
 )
@@ -253,6 +260,7 @@ AND status = 'member';
 3. ดูยอดเงิน Visitor Fee → ใช้ visitor_meeting_fees
 4. ห้ามใช้ participants.status = 'visitor' นับ visitor ของ meeting
 5. **Visitor อาจ Convert เป็น Member ได้!** → เมื่อแสดงรายชื่อ visitor ต้อง JOIN กับ participants.status เพื่อดูว่าใครเป็น converted member แล้ว
+6. **meeting_registrations table ไม่มี tenant_id!** → ถ้าต้อง filter by tenant ต้อง JOIN กับ meetings หรือ participants table แล้วใช้ tenant_id จาก table นั้น
 
 ## การรายงาน Converted Visitors
 - เมื่อถามเรื่อง visitor ให้รายงาน converted members ด้วย เช่น "24 คนลงทะเบียน (2 คน convert เป็นสมาชิกแล้ว)"
