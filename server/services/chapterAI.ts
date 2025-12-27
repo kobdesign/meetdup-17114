@@ -2,6 +2,12 @@ import OpenAI from "openai";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { th } from "date-fns/locale";
+import {
+  getConversationHistory,
+  saveConversationMessage,
+  buildMessagesWithHistory,
+  refreshConversationExpiry
+} from "./conversationMemory";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -14,6 +20,16 @@ const SYSTEM_PROMPT = `คุณคือ "BNI Chapter Data Assistant" ทำห
 - ตอบคำถามเชิง "สรุป/สถิติ/สถานะ" เกี่ยวกับ Meeting, การเข้าร่วม และ Visitor fee
 - ตอบให้สั้น กระชับ ชัดเจน พร้อมตัวเลขและช่วงเวลา
 - ถ้าข้อมูลไม่พอ ให้ถามกลับแบบสั้นที่สุด
+
+การจำบทสนทนา (Conversation Memory):
+- คุณมีความสามารถจำบทสนทนาที่ผ่านมาได้ (10 ข้อความล่าสุด หมดอายุหลัง 30 นาที)
+- ใช้บริบทจากบทสนทนาก่อนหน้าเพื่อตอบคำถามที่ต่อเนื่อง
+- ตัวอย่าง: ถ้าผู้ใช้ถาม "คุณกบ มาประชุมไหม" แล้วคุณหาไม่เจอ และผู้ใช้บอก "ชื่อจริงว่า อภิศักดิ์" ให้ใช้ search_member_by_name ค้นหา "อภิศักดิ์" แล้วตอบคำถามเดิม
+
+การค้นหาสมาชิก (Member Search):
+- ถ้าผู้ใช้ถามเกี่ยวกับสมาชิกด้วยชื่อเล่น/ชื่อย่อ และหาไม่เจอ ให้ถามชื่อเต็มหรือข้อมูลเพิ่มเติม
+- เมื่อผู้ใช้ให้ข้อมูลเพิ่มเติม (เช่น "ชื่อจริงว่า...", "ชื่อเต็มคือ...") ให้ใช้ search_member_by_name ค้นหา
+- ถ้าพบหลายคนที่ชื่อคล้ายกัน ให้แสดงรายชื่อและถามให้ผู้ใช้ระบุชัดเจน
 
 การทักทาย:
 - ถ้าผู้ใช้ทักทาย (สวัสดี, หวัดดี, hello, hi, ช่วยอะไรได้บ้าง) ให้ตอบกลับอย่างเป็นมิตรและแนะนำสิ่งที่ถามได้ เช่น:
@@ -44,7 +60,8 @@ Intent ที่ต้องรองรับ:
 4. visitor_fee_total_month: ยอด visitor fee รวมเดือนนี้
 5. meeting_stats: สถิติต่าง ๆ ของ meeting
 6. attendance_query: ใครมา/ไม่มา/สาย - ใช้ get_attendance_insights
-7. member_attendance_check: ถามว่าคนๆหนึ่งมาประชุมไหม เช่น "คุณแคท มาไหม", "พี่โอ๋ เข้าประชุมมั้ย" - ใช้ check_member_attendance`;
+7. member_attendance_check: ถามว่าคนๆหนึ่งมาประชุมไหม - ใช้ check_member_attendance
+8. member_search: ค้นหาสมาชิกจากชื่อ/ชื่อเล่น - ใช้ search_member_by_name`;
 
 const TOOLS: OpenAI.ChatCompletionTool[] = [
   {
@@ -190,6 +207,23 @@ const TOOLS: OpenAI.ChatCompletionTool[] = [
           }
         },
         required: ["member_name"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_member_by_name",
+      description: "ค้นหาสมาชิกจากชื่อหรือชื่อเล่น (ใช้เมื่อไม่แน่ใจว่าชื่อตรงหรือไม่) เช่น ผู้ใช้บอกว่า 'ชื่อจริงว่า อภิศักดิ์' ให้ใช้ tool นี้ค้นหา",
+      parameters: {
+        type: "object",
+        properties: {
+          search_term: {
+            type: "string",
+            description: "คำค้นหา - ชื่อ/ชื่อเล่น/นามสกุล เช่น 'อภิศักดิ์', 'กบ', 'สมชาย'"
+          }
+        },
+        required: ["search_term"]
       }
     }
   }
@@ -904,6 +938,86 @@ async function checkMemberAttendance(
   }
 }
 
+async function searchMemberByName(
+  tenantId: string,
+  searchTerm: string
+): Promise<any> {
+  try {
+    const cleanSearch = searchTerm
+      .replace(/^(คุณ|พี่|น้อง|นาย|นาง|นางสาว)\s*/i, "")
+      .trim()
+      .toLowerCase();
+
+    console.log(`[ChapterAI] searchMemberByName: searching for "${cleanSearch}" in tenant ${tenantId}`);
+
+    const { data: allMembers } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, full_name_en, nickname_th, nickname_en, phone_number")
+      .eq("tenant_id", tenantId)
+      .eq("status", "member");
+
+    if (!allMembers || allMembers.length === 0) {
+      return { found: false, message: "ไม่พบสมาชิกในระบบ", members: [] };
+    }
+
+    const scoredMembers = allMembers.map(m => {
+      const nicknameTh = (m.nickname_th || "").toLowerCase();
+      const nicknameEn = (m.nickname_en || "").toLowerCase();
+      const fullNameTh = (m.full_name_th || "").toLowerCase();
+      const fullNameEn = (m.full_name_en || "").toLowerCase();
+      
+      let score = 0;
+      
+      if (nicknameTh === cleanSearch || nicknameEn === cleanSearch) {
+        score = 100;
+      } else if (fullNameTh.startsWith(cleanSearch) || fullNameEn.startsWith(cleanSearch)) {
+        score = 80;
+      } else if (nicknameTh.includes(cleanSearch) || nicknameEn.includes(cleanSearch)) {
+        score = 70;
+      } else if (fullNameTh.includes(cleanSearch) || fullNameEn.includes(cleanSearch)) {
+        score = 60;
+      } else if (cleanSearch.length >= 2) {
+        const firstNameTh = fullNameTh.split(" ")[0];
+        const firstNameEn = fullNameEn.split(" ")[0];
+        if (firstNameTh.includes(cleanSearch) || firstNameEn.includes(cleanSearch)) {
+          score = 50;
+        }
+      }
+      
+      return { ...m, score };
+    });
+
+    const matchingMembers = scoredMembers
+      .filter(m => m.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    console.log(`[ChapterAI] searchMemberByName: found ${matchingMembers.length} matching members`);
+
+    if (matchingMembers.length === 0) {
+      return {
+        found: false,
+        message: `ไม่พบสมาชิกชื่อ "${searchTerm}" ในระบบ กรุณาระบุชื่อให้ชัดเจนกว่านี้ เช่น ชื่อเต็ม หรือชื่อเล่นเพิ่มเติม`,
+        members: []
+      };
+    }
+
+    return {
+      found: true,
+      members: matchingMembers.map(m => ({
+        id: m.participant_id,
+        name: m.full_name_th || m.full_name_en || "ไม่ระบุชื่อ",
+        nickname: m.nickname_th || m.nickname_en || null,
+        match_score: m.score
+      })),
+      total_found: matchingMembers.length
+    };
+  } catch (error) {
+    console.error("[ChapterAI] searchMemberByName error:", error);
+    return { found: false, error: "เกิดข้อผิดพลาดในการค้นหาสมาชิก", members: [] };
+  }
+}
+
 async function executeTool(name: string, args: any, context: AIContext): Promise<string> {
   console.log(`[ChapterAI] Executing tool: ${name}`, args);
 
@@ -950,6 +1064,13 @@ async function executeTool(name: string, args: any, context: AIContext): Promise
       );
       return JSON.stringify(memberResult);
 
+    case "search_member_by_name":
+      const searchResult = await searchMemberByName(
+        context.tenantId,
+        args.search_term
+      );
+      return JSON.stringify(searchResult);
+
     default:
       return JSON.stringify({ error: "Unknown tool" });
   }
@@ -972,10 +1093,12 @@ export async function processChapterAIQuery(
       userRole
     };
 
-    const messages: OpenAI.ChatCompletionMessageParam[] = [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: message }
-    ];
+    const history = await getConversationHistory(tenantId, lineUserId);
+    console.log(`[ChapterAI] Loaded ${history.length} messages from conversation history`);
+
+    await saveConversationMessage(tenantId, lineUserId, "user", message);
+
+    const messages = buildMessagesWithHistory(SYSTEM_PROMPT, history, message);
 
     let response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -1017,6 +1140,10 @@ export async function processChapterAIQuery(
 
     const finalResponse = assistantMessage.content || "ขออภัย ไม่สามารถประมวลผลคำถามได้";
     console.log(`[ChapterAI] Response: "${finalResponse.substring(0, 100)}..."`);
+
+    await saveConversationMessage(tenantId, lineUserId, "assistant", finalResponse);
+
+    await refreshConversationExpiry(tenantId, lineUserId);
 
     return finalResponse;
   } catch (error: any) {
