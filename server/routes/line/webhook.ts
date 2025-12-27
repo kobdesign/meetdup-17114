@@ -15,6 +15,45 @@ import { isN8nAIEnabled, forwardToN8nAI } from "../../services/n8nAIQuery";
 
 const router = Router();
 
+// AI Session Management - track active AI chat sessions
+// Key: `${tenantId}:${lineUserId}`, Value: lastActivityTimestamp
+const activeAISessions = new Map<string, number>();
+const AI_SESSION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+function getAISessionKey(tenantId: string, lineUserId: string): string {
+  return `${tenantId}:${lineUserId}`;
+}
+
+function isInAISession(tenantId: string, lineUserId: string): boolean {
+  const key = getAISessionKey(tenantId, lineUserId);
+  const lastActivity = activeAISessions.get(key);
+  if (!lastActivity) return false;
+  
+  // Check if session expired
+  if (Date.now() - lastActivity > AI_SESSION_TIMEOUT_MS) {
+    activeAISessions.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function startAISession(tenantId: string, lineUserId: string): void {
+  const key = getAISessionKey(tenantId, lineUserId);
+  activeAISessions.set(key, Date.now());
+  console.log(`[AI Session] Started for ${lineUserId} in tenant ${tenantId}`);
+}
+
+function refreshAISession(tenantId: string, lineUserId: string): void {
+  const key = getAISessionKey(tenantId, lineUserId);
+  activeAISessions.set(key, Date.now());
+}
+
+function endAISession(tenantId: string, lineUserId: string): void {
+  const key = getAISessionKey(tenantId, lineUserId);
+  activeAISessions.delete(key);
+  console.log(`[AI Session] Ended for ${lineUserId} in tenant ${tenantId}`);
+}
+
 router.post("/", async (req: Request, res: Response) => {
   const requestId = crypto.randomUUID();
   const logPrefix = `[LINE Webhook:${requestId}]`;
@@ -299,11 +338,46 @@ async function processEvent(
       return;
     }
 
-    // Priority 10: AI Chatbot - handle data queries for chapter
-    if (isChapterAIQuery(text)) {
-      console.log(`${logPrefix} Command: AI_CHATBOT`);
-      const userId = event.source.userId;
-      if (userId) {
+    // Priority 10: AI Chatbot with Session Support
+    const lineUserId = event.source.userId;
+    if (lineUserId) {
+      // Check for AI session start command: "hi ai", "hello ai", "สวัสดี ai"
+      const startAIPattern = /^(hi|hello|สวัสดี|หวัดดี)\s*(ai|เอไอ)$/i;
+      if (startAIPattern.test(textLower.trim())) {
+        console.log(`${logPrefix} Command: AI_SESSION_START`);
+        startAISession(tenantId, lineUserId);
+        await replyMessage(event.replyToken, {
+          type: "text",
+          text: "สวัสดีครับ ผมเป็น BNI Chapter Data Assistant พร้อมช่วยเหลือแล้วครับ\n\nสามารถถามคำถามได้เลย เช่น:\n- มี member กี่คน\n- Meeting ล่าสุดวันไหน\n- ใครมาประชุมบ้าง\n\nพิมพ์ 'bye' เพื่อจบการสนทนา"
+        }, accessToken, tenantId);
+        return;
+      }
+      
+      // Check for AI session end command: "bye", "ai bye", "ลาก่อน"
+      const endAIPattern = /^(bye|ai\s*bye|ลาก่อน|บาย|จบ)$/i;
+      if (endAIPattern.test(textLower.trim()) && isInAISession(tenantId, lineUserId)) {
+        console.log(`${logPrefix} Command: AI_SESSION_END`);
+        endAISession(tenantId, lineUserId);
+        await replyMessage(event.replyToken, {
+          type: "text",
+          text: "ขอบคุณครับ หากต้องการคุยกับ AI อีกครั้ง พิมพ์ 'hi ai' ได้เลยครับ"
+        }, accessToken, tenantId);
+        return;
+      }
+      
+      // If user is in active AI session, forward ALL messages to n8n
+      if (isInAISession(tenantId, lineUserId)) {
+        console.log(`${logPrefix} Command: AI_CHATBOT (session active)`);
+        refreshAISession(tenantId, lineUserId);
+        await handleChapterAIQuery(event, text, tenantId, accessToken, logPrefix);
+        return;
+      }
+      
+      // Fallback: Check pattern-based AI queries (for backward compatibility)
+      if (isChapterAIQuery(text)) {
+        console.log(`${logPrefix} Command: AI_CHATBOT (pattern match)`);
+        // Auto-start session when pattern matches
+        startAISession(tenantId, lineUserId);
         await handleChapterAIQuery(event, text, tenantId, accessToken, logPrefix);
         return;
       }
