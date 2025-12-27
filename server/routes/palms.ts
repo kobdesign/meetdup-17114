@@ -2010,7 +2010,8 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       return res.status(403).json({ success: false, error: "Access denied" });
     }
 
-    // Get registered visitors from meeting_registrations table
+    // Get ALL registered visitors from meeting_registrations table
+    // Important: Don't filter by participant.status because visitors may have converted to members
     const { data: registrations, error: registrationsError } = await supabaseAdmin
       .from("meeting_registrations")
       .select(`
@@ -2030,8 +2031,7 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
           referred_by_participant_id
         )
       `)
-      .eq("meeting_id", meetingId)
-      .in("participant.status", ["visitor", "prospect"]);
+      .eq("meeting_id", meetingId);
 
     if (registrationsError) {
       console.error(`${logPrefix} Registrations query error:`, registrationsError);
@@ -2094,12 +2094,16 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       (checkins || []).map(c => [c.participant_id, c])
     );
 
-    // Build visitor list with check-in status and referrer info
+    // Build visitor list with check-in status, current status, and referrer info
     const registeredVisitors = registrations.map(reg => {
       const participant = reg.participant as any;
       const checkin = checkinMap.get(reg.participant_id) as any;
       const referrerId = participant.referred_by_participant_id;
       const referrer = referrerId ? referrerMap.get(referrerId) : null;
+      
+      // Check if this visitor has been converted to a member
+      const currentStatus = participant.status; // "visitor", "prospect", "member", etc.
+      const isConvertedMember = currentStatus === "member";
       
       return {
         participant_id: participant.participant_id,
@@ -2114,15 +2118,18 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
         checkin_time: checkin?.checkin_time || null,
         is_late: checkin?.is_late || false,
         referred_by_name: referrer?.full_name_th || null,
-        referred_by_nickname: referrer?.nickname_th || null
+        referred_by_nickname: referrer?.nickname_th || null,
+        current_status: currentStatus,
+        is_converted_member: isConvertedMember
       };
     });
 
     const checkedInCount = registeredVisitors.filter(v => v.checked_in).length;
     const notCheckedInCount = registeredVisitors.filter(v => !v.checked_in).length;
+    const convertedMemberCount = registeredVisitors.filter(v => v.is_converted_member).length;
 
     console.log(`${logPrefix} Found ${registeredVisitors.length} registered visitors for meeting:`, meetingId, 
-      `(checked_in: ${checkedInCount}, not_checked_in: ${notCheckedInCount})`);
+      `(checked_in: ${checkedInCount}, not_checked_in: ${notCheckedInCount}, converted_members: ${convertedMemberCount})`);
 
     return res.json({
       success: true,
@@ -2136,7 +2143,8 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       summary: {
         total: registeredVisitors.length,
         checked_in: checkedInCount,
-        not_checked_in: notCheckedInCount
+        not_checked_in: notCheckedInCount,
+        converted_members: convertedMemberCount
       }
     });
 

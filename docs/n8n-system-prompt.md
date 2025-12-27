@@ -120,7 +120,17 @@ AND p.status = 'member'
 AND c.checkin_id IS NULL;
 
 ### รายชื่อ Visitor ที่ลงทะเบียน (ใช้ meeting_registrations)
-SELECT p.full_name_th, p.nickname_th, p.company, r.registered_at
+SELECT p.full_name_th, p.nickname_th, p.company, p.status, r.registered_at,
+  CASE WHEN p.status = 'member' THEN 'Converted to Member' ELSE 'Visitor' END as visitor_type
+FROM meeting_registrations r
+JOIN participants p ON r.participant_id = p.participant_id
+WHERE r.meeting_id = '<meeting_id>';
+
+### นับ Visitor ที่ Convert เป็น Member (สำคัญ!)
+SELECT 
+  COUNT(*) as total_registered,
+  COUNT(*) FILTER (WHERE p.status = 'member') as converted_to_member,
+  COUNT(*) FILTER (WHERE p.status IN ('visitor', 'prospect')) as still_visitor
 FROM meeting_registrations r
 JOIN participants p ON r.participant_id = p.participant_id
 WHERE r.meeting_id = '<meeting_id>';
@@ -159,6 +169,11 @@ AND status = 'member';
 2. นับ Visitor check-in → ใช้ meeting_registrations JOIN checkins
 3. ดูยอดเงิน Visitor Fee → ใช้ visitor_meeting_fees
 4. ห้ามใช้ participants.status = 'visitor' นับ visitor ของ meeting
+5. **Visitor อาจ Convert เป็น Member ได้!** → เมื่อแสดงรายชื่อ visitor ต้อง JOIN กับ participants.status เพื่อดูว่าใครเป็น converted member แล้ว
+
+## การรายงาน Converted Visitors
+- เมื่อถามเรื่อง visitor ให้รายงาน converted members ด้วย เช่น "24 คนลงทะเบียน (2 คน convert เป็นสมาชิกแล้ว)"
+- ใช้ `participants.status = 'member'` ร่วมกับ meeting_registrations เพื่อหา converted visitors
 ```
 
 ---

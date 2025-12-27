@@ -102,6 +102,8 @@ interface VisitorReport {
   is_late: boolean;
   referred_by_name: string | null;
   referred_by_nickname: string | null;
+  current_status: string;
+  is_converted_member: boolean;
 }
 
 interface VisitorStats {
@@ -138,6 +140,7 @@ export default function MeetingAttendanceReport() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [closingMeeting, setClosingMeeting] = useState(false);
   const [visitors, setVisitors] = useState<VisitorReport[]>([]);
+  const [visitorApiSummary, setVisitorApiSummary] = useState<{ total: number; checked_in: number; not_checked_in: number; converted_members: number } | null>(null);
   const [loadingVisitors, setLoadingVisitors] = useState(false);
   const [visitorStats, setVisitorStats] = useState<VisitorStats | null>(null);
   const [repeatVisitorList, setRepeatVisitorList] = useState<RepeatVisitor[]>([]);
@@ -179,6 +182,7 @@ export default function MeetingAttendanceReport() {
       const data = await response.json();
       if (data.success) {
         setVisitors(data.visitors || []);
+        setVisitorApiSummary(data.summary || null);
       }
     } catch (err: any) {
       console.error("Error loading visitors:", err);
@@ -340,7 +344,7 @@ export default function MeetingAttendanceReport() {
         return "ขาด";
       };
 
-      // Visitor export data
+      // Visitor export data - include converted member status
       const visitorExportData = visitors.map((visitor, index) => ({
         "ลำดับ": index + 1,
         "ชื่อ-นามสกุล": visitor.full_name_th,
@@ -353,11 +357,13 @@ export default function MeetingAttendanceReport() {
         "สถานะ": getVisitorStatus(visitor),
         "เวลาเช็คอิน": visitor.checkin_time 
           ? new Date(visitor.checkin_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
-          : "-"
+          : "-",
+        "Converted": visitor.is_converted_member ? "Yes" : "-"
       }));
 
-      // Visitor summary
+      // Visitor summary - include converted members count
       const notCheckedIn = visitors.filter(v => !v.checked_in).length;
+      const convertedCount = visitors.filter(v => v.is_converted_member).length;
       const visitorSummaryExport = [
         { "สรุป": "จำนวนผู้เยี่ยมชมทั้งหมด", "จำนวน": visitors.length },
         { "สรุป": "มา (ตรงเวลา)", "จำนวน": visitors.filter(v => v.checked_in && !v.is_late).length },
@@ -365,7 +371,8 @@ export default function MeetingAttendanceReport() {
         ...(isClosed
           ? [{ "สรุป": "ขาด", "จำนวน": notCheckedIn }]
           : [{ "สรุป": "รอเข้าร่วม", "จำนวน": notCheckedIn }]
-        )
+        ),
+        { "สรุป": "Convert เป็นสมาชิก", "จำนวน": convertedCount }
       ];
 
       const wb = XLSX.utils.book_new();
@@ -505,13 +512,16 @@ export default function MeetingAttendanceReport() {
   }) || [];
 
   // Calculate visitor summary stats (pending if meeting not closed, absent if closed)
+  // Use API summary for converted_members to ensure consistency with backend
   const notCheckedInVisitors = visitors.filter(v => !v.checked_in).length;
+  const convertedMemberCount = visitorApiSummary?.converted_members ?? visitors.filter(v => v.is_converted_member).length;
   const visitorSummary = {
-    total: visitors.length,
+    total: visitorApiSummary?.total ?? visitors.length,
     on_time: visitors.filter(v => v.checked_in && !v.is_late).length,
     late: visitors.filter(v => v.checked_in && v.is_late).length,
     pending: isMeetingClosed ? 0 : notCheckedInVisitors,
-    absent: isMeetingClosed ? notCheckedInVisitors : 0
+    absent: isMeetingClosed ? notCheckedInVisitors : 0,
+    converted_members: convertedMemberCount
   };
 
   const filteredVisitors = visitors.filter(visitor => {
@@ -1054,12 +1064,20 @@ export default function MeetingAttendanceReport() {
               <Card data-testid="card-visitors">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="gap-2 p-0 h-auto hover:bg-transparent" data-testid="button-toggle-visitors">
-                        <CardTitle className="text-base">รายชื่อผู้เยี่ยมชม ({visitors.length})</CardTitle>
-                        <ChevronDown className={`h-4 w-4 transition-transform ${visitorsListOpen ? "" : "-rotate-90"}`} />
-                      </Button>
-                    </CollapsibleTrigger>
+                    <div className="flex flex-col gap-1">
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" className="gap-2 p-0 h-auto hover:bg-transparent justify-start" data-testid="button-toggle-visitors">
+                          <CardTitle className="text-base">รายชื่อผู้เยี่ยมชม ({visitors.length})</CardTitle>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${visitorsListOpen ? "" : "-rotate-90"}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      {convertedMemberCount > 0 && (
+                        <CardDescription className="flex items-center gap-1" data-testid="text-converted-members">
+                          <UserCheck className="h-3 w-3 text-emerald-600" />
+                          <span>{convertedMemberCount} คน convert เป็นสมาชิกแล้ว</span>
+                        </CardDescription>
+                      )}
+                    </div>
                     <Select value={visitorStatusFilter} onValueChange={setVisitorStatusFilter}>
                       <SelectTrigger className="w-[180px]" data-testid="select-visitor-status-filter">
                         <SelectValue />
@@ -1133,6 +1151,16 @@ export default function MeetingAttendanceReport() {
                             </div>
                             
                             <div className="flex items-center gap-2 shrink-0">
+                              {visitor.is_converted_member && (
+                                <Badge 
+                                  variant="secondary" 
+                                  className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+                                  data-testid={`badge-converted-member-${visitor.participant_id}`}
+                                >
+                                  <UserCheck className="h-3 w-3 mr-1" />
+                                  Converted
+                                </Badge>
+                              )}
                               {visitor.phone && (
                                 <Button
                                   variant="outline"
