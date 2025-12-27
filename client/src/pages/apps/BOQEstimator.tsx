@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Plus, 
   Trash2, 
@@ -20,7 +22,17 @@ import {
   PaintBucket,
   ArrowLeft,
   Package,
-  Search
+  Search,
+  Upload,
+  X,
+  Sparkles,
+  FileImage,
+  FileText,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
@@ -47,6 +59,21 @@ interface BOQLine {
   workItem: WorkItem;
   quantity: number;
   totalPrice: number;
+}
+
+interface AISuggestion {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  reason: string;
+  selected: boolean;
+}
+
+interface UploadedFile {
+  id: string;
+  file: File;
+  preview?: string;
+  type: 'image' | 'pdf';
 }
 
 const workCategories: WorkCategory[] = [
@@ -106,12 +133,23 @@ const workItems: WorkItem[] = [
 
 export default function BOQEstimator() {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [boqLines, setBOQLines] = useState<BOQLine[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedWorkItem, setSelectedWorkItem] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [projectName, setProjectName] = useState<string>("");
+  
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [projectDescription, setProjectDescription] = useState<string>("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [aiError, setAiError] = useState<string>("");
+  const [showAiPanel, setShowAiPanel] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
 
   const filteredWorkItems = useMemo(() => {
     let items = workItems;
@@ -130,6 +168,164 @@ export default function BOQEstimator() {
     
     return items;
   }, [selectedCategory, searchTerm]);
+
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files) return;
+    
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    const newFiles: UploadedFile[] = [];
+    
+    Array.from(files).forEach(file => {
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`ไฟล์ ${file.name} ไม่รองรับ (รองรับ JPG, PNG, PDF)`);
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`ไฟล์ ${file.name} ใหญ่เกินไป (สูงสุด 10MB)`);
+        return;
+      }
+      
+      const uploadedFile: UploadedFile = {
+        id: `file-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        type: file.type === 'application/pdf' ? 'pdf' : 'image'
+      };
+      
+      if (uploadedFile.type === 'image') {
+        uploadedFile.preview = URL.createObjectURL(file);
+      }
+      
+      newFiles.push(uploadedFile);
+    });
+    
+    setUploadedFiles(prev => [...prev, ...newFiles].slice(0, 5));
+  }, []);
+
+  const handleRemoveFile = useCallback((fileId: string) => {
+    setUploadedFiles(prev => {
+      const file = prev.find(f => f.id === fileId);
+      if (file?.preview) {
+        URL.revokeObjectURL(file.preview);
+      }
+      return prev.filter(f => f.id !== fileId);
+    });
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileSelect(e.dataTransfer.files);
+  }, [handleFileSelect]);
+
+  const handleAIAnalyze = async () => {
+    if (!uploadedFiles.length && !projectDescription.trim()) {
+      toast.error("กรุณาอัปโหลดไฟล์หรือพิมพ์รายละเอียดโครงการ");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setAiError("");
+    setAiSuggestions([]);
+    setAiSummary("");
+
+    try {
+      const formData = new FormData();
+      
+      uploadedFiles.forEach(uf => {
+        formData.append('files', uf.file);
+      });
+      
+      formData.append('description', projectDescription);
+      formData.append('availableItems', JSON.stringify(
+        workItems.map(item => ({
+          id: item.id,
+          name: item.name,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          categoryId: item.categoryId
+        }))
+      ));
+
+      const response = await fetch('/api/boq/ai-estimate', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        setAiError(result.error || "ไม่สามารถวิเคราะห์ได้");
+        return;
+      }
+
+      const suggestionsWithSelection = result.suggestions.map((s: AISuggestion) => ({
+        ...s,
+        selected: true
+      }));
+
+      setAiSuggestions(suggestionsWithSelection);
+      setAiSummary(result.summary || "");
+      
+      if (suggestionsWithSelection.length > 0) {
+        toast.success(`AI แนะนำ ${suggestionsWithSelection.length} รายการ`);
+      } else {
+        toast.info("AI ไม่พบรายการที่เกี่ยวข้อง");
+      }
+    } catch (error: any) {
+      console.error("AI analysis error:", error);
+      setAiError(error.message || "เกิดข้อผิดพลาดในการวิเคราะห์");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const toggleSuggestionSelection = (index: number) => {
+    setAiSuggestions(prev => prev.map((s, i) => 
+      i === index ? { ...s, selected: !s.selected } : s
+    ));
+  };
+
+  const handleAddSelectedSuggestions = () => {
+    const selectedItems = aiSuggestions.filter(s => s.selected);
+    
+    if (selectedItems.length === 0) {
+      toast.error("กรุณาเลือกรายการที่ต้องการเพิ่ม");
+      return;
+    }
+
+    let addedCount = 0;
+    selectedItems.forEach(suggestion => {
+      const workItem = workItems.find(item => item.id === suggestion.itemId);
+      if (!workItem) return;
+
+      const newLine: BOQLine = {
+        id: `line-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        workItemId: workItem.id,
+        workItem,
+        quantity: suggestion.quantity,
+        totalPrice: suggestion.quantity * workItem.unitPrice,
+      };
+
+      setBOQLines(prev => [...prev, newLine]);
+      addedCount++;
+    });
+
+    if (addedCount > 0) {
+      toast.success(`เพิ่ม ${addedCount} รายการเข้า BOQ`);
+      setAiSuggestions(prev => prev.filter(s => !s.selected));
+    }
+  };
 
   const handleAddLine = () => {
     if (!selectedWorkItem || !quantity || parseFloat(quantity) <= 0) {
@@ -248,6 +444,8 @@ export default function BOQEstimator() {
     }).format(amount);
   };
 
+  const selectedSuggestionsCount = aiSuggestions.filter(s => s.selected).length;
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-6 px-4 max-w-6xl">
@@ -282,10 +480,206 @@ export default function BOQEstimator() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  AI ช่วยประเมิน BOQ
+                </CardTitle>
+                <CardDescription>
+                  อัปโหลดแบบแปลน รูปภาพ หรือ PDF แล้วให้ AI ช่วยวิเคราะห์
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  multiple
+                  onChange={(e) => handleFileSelect(e.target.files)}
+                  className="hidden"
+                  data-testid="input-file-upload"
+                />
+                
+                <div
+                  className={`border-2 border-dashed rounded-md p-6 text-center transition-colors cursor-pointer ${
+                    isDragging 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  data-testid="dropzone-files"
+                >
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือก
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    รองรับ: JPG, PNG, PDF (สูงสุด 5 ไฟล์, ไฟล์ละไม่เกิน 10MB)
+                  </p>
+                </div>
+
+                {uploadedFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {uploadedFiles.map(uf => (
+                      <div
+                        key={uf.id}
+                        className="relative group flex items-center gap-2 bg-muted rounded-md px-3 py-2"
+                        data-testid={`uploaded-file-${uf.id}`}
+                      >
+                        {uf.type === 'image' ? (
+                          <FileImage className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <FileText className="h-4 w-4 text-red-500" />
+                        )}
+                        <span className="text-sm truncate max-w-[150px]">{uf.file.name}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveFile(uf.id);
+                          }}
+                          data-testid={`button-remove-file-${uf.id}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>หรือพิมพ์รายละเอียดโครงการ</Label>
+                  <Textarea
+                    placeholder="เช่น: บ้าน 2 ชั้น พื้นที่ใช้สอย 150 ตร.ม. 3 ห้องนอน 2 ห้องน้ำ โครงสร้างคอนกรีต หลังคาเมทัลชีท"
+                    value={projectDescription}
+                    onChange={(e) => setProjectDescription(e.target.value)}
+                    className="min-h-[80px]"
+                    data-testid="textarea-project-description"
+                  />
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={handleAIAnalyze}
+                  disabled={isAnalyzing || (!uploadedFiles.length && !projectDescription.trim())}
+                  data-testid="button-ai-analyze"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      กำลังวิเคราะห์...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      AI วิเคราะห์และประเมิน BOQ
+                    </>
+                  )}
+                </Button>
+
+                {aiError && (
+                  <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-md" data-testid="ai-error">
+                    <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                    <p className="text-sm">{aiError}</p>
+                  </div>
+                )}
+
+                {aiSuggestions.length > 0 && (
+                  <div className="space-y-3" data-testid="ai-suggestions-panel">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <span className="font-medium">AI แนะนำ {aiSuggestions.length} รายการ</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAiPanel(!showAiPanel)}
+                        data-testid="button-toggle-ai-panel"
+                      >
+                        {showAiPanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </div>
+
+                    {aiSummary && (
+                      <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md" data-testid="ai-summary">
+                        {aiSummary}
+                      </p>
+                    )}
+
+                    {showAiPanel && (
+                      <>
+                        <ScrollArea className="max-h-[300px]">
+                          <div className="space-y-2">
+                            {aiSuggestions.map((suggestion, index) => {
+                              const workItem = workItems.find(w => w.id === suggestion.itemId);
+                              const category = workCategories.find(c => c.id === workItem?.categoryId);
+                              const estimatedPrice = (workItem?.unitPrice || 0) * suggestion.quantity;
+
+                              return (
+                                <div
+                                  key={`${suggestion.itemId}-${index}`}
+                                  className={`flex items-start gap-3 p-3 rounded-md border transition-colors ${
+                                    suggestion.selected ? 'bg-primary/5 border-primary/30' : 'bg-background border-border'
+                                  }`}
+                                  data-testid={`ai-suggestion-${index}`}
+                                >
+                                  <Checkbox
+                                    checked={suggestion.selected}
+                                    onCheckedChange={() => toggleSuggestionSelection(index)}
+                                    data-testid={`checkbox-suggestion-${index}`}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <p className="font-medium text-sm">{suggestion.itemName}</p>
+                                        {category && (
+                                          <Badge variant="secondary" className={`text-xs mt-1 ${category.color}`}>
+                                            {category.name}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <p className="font-medium text-sm">{suggestion.quantity} {workItem?.unit}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {formatCurrency(estimatedPrice)} บาท
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">{suggestion.reason}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+
+                        <Button
+                          className="w-full"
+                          onClick={handleAddSelectedSuggestions}
+                          disabled={selectedSuggestionsCount === 0}
+                          data-testid="button-add-suggestions"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          เพิ่มที่เลือก ({selectedSuggestionsCount} รายการ) เข้า BOQ
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Plus className="h-5 w-5" />
-                  เพิ่มรายการ
+                  เพิ่มรายการด้วยตนเอง
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -400,7 +794,7 @@ export default function BOQEstimator() {
                   <div className="text-center py-12 text-muted-foreground">
                     <Calculator className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>ยังไม่มีรายการ</p>
-                    <p className="text-sm">เลือกรายการจากด้านบนเพื่อเริ่มประเมินราคา</p>
+                    <p className="text-sm">ใช้ AI ช่วยประเมิน หรือเลือกรายการด้วยตนเอง</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -479,7 +873,7 @@ export default function BOQEstimator() {
                   if (!summary) return null;
                   
                   return (
-                    <div key={cat.id} className="flex justify-between items-center" data-testid={`summary-category-${cat.id}`}>
+                    <div key={cat.id} className="flex justify-between items-center gap-2" data-testid={`summary-category-${cat.id}`}>
                       <div className="flex items-center gap-2">
                         {cat.icon}
                         <span className="text-sm">{cat.name}</span>
@@ -495,7 +889,7 @@ export default function BOQEstimator() {
                 {boqLines.length > 0 && (
                   <>
                     <Separator />
-                    <div className="flex justify-between items-center text-lg font-bold" data-testid="summary-grand-total">
+                    <div className="flex justify-between items-center gap-2 text-lg font-bold" data-testid="summary-grand-total">
                       <span>รวมทั้งหมด</span>
                       <span className="text-primary" data-testid="text-grand-total">{formatCurrency(totalAmount)} บาท</span>
                     </div>

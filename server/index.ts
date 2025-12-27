@@ -12,6 +12,7 @@ import palmsRouter from "./routes/palms";
 import notificationsRouter from "./routes/notifications";
 import appsRouter from "./routes/apps";
 import paymentsRouter from "./routes/payments";
+import boqRouter from "./routes/boq";
 import { performHealthCheck, printHealthCheckReport } from "./utils/dbHealthCheck";
 import { setupRichMenuStorage } from "./utils/setupStorage";
 
@@ -267,6 +268,9 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/apps", appsRouter);
 
 app.use("/api/payments", paymentsRouter);
+
+// BOQ Estimator AI routes
+app.use("/api/boq", boqRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();
