@@ -43,6 +43,16 @@ import { apiRequest } from "@/lib/queryClient";
 import { IDetectedBarcode, Scanner } from "@yudiel/react-qr-scanner";
 import QRCode from "react-qr-code";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import VisitorRegistrationDialog from "@/components/dialogs/VisitorRegistrationDialog";
 
 type TypeFilter = "all" | "members" | "visitors";
@@ -184,6 +194,8 @@ export default function MeetingOperations() {
   const [visitorApiSummary, setVisitorApiSummary] = useState<VisitorApiSummary | null>(null);
   const [loadingRegisteredVisitors, setLoadingRegisteredVisitors] = useState(false);
   const [visitorRegDialogOpen, setVisitorRegDialogOpen] = useState(false);
+  const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [convertingParticipant, setConvertingParticipant] = useState<{id: string, name: string} | null>(null);
 
   const qrRef = useRef<HTMLDivElement>(null);
   const selectedMeeting = meetings.find(m => m.meeting_id === selectedMeetingId);
@@ -733,6 +745,50 @@ export default function MeetingOperations() {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handleConvertToMember = async () => {
+    if (!convertingParticipant || !effectiveTenantId) return;
+    setActionLoading(convertingParticipant.id);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("กรุณาเข้าสู่ระบบใหม่");
+        return;
+      }
+
+      const response = await fetch(`/api/palms/participants/${convertingParticipant.id}/convert-to-member`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          tenant_id: effectiveTenantId
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(data.message);
+        await loadParticipantsWithStatus();
+        loadRegisteredVisitors();
+      } else {
+        toast.error(data.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาดในการแปลงสถานะ");
+    } finally {
+      setActionLoading(null);
+      setConvertDialogOpen(false);
+      setConvertingParticipant(null);
+    }
+  };
+
+  const openConvertDialog = (participantId: string, name: string) => {
+    setConvertingParticipant({ id: participantId, name });
+    setConvertDialogOpen(true);
   };
 
   const handleBulkCheckin = async (isLate: boolean = false) => {
@@ -1372,6 +1428,19 @@ export default function MeetingOperations() {
                                   </a>
                                 </Button>
                               )}
+                              {(p.status === "visitor" || p.status === "prospect") && !p.is_converted_member && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openConvertDialog(p.participant_id, p.nickname_th || p.full_name_th)}
+                                  title="แปลงเป็นสมาชิก"
+                                  data-testid={`button-convert-${p.participant_id}`}
+                                  className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-950"
+                                >
+                                  <UserPlus className="h-3 w-3 mr-1" />
+                                  แปลงสมาชิก
+                                </Button>
+                              )}
                               {actionLoading === p.participant_id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : p.is_checked_in ? (
@@ -1680,6 +1749,27 @@ export default function MeetingOperations() {
         tenantId={effectiveTenantId || ""}
         meetingId={selectedMeetingId}
       />
+
+      <AlertDialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ยืนยันการแปลงเป็นสมาชิก</AlertDialogTitle>
+            <AlertDialogDescription>
+              คุณต้องการแปลง <span className="font-semibold">{convertingParticipant?.name}</span> จากผู้เยี่ยมชมเป็นสมาชิกใช่หรือไม่?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-convert">ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConvertToMember}
+              data-testid="button-confirm-convert"
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              ยืนยัน
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }

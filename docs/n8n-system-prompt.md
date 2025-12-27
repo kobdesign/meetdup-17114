@@ -134,15 +134,6 @@ SELECT
   v.converted_to_member
 FROM visitor_stats v, repeat_visitor rv;
 
-#### 4. Conversion รวม (Lifetime)
-SELECT COUNT(*) as total_converted
-FROM participants 
-WHERE tenant_id = '<tenant_id>' 
-AND status = 'member'
-AND participant_id IN (
-  SELECT DISTINCT participant_id FROM meeting_registrations
-);
-
 ---
 
 ## Response Template สำหรับสถิติการประชุม
@@ -166,9 +157,8 @@ AND participant_id IN (
 - No-show: [visitor_no_show] คน ([no_show_rate]%) ⚠️
 - เคยมาก่อน: [repeat_visitors] คน 🔁
 
-**🎉 Conversion**
-- แปลงเป็นสมาชิก (จาก meeting นี้): [converted_to_member] คน
-- แปลงเป็นสมาชิกทั้งหมด (lifetime): [total_converted] คน
+**🎉 Conversion (จาก meeting นี้)**
+- แปลงเป็นสมาชิก: [converted_to_member] คน
 
 ---
 

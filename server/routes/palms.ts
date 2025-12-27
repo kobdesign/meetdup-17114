@@ -2386,4 +2386,91 @@ router.get("/meeting/:meetingId/visitor-stats", verifySupabaseAuth, async (req: 
   }
 });
 
+// ============================================
+// CONVERT VISITOR TO MEMBER
+// ============================================
+
+/**
+ * POST /api/palms/participants/:participantId/convert-to-member
+ * Admin converts a visitor/prospect to member status
+ */
+router.post("/participants/:participantId/convert-to-member", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logPrefix = `[palms-convert:${requestId}]`;
+
+  try {
+    const userId = req.user?.id;
+    const { participantId } = req.params;
+    const { tenant_id } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    if (!participantId || !tenant_id) {
+      return res.status(400).json({ success: false, error: "Missing participantId or tenant_id" });
+    }
+
+    console.log(`${logPrefix} User ${userId} converting participant ${participantId} to member`);
+
+    // Check admin access
+    const hasAccess = await checkAdminAccess(userId, tenant_id);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: "ไม่มีสิทธิ์ดำเนินการ" });
+    }
+
+    // Get participant info
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, nickname_th, status, tenant_id, phone")
+      .eq("participant_id", participantId)
+      .single();
+
+    if (participantError || !participant) {
+      return res.status(404).json({ success: false, error: "ไม่พบข้อมูลผู้เยี่ยมชม" });
+    }
+
+    // Verify tenant matches
+    if (participant.tenant_id !== tenant_id) {
+      return res.status(403).json({ success: false, error: "ข้อมูลไม่ตรงกับ Chapter" });
+    }
+
+    // Check if already a member
+    if (participant.status === "member") {
+      return res.status(400).json({ success: false, error: "บุคคลนี้เป็นสมาชิกอยู่แล้ว" });
+    }
+
+    // Update participant status to member
+    const { error: updateError } = await supabaseAdmin
+      .from("participants")
+      .update({ 
+        status: "member",
+        updated_at: new Date().toISOString()
+      })
+      .eq("participant_id", participantId);
+
+    if (updateError) {
+      console.error(`${logPrefix} Error updating participant:`, updateError);
+      return res.status(500).json({ success: false, error: "ไม่สามารถอัพเดทสถานะได้" });
+    }
+
+    console.log(`${logPrefix} Successfully converted ${participant.full_name_th || participant.nickname_th} to member`);
+
+    return res.json({
+      success: true,
+      message: `แปลง ${participant.nickname_th || participant.full_name_th} เป็นสมาชิกสำเร็จ`,
+      participant: {
+        participant_id: participantId,
+        full_name_th: participant.full_name_th,
+        nickname_th: participant.nickname_th,
+        status: "member"
+      }
+    });
+
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 export default router;
