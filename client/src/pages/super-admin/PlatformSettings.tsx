@@ -11,6 +11,35 @@ import { MeetdupLogo, meetdupLogoUrl } from "@/components/MeetdupLogo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { apiRequest } from "@/lib/queryClient";
 
+async function uploadLogoViaServer(file: File, type: "light" | "dark"): Promise<{ success: boolean; url?: string; error?: string }> {
+  const session = await supabase.auth.getSession();
+  const token = session.data.session?.access_token;
+  
+  if (!token) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("type", type);
+
+  const response = await fetch("/api/system-settings/platform/upload-logo", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    return { success: false, error: data.error || "Upload failed" };
+  }
+
+  return { success: true, url: data.url };
+}
+
 interface PlatformSettingsData {
   platform_logo_url: string | null;
   platform_logo_dark_url: string | null;
@@ -52,31 +81,17 @@ export default function PlatformSettings() {
   const uploadLogo = async (file: File, variant: "light" | "dark") => {
     setUploading(true);
     try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `platform-logo-${variant}-${Date.now()}.${fileExt}`;
-      const filePath = `branding/${fileName}`;
-
-      const { error } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-        });
-
-      if (error) throw error;
-
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
+      const result = await uploadLogoViaServer(file, variant);
+      
+      if (!result.success) {
+        throw new Error(result.error || "Upload failed");
+      }
 
       const settingKey = variant === "light" ? "platform_logo_url" : "platform_logo_dark_url";
       
-      await apiRequest("/api/system-settings/platform", "PUT", {
-        [settingKey]: urlData.publicUrl,
-      });
-
       setSettings((prev) => ({
         ...prev,
-        [settingKey]: urlData.publicUrl,
+        [settingKey]: result.url!,
       }));
 
       toast.success(`${variant === "light" ? "Light" : "Dark"} mode logo uploaded successfully`);
@@ -94,8 +109,8 @@ export default function PlatformSettings() {
         toast.error("Please select an image file");
         return;
       }
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error("File size must be less than 2MB");
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File size must be less than 5MB");
         return;
       }
       uploadLogo(file, variant);

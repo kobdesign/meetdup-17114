@@ -1,8 +1,24 @@
 import { Router, Request, Response } from "express";
+import multer from "multer";
 import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 
 const router = Router();
+
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max for logos
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`ประเภทไฟล์ไม่รองรับ: ${file.mimetype}`));
+    }
+  }
+});
 
 interface SystemSetting {
   setting_key: string;
@@ -247,6 +263,83 @@ router.put("/platform", verifySupabaseAuth, async (req: AuthenticatedRequest, re
     return res.json({ success: true, message: "Platform settings updated" });
   } catch (error: any) {
     console.error("Error in updatePlatformSettings:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Upload platform logo endpoint using service role key (bypasses RLS)
+router.post("/platform/upload-logo", verifySupabaseAuth, logoUpload.single("file"), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", req.user.id)
+      .single();
+
+    if (!userRole || userRole.role !== "super_admin") {
+      return res.status(403).json({ error: "Super admin access required" });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: "No file provided" });
+    }
+
+    const { type } = req.body; // 'light' or 'dark'
+    if (!type || !['light', 'dark'].includes(type)) {
+      return res.status(400).json({ error: "Invalid type. Must be 'light' or 'dark'" });
+    }
+
+    // Generate unique filename
+    const fileExt = file.originalname.split('.').pop() || 'png';
+    const fileName = `branding/platform_logo_${type}_${Date.now()}.${fileExt}`;
+
+    // Upload using service role (bypasses RLS)
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+      .from("avatars")
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        cacheControl: "3600"
+      });
+
+    if (uploadError) {
+      console.error("Error uploading logo:", uploadError);
+      return res.status(500).json({ error: "Failed to upload file", details: uploadError.message });
+    }
+
+    // Get public URL
+    const { data: urlData } = supabaseAdmin.storage
+      .from("avatars")
+      .getPublicUrl(fileName);
+
+    const publicUrl = urlData.publicUrl;
+    const settingKey = type === 'light' ? 'platform_logo_url' : 'platform_logo_dark_url';
+
+    // Update system settings with the new URL
+    const { error: settingsError } = await supabaseAdmin
+      .from("system_settings")
+      .upsert({
+        setting_key: settingKey,
+        setting_value: publicUrl,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "setting_key" });
+
+    if (settingsError) {
+      console.error("Error updating settings:", settingsError);
+      return res.status(500).json({ error: "Failed to update settings" });
+    }
+
+    return res.json({ 
+      success: true, 
+      url: publicUrl,
+      message: `${type === 'light' ? 'Light' : 'Dark'} mode logo uploaded successfully`
+    });
+  } catch (error: any) {
+    console.error("Error in uploadLogo:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
