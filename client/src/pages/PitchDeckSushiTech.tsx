@@ -52,7 +52,7 @@ export default function PitchDeckSushiTech() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const totalSlides = 10;
+  const totalSlides = 11;
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => Math.min(prev + 1, totalSlides - 1));
