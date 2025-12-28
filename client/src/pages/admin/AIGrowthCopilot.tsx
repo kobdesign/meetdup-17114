@@ -68,6 +68,8 @@ interface GrowthCopilotData {
 }
 
 function ScoreGauge({ score, label }: { score: number; label: string }) {
+  const safeScore = typeof score === 'number' && !isNaN(score) ? score : 0;
+  
   const getColorClass = (s: number) => {
     if (s >= 80) return "text-green-500";
     if (s >= 60) return "text-yellow-500";
@@ -76,7 +78,7 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
   
   return (
     <div className="text-center">
-      <div className={`text-2xl font-bold ${getColorClass(score)}`}>{score}%</div>
+      <div className={`text-2xl font-bold ${getColorClass(safeScore)}`}>{safeScore}%</div>
       <div className="text-xs text-muted-foreground">{label}</div>
     </div>
   );
@@ -249,19 +251,23 @@ export default function AIGrowthCopilot() {
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-3xl font-bold">{data.engagement_score.overall_score}</div>
+                      <div className="text-3xl font-bold">
+                        {typeof data.engagement_score?.overall_score === 'number' && !isNaN(data.engagement_score.overall_score) 
+                          ? data.engagement_score.overall_score 
+                          : 0}
+                      </div>
                       <div className="text-xs text-muted-foreground">out of 100</div>
                     </div>
                     <div className={`flex items-center gap-1 text-sm ${
-                      data.engagement_score.trend === "improving" ? "text-green-500" :
-                      data.engagement_score.trend === "declining" ? "text-red-500" : "text-muted-foreground"
+                      data.engagement_score?.trend === "improving" ? "text-green-500" :
+                      data.engagement_score?.trend === "declining" ? "text-red-500" : "text-muted-foreground"
                     }`}>
-                      {data.engagement_score.trend === "improving" && <TrendingUp className="h-4 w-4" />}
-                      {data.engagement_score.trend === "declining" && <TrendingDown className="h-4 w-4" />}
-                      {data.engagement_score.trend}
+                      {data.engagement_score?.trend === "improving" && <TrendingUp className="h-4 w-4" />}
+                      {data.engagement_score?.trend === "declining" && <TrendingDown className="h-4 w-4" />}
+                      {data.engagement_score?.trend || "stable"}
                     </div>
                   </div>
-                  <Progress value={data.engagement_score.overall_score} className="mt-3" />
+                  <Progress value={data.engagement_score?.overall_score || 0} className="mt-3" />
                 </CardContent>
               </Card>
               
@@ -273,8 +279,8 @@ export default function AIGrowthCopilot() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScoreGauge score={data.engagement_score.attendance_score} label="Attendance Rate" />
-                  <Progress value={data.engagement_score.attendance_score} className="mt-3" />
+                  <ScoreGauge score={data.engagement_score?.attendance_score ?? 0} label="Attendance Rate" />
+                  <Progress value={data.engagement_score?.attendance_score || 0} className="mt-3" />
                 </CardContent>
               </Card>
               
@@ -286,8 +292,8 @@ export default function AIGrowthCopilot() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScoreGauge score={data.engagement_score.visitor_score} label="Visitor Activity" />
-                  <Progress value={data.engagement_score.visitor_score} className="mt-3" />
+                  <ScoreGauge score={data.engagement_score?.visitor_score ?? 0} label="Visitor Activity" />
+                  <Progress value={data.engagement_score?.visitor_score || 0} className="mt-3" />
                 </CardContent>
               </Card>
               
@@ -299,8 +305,8 @@ export default function AIGrowthCopilot() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScoreGauge score={data.engagement_score.referral_score} label="Member Referrals" />
-                  <Progress value={data.engagement_score.referral_score} className="mt-3" />
+                  <ScoreGauge score={data.engagement_score?.referral_score ?? 0} label="Member Referrals" />
+                  <Progress value={data.engagement_score?.referral_score || 0} className="mt-3" />
                 </CardContent>
               </Card>
             </div>

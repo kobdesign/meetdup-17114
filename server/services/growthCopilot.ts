@@ -314,20 +314,22 @@ function calculateEngagementScore(
 ): EngagementScore {
   const totalMembers = members.length || 1;
   const recentMeetingIds = meetings.slice(0, 4).map(m => m.meeting_id);
+  const meetingCount = recentMeetingIds.length || 1;
   
   const attendedCount = attendance.filter(a => 
     recentMeetingIds.includes(a.meeting_id) &&
     (a.status === "present" || a.status === "late")
   ).length;
-  const attendance_score = Math.min(
-    Math.round((attendedCount / (recentMeetingIds.length * totalMembers)) * 100),
-    100
-  );
+  const attendance_score = recentMeetingIds.length > 0 
+    ? Math.min(Math.round((attendedCount / (meetingCount * totalMembers)) * 100), 100)
+    : 0;
   
   const recentVisitors = visitors.filter(v => 
     recentMeetingIds.includes(v.meeting_id)
   ).length;
-  const visitor_score = Math.min(Math.round((recentVisitors / (recentMeetingIds.length * 3)) * 100), 100);
+  const visitor_score = recentMeetingIds.length > 0 
+    ? Math.min(Math.round((recentVisitors / (meetingCount * 3)) * 100), 100)
+    : 0;
   
   const referral_score = Math.round((recentVisitors / Math.max(totalMembers, 1)) * 50);
   
