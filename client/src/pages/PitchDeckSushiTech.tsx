@@ -65,7 +65,7 @@ export default function PitchDeckSushiTech() {
   const logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || defaultLogoUrl;
   const platformName = settings.platform_name || "Meetdup";
 
-  const totalSlides = 11;
+  const totalSlides = 12;
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => Math.min(prev + 1, totalSlides - 1));
@@ -743,7 +743,90 @@ export default function PitchDeckSushiTech() {
       </div>
     </Slide>,
 
-    // Slide 8: Business Model (was 7)
+    // Slide 8: Competitive Landscape
+    <Slide key="competitive" className="bg-background">
+      <div className="max-w-5xl w-full">
+        <h2 className="text-4xl md:text-5xl font-bold text-center mb-4">Competitive Landscape</h2>
+        <p className="text-xl text-muted-foreground text-center mb-12">
+          Differentiated by vertical focus and AI
+        </p>
+
+        <div className="overflow-x-auto mb-8">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left p-3">Feature</th>
+                <th className="text-center p-3">Meetdup</th>
+                <th className="text-center p-3 text-muted-foreground">BNI Connect</th>
+                <th className="text-center p-3 text-muted-foreground">Glue Up</th>
+                <th className="text-center p-3 text-muted-foreground">Wild Apricot</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b">
+                <td className="p-3">Chapter-specific workflows</td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+              </tr>
+              <tr className="border-b">
+                <td className="p-3">AI Assistant (Thai)</td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+              </tr>
+              <tr className="border-b">
+                <td className="p-3">LINE Integration</td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+              </tr>
+              <tr className="border-b">
+                <td className="p-3">QR Check-in</td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+              </tr>
+              <tr className="border-b">
+                <td className="p-3">Performance Dashboard</td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr>
+                <td className="p-3">Price (per chapter/mo)</td>
+                <td className="text-center p-3 font-medium">$199-349</td>
+                <td className="text-center p-3 text-muted-foreground">Bundled</td>
+                <td className="text-center p-3 text-muted-foreground">$500+</td>
+                <td className="text-center p-3 text-muted-foreground">$150+</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          <Card className="p-4 bg-primary/5 border-primary/20 overflow-visible">
+            <h4 className="font-semibold text-sm mb-2">Vertical Focus</h4>
+            <p className="text-xs text-muted-foreground">Built specifically for chapter networking, not generic membership</p>
+          </Card>
+          <Card className="p-4 bg-amber-500/5 border-amber-500/20 overflow-visible">
+            <h4 className="font-semibold text-sm mb-2">AI-First</h4>
+            <p className="text-xs text-muted-foreground">Only solution with Thai AI assistant for data queries</p>
+          </Card>
+          <Card className="p-4 bg-green-500/5 border-green-500/20 overflow-visible">
+            <h4 className="font-semibold text-sm mb-2">LINE Ecosystem</h4>
+            <p className="text-xs text-muted-foreground">Deep integration where SEA users already communicate</p>
+          </Card>
+        </div>
+      </div>
+    </Slide>,
+
+    // Slide 9: Business Model (was 8)
     <Slide key="business-model" className="bg-background">
       <div className="max-w-5xl w-full">
         <Badge variant="outline" className="mb-4">Business Model</Badge>
