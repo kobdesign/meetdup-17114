@@ -8,15 +8,15 @@ interface MeetdupLogoProps {
 }
 
 const sizeConfig = {
-  sm: { logo: "h-6 w-6", text: "text-sm" },
-  md: { logo: "h-8 w-8", text: "text-lg" },
-  lg: { logo: "h-12 w-12", text: "text-xl" },
-  xl: { logo: "h-16 w-16", text: "text-2xl" },
+  sm: { logo: "h-8", text: "text-base" },
+  md: { logo: "h-10", text: "text-lg" },
+  lg: { logo: "h-14", text: "text-xl" },
+  xl: { logo: "h-20", text: "text-2xl" },
 };
 
 export function MeetdupLogo({ 
   size = "md", 
-  showText = true, 
+  showText = false,
   variant = "default",
   className = "" 
 }: MeetdupLogoProps) {
@@ -33,7 +33,7 @@ export function MeetdupLogo({
       <img 
         src={meetdupLogoUrl} 
         alt="Meetdup" 
-        className={`${config.logo} object-contain`}
+        className={`${config.logo} w-auto object-contain`}
       />
       {showText && (
         <span className={`font-bold ${config.text} ${textColor}`}>
@@ -54,7 +54,7 @@ export function MeetdupLogoIcon({
     <img 
       src={meetdupLogoUrl} 
       alt="Meetdup" 
-      className={`${config.logo} object-contain ${className}`}
+      className={`${config.logo} w-auto object-contain ${className}`}
     />
   );
 }
