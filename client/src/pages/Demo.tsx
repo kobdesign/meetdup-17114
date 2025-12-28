@@ -15,7 +15,8 @@ import {
   ArrowRight,
   Search,
   BarChart3,
-  Bot
+  Bot,
+  Home
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,11 +94,22 @@ const Demo = () => {
     <div className="min-h-screen bg-background">
       <div className="sticky top-0 z-50 bg-primary text-primary-foreground">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5" />
-            <span className="text-sm font-medium">
-              Demo Mode - ลองเล่นระบบ Meetdup ได้เลย!
-            </span>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+              onClick={() => navigate("/")}
+              data-testid="button-home"
+            >
+              <Home className="w-5 h-5" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              <span className="text-sm font-medium">
+                Demo Mode - ลองเล่นระบบ Meetdup ได้เลย!
+              </span>
+            </div>
           </div>
           <Button 
             variant="secondary" 
