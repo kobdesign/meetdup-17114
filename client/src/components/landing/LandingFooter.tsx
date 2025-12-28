@@ -1,194 +1,53 @@
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Mail, Phone, MapPin } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Users, Mail, Phone } from "lucide-react";
 import { SiLine } from "react-icons/si";
 
 const LandingFooter = () => {
-  const navigate = useNavigate();
-
-  const footerLinks = {
-    product: [
-      { label: "Features", href: "#features" },
-      { label: "Solutions", href: "#solutions" },
-      { label: "Pricing", href: "#" },
-      { label: "Roadmap", href: "#" },
-    ],
-    company: [
-      { label: "About Us", href: "#" },
-      { label: "Contact", href: "#contact" },
-      { label: "Blog", href: "#" },
-      { label: "Careers", href: "#" },
-    ],
-    resources: [
-      { label: "Documentation", href: "#" },
-      { label: "Help Center", href: "#" },
-      { label: "API Reference", href: "#" },
-      { label: "Status", href: "#" },
-    ],
-    legal: [
-      { label: "Privacy Policy", href: "#" },
-      { label: "Terms of Service", href: "#" },
-      { label: "Cookie Policy", href: "#" },
-    ],
-  };
-
-  const toSlug = (str: string) => str.toLowerCase().replace(/\s+/g, "-");
+  const { t } = useTranslation();
 
   return (
-    <footer id="contact" className="bg-navy text-white">
+    <footer className="py-8 border-t bg-muted/30">
       <div className="container mx-auto px-4">
-        <div className="py-20 border-b border-white/10">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Ready to Transform Your Chapter?
-            </h2>
-            <p className="text-lg text-white/70 mb-8 max-w-2xl mx-auto">
-              Be among the first chapters to streamline operations and grow membership 
-              with Meetdup's powerful management tools.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button
-                size="lg"
-                variant="gold"
-                className="font-semibold px-8 gap-2"
-                onClick={() => navigate("/auth")}
-                data-testid="button-footer-get-started"
-              >
-                Start Free Trial
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-              <Button
-                size="lg"
-                variant="ghost"
-                className="border border-white/30 text-white"
-                data-testid="button-footer-contact"
-              >
-                Contact Sales
-              </Button>
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+              <Users className="w-4 h-4 text-primary-foreground" />
             </div>
-          </div>
-        </div>
-
-        <div className="py-12 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
-          <div className="col-span-2 md:col-span-1 lg:col-span-1">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-gold rounded-md flex items-center justify-center">
-                <span className="text-navy font-bold text-lg">M</span>
-              </div>
-              <span className="text-xl font-bold">Meetdup</span>
-            </div>
-            <p className="text-white/60 text-sm mb-4">
-              The operating system for business chapters. Built for networking organizations that mean business.
-            </p>
-            <div className="flex items-center gap-4">
-              <a
-                href="#"
-                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
-                data-testid="link-social-line"
-              >
-                <SiLine className="w-4 h-4" />
-              </a>
-            </div>
+            <span className="text-xl font-bold">Meetdup</span>
           </div>
 
-          <div>
-            <h4 className="font-semibold mb-4 text-sm">Product</h4>
-            <ul className="space-y-2">
-              {footerLinks.product.map((link) => (
-                <li key={link.label}>
-                  <a 
-                    href={link.href} 
-                    className="text-white/60 text-sm"
-                    data-testid={`link-product-${toSlug(link.label)}`}
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+            <a 
+              href="mailto:hello@meetdup.io" 
+              className="flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              <Mail className="w-4 h-4" />
+              hello@meetdup.io
+            </a>
+            <a 
+              href="tel:+66812345678" 
+              className="flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              <Phone className="w-4 h-4" />
+              081-234-5678
+            </a>
+            <a 
+              href="#" 
+              className="flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              <SiLine className="w-4 h-4" />
+              @meetdup
+            </a>
           </div>
 
-          <div>
-            <h4 className="font-semibold mb-4 text-sm">Company</h4>
-            <ul className="space-y-2">
-              {footerLinks.company.map((link) => (
-                <li key={link.label}>
-                  <a 
-                    href={link.href} 
-                    className="text-white/60 text-sm"
-                    data-testid={`link-company-${toSlug(link.label)}`}
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4 text-sm">Resources</h4>
-            <ul className="space-y-2">
-              {footerLinks.resources.map((link) => (
-                <li key={link.label}>
-                  <a 
-                    href={link.href} 
-                    className="text-white/60 text-sm"
-                    data-testid={`link-resources-${toSlug(link.label)}`}
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4 text-sm">Contact</h4>
-            <ul className="space-y-3">
-              <li className="flex items-center gap-2 text-white/60 text-sm" data-testid="text-contact-email">
-                <Mail className="w-4 h-4" />
-                hello@meetdup.com
-              </li>
-              <li className="flex items-center gap-2 text-white/60 text-sm" data-testid="text-contact-phone">
-                <Phone className="w-4 h-4" />
-                +66 2 123 4567
-              </li>
-              <li className="flex items-start gap-2 text-white/60 text-sm" data-testid="text-contact-address">
-                <MapPin className="w-4 h-4 mt-0.5" />
-                Bangkok, Thailand
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="py-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex flex-col items-center md:items-start gap-1">
-            <p className="text-white/50 text-sm" data-testid="text-copyright">
-              © 2024 Meetdup. All rights reserved.
-            </p>
-            <p className="text-white/40 text-xs" data-testid="text-powered-by">
-              Powered by{" "}
-              <a
-                href="https://ipassion.co.th"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gold/70 hover:text-gold transition-colors"
-              >
-                iPassion Co., Ltd.
-              </a>
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-6">
-            {footerLinks.legal.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="text-white/50 text-sm"
-                data-testid={`link-legal-${toSlug(link.label)}`}
-              >
-                {link.label}
-              </a>
-            ))}
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>{t("footer.copyright")}</span>
+            <a href="#" className="hover:text-foreground transition-colors">
+              {t("footer.privacy")}
+            </a>
+            <a href="#" className="hover:text-foreground transition-colors">
+              {t("footer.terms")}
+            </a>
           </div>
         </div>
       </div>

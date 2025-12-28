@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { TenantProvider } from "./contexts/TenantContext";
 import { LiffStateHandler } from "./components/LiffStateHandler";
@@ -237,7 +237,8 @@ const App = () => (
           
           {/* Public Marketing Pages */}
           <Route path="/pitch-deck" element={<PitchDeck />} />
-          <Route path="/landing" element={<LandingPage />} />
+          <Route path="/landing" element={<Navigate to="/" replace />} />
+          <Route path="/login" element={<Navigate to="/auth" replace />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

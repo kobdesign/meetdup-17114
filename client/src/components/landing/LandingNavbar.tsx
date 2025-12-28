@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { LanguageToggle } from "@/components/ui/language-toggle";
 import { Menu, X } from "lucide-react";
 
 const LandingNavbar = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const navItems = [
-    { label: "Features", href: "#features" },
-    { label: "Solutions", href: "#solutions" },
-    { label: "Testimonials", href: "#testimonials" },
-    { label: "Contact", href: "#contact" },
+    { label: t("nav.features"), href: "#features" },
+    { label: t("nav.pricing"), href: "#pricing" },
+    { label: t("nav.faq"), href: "#faq" },
   ];
 
   const scrollToSection = (href: string) => {
@@ -47,13 +49,14 @@ const LandingNavbar = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <LanguageToggle />
             <Button
               variant="ghost"
               className="text-white"
               onClick={() => navigate("/auth")}
               data-testid="button-signin"
             >
-              Sign In
+              {t("nav.login")}
             </Button>
             <Button
               variant="gold"
@@ -61,7 +64,7 @@ const LandingNavbar = () => {
               onClick={() => navigate("/auth")}
               data-testid="button-get-started"
             >
-              Get Started
+              {t("nav.demo")}
             </Button>
           </div>
 
@@ -88,13 +91,17 @@ const LandingNavbar = () => {
                 </button>
               ))}
               <div className="flex flex-col gap-2 pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 pb-2">
+                  <LanguageToggle />
+                  <span className="text-white/60 text-sm">Language</span>
+                </div>
                 <Button
                   variant="ghost"
                   className="text-white justify-start"
                   onClick={() => navigate("/auth")}
                   data-testid="button-mobile-signin"
                 >
-                  Sign In
+                  {t("nav.login")}
                 </Button>
                 <Button
                   variant="gold"
@@ -102,7 +109,7 @@ const LandingNavbar = () => {
                   onClick={() => navigate("/auth")}
                   data-testid="button-mobile-get-started"
                 >
-                  Get Started
+                  {t("nav.demo")}
                 </Button>
               </div>
             </div>

@@ -1,0 +1,192 @@
+{
+  "nav": {
+    "features": "Features",
+    "pricing": "Pricing",
+    "faq": "FAQ",
+    "login": "Login",
+    "demo": "Book Demo",
+    "backToAdmin": "Back to Dashboard",
+    "superAdmin": "Super Admin",
+    "adminDashboard": "Admin Dashboard"
+  },
+  "hero": {
+    "badge": "AI-Powered Platform",
+    "title": "Manage Chapter Meetings",
+    "subtitle": "Without Excel Hassle",
+    "description": "Complete chapter management system with Check-in, Attendance Tracking, and AI Assistant that answers questions in real-time",
+    "cta": "Book Free Demo",
+    "trial": "14-Day Free Trial",
+    "stats": {
+      "adminTime": "Admin Time Saved",
+      "attendance": "Attendance Increase",
+      "conversion": "Visitor Conversion",
+      "checkin": "Chapter Check-in"
+    }
+  },
+  "painPoints": {
+    "title": "Problems Chapter Admins Face Every Week",
+    "problems": {
+      "excel": {
+        "title": "Excel Isn't Real-time",
+        "desc": "Data scattered everywhere, need to wait until after meetings"
+      },
+      "manual": {
+        "title": "Manual Check-in",
+        "desc": "Paper sign-ups take 15-20 minutes per meeting"
+      },
+      "noData": {
+        "title": "No Dashboard",
+        "desc": "No visibility on who's late or absent frequently"
+      },
+      "communication": {
+        "title": "Communication Chaos",
+        "desc": "LINE Group notifications are messy"
+      }
+    }
+  },
+  "features": {
+    "title": "All Features Your Chapter Needs",
+    "subtitle": "Built specifically for Business Networking Chapters",
+    "commandCenter": {
+      "title": "Meeting Command Center",
+      "badge": "Core Feature",
+      "items": ["QR Check-in takes only 5 seconds", "Real-time PALMS Tracking", "Instant Attendance Summary", "Supports Substitute & Late Check-in"]
+    },
+    "line": {
+      "title": "LINE Integration",
+      "badge": "Thai Optimized",
+      "items": ["Meeting Notifications via LINE", "RSVP Accept/Leave/Substitute", "Member Search via LIFF", "Digital Business Card"]
+    },
+    "dashboard": {
+      "title": "Performance Dashboard",
+      "badge": "Analytics",
+      "items": ["Attendance Rate & Trends", "Visitor Conversion Tracking", "Chapter Health KPIs", "Export Reports to Excel"]
+    },
+    "ai": {
+      "title": "AI Chapter Assistant",
+      "badge": "AI Powered",
+      "items": ["Ask questions in Thai", "Automatic Report Summary", "Analyze Trends & Insights", "Instant Response via LINE Bot"]
+    }
+  },
+  "roi": {
+    "badge": "ROI Calculator",
+    "title": "Calculate Your Expected Returns",
+    "subtitle": "Enter your chapter size and see how much you'll save",
+    "members": "Number of Members",
+    "person": "members",
+    "results": {
+      "title": "Expected Benefits",
+      "timeSaved": "Admin Time Saved",
+      "hoursPerWeek": "hrs/week",
+      "moneySaved": "Cost Savings",
+      "perMonth": "/month",
+      "attendance": "Attendance Increase",
+      "visitors": "Visitor Increase",
+      "perMeeting": "/meeting"
+    }
+  },
+  "aiDemo": {
+    "badge": "AI Chapter Assistant",
+    "title": "Get Chapter Data Instantly via LINE",
+    "subtitle": "AI that understands Thai and responds instantly. No need to open Excel or Dashboard",
+    "examples": {
+      "title": "Example Questions You Can Ask"
+    }
+  },
+  "testimonials": {
+    "title": "Chapters Using Meetdup",
+    "subtitle": "Feedback from Admins who use Meetdup to manage their Chapters"
+  },
+  "pricing": {
+    "title": "Pricing Plans for Every Chapter",
+    "subtitle": "Start free for 14 days. No credit card required",
+    "perMonth": "/month",
+    "popular": "Popular",
+    "core": {
+      "name": "Core",
+      "desc": "For single chapters",
+      "features": ["1 Chapter", "Unlimited Members", "QR Check-in", "LINE Notifications", "Basic Reports", "Email Support"]
+    },
+    "pro": {
+      "name": "Pro",
+      "desc": "For multiple chapters",
+      "features": ["Up to 3 Chapters", "Everything in Core +", "AI Chapter Assistant", "Advanced Analytics", "Custom Rich Menu", "Priority Support"]
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "desc": "For large organizations",
+      "price": "Contact Us",
+      "features": ["Unlimited Chapters", "Everything in Pro +", "Dedicated Support", "SLA Guarantee", "On-site Training"]
+    },
+    "cta": {
+      "select": "Select Plan",
+      "contact": "Contact Us"
+    }
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "questions": {
+      "security": {
+        "q": "Is my Chapter data secure?",
+        "a": "All data is stored on Supabase, a cloud database with enterprise-grade security. We use encryption for data at-rest and in-transit, plus Row Level Security to completely isolate each Chapter's data."
+      },
+      "line": {
+        "q": "Do I have to use LINE?",
+        "a": "No! Meetdup has a Web Portal accessible via any browser. However, using LINE integration provides additional benefits like notifications, RSVP, and AI Assistant through LINE Bot."
+      },
+      "migration": {
+        "q": "Can I migrate data from Excel?",
+        "a": "Yes! We have a Bulk Import system that supports importing members directly from Excel. Our Support team will help verify data before import to ensure accuracy."
+      },
+      "roi": {
+        "q": "When does ROI become positive?",
+        "a": "Based on Pilot Chapters data, Admins save approximately 5+ hours/week. At ~500 THB/hour, that's 10,000+ THB/month savings - more than the Core Plan cost. ROI is positive from month one."
+      },
+      "training": {
+        "q": "How long is the training?",
+        "a": "Not long! The interface is designed for ease of use. Most Admins can start using it within 30 minutes. We also have Video Tutorials and Thai Support Team available."
+      },
+      "cancel": {
+        "q": "Can I cancel if not satisfied?",
+        "a": "Yes! You can cancel anytime with no long-term contracts. We also offer a 30-day Money-back Guarantee - full refund if not satisfied."
+      }
+    }
+  },
+  "cta": {
+    "title": "Ready to Transform Your Chapter?",
+    "subtitle": "Start free for 14 days. No credit card required. Support team always available",
+    "demo": "Book Free Demo",
+    "trial": "Start Free Trial"
+  },
+  "demoForm": {
+    "title": "Book a Meetdup Demo",
+    "subtitle": "Fill in your details and we'll contact you within 24 hours",
+    "name": "Full Name",
+    "namePlaceholder": "Enter your name",
+    "email": "Email",
+    "emailPlaceholder": "email@example.com",
+    "phone": "Phone Number",
+    "phonePlaceholder": "08x-xxx-xxxx",
+    "chapter": "Chapter Name (optional)",
+    "chapterPlaceholder": "e.g. BNI Bangkok Central",
+    "members": "Number of Members",
+    "membersPlaceholder": "Select",
+    "membersOptions": {
+      "small": "Less than 20",
+      "medium": "20-40",
+      "large": "40-60",
+      "xlarge": "More than 60"
+    },
+    "message": "Additional Message",
+    "messagePlaceholder": "Tell us about your Chapter or any questions",
+    "submit": "Submit Request",
+    "submitting": "Submitting...",
+    "success": "Request Submitted!",
+    "successDesc": "Our team will contact you within 24 hours"
+  },
+  "footer": {
+    "copyright": "2024 Meetdup. All rights reserved.",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
+  }
+}

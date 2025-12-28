@@ -1,0 +1,192 @@
+{
+  "nav": {
+    "features": "ฟีเจอร์",
+    "pricing": "ราคา",
+    "faq": "คำถามที่พบบ่อย",
+    "login": "เข้าสู่ระบบ",
+    "demo": "จองเดโม",
+    "backToAdmin": "กลับสู่ระบบ",
+    "superAdmin": "Super Admin",
+    "adminDashboard": "Admin Dashboard"
+  },
+  "hero": {
+    "badge": "AI-Powered Platform",
+    "title": "จัดการ Chapter Meeting ได้ง่ายขึ้น",
+    "subtitle": "ไม่ต้องพึ่ง Excel อีกต่อไป",
+    "description": "ระบบบริหารจัดการ Chapter แบบครบวงจร ตั้งแต่ Check-in, Attendance Tracking ไปจนถึง AI Assistant ที่ตอบคำถามภาษาไทยได้ทันที",
+    "cta": "จองเดโมฟรี",
+    "trial": "ทดลองใช้ 14 วัน",
+    "stats": {
+      "adminTime": "ลดเวลา Admin",
+      "attendance": "เพิ่ม Attendance",
+      "conversion": "Visitor Conversion",
+      "checkin": "Check-in ทั้ง Chapter"
+    }
+  },
+  "painPoints": {
+    "title": "ปัญหาที่ Chapter Admin เจอทุกสัปดาห์",
+    "problems": {
+      "excel": {
+        "title": "Excel ไม่ Real-time",
+        "desc": "ข้อมูลกระจัดกระจาย ต้องรอสรุปหลังประชุม"
+      },
+      "manual": {
+        "title": "Check-in ด้วยมือ",
+        "desc": "เซ็นชื่อกระดาษ ใช้เวลา 15-20 นาทีต่อ Meeting"
+      },
+      "noData": {
+        "title": "ไม่มี Dashboard",
+        "desc": "ไม่รู้ว่าใครมาสาย ใครขาดบ่อย"
+      },
+      "communication": {
+        "title": "สื่อสารยาก",
+        "desc": "แจ้งเตือนทาง LINE Group วุ่นวาย"
+      }
+    }
+  },
+  "features": {
+    "title": "ครบทุกฟีเจอร์ที่ Chapter ต้องการ",
+    "subtitle": "ออกแบบมาโดยเฉพาะสำหรับ Business Networking Chapters",
+    "commandCenter": {
+      "title": "Meeting Command Center",
+      "badge": "Core Feature",
+      "items": ["QR Check-in ใช้เวลาแค่ 5 วินาที", "PALMS Tracking แบบ Real-time", "สรุป Attendance ทันทีหลังประชุม", "รองรับ Substitute & Late Check-in"]
+    },
+    "line": {
+      "title": "LINE Integration",
+      "badge": "Thai Optimized",
+      "items": ["แจ้งเตือน Meeting ผ่าน LINE", "RSVP ตอบรับ/ลา/ส่งตัวแทน", "Member Search ผ่าน LIFF", "Digital Business Card"]
+    },
+    "dashboard": {
+      "title": "Performance Dashboard",
+      "badge": "Analytics",
+      "items": ["Attendance Rate & Trends", "Visitor Conversion Tracking", "Chapter Health KPIs", "Export Reports เป็น Excel"]
+    },
+    "ai": {
+      "title": "AI Chapter Assistant",
+      "badge": "AI Powered",
+      "items": ["ถามข้อมูลภาษาไทยได้เลย", "สรุป Report อัตโนมัติ", "วิเคราะห์ Trend & Insights", "ตอบทันทีผ่าน LINE Bot"]
+    }
+  },
+  "roi": {
+    "badge": "ROI Calculator",
+    "title": "คำนวณผลตอบแทนที่คุณจะได้รับ",
+    "subtitle": "ใส่ขนาด Chapter ของคุณ แล้วดูว่าจะประหยัดได้เท่าไหร่",
+    "members": "จำนวนสมาชิก",
+    "person": "คน",
+    "results": {
+      "title": "ผลประโยชน์ที่คาดว่าจะได้รับ",
+      "timeSaved": "ประหยัดเวลา Admin",
+      "hoursPerWeek": "ชม./สัปดาห์",
+      "moneySaved": "ประหยัดค่าใช้จ่าย",
+      "perMonth": "/เดือน",
+      "attendance": "Attendance เพิ่มขึ้น",
+      "visitors": "Visitors เพิ่มขึ้น",
+      "perMeeting": "/meeting"
+    }
+  },
+  "aiDemo": {
+    "badge": "AI Chapter Assistant",
+    "title": "ถามข้อมูล Chapter ได้ทันทีผ่าน LINE",
+    "subtitle": "AI ที่เข้าใจภาษาไทยและตอบได้ทันที ไม่ต้องเปิด Excel หรือ Dashboard",
+    "examples": {
+      "title": "ตัวอย่างคำถามที่ถามได้"
+    }
+  },
+  "testimonials": {
+    "title": "Chapter ที่ใช้งานแล้ว",
+    "subtitle": "ความเห็นจาก Admin ที่ใช้ Meetdup ในการบริหาร Chapter"
+  },
+  "pricing": {
+    "title": "แผนราคาที่เหมาะกับทุก Chapter",
+    "subtitle": "เริ่มต้นฟรี 14 วัน ไม่ต้องใส่บัตรเครดิต",
+    "perMonth": "/เดือน",
+    "popular": "แนะนำ",
+    "core": {
+      "name": "Core",
+      "desc": "สำหรับ Chapter เดี่ยว",
+      "features": ["1 Chapter", "Unlimited Members", "QR Check-in", "LINE Notifications", "Basic Reports", "Email Support"]
+    },
+    "pro": {
+      "name": "Pro",
+      "desc": "สำหรับหลาย Chapters",
+      "features": ["สูงสุด 3 Chapters", "ทุกอย่างใน Core +", "AI Chapter Assistant", "Advanced Analytics", "Custom Rich Menu", "Priority Support"]
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "desc": "สำหรับองค์กรใหญ่",
+      "price": "ติดต่อเรา",
+      "features": ["Unlimited Chapters", "ทุกอย่างใน Pro +", "Dedicated Support", "SLA Guarantee", "On-site Training"]
+    },
+    "cta": {
+      "select": "เลือกแผนนี้",
+      "contact": "ติดต่อเรา"
+    }
+  },
+  "faq": {
+    "title": "คำถามที่พบบ่อย",
+    "questions": {
+      "security": {
+        "q": "ข้อมูล Chapter ปลอดภัยไหม?",
+        "a": "ข้อมูลทั้งหมดเก็บบน Supabase ซึ่งเป็น Cloud Database ที่มีมาตรฐานความปลอดภัยระดับสูง มีการเข้ารหัสข้อมูลทั้ง At-rest และ In-transit รวมถึง Row Level Security ที่แยก Chapter แต่ละ Chapter ออกจากกันอย่างสมบูรณ์"
+      },
+      "line": {
+        "q": "ต้องใช้ LINE เท่านั้นไหม?",
+        "a": "ไม่จำเป็นครับ Meetdup มี Web Portal ที่สามารถเข้าใช้งานผ่าน Browser ได้เลย แต่ถ้าใช้ร่วมกับ LINE จะได้ประโยชน์เพิ่มเติมจากการแจ้งเตือน, RSVP, และ AI Assistant ผ่าน LINE Bot"
+      },
+      "migration": {
+        "q": "Migrate ข้อมูลเก่าจาก Excel ได้ไหม?",
+        "a": "ได้ครับ! เรามีระบบ Bulk Import ที่รองรับการ Import สมาชิกจาก Excel โดยตรง พร้อมทีม Support ช่วย Verify ข้อมูลก่อน Import ให้มั่นใจว่าข้อมูลถูกต้องครบถ้วน"
+      },
+      "roi": {
+        "q": "ROI คุ้มค่าเมื่อไหร่?",
+        "a": "จากข้อมูล Pilot Chapters พบว่า Admin ประหยัดเวลาได้ประมาณ 5+ ชั่วโมง/สัปดาห์ ถ้าคิดเป็นค่าแรงประมาณ 500 บาท/ชม. จะประหยัดได้ประมาณ 10,000+ บาท/เดือน ซึ่งมากกว่าค่าบริการ Core Plan ดังนั้น ROI เป็นบวกตั้งแต่เดือนแรก"
+      },
+      "training": {
+        "q": "ต้องฝึกอบรมนานไหม?",
+        "a": "ไม่นานครับ! Interface ออกแบบมาให้ใช้งานง่าย Admin ส่วนใหญ่เริ่มใช้งานได้ภายใน 30 นาที พร้อมทั้งมี Video Tutorial และ Thai Support Team คอยช่วยเหลือ"
+      },
+      "cancel": {
+        "q": "ยกเลิกได้ไหม ถ้าไม่พอใจ?",
+        "a": "ได้ครับ! สามารถยกเลิกได้ทุกเมื่อ ไม่มีสัญญาผูกมัดระยะยาว และเรายังมี Money-back Guarantee 30 วันแรก ถ้าไม่พอใจคืนเงินเต็มจำนวน"
+      }
+    }
+  },
+  "cta": {
+    "title": "พร้อมเปลี่ยน Chapter ของคุณให้ดีขึ้นไหม?",
+    "subtitle": "เริ่มต้นฟรี 14 วัน ไม่ต้องใส่บัตรเครดิต ทีม Support พร้อมช่วยเหลือตลอด",
+    "demo": "จองเดโมฟรี",
+    "trial": "เริ่มทดลองใช้ทันที"
+  },
+  "demoForm": {
+    "title": "จองเดโม Meetdup",
+    "subtitle": "กรอกข้อมูลเพื่อนัดหมายสาธิตระบบ ทีมเราจะติดต่อกลับภายใน 24 ชม.",
+    "name": "ชื่อ-นามสกุล",
+    "namePlaceholder": "กรุณากรอกชื่อ",
+    "email": "อีเมล",
+    "emailPlaceholder": "email@example.com",
+    "phone": "เบอร์โทรศัพท์",
+    "phonePlaceholder": "08x-xxx-xxxx",
+    "chapter": "ชื่อ Chapter (ถ้ามี)",
+    "chapterPlaceholder": "เช่น BNI Bangkok Central",
+    "members": "จำนวนสมาชิก",
+    "membersPlaceholder": "เลือกจำนวน",
+    "membersOptions": {
+      "small": "น้อยกว่า 20 คน",
+      "medium": "20-40 คน",
+      "large": "40-60 คน",
+      "xlarge": "มากกว่า 60 คน"
+    },
+    "message": "ข้อความเพิ่มเติม",
+    "messagePlaceholder": "บอกเราเกี่ยวกับ Chapter ของคุณ หรือคำถามที่อยากถาม",
+    "submit": "ส่งคำขอ",
+    "submitting": "กำลังส่ง...",
+    "success": "ส่งคำขอสำเร็จ!",
+    "successDesc": "ทีมเราจะติดต่อกลับภายใน 24 ชม."
+  },
+  "footer": {
+    "copyright": "2024 Meetdup. All rights reserved.",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
+  }
+}

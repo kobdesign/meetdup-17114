@@ -1,9 +1,13 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Play, ArrowRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Play, ArrowRight, Sparkles } from "lucide-react";
 
 const HeroSection = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-navy pt-16">
@@ -16,23 +20,21 @@ const HeroSection = () => {
 
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 mb-8">
-            <span className="w-2 h-2 bg-gold rounded-full animate-pulse" />
-            <span className="text-white/80 text-sm">Now Onboarding Founding Chapters</span>
-          </div>
+          <Badge variant="outline" className="mb-8 border-white/20 bg-white/10 text-white/80">
+            <Sparkles className="w-3 h-3 mr-1" />
+            {t("hero.badge")}
+          </Badge>
 
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
-            The Operating System for{" "}
-            <span className="text-gold">Business Chapters</span>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight">
+            {t("hero.title")}{" "}
+            <span className="text-gold">{t("hero.subtitle")}</span>
           </h1>
 
           <p className="text-lg md:text-xl text-white/70 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Streamline your chapter operations with PALMS attendance tracking, 
-            LINE integration, and powerful member management tools. 
-            Built for networking organizations that mean business.
+            {t("hero.description")}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
             <Button
               size="lg"
               variant="gold"
@@ -40,7 +42,7 @@ const HeroSection = () => {
               onClick={() => navigate("/auth")}
               data-testid="button-hero-get-started"
             >
-              Start Free Trial
+              {t("hero.cta")}
               <ArrowRight className="w-4 h-4" />
             </Button>
             <Button
@@ -50,8 +52,27 @@ const HeroSection = () => {
               data-testid="button-hero-demo"
             >
               <Play className="w-4 h-4" />
-              Watch Demo
+              {t("hero.trial")}
             </Button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto mb-16">
+            <Card className="bg-white/5 border-white/10 p-4 text-center" data-testid="stat-admin-time">
+              <div className="text-2xl md:text-3xl font-bold text-gold">70%</div>
+              <div className="text-sm text-white/60">{t("hero.stats.adminTime")}</div>
+            </Card>
+            <Card className="bg-white/5 border-white/10 p-4 text-center" data-testid="stat-attendance">
+              <div className="text-2xl md:text-3xl font-bold text-gold">25%</div>
+              <div className="text-sm text-white/60">{t("hero.stats.attendance")}</div>
+            </Card>
+            <Card className="bg-white/5 border-white/10 p-4 text-center" data-testid="stat-conversion">
+              <div className="text-2xl md:text-3xl font-bold text-gold">40%</div>
+              <div className="text-sm text-white/60">{t("hero.stats.conversion")}</div>
+            </Card>
+            <Card className="bg-white/5 border-white/10 p-4 text-center" data-testid="stat-checkin">
+              <div className="text-2xl md:text-3xl font-bold text-gold">5 min</div>
+              <div className="text-sm text-white/60">{t("hero.stats.checkin")}</div>
+            </Card>
           </div>
 
           <div className="relative max-w-3xl mx-auto">
