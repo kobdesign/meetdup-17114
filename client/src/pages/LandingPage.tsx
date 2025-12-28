@@ -5,6 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Users, 
   Clock, 
@@ -28,23 +31,173 @@ import {
   Sparkles,
   Target,
   LineChart,
-  ClipboardCheck
+  ClipboardCheck,
+  Loader2,
+  Send
 } from "lucide-react";
 import { SiLine } from "react-icons/si";
 
 export default function LandingPage() {
+  const { toast } = useToast();
   const [chapterSize, setChapterSize] = useState(40);
   const [currentScreenshot, setCurrentScreenshot] = useState(0);
+  const [demoDialogOpen, setDemoDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [demoForm, setDemoForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    chapterName: "",
+    memberCount: "",
+    message: ""
+  });
 
   const screenshots = [
-    { title: "Meeting Command Center", desc: "QR Check-in และ Dashboard แบบ Real-time" },
-    { title: "LINE Integration", desc: "แจ้งเตือนและ RSVP ผ่าน LINE" },
-    { title: "Performance Dashboard", desc: "วิเคราะห์ผลการดำเนินงาน Chapter" },
-    { title: "AI Assistant", desc: "ถามข้อมูลภาษาไทย ได้คำตอบทันที" }
+    { 
+      title: "Meeting Command Center", 
+      desc: "QR Check-in และ Dashboard แบบ Real-time",
+      features: ["QR Code Check-in", "Real-time Attendance", "Visitor Management", "Export Reports"]
+    },
+    { 
+      title: "LINE Integration", 
+      desc: "แจ้งเตือนและ RSVP ผ่าน LINE",
+      features: ["Meeting Notifications", "RSVP Buttons", "Digital Business Cards", "Member Self-service"]
+    },
+    { 
+      title: "Performance Dashboard", 
+      desc: "วิเคราะห์ผลการดำเนินงาน Chapter",
+      features: ["Attendance Rate Trends", "Visitor Conversion", "Member Growth", "Period Comparisons"]
+    },
+    { 
+      title: "AI Chapter Assistant", 
+      desc: "ถามข้อมูลภาษาไทย ได้คำตอบทันที",
+      features: ["Thai Language Support", "Text-to-SQL Queries", "Instant Reports", "LINE Bot Integration"]
+    }
   ];
 
   const hoursPerWeekSaved = Math.round(chapterSize * 0.15);
   const yearlySavings = hoursPerWeekSaved * 52 * 500;
+
+  const handleDemoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    toast({
+      title: "ส่งคำขอสำเร็จ",
+      description: "ทีมงานจะติดต่อกลับภายใน 24 ชั่วโมง",
+    });
+    
+    setDemoForm({ name: "", email: "", phone: "", chapterName: "", memberCount: "", message: "" });
+    setDemoDialogOpen(false);
+    setIsSubmitting(false);
+  };
+
+  const DemoFormDialog = ({ trigger }: { trigger: React.ReactNode }) => (
+    <Dialog open={demoDialogOpen} onOpenChange={setDemoDialogOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-primary" />
+            จองเดโมฟรี
+          </DialogTitle>
+          <DialogDescription>
+            กรอกข้อมูลเพื่อนัดหมาย Demo กับทีมงาน เราจะติดต่อกลับภายใน 24 ชม.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleDemoSubmit} className="space-y-4">
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="demo-name">ชื่อ-นามสกุล *</Label>
+              <Input
+                id="demo-name"
+                placeholder="คุณสมชาย ใจดี"
+                value={demoForm.name}
+                onChange={(e) => setDemoForm({ ...demoForm, name: e.target.value })}
+                required
+                data-testid="input-demo-name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="demo-email">อีเมล *</Label>
+                <Input
+                  id="demo-email"
+                  type="email"
+                  placeholder="email@example.com"
+                  value={demoForm.email}
+                  onChange={(e) => setDemoForm({ ...demoForm, email: e.target.value })}
+                  required
+                  data-testid="input-demo-email"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="demo-phone">เบอร์โทร *</Label>
+                <Input
+                  id="demo-phone"
+                  type="tel"
+                  placeholder="081-234-5678"
+                  value={demoForm.phone}
+                  onChange={(e) => setDemoForm({ ...demoForm, phone: e.target.value })}
+                  required
+                  data-testid="input-demo-phone"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="demo-chapter">ชื่อ Chapter</Label>
+                <Input
+                  id="demo-chapter"
+                  placeholder="Chapter ABC"
+                  value={demoForm.chapterName}
+                  onChange={(e) => setDemoForm({ ...demoForm, chapterName: e.target.value })}
+                  data-testid="input-demo-chapter"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="demo-members">จำนวนสมาชิก</Label>
+                <Input
+                  id="demo-members"
+                  type="number"
+                  placeholder="40"
+                  value={demoForm.memberCount}
+                  onChange={(e) => setDemoForm({ ...demoForm, memberCount: e.target.value })}
+                  data-testid="input-demo-members"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="demo-message">ข้อความเพิ่มเติม</Label>
+              <Textarea
+                id="demo-message"
+                placeholder="มีคำถามหรือความต้องการพิเศษอะไรบ้าง?"
+                value={demoForm.message}
+                onChange={(e) => setDemoForm({ ...demoForm, message: e.target.value })}
+                rows={3}
+                data-testid="input-demo-message"
+              />
+            </div>
+          </div>
+          <Button type="submit" className="w-full" disabled={isSubmitting} data-testid="button-submit-demo">
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                กำลังส่ง...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-2" />
+                ส่งคำขอ Demo
+              </>
+            )}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -67,10 +220,14 @@ export default function LandingPage() {
               <Button variant="ghost" size="sm" asChild data-testid="button-login">
                 <a href="/login">เข้าสู่ระบบ</a>
               </Button>
-              <Button size="sm" data-testid="button-demo-nav">
-                <Calendar className="w-4 h-4 mr-2" />
-                จองเดโม
-              </Button>
+              <DemoFormDialog
+                trigger={
+                  <Button size="sm" data-testid="button-demo-nav">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    จองเดโม
+                  </Button>
+                }
+              />
             </div>
           </div>
         </div>
@@ -94,10 +251,14 @@ export default function LandingPage() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-              <Button size="lg" className="w-full sm:w-auto" data-testid="button-demo-hero">
-                <Calendar className="w-5 h-5 mr-2" />
-                จองเดโมฟรี
-              </Button>
+              <DemoFormDialog
+                trigger={
+                  <Button size="lg" className="w-full sm:w-auto" data-testid="button-demo-hero">
+                    <Calendar className="w-5 h-5 mr-2" />
+                    จองเดโมฟรี
+                  </Button>
+                }
+              />
               <Button size="lg" variant="outline" className="w-full sm:w-auto" data-testid="button-trial">
                 <Play className="w-5 h-5 mr-2" />
                 ทดลองใช้ 14 วัน
@@ -285,7 +446,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Product Screenshots */}
+      {/* Product Features Showcase */}
       <section className="py-16 md:py-24 bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -293,35 +454,57 @@ export default function LandingPage() {
             <p className="text-lg text-muted-foreground">Interface ที่ออกแบบมาสำหรับ Chapter Admin โดยเฉพาะ</p>
           </div>
 
-          <div className="max-w-4xl mx-auto">
-            <Card className="overflow-hidden">
-              <div className="aspect-video bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                <div className="text-center p-8">
-                  <div className="w-20 h-20 rounded-full bg-background/80 flex items-center justify-center mx-auto mb-4">
-                    {currentScreenshot === 0 && <QrCode className="w-10 h-10 text-primary" />}
-                    {currentScreenshot === 1 && <SiLine className="w-10 h-10 text-green-500" />}
-                    {currentScreenshot === 2 && <BarChart3 className="w-10 h-10 text-blue-500" />}
-                    {currentScreenshot === 3 && <Bot className="w-10 h-10 text-purple-500" />}
+          <div className="max-w-5xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-6">
+              {screenshots.map((item, index) => (
+                <Card 
+                  key={index} 
+                  className={`overflow-hidden transition-all ${currentScreenshot === index ? 'ring-2 ring-primary' : ''}`}
+                  data-testid={`card-feature-${index}`}
+                >
+                  <div 
+                    className={`aspect-video flex items-center justify-center cursor-pointer ${
+                      index === 0 ? 'bg-gradient-to-br from-primary/20 to-blue-500/20' :
+                      index === 1 ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/20' :
+                      index === 2 ? 'bg-gradient-to-br from-blue-500/20 to-indigo-500/20' :
+                      'bg-gradient-to-br from-purple-500/20 to-pink-500/20'
+                    }`}
+                    onClick={() => setCurrentScreenshot(index)}
+                  >
+                    <div className="text-center p-6">
+                      <div className={`w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 ${
+                        index === 0 ? 'bg-primary/20' :
+                        index === 1 ? 'bg-green-500/20' :
+                        index === 2 ? 'bg-blue-500/20' :
+                        'bg-purple-500/20'
+                      }`}>
+                        {index === 0 && <QrCode className="w-8 h-8 text-primary" />}
+                        {index === 1 && <SiLine className="w-8 h-8 text-green-500" />}
+                        {index === 2 && <BarChart3 className="w-8 h-8 text-blue-500" />}
+                        {index === 3 && <Bot className="w-8 h-8 text-purple-500" />}
+                      </div>
+                      <h3 className="text-lg font-semibold mb-1">{item.title}</h3>
+                      <p className="text-sm text-muted-foreground">{item.desc}</p>
+                    </div>
                   </div>
-                  <h3 className="text-xl font-semibold mb-2">{screenshots[currentScreenshot].title}</h3>
-                  <p className="text-muted-foreground">{screenshots[currentScreenshot].desc}</p>
-                </div>
-              </div>
-              <CardFooter className="p-4 bg-card">
-                <div className="flex items-center justify-center gap-2 w-full">
-                  {screenshots.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentScreenshot(index)}
-                      className={`w-3 h-3 rounded-full transition-colors ${
-                        currentScreenshot === index ? "bg-primary" : "bg-muted-foreground/30"
-                      }`}
-                      data-testid={`button-screenshot-${index}`}
-                    />
-                  ))}
-                </div>
-              </CardFooter>
-            </Card>
+                  <CardContent className="pt-4">
+                    <div className="grid grid-cols-2 gap-2">
+                      {item.features.map((feature, fIndex) => (
+                        <div key={fIndex} className="flex items-center gap-2 text-sm">
+                          <CheckCircle2 className={`w-4 h-4 shrink-0 ${
+                            index === 0 ? 'text-primary' :
+                            index === 1 ? 'text-green-500' :
+                            index === 2 ? 'text-blue-500' :
+                            'text-purple-500'
+                          }`} />
+                          <span className="text-muted-foreground">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -815,10 +998,14 @@ export default function LandingPage() {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <Button size="lg" className="w-full sm:w-auto" data-testid="button-demo-footer">
-              <Calendar className="w-5 h-5 mr-2" />
-              จองเดโมฟรี
-            </Button>
+            <DemoFormDialog
+              trigger={
+                <Button size="lg" className="w-full sm:w-auto" data-testid="button-demo-footer">
+                  <Calendar className="w-5 h-5 mr-2" />
+                  จองเดโมฟรี
+                </Button>
+              }
+            />
             <Button size="lg" variant="outline" className="w-full sm:w-auto" data-testid="button-trial-footer">
               เริ่มทดลองใช้ทันที
               <ArrowRight className="w-5 h-5 ml-2" />
