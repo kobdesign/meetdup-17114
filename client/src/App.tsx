@@ -60,6 +60,7 @@ import AppCenter from "./pages/admin/AppCenter";
 import FinanceDashboard from "./pages/admin/FinanceDashboard";
 import PerformanceDashboard from "./pages/admin/PerformanceDashboard";
 import PitchDeck from "./pages/PitchDeck";
+import LandingPage from "./pages/LandingPage";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -234,8 +235,9 @@ const App = () => (
           <Route path="/liff/apps" element={<LiffAppShell />} />
           <Route path="/liff/apps/:appSlug" element={<LiffAppShell />} />
           
-          {/* Pitch Deck (Public) */}
+          {/* Public Marketing Pages */}
           <Route path="/pitch-deck" element={<PitchDeck />} />
+          <Route path="/landing" element={<LandingPage />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
