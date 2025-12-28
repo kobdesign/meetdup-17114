@@ -10,17 +10,17 @@
     "adminDashboard": "Admin Dashboard"
   },
   "hero": {
-    "badge": "AI-Powered Platform",
-    "title": "จัดการ Chapter Meeting ได้ง่ายขึ้น",
-    "subtitle": "ไม่ต้องพึ่ง Excel อีกต่อไป",
-    "description": "ระบบบริหารจัดการ Chapter แบบครบวงจร ตั้งแต่ Check-in, Attendance Tracking ไปจนถึง AI Assistant ที่ตอบคำถามภาษาไทยได้ทันที",
-    "cta": "จองเดโมฟรี",
+    "badge": "ใช้งานจริงโดย BNI The World",
+    "title": "ลดเวลาบริหาร Chapter",
+    "subtitle": "จาก 5 ชม. เหลือ 30 นาที",
+    "description": "ระบบบริหาร Chapter ครบวงจรที่ออกแบบมาเพื่อผู้ดูแล Chapter โดยเฉพาะ พร้อม AI Assistant ภาษาไทยที่ตอบได้ทันที",
+    "cta": "ดูระบบฟรี 5 นาที",
     "trial": "ทดลองใช้ 14 วัน",
     "stats": {
-      "adminTime": "ลดเวลา Admin",
-      "attendance": "เพิ่ม Attendance",
+      "adminTime": "ลดเวลาบริหาร",
+      "attendance": "On-time Rate",
       "conversion": "Visitor Conversion",
-      "checkin": "Check-in ทั้ง Chapter"
+      "checkin": "เวลา Check-in"
     }
   },
   "painPoints": {
@@ -93,6 +93,32 @@
       "title": "ตัวอย่างคำถามที่ถามได้"
     }
   },
+  "socialProof": {
+    "badge": "กรณีศึกษาจริง",
+    "title": "ผลลัพธ์จริงจาก BNI The World",
+    "subtitle": "ดูว่า Chapter ที่ใช้งาน Meetdup มีประสิทธิภาพเพิ่มขึ้นอย่างไร",
+    "chapterDesc": "Business Networking Chapter ที่ใช้ Meetdup ในการบริหารจัดการ Meeting ทุกสัปดาห์",
+    "liveNow": "ใช้งานจริง",
+    "metrics": {
+      "checkIn": {
+        "before": "15 นาที",
+        "after": "5 วินาที",
+        "label": "เวลา Check-in"
+      },
+      "onTime": {
+        "before": "70%",
+        "after": "98%",
+        "label": "On-time Rate"
+      },
+      "data": {
+        "before": "3 Excel",
+        "after": "1 Dashboard",
+        "label": "การจัดการข้อมูล"
+      }
+    },
+    "quote": "Meetdup ช่วยให้เราจัดการ Meeting ได้ราบรื่นขึ้นมาก สมาชิกชอบระบบ QR Check-in และ AI ที่ตอบคำถามได้ทันที",
+    "quotePerson": "ผู้ดูแล Chapter, BNI The World"
+  },
   "testimonials": {
     "title": "Chapter ที่ใช้งานแล้ว",
     "subtitle": "ความเห็นจาก Admin ที่ใช้ Meetdup ในการบริหาร Chapter"
@@ -153,9 +179,9 @@
     }
   },
   "cta": {
-    "title": "พร้อมเปลี่ยน Chapter ของคุณให้ดีขึ้นไหม?",
-    "subtitle": "เริ่มต้นฟรี 14 วัน ไม่ต้องใส่บัตรเครดิต ทีม Support พร้อมช่วยเหลือตลอด",
-    "demo": "จองเดโมฟรี",
+    "title": "พร้อมลดเวลาบริหาร Chapter ลง 90% หรือยัง?",
+    "subtitle": "ดูระบบฟรี 5 นาที ไม่ต้องสมัครสมาชิก ไม่ต้องใส่บัตรเครดิต",
+    "demo": "ดูระบบฟรี 5 นาที",
     "trial": "เริ่มทดลองใช้ทันที"
   },
   "demoForm": {

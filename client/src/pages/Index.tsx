@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, X } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
+import SocialProofSection from "@/components/landing/SocialProofSection";
 import ProblemSolutionSection from "@/components/landing/ProblemSolutionSection";
 import FeatureShowcase from "@/components/landing/FeatureShowcase";
 import ROICalculator from "@/components/landing/ROICalculator";
@@ -82,6 +83,7 @@ const Index = () => {
       
       <LandingNavbar />
       <HeroSection />
+      <SocialProofSection />
       <ProblemSolutionSection />
       <FeatureShowcase />
       <ROICalculator />

@@ -93,7 +93,6 @@ const LandingNavbar = () => {
               <div className="flex flex-col gap-2 pt-4 border-t border-white/10">
                 <div className="flex items-center gap-2 pb-2">
                   <LanguageToggle />
-                  <span className="text-white/60 text-sm">Language</span>
                 </div>
                 <Button
                   variant="ghost"

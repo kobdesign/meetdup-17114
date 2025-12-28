@@ -1,12 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Languages } from 'lucide-react';
 
 export function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -16,29 +8,32 @@ export function LanguageToggle() {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" data-testid="button-language-toggle">
-          <Languages className="h-4 w-4" />
-          <span className="sr-only">Toggle language</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem 
-          onClick={() => changeLanguage('th')}
-          className={i18n.language === 'th' ? 'bg-accent' : ''}
-          data-testid="menu-lang-th"
-        >
-          TH ไทย
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => changeLanguage('en')}
-          className={i18n.language === 'en' ? 'bg-accent' : ''}
-          data-testid="menu-lang-en"
-        >
-          EN English
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div 
+      className="flex items-center rounded-full border border-white/20 bg-white/10 p-0.5"
+      data-testid="language-toggle"
+    >
+      <button
+        onClick={() => changeLanguage('th')}
+        className={`px-3 py-1 text-sm font-medium rounded-full transition-all ${
+          i18n.language === 'th' 
+            ? 'bg-gold text-navy' 
+            : 'text-white/70 hover:text-white'
+        }`}
+        data-testid="button-lang-th"
+      >
+        TH
+      </button>
+      <button
+        onClick={() => changeLanguage('en')}
+        className={`px-3 py-1 text-sm font-medium rounded-full transition-all ${
+          i18n.language === 'en' 
+            ? 'bg-gold text-navy' 
+            : 'text-white/70 hover:text-white'
+        }`}
+        data-testid="button-lang-en"
+      >
+        EN
+      </button>
+    </div>
   );
 }

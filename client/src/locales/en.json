@@ -10,17 +10,17 @@
     "adminDashboard": "Admin Dashboard"
   },
   "hero": {
-    "badge": "AI-Powered Platform",
-    "title": "Manage Chapter Meetings",
-    "subtitle": "Without Excel Hassle",
-    "description": "Complete chapter management system with Check-in, Attendance Tracking, and AI Assistant that answers questions in real-time",
-    "cta": "Book Free Demo",
+    "badge": "Used by BNI The World",
+    "title": "Cut Chapter Admin Time",
+    "subtitle": "From 5 Hours to 30 Minutes",
+    "description": "Complete chapter management system built specifically for chapter administrators, with Thai AI Assistant that responds instantly",
+    "cta": "See Demo in 5 Minutes",
     "trial": "14-Day Free Trial",
     "stats": {
       "adminTime": "Admin Time Saved",
-      "attendance": "Attendance Increase",
+      "attendance": "On-time Rate",
       "conversion": "Visitor Conversion",
-      "checkin": "Chapter Check-in"
+      "checkin": "Check-in Time"
     }
   },
   "painPoints": {
@@ -93,6 +93,32 @@
       "title": "Example Questions You Can Ask"
     }
   },
+  "socialProof": {
+    "badge": "Real Case Study",
+    "title": "Real Results from BNI The World",
+    "subtitle": "See how chapters using Meetdup have improved their efficiency",
+    "chapterDesc": "Business Networking Chapter managing weekly meetings with Meetdup",
+    "liveNow": "Live Now",
+    "metrics": {
+      "checkIn": {
+        "before": "15 min",
+        "after": "5 sec",
+        "label": "Check-in Time"
+      },
+      "onTime": {
+        "before": "70%",
+        "after": "98%",
+        "label": "On-time Rate"
+      },
+      "data": {
+        "before": "3 Excel",
+        "after": "1 Dashboard",
+        "label": "Data Management"
+      }
+    },
+    "quote": "Meetdup has made our meetings run much smoother. Members love the QR Check-in and the AI that answers questions instantly.",
+    "quotePerson": "Chapter Admin, BNI The World"
+  },
   "testimonials": {
     "title": "Chapters Using Meetdup",
     "subtitle": "Feedback from Admins who use Meetdup to manage their Chapters"
@@ -153,9 +179,9 @@
     }
   },
   "cta": {
-    "title": "Ready to Transform Your Chapter?",
-    "subtitle": "Start free for 14 days. No credit card required. Support team always available",
-    "demo": "Book Free Demo",
+    "title": "Ready to Cut Your Admin Time by 90%?",
+    "subtitle": "See the system in 5 minutes. No signup required. No credit card needed.",
+    "demo": "See Demo in 5 Minutes",
     "trial": "Start Free Trial"
   },
   "demoForm": {

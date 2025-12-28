@@ -58,11 +58,11 @@ const HeroSection = () => {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto mb-16">
             <Card className="bg-white/5 border-white/10 p-4 text-center" data-testid="stat-admin-time">
-              <div className="text-2xl md:text-3xl font-bold text-gold">70%</div>
+              <div className="text-2xl md:text-3xl font-bold text-gold">90%</div>
               <div className="text-sm text-white/60">{t("hero.stats.adminTime")}</div>
             </Card>
             <Card className="bg-white/5 border-white/10 p-4 text-center" data-testid="stat-attendance">
-              <div className="text-2xl md:text-3xl font-bold text-gold">25%</div>
+              <div className="text-2xl md:text-3xl font-bold text-gold">98%</div>
               <div className="text-sm text-white/60">{t("hero.stats.attendance")}</div>
             </Card>
             <Card className="bg-white/5 border-white/10 p-4 text-center" data-testid="stat-conversion">
@@ -70,7 +70,7 @@ const HeroSection = () => {
               <div className="text-sm text-white/60">{t("hero.stats.conversion")}</div>
             </Card>
             <Card className="bg-white/5 border-white/10 p-4 text-center" data-testid="stat-checkin">
-              <div className="text-2xl md:text-3xl font-bold text-gold">5 min</div>
+              <div className="text-2xl md:text-3xl font-bold text-gold">5 sec</div>
               <div className="text-sm text-white/60">{t("hero.stats.checkin")}</div>
             </Card>
           </div>
