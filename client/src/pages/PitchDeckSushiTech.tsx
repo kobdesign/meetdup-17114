@@ -37,7 +37,7 @@ import {
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { SiLine } from "react-icons/si";
-import QRCode from "react-qr-code";
+import { CanvasQRCode } from "@/components/CanvasQRCode";
 import { usePlatformSettings } from "@/contexts/PlatformSettingsContext";
 import defaultLogoUrl from "@assets/Gemini_Generated_Image_cpdn83cpdn83cpdn_1766907954232.png";
 
@@ -765,38 +765,38 @@ export default function PitchDeckSushiTech() {
             <tbody>
               <tr className="border-b">
                 <td className="p-3">Chapter-specific workflows</td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
               </tr>
               <tr className="border-b">
                 <td className="p-3">AI Assistant (Thai)</td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
               </tr>
               <tr className="border-b">
                 <td className="p-3">LINE Integration</td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
               </tr>
               <tr className="border-b">
                 <td className="p-3">QR Check-in</td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><XCircle className="w-5 h-5 text-muted-foreground mx-auto" /></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-muted-foreground">✗</span></td>
               </tr>
               <tr className="border-b">
                 <td className="p-3">Performance Dashboard</td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
-                <td className="text-center p-3"><CheckCircle className="w-5 h-5 text-green-500 mx-auto" /></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
+                <td className="text-center p-3"><span className="text-lg text-green-500 font-bold">✓</span></td>
               </tr>
               <tr>
                 <td className="p-3">Price (per chapter/mo)</td>
@@ -1133,7 +1133,7 @@ export default function PitchDeckSushiTech() {
               </Button>
             </a>
             <div className="mt-4 p-3 bg-white rounded-lg inline-block">
-              <QRCode value={typeof window !== 'undefined' ? `${window.location.origin}/demo` : '/demo'} size={100} />
+              <CanvasQRCode value={typeof window !== 'undefined' ? `${window.location.origin}/demo` : '/demo'} size={100} />
             </div>
             <p className="text-xs text-blue-300 mt-2">Scan to try on mobile</p>
           </Card>
@@ -1142,19 +1142,19 @@ export default function PitchDeckSushiTech() {
             <h3 className="font-bold text-xl mb-4">What We'll Do at SuSHi Tech</h3>
             <ul className="space-y-3 text-left">
               <li className="flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                <span className="text-lg text-green-400 font-bold shrink-0">✓</span>
                 <span>Demo platform to BNI Japan leaders</span>
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                <span className="text-lg text-green-400 font-bold shrink-0">✓</span>
                 <span>Sign up 3-5 Tokyo pilot chapters</span>
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                <span className="text-lg text-green-400 font-bold shrink-0">✓</span>
                 <span>Connect with Japanese investors</span>
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                <span className="text-lg text-green-400 font-bold shrink-0">✓</span>
                 <span>Establish local partnerships</span>
               </li>
             </ul>
