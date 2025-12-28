@@ -28,8 +28,8 @@ const LandingNavbar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-navy/95 backdrop-blur-sm border-b border-white/10">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <MeetdupLogo size="md" variant="light" />
+        <div className="flex items-center justify-between h-20">
+          <MeetdupLogo size="lg" variant="light" />
 
           <div className="hidden md:flex items-center gap-8">
             {navItems.map((item) => (
