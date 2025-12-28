@@ -25,9 +25,15 @@ import {
   Briefcase,
   MapPin,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Play,
+  QrCode,
+  Smartphone,
+  BarChart3,
+  Bot
 } from "lucide-react";
 import { SiLine } from "react-icons/si";
+import QRCode from "react-qr-code";
 
 interface SlideProps {
   children: React.ReactNode;
@@ -36,7 +42,7 @@ interface SlideProps {
 
 function Slide({ children, className = "" }: SlideProps) {
   return (
-    <div className={`w-full h-full flex flex-col items-center justify-center p-8 md:p-16 ${className}`}>
+    <div className={`w-full min-h-screen flex flex-col items-center justify-center p-8 md:p-12 ${className}`}>
       {children}
     </div>
   );
@@ -287,68 +293,114 @@ export default function PitchDeckSushiTech() {
       </div>
     </Slide>,
 
-    // Slide 4: Technology Stack
-    <Slide key="technology" className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-      <div className="max-w-5xl w-full">
-        <Badge className="mb-4 bg-white/10 text-white border-0">Technology</Badge>
-        <h2 className="text-4xl md:text-5xl font-bold mb-4">
-          Modern Tech Stack
+    // Slide 4: Product Demo - Visual UI Showcase
+    <Slide key="product-demo" className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+      <div className="max-w-6xl w-full">
+        <Badge className="mb-4 bg-amber-500/20 text-amber-300 border-0">Product Demo</Badge>
+        <h2 className="text-3xl md:text-4xl font-bold mb-2">
+          See It In Action
         </h2>
-        <p className="text-xl text-slate-300 mb-10">
-          Built with cutting-edge technologies for scalability and reliability
+        <p className="text-lg text-slate-300 mb-6">
+          Real UI from our production platform
         </p>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-10">
-          <Card className="p-6 bg-white/5 border-white/10 text-white">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-amber-400" />
-              AI Layer
+        <div className="grid md:grid-cols-3 gap-4">
+          <Card className="p-4 bg-white/5 border-white/10 text-white">
+            <div className="aspect-video bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg mb-3 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+              <div className="absolute inset-0 bg-black/20"></div>
+              <div className="relative z-10 w-full">
+                <div className="bg-white/10 rounded-md p-2 mb-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Calendar className="w-4 h-4" />
+                    <span>Meeting Command Center</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  <div className="bg-green-500/30 rounded p-1 text-center text-xs">On-time: 28</div>
+                  <div className="bg-amber-500/30 rounded p-1 text-center text-xs">Late: 3</div>
+                  <div className="bg-red-500/30 rounded p-1 text-center text-xs">Absent: 2</div>
+                </div>
+                <div className="mt-2 flex items-center justify-center gap-2 text-xs bg-white/10 rounded p-2">
+                  <QrCode className="w-6 h-6" />
+                  <span>QR Check-in Ready</span>
+                </div>
+              </div>
+            </div>
+            <h3 className="font-bold text-sm mb-1 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-blue-400" />
+              Meeting Dashboard
             </h3>
-            <ul className="space-y-2 text-slate-300 text-sm">
-              <li>OpenAI GPT-4 for natural language</li>
-              <li>Text-to-SQL query generation</li>
-              <li>n8n workflow automation</li>
-              <li>Multi-language support (TH/JP/EN)</li>
-            </ul>
+            <p className="text-xs text-slate-400">Real-time attendance, QR scan check-in, visitor management</p>
           </Card>
 
-          <Card className="p-6 bg-white/5 border-white/10 text-white">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-              <Globe className="w-5 h-5 text-blue-400" />
-              Platform
+          <Card className="p-4 bg-white/5 border-white/10 text-white">
+            <div className="aspect-video bg-gradient-to-br from-green-600 to-green-800 rounded-lg mb-3 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+              <div className="absolute inset-0 bg-black/20"></div>
+              <div className="relative z-10 w-full">
+                <div className="bg-white/10 rounded-md p-2 mb-2 flex items-center gap-2">
+                  <SiLine className="w-4 h-4 text-green-400" />
+                  <span className="text-xs">LINE LIFF App</span>
+                </div>
+                <div className="bg-white/10 rounded-lg p-2 mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-xs">TN</div>
+                    <div className="text-xs">
+                      <div>Tanawat N.</div>
+                      <div className="text-slate-400">IT Consultant</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-center text-slate-300">Tap to view profile</div>
+              </div>
+            </div>
+            <h3 className="font-bold text-sm mb-1 flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-green-400" />
+              LINE Member Search
             </h3>
-            <ul className="space-y-2 text-slate-300 text-sm">
-              <li>React + TypeScript frontend</li>
-              <li>Node.js + Express backend</li>
-              <li>PostgreSQL (Supabase)</li>
-              <li>LINE LIFF + Messaging API</li>
-            </ul>
+            <p className="text-xs text-slate-400">Search members, view business cards, all inside LINE app</p>
           </Card>
 
-          <Card className="p-6 bg-white/5 border-white/10 text-white">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-              <Rocket className="w-5 h-5 text-green-400" />
-              Features
+          <Card className="p-4 bg-white/5 border-white/10 text-white">
+            <div className="aspect-video bg-gradient-to-br from-amber-600 to-orange-700 rounded-lg mb-3 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+              <div className="absolute inset-0 bg-black/20"></div>
+              <div className="relative z-10 w-full">
+                <div className="bg-white/10 rounded-md p-2 mb-2 flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-amber-300" />
+                  <span className="text-xs">AI Assistant</span>
+                </div>
+                <div className="bg-white/10 rounded-lg p-2 text-xs space-y-1">
+                  <div className="text-amber-200">"วันนี้มี visitor กี่คน?"</div>
+                  <div className="text-slate-300 pl-2 border-l-2 border-amber-400">
+                    Today: 5 visitors registered, 4 checked-in
+                  </div>
+                </div>
+              </div>
+            </div>
+            <h3 className="font-bold text-sm mb-1 flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-400" />
+              AI Text-to-SQL
             </h3>
-            <ul className="space-y-2 text-slate-300 text-sm">
-              <li>Multi-tenant architecture</li>
-              <li>Role-based access control</li>
-              <li>Real-time notifications</li>
-              <li>QR code check-in system</li>
-            </ul>
+            <p className="text-xs text-slate-400">Ask in Thai/Japanese, get instant data insights</p>
           </Card>
         </div>
 
-        <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 p-6 rounded-xl border border-amber-500/30">
-          <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            AI Innovation Highlight
-          </h3>
-          <p className="text-slate-300">
-            Our Text-to-SQL engine allows chapter admins to query their data in natural language. 
-            "วันนี้มี visitor กี่คน?" instantly translates to SQL and returns actionable insights - 
-            no technical knowledge required.
-          </p>
+        <div className="mt-6 grid md:grid-cols-4 gap-3 text-center">
+          <div className="bg-white/5 rounded-lg p-3">
+            <div className="text-2xl font-bold text-green-400">5 sec</div>
+            <div className="text-xs text-slate-400">Check-in time</div>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <div className="text-2xl font-bold text-blue-400">98%</div>
+            <div className="text-xs text-slate-400">Accuracy</div>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <div className="text-2xl font-bold text-amber-400">3</div>
+            <div className="text-xs text-slate-400">Languages</div>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <div className="text-2xl font-bold text-purple-400">24/7</div>
+            <div className="text-xs text-slate-400">AI Available</div>
+          </div>
         </div>
       </div>
     </Slide>,
@@ -779,64 +831,78 @@ export default function PitchDeckSushiTech() {
       </div>
     </Slide>,
 
-    // Slide 10: Ask / Close
+    // Slide 10: Ask / Close with Demo Link
     <Slide key="close" className="bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] text-white">
-      <div className="max-w-4xl w-full text-center">
-        <Badge className="mb-6 bg-red-500/20 text-red-300 border-red-500/30">
+      <div className="max-w-5xl w-full text-center">
+        <Badge className="mb-4 bg-red-500/20 text-red-300 border-red-500/30">
           SuSHi Tech Tokyo 2026
         </Badge>
         
-        <h2 className="text-4xl md:text-6xl font-bold mb-6">
+        <h2 className="text-3xl md:text-5xl font-bold mb-4">
           Ready to Transform
-          <br />
-          <span className="text-amber-400">Business Networking in Japan</span>
+          <span className="text-amber-400"> Business Networking in Japan</span>
         </h2>
         
-        <p className="text-xl text-blue-200 mb-10 max-w-2xl mx-auto">
-          We're building the future of chapter management. 
-          Help us bring AI-powered efficiency to 348+ Japanese chapters.
+        <p className="text-lg text-blue-200 mb-8 max-w-2xl mx-auto">
+          Help us bring AI-powered efficiency to 348+ Japanese chapters
         </p>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-10">
-          <Card className="p-6 bg-white/10 border-white/20 text-white text-center">
-            <Building2 className="w-10 h-10 mx-auto mb-3 text-amber-400" />
-            <h3 className="font-bold">SuSHi Tech Booth</h3>
-            <p className="text-sm text-blue-200">Showcase our platform to Japanese chapters</p>
+        <div className="grid md:grid-cols-2 gap-8 mb-8">
+          <Card className="p-6 bg-white/10 border-white/20 text-white">
+            <h3 className="font-bold text-xl mb-4 flex items-center justify-center gap-2">
+              <Play className="w-6 h-6 text-green-400" />
+              Try Live Demo
+            </h3>
+            <p className="text-blue-200 text-sm mb-4">
+              Experience the full platform with realistic Thai chapter data
+            </p>
+            <a href="/demo" target="_blank" rel="noopener noreferrer">
+              <Button size="lg" className="bg-green-500 hover:bg-green-600 text-white w-full gap-2">
+                <Play className="w-5 h-5" />
+                Launch Demo
+              </Button>
+            </a>
+            <div className="mt-4 p-3 bg-white rounded-lg inline-block">
+              <QRCode value={typeof window !== 'undefined' ? `${window.location.origin}/demo` : '/demo'} size={100} />
+            </div>
+            <p className="text-xs text-blue-300 mt-2">Scan to try on mobile</p>
           </Card>
-          <Card className="p-6 bg-white/10 border-white/20 text-white text-center">
-            <Users className="w-10 h-10 mx-auto mb-3 text-green-400" />
-            <h3 className="font-bold">Business Matching</h3>
-            <p className="text-sm text-blue-200">Connect with BNI Japan & investors</p>
-          </Card>
-          <Card className="p-6 bg-white/10 border-white/20 text-white text-center">
-            <Rocket className="w-10 h-10 mx-auto mb-3 text-purple-400" />
-            <h3 className="font-bold">Japan Launch</h3>
-            <p className="text-sm text-blue-200">Start pilot chapters in Tokyo</p>
+
+          <Card className="p-6 bg-white/10 border-white/20 text-white">
+            <h3 className="font-bold text-xl mb-4">What We'll Do at SuSHi Tech</h3>
+            <ul className="space-y-3 text-left">
+              <li className="flex items-center gap-3">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                <span>Demo platform to BNI Japan leaders</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                <span>Sign up 3-5 Tokyo pilot chapters</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                <span>Connect with Japanese investors</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                <span>Establish local partnerships</span>
+              </li>
+            </ul>
+            <div className="mt-6 pt-4 border-t border-white/20">
+              <div className="flex items-center justify-center gap-3">
+                <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center">
+                  <Users className="w-7 h-7" />
+                </div>
+                <div className="text-left">
+                  <h4 className="font-bold">Meetdup</h4>
+                  <p className="text-sm text-blue-200">hello@meetdup.io</p>
+                </div>
+              </div>
+            </div>
           </Card>
         </div>
 
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white/10 rounded-xl flex items-center justify-center">
-              <Users className="w-10 h-10" />
-            </div>
-            <div className="text-left">
-              <h3 className="text-2xl font-bold">Meetdup</h3>
-              <p className="text-blue-200">AI-Powered Chapter Management</p>
-            </div>
-          </div>
-          
-          <div className="flex gap-4 mt-4">
-            <Badge className="px-4 py-2 bg-white/20 text-white border-0">
-              meetdup.io
-            </Badge>
-            <Badge className="px-4 py-2 bg-white/20 text-white border-0">
-              hello@meetdup.io
-            </Badge>
-          </div>
-        </div>
-
-        <p className="mt-10 text-lg text-blue-300">
+        <p className="text-xl text-blue-300 font-medium">
           ขอบคุณครับ / ありがとうございます / Thank You
         </p>
       </div>
@@ -844,7 +910,7 @@ export default function PitchDeckSushiTech() {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col" data-testid="pitch-deck-sushitech">
+    <div className="relative h-screen w-screen overflow-hidden bg-background" data-testid="pitch-deck-sushitech">
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <Badge variant="outline" className="bg-background/80 backdrop-blur">
           {currentSlide + 1} / {totalSlides}
@@ -860,7 +926,7 @@ export default function PitchDeckSushiTech() {
         </Button>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="h-full w-full overflow-hidden">
         {slides[currentSlide]}
       </div>
 
