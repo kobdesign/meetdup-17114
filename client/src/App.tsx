@@ -60,6 +60,7 @@ import AppCenter from "./pages/admin/AppCenter";
 import FinanceDashboard from "./pages/admin/FinanceDashboard";
 import PerformanceDashboard from "./pages/admin/PerformanceDashboard";
 import PitchDeck from "./pages/PitchDeck";
+import PitchDeckSushiTech from "./pages/PitchDeckSushiTech";
 import LandingPage from "./pages/LandingPage";
 import Demo from "./pages/Demo";
 
@@ -239,6 +240,7 @@ const App = () => (
           
           {/* Public Marketing Pages */}
           <Route path="/pitch-deck" element={<PitchDeck />} />
+          <Route path="/pitch-deck-sushitech" element={<PitchDeckSushiTech />} />
           <Route path="/landing" element={<Navigate to="/" replace />} />
           <Route path="/login" element={<Navigate to="/auth" replace />} />
           
