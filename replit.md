@@ -42,6 +42,7 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - **Payment Tracking System**: Comprehensive tracking for member monthly dues and visitor meeting fees, including a Finance Dashboard for KPIs, dues configuration, member dues list, and bulk actions.
 - **Chapter Apps Marketplace**: An extension system for mini-applications accessible via a Profile > Apps Tab for members and manageable via an Admin App Center. Includes implemented apps like BOQ Estimator.
 - **AI Chapter Data Assistant (LINE Bot)**: An AI Chatbot integrated with OpenAI for Admin/Member queries via LINE, supporting intents like visitor summaries, unpaid visitor fees, and meeting statistics with RBAC logic.
+- **Super Admin Platform Settings**: Centralized platform branding management at `/super-admin/platform-settings` with logo upload for light/dark modes and platform name configuration. Logos stored in Supabase Storage `avatars/branding/` folder with settings in `system_settings` table (keys: `platform_logo_url`, `platform_logo_dark_url`, `platform_name`).
 
 ### AI Chapter Data Assistant Details
 
