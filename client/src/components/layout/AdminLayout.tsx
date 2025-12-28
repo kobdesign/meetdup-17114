@@ -299,7 +299,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </Sheet>
             
             <Link to="/admin" className="flex items-center gap-2">
-              <MeetdupLogo size="md" variant="dark" />
+              <MeetdupLogo size="lg" variant="dark" />
             </Link>
           </div>
 
