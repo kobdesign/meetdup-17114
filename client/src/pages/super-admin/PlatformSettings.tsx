@@ -23,7 +23,7 @@ async function uploadLogoViaServer(file: File, type: "light" | "dark"): Promise<
   formData.append("file", file);
   formData.append("type", type);
 
-  const response = await fetch("/api/system-settings/platform/upload-logo", {
+  const response = await fetch("/api/admin/system-settings/platform/upload-logo", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -64,7 +64,7 @@ export default function PlatformSettings() {
 
   const fetchSettings = async () => {
     try {
-      const data = await apiRequest("/api/system-settings/platform");
+      const data = await apiRequest("/api/admin/system-settings/platform");
       setSettings({
         platform_logo_url: data.platform_logo_url || null,
         platform_logo_dark_url: data.platform_logo_dark_url || null,
@@ -120,7 +120,7 @@ export default function PlatformSettings() {
   const savePlatformName = async () => {
     setSaving(true);
     try {
-      await apiRequest("/api/system-settings/platform", "PUT", {
+      await apiRequest("/api/admin/system-settings/platform", "PUT", {
         platform_name: settings.platform_name,
       });
       toast.success("Platform name saved successfully");
@@ -133,7 +133,7 @@ export default function PlatformSettings() {
 
   const resetToDefault = async (settingKey: string) => {
     try {
-      await apiRequest("/api/system-settings/platform", "PUT", {
+      await apiRequest("/api/admin/system-settings/platform", "PUT", {
         [settingKey]: null,
       });
 
