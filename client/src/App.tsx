@@ -6,6 +6,7 @@ import { queryClient } from "./lib/queryClient";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { TenantProvider } from "./contexts/TenantContext";
+import { PlatformSettingsProvider } from "./contexts/PlatformSettingsContext";
 import { LiffStateHandler } from "./components/LiffStateHandler";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -67,6 +68,7 @@ import Demo from "./pages/Demo";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <PlatformSettingsProvider>
     <TooltipProvider>
       <TenantProvider>
         <Toaster />
@@ -257,6 +259,7 @@ const App = () => (
         </BrowserRouter>
       </TenantProvider>
     </TooltipProvider>
+    </PlatformSettingsProvider>
   </QueryClientProvider>
 );
 

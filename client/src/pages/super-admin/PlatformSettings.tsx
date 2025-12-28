@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { MeetdupLogo, meetdupLogoUrl } from "@/components/MeetdupLogo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { apiRequest } from "@/lib/queryClient";
+import { usePlatformSettings } from "@/contexts/PlatformSettingsContext";
 
 async function uploadLogoViaServer(file: File, type: "light" | "dark"): Promise<{ success: boolean; url?: string; error?: string }> {
   const session = await supabase.auth.getSession();
@@ -57,6 +58,8 @@ export default function PlatformSettings() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const darkFileInputRef = useRef<HTMLInputElement>(null);
+  
+  const { refetch: refetchGlobalSettings } = usePlatformSettings();
 
   useEffect(() => {
     fetchSettings();
@@ -94,6 +97,7 @@ export default function PlatformSettings() {
         [settingKey]: result.url!,
       }));
 
+      await refetchGlobalSettings();
       toast.success(`${variant === "light" ? "Light" : "Dark"} mode logo uploaded successfully`);
     } catch (error: any) {
       toast.error("Failed to upload logo: " + error.message);
@@ -123,6 +127,7 @@ export default function PlatformSettings() {
       await apiRequest("/api/admin/system-settings/platform", "PUT", {
         platform_name: settings.platform_name,
       });
+      await refetchGlobalSettings();
       toast.success("Platform name saved successfully");
     } catch (error: any) {
       toast.error("Failed to save platform name: " + error.message);
@@ -142,6 +147,7 @@ export default function PlatformSettings() {
         [settingKey]: null,
       }));
 
+      await refetchGlobalSettings();
       toast.success("Reset to default logo");
     } catch (error: any) {
       toast.error("Failed to reset: " + error.message);

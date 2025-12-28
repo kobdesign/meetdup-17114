@@ -1,4 +1,6 @@
-import meetdupLogoUrl from "@assets/Gemini_Generated_Image_cpdn83cpdn83cpdn_1766907954232.png";
+import defaultLogoUrl from "@assets/Gemini_Generated_Image_cpdn83cpdn83cpdn_1766907954232.png";
+import { usePlatformSettings } from "@/contexts/PlatformSettingsContext";
+import { useTheme } from "next-themes";
 
 interface MeetdupLogoProps {
   size?: "sm" | "md" | "lg" | "xl";
@@ -21,6 +23,21 @@ export function MeetdupLogo({
   className = "" 
 }: MeetdupLogoProps) {
   const config = sizeConfig[size];
+  const { settings } = usePlatformSettings();
+  const { resolvedTheme } = useTheme();
+  
+  const isDarkMode = resolvedTheme === "dark";
+  
+  let logoUrl = defaultLogoUrl;
+  if (isDarkMode && settings.platform_logo_dark_url) {
+    logoUrl = settings.platform_logo_dark_url;
+  } else if (!isDarkMode && settings.platform_logo_url) {
+    logoUrl = settings.platform_logo_url;
+  } else if (settings.platform_logo_url) {
+    logoUrl = settings.platform_logo_url;
+  }
+  
+  const platformName = settings.platform_name || "Meetdup";
   
   const textColor = variant === "light" 
     ? "text-white" 
@@ -31,13 +48,13 @@ export function MeetdupLogo({
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <img 
-        src={meetdupLogoUrl} 
-        alt="Meetdup" 
+        src={logoUrl} 
+        alt={platformName} 
         className={`${config.logo} w-auto object-contain`}
       />
       {showText && (
         <span className={`font-bold ${config.text} ${textColor}`}>
-          Meetdup
+          {platformName}
         </span>
       )}
     </div>
@@ -49,15 +66,30 @@ export function MeetdupLogoIcon({
   className = "" 
 }: Pick<MeetdupLogoProps, "size" | "className">) {
   const config = sizeConfig[size];
+  const { settings } = usePlatformSettings();
+  const { resolvedTheme } = useTheme();
+  
+  const isDarkMode = resolvedTheme === "dark";
+  
+  let logoUrl = defaultLogoUrl;
+  if (isDarkMode && settings.platform_logo_dark_url) {
+    logoUrl = settings.platform_logo_dark_url;
+  } else if (!isDarkMode && settings.platform_logo_url) {
+    logoUrl = settings.platform_logo_url;
+  } else if (settings.platform_logo_url) {
+    logoUrl = settings.platform_logo_url;
+  }
+  
+  const platformName = settings.platform_name || "Meetdup";
   
   return (
     <img 
-      src={meetdupLogoUrl} 
-      alt="Meetdup" 
+      src={logoUrl} 
+      alt={platformName} 
       className={`${config.logo} w-auto object-contain ${className}`}
     />
   );
 }
 
-export { meetdupLogoUrl };
+export { defaultLogoUrl as meetdupLogoUrl };
 export default MeetdupLogo;
