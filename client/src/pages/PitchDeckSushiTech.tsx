@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { SiLine } from "react-icons/si";
 import QRCode from "react-qr-code";
+import { meetdupLogoUrl } from "@/components/MeetdupLogo";
 
 interface SlideProps {
   children: React.ReactNode;
@@ -110,9 +111,7 @@ export default function PitchDeckSushiTech() {
         </Badge>
         
         <div className="flex items-center justify-center gap-4 mb-6">
-          <div className="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur">
-            <Users className="w-12 h-12" />
-          </div>
+          <img src={meetdupLogoUrl} alt="Meetdup" className="w-24 h-24 object-contain" />
         </div>
         
         <h1 className="text-5xl md:text-7xl font-bold mb-4">Meetdup</h1>
