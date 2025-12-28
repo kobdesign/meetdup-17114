@@ -110,11 +110,10 @@ export default function PitchDeckSushiTech() {
           SuSHi Tech Tokyo 2026
         </Badge>
         
-        <div className="flex items-center justify-center gap-4 mb-6">
-          <img src={meetdupLogoUrl} alt="Meetdup" className="w-24 h-24 object-contain" />
+        <div className="flex items-center justify-center mb-8">
+          <img src={meetdupLogoUrl} alt="Meetdup" className="h-32 md:h-40 w-auto object-contain" />
         </div>
         
-        <h1 className="text-5xl md:text-7xl font-bold mb-4">Meetdup</h1>
         <p className="text-2xl md:text-3xl text-blue-200 mb-6">
           AI-Powered Business Networking Platform
         </p>
