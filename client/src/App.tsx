@@ -61,6 +61,7 @@ import FinanceDashboard from "./pages/admin/FinanceDashboard";
 import PerformanceDashboard from "./pages/admin/PerformanceDashboard";
 import PitchDeck from "./pages/PitchDeck";
 import LandingPage from "./pages/LandingPage";
+import Demo from "./pages/Demo";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -72,6 +73,7 @@ const App = () => (
         <LiffStateHandler>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/demo" element={<Demo />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/welcome" element={<Welcome />} />

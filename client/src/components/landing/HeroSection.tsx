@@ -39,7 +39,7 @@ const HeroSection = () => {
               size="lg"
               variant="gold"
               className="font-semibold px-8 gap-2"
-              onClick={() => navigate("/auth")}
+              onClick={() => navigate("/demo")}
               data-testid="button-hero-get-started"
             >
               {t("hero.cta")}

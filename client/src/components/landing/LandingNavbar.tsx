@@ -61,7 +61,7 @@ const LandingNavbar = () => {
             <Button
               variant="gold"
               className="font-semibold"
-              onClick={() => navigate("/auth")}
+              onClick={() => navigate("/demo")}
               data-testid="button-get-started"
             >
               {t("nav.demo")}
@@ -105,7 +105,7 @@ const LandingNavbar = () => {
                 <Button
                   variant="gold"
                   className="font-semibold"
-                  onClick={() => navigate("/auth")}
+                  onClick={() => navigate("/demo")}
                   data-testid="button-mobile-get-started"
                 >
                   {t("nav.demo")}
