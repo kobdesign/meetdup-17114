@@ -13,6 +13,7 @@ import notificationsRouter from "./routes/notifications";
 import appsRouter from "./routes/apps";
 import paymentsRouter from "./routes/payments";
 import boqRouter from "./routes/boq";
+import aiCopilotRouter from "./routes/ai-copilot";
 import { performHealthCheck, printHealthCheckReport } from "./utils/dbHealthCheck";
 import { setupRichMenuStorage } from "./utils/setupStorage";
 
@@ -271,6 +272,9 @@ app.use("/api/payments", paymentsRouter);
 
 // BOQ Estimator AI routes
 app.use("/api/boq", boqRouter);
+
+// AI Growth Co-Pilot routes
+app.use("/api/ai", aiCopilotRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();

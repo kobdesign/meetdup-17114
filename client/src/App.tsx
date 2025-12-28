@@ -61,6 +61,7 @@ import BOQEstimator from "./pages/apps/BOQEstimator";
 import AppCenter from "./pages/admin/AppCenter";
 import FinanceDashboard from "./pages/admin/FinanceDashboard";
 import PerformanceDashboard from "./pages/admin/PerformanceDashboard";
+import AIGrowthCopilot from "./pages/admin/AIGrowthCopilot";
 import PitchDeck from "./pages/PitchDeck";
 import PitchDeckSushiTech from "./pages/PitchDeckSushiTech";
 import LandingPage from "./pages/LandingPage";
@@ -205,6 +206,11 @@ const App = () => (
           <Route path="/admin/performance" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <PerformanceDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/ai-copilot" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <AIGrowthCopilot />
             </ProtectedRoute>
           } />
           

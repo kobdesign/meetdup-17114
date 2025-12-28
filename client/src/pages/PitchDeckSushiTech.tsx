@@ -362,9 +362,9 @@ export default function PitchDeckSushiTech() {
                 <LineChart className="w-7 h-7 text-purple-500" />
               </div>
               <div>
-                <h3 className="font-bold text-xl mb-1">Performance Analytics</h3>
-                <p className="text-muted-foreground">Track attendance rates, visitor-to-member conversion, chapter health KPIs. Data-driven decisions for chapter growth.</p>
-                <Badge variant="secondary" className="mt-2">Real-time Dashboard</Badge>
+                <h3 className="font-bold text-xl mb-1">AI Growth Co-Pilot</h3>
+                <p className="text-muted-foreground">Predictive churn risk scoring, engagement analytics, and AI-generated meeting playbooks. Your chapter's intelligent growth advisor.</p>
+                <Badge variant="secondary" className="mt-2">Predictive AI + Real-time Insights</Badge>
               </div>
             </div>
           </div>

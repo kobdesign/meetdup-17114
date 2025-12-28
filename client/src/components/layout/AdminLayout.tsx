@@ -38,7 +38,8 @@ import {
   ChevronDown,
   ChevronRight,
   DollarSign,
-  Palette
+  Palette,
+  Brain
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -188,10 +189,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         },
         {
           id: "reports",
-          label: "รายงาน",
+          label: "รายงาน & AI",
           icon: <BarChart3 className="h-4 w-4" />,
           defaultOpen: false,
           items: [
+            { icon: <Brain className="h-4 w-4" />, label: "AI Growth Co-Pilot", href: "/admin/ai-copilot" },
             { icon: <BarChart3 className="h-4 w-4" />, label: "Chapter Performance", href: "/admin/performance" },
           ],
         },
