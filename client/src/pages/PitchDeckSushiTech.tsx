@@ -690,9 +690,9 @@ export default function PitchDeckSushiTech() {
             <h3 className="font-bold text-lg">Founder / CEO</h3>
             <p className="text-muted-foreground text-sm mb-3">Product & Strategy</p>
             <ul className="text-xs text-muted-foreground space-y-1 text-left">
-              <li>10+ years BNI member experience</li>
-              <li>Former Chapter President</li>
-              <li>Enterprise SaaS background</li>
+              <li>10+ years tech entrepreneur</li>
+              <li>Enterprise IT & SaaS background</li>
+              <li>Building solutions for business networking</li>
             </ul>
           </Card>
 
@@ -730,8 +730,8 @@ export default function PitchDeckSushiTech() {
               Why We're Building This
             </h3>
             <p className="text-muted-foreground text-sm">
-              As long-time BNI members, we experienced the pain of manual chapter management firsthand. 
-              We know the problems because we've lived them - and we're building the solution we wished existed.
+              As active BNI members, we experienced the pain of manual chapter management firsthand. 
+              We know the problems because we live them daily - and we're building the solution we wished existed.
             </p>
           </Card>
 
