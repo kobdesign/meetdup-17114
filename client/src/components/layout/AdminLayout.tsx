@@ -37,7 +37,8 @@ import {
   Bell,
   ChevronDown,
   ChevronRight,
-  DollarSign
+  DollarSign,
+  Palette
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -216,6 +217,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <Shield className="h-4 w-4" />, label: "จัดการสิทธิ์", href: "/admin/authorization" },
     { icon: <Smartphone className="h-4 w-4" />, label: "LIFF Settings", href: "/super-admin/liff-settings" },
     { icon: <Briefcase className="h-4 w-4" />, label: "หมวดหมู่ธุรกิจ", href: "/super-admin/business-categories" },
+    { icon: <Palette className="h-4 w-4" />, label: "Platform Settings", href: "/super-admin/platform-settings" },
   ];
 
   // Render collapsible nav group
