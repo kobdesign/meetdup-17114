@@ -32,6 +32,7 @@ import LineCommandAccess from "./pages/admin/LineCommandAccess";
 import MeetingOperations from "./pages/admin/MeetingOperations";
 import MeetingAttendanceReport from "./pages/admin/MeetingAttendanceReport";
 import Tenants from "./pages/super-admin/Tenants";
+import PlatformSettings from "./pages/super-admin/PlatformSettings";
 import LiffSettings from "./pages/admin/LiffSettings";
 import BusinessCategories from "./pages/admin/BusinessCategories";
 import ChapterProfile from "./pages/public/ChapterProfile";
@@ -219,6 +220,11 @@ const App = () => (
           <Route path="/super-admin/business-categories" element={
             <ProtectedRoute requiredRole="super_admin">
               <BusinessCategories />
+            </ProtectedRoute>
+          } />
+          <Route path="/super-admin/platform-settings" element={
+            <ProtectedRoute requiredRole="super_admin">
+              <PlatformSettings />
             </ProtectedRoute>
           } />
           

@@ -140,4 +140,143 @@ router.put("/liff", verifySupabaseAuth, async (req: AuthenticatedRequest, res: R
   }
 });
 
+router.get("/platform", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", req.user.id)
+      .single();
+
+    if (!userRole || userRole.role !== "super_admin") {
+      return res.status(403).json({ error: "Super admin access required" });
+    }
+
+    const { data: settings, error } = await supabaseAdmin
+      .from("system_settings")
+      .select("setting_key, setting_value")
+      .in("setting_key", ["platform_logo_url", "platform_logo_dark_url", "platform_name"]);
+
+    if (error) {
+      console.error("Error fetching platform settings:", error);
+      return res.status(500).json({ error: "Failed to fetch settings" });
+    }
+
+    const settingsMap: Record<string, string> = {};
+    for (const s of settings || []) {
+      settingsMap[s.setting_key] = s.setting_value || "";
+    }
+
+    return res.json({
+      platform_logo_url: settingsMap.platform_logo_url || null,
+      platform_logo_dark_url: settingsMap.platform_logo_dark_url || null,
+      platform_name: settingsMap.platform_name || "Meetdup"
+    });
+  } catch (error: any) {
+    console.error("Error in getPlatformSettings:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.put("/platform", verifySupabaseAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", req.user.id)
+      .single();
+
+    if (!userRole || userRole.role !== "super_admin") {
+      return res.status(403).json({ error: "Super admin access required" });
+    }
+
+    const { platform_logo_url, platform_logo_dark_url, platform_name } = req.body;
+
+    if (platform_logo_url !== undefined) {
+      if (platform_logo_url === null) {
+        await supabaseAdmin
+          .from("system_settings")
+          .delete()
+          .eq("setting_key", "platform_logo_url");
+      } else {
+        await supabaseAdmin
+          .from("system_settings")
+          .upsert({
+            setting_key: "platform_logo_url",
+            setting_value: platform_logo_url,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "setting_key" });
+      }
+    }
+
+    if (platform_logo_dark_url !== undefined) {
+      if (platform_logo_dark_url === null) {
+        await supabaseAdmin
+          .from("system_settings")
+          .delete()
+          .eq("setting_key", "platform_logo_dark_url");
+      } else {
+        await supabaseAdmin
+          .from("system_settings")
+          .upsert({
+            setting_key: "platform_logo_dark_url",
+            setting_value: platform_logo_dark_url,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "setting_key" });
+      }
+    }
+
+    if (platform_name !== undefined) {
+      await supabaseAdmin
+        .from("system_settings")
+        .upsert({
+          setting_key: "platform_name",
+          setting_value: platform_name,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "setting_key" });
+    }
+
+    return res.json({ success: true, message: "Platform settings updated" });
+  } catch (error: any) {
+    console.error("Error in updatePlatformSettings:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/platform/public", async (req: Request, res: Response) => {
+  try {
+    const { data: settings, error } = await supabaseAdmin
+      .from("system_settings")
+      .select("setting_key, setting_value")
+      .in("setting_key", ["platform_logo_url", "platform_logo_dark_url", "platform_name"]);
+
+    if (error) {
+      console.error("Error fetching public platform settings:", error);
+      return res.status(500).json({ error: "Failed to fetch settings" });
+    }
+
+    const settingsMap: Record<string, string> = {};
+    for (const s of settings || []) {
+      settingsMap[s.setting_key] = s.setting_value || "";
+    }
+
+    return res.json({
+      platform_logo_url: settingsMap.platform_logo_url || null,
+      platform_logo_dark_url: settingsMap.platform_logo_dark_url || null,
+      platform_name: settingsMap.platform_name || "Meetdup"
+    });
+  } catch (error: any) {
+    console.error("Error in getPublicPlatformSettings:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
