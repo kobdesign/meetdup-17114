@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { Users, Mail, Phone } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
 import { SiLine } from "react-icons/si";
+import { MeetdupLogo } from "@/components/MeetdupLogo";
 
 const LandingFooter = () => {
   const { t } = useTranslation();
@@ -9,12 +10,7 @@ const LandingFooter = () => {
     <footer className="py-8 border-t bg-muted/30">
       <div className="container mx-auto px-4">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
-              <Users className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">Meetdup</span>
-          </div>
+          <MeetdupLogo size="md" variant="dark" />
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
             <a 

@@ -45,6 +45,7 @@ import { toast } from "sonner";
 import TenantSelectorCard from "@/components/TenantSelectorCard";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { ChapterSelector } from "@/components/layout/ChapterSelector";
+import { MeetdupLogo } from "@/components/MeetdupLogo";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -296,7 +297,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </Sheet>
             
             <Link to="/admin" className="flex items-center gap-2">
-              <span className="text-xl font-bold">Meetdup</span>
+              <MeetdupLogo size="md" variant="dark" />
             </Link>
           </div>
 
