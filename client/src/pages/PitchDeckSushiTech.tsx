@@ -65,7 +65,7 @@ export default function PitchDeckSushiTech() {
   const logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || defaultLogoUrl;
   const platformName = settings.platform_name || "Meetdup";
 
-  const totalSlides = 12;
+  const totalSlides = 11;
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => Math.min(prev + 1, totalSlides - 1));
@@ -1124,7 +1124,7 @@ export default function PitchDeckSushiTech() {
       </div>
 
       {isExporting && (
-        <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center">
           <div className="bg-background rounded-lg p-6 flex flex-col items-center gap-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">Exporting PDF... Slide {currentSlide + 1}/{totalSlides}</p>
