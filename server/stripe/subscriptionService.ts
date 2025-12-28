@@ -1,0 +1,351 @@
+// Stripe Integration - subscriptionService.ts
+// Handles subscription business logic for multi-tenant SaaS
+
+import { getUncachableStripeClient, getStripePublishableKey } from './stripeClient';
+import { supabaseAdmin } from '../utils/supabaseClient';
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  description: string;
+  features: string[];
+  prices: {
+    monthly: { id: string; amount: number };
+    yearly: { id: string; amount: number };
+  };
+  limits: {
+    members: number;
+    meetings_per_month: number;
+    ai_queries_per_month: number;
+    storage_gb: number;
+  };
+}
+
+export interface TenantSubscription {
+  tenant_id: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  plan_id: string;
+  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete';
+  current_period_start: string | null;
+  current_period_end: string | null;
+  trial_end: string | null;
+  cancel_at_period_end: boolean;
+}
+
+export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'free',
+    name: 'Free',
+    description: 'Get started with basic features',
+    features: [
+      'Up to 10 members',
+      'Basic meeting management',
+      'Member check-in',
+      'Email support'
+    ],
+    prices: {
+      monthly: { id: '', amount: 0 },
+      yearly: { id: '', amount: 0 }
+    },
+    limits: {
+      members: 10,
+      meetings_per_month: 4,
+      ai_queries_per_month: 0,
+      storage_gb: 1
+    }
+  },
+  {
+    id: 'starter',
+    name: 'Starter',
+    description: 'Perfect for growing chapters',
+    features: [
+      'Up to 30 members',
+      'Visitor management',
+      'Payment tracking',
+      'Basic analytics',
+      'LINE integration',
+      'Priority email support'
+    ],
+    prices: {
+      monthly: { id: '', amount: 1990 }, // $19.90
+      yearly: { id: '', amount: 19900 }  // $199 (2 months free)
+    },
+    limits: {
+      members: 30,
+      meetings_per_month: 8,
+      ai_queries_per_month: 50,
+      storage_gb: 5
+    }
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    description: 'Full power for established chapters',
+    features: [
+      'Unlimited members',
+      'AI Growth Co-Pilot',
+      'Advanced analytics',
+      'Custom branding',
+      'RSVP & notifications',
+      'Apps marketplace',
+      'API access',
+      '24/7 priority support'
+    ],
+    prices: {
+      monthly: { id: '', amount: 4990 }, // $49.90
+      yearly: { id: '', amount: 49900 }  // $499 (2 months free)
+    },
+    limits: {
+      members: -1, // unlimited
+      meetings_per_month: -1, // unlimited
+      ai_queries_per_month: 500,
+      storage_gb: 50
+    }
+  }
+];
+
+export class SubscriptionService {
+  async getPublishableKey(): Promise<string> {
+    return await getStripePublishableKey();
+  }
+
+  async getPlans(): Promise<SubscriptionPlan[]> {
+    return SUBSCRIPTION_PLANS;
+  }
+
+  async getTenantSubscription(tenantId: string): Promise<TenantSubscription | null> {
+    const { data, error } = await supabaseAdmin
+      .from('tenant_subscriptions')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching tenant subscription:', error);
+      return null;
+    }
+
+    return data;
+  }
+
+  async createOrGetCustomer(tenantId: string, email: string, tenantName: string): Promise<string> {
+    const existing = await this.getTenantSubscription(tenantId);
+    
+    if (existing?.stripe_customer_id) {
+      return existing.stripe_customer_id;
+    }
+
+    const stripe = await getUncachableStripeClient();
+    const customer = await stripe.customers.create({
+      email,
+      name: tenantName,
+      metadata: {
+        tenant_id: tenantId
+      }
+    });
+
+    await supabaseAdmin
+      .from('tenant_subscriptions')
+      .upsert({
+        tenant_id: tenantId,
+        stripe_customer_id: customer.id,
+        plan_id: 'free',
+        status: 'active'
+      }, {
+        onConflict: 'tenant_id'
+      });
+
+    return customer.id;
+  }
+
+  async createCheckoutSession(
+    tenantId: string,
+    priceId: string,
+    successUrl: string,
+    cancelUrl: string
+  ): Promise<{ url: string }> {
+    const { data: tenant } = await supabaseAdmin
+      .from('tenants')
+      .select('tenant_name, admin_email')
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (!tenant) {
+      throw new Error('Tenant not found');
+    }
+
+    const customerId = await this.createOrGetCustomer(
+      tenantId,
+      tenant.admin_email || `admin@${tenantId}.meetdup.app`,
+      tenant.tenant_name
+    );
+
+    const stripe = await getUncachableStripeClient();
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: 'subscription',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      subscription_data: {
+        trial_period_days: 30,
+        metadata: {
+          tenant_id: tenantId
+        }
+      },
+      metadata: {
+        tenant_id: tenantId
+      }
+    });
+
+    return { url: session.url! };
+  }
+
+  async createCustomerPortalSession(
+    tenantId: string,
+    returnUrl: string
+  ): Promise<{ url: string }> {
+    const subscription = await this.getTenantSubscription(tenantId);
+    
+    if (!subscription?.stripe_customer_id) {
+      throw new Error('No Stripe customer found for this tenant');
+    }
+
+    const stripe = await getUncachableStripeClient();
+    const session = await stripe.billingPortal.sessions.create({
+      customer: subscription.stripe_customer_id,
+      return_url: returnUrl
+    });
+
+    return { url: session.url };
+  }
+
+  async updateSubscriptionFromWebhook(
+    stripeSubscriptionId: string,
+    status: string,
+    currentPeriodStart: number,
+    currentPeriodEnd: number,
+    trialEnd: number | null,
+    cancelAtPeriodEnd: boolean,
+    priceId: string
+  ): Promise<void> {
+    const planId = this.getPlanIdFromPrice(priceId);
+
+    await supabaseAdmin
+      .from('tenant_subscriptions')
+      .update({
+        stripe_subscription_id: stripeSubscriptionId,
+        plan_id: planId,
+        status: status,
+        current_period_start: new Date(currentPeriodStart * 1000).toISOString(),
+        current_period_end: new Date(currentPeriodEnd * 1000).toISOString(),
+        trial_end: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+        cancel_at_period_end: cancelAtPeriodEnd,
+        updated_at: new Date().toISOString()
+      })
+      .eq('stripe_subscription_id', stripeSubscriptionId);
+  }
+
+  getPlanIdFromPrice(priceId: string): string {
+    for (const plan of SUBSCRIPTION_PLANS) {
+      if (plan.prices.monthly.id === priceId || plan.prices.yearly.id === priceId) {
+        return plan.id;
+      }
+    }
+    return 'pro'; // Default to pro if price not found
+  }
+
+  async checkFeatureAccess(tenantId: string, feature: string): Promise<boolean> {
+    const subscription = await this.getTenantSubscription(tenantId);
+    
+    if (!subscription) {
+      return this.isFeatureInPlan('free', feature);
+    }
+
+    // Allow access during trial or active subscription
+    if (subscription.status === 'trialing' || subscription.status === 'active') {
+      return this.isFeatureInPlan(subscription.plan_id, feature);
+    }
+
+    // Past due gets limited access
+    if (subscription.status === 'past_due') {
+      return this.isFeatureInPlan('free', feature);
+    }
+
+    return false;
+  }
+
+  isFeatureInPlan(planId: string, feature: string): boolean {
+    const featuresByPlan: Record<string, string[]> = {
+      free: ['basic_meetings', 'member_checkin', 'basic_reports'],
+      starter: [
+        'basic_meetings', 'member_checkin', 'basic_reports',
+        'visitor_management', 'payment_tracking', 'line_integration',
+        'basic_analytics'
+      ],
+      pro: [
+        'basic_meetings', 'member_checkin', 'basic_reports',
+        'visitor_management', 'payment_tracking', 'line_integration',
+        'basic_analytics', 'ai_copilot', 'advanced_analytics',
+        'custom_branding', 'rsvp_notifications', 'apps_marketplace',
+        'api_access'
+      ]
+    };
+
+    return featuresByPlan[planId]?.includes(feature) || false;
+  }
+
+  async getUsageLimits(tenantId: string): Promise<{
+    plan: SubscriptionPlan;
+    usage: {
+      members: number;
+      meetings_this_month: number;
+      ai_queries_this_month: number;
+    };
+  }> {
+    const subscription = await this.getTenantSubscription(tenantId);
+    const planId = subscription?.plan_id || 'free';
+    const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId) || SUBSCRIPTION_PLANS[0];
+
+    const { count: memberCount } = await supabaseAdmin
+      .from('participants')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('status', 'active');
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { count: meetingCount } = await supabaseAdmin
+      .from('meetings')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .gte('meeting_date', startOfMonth.toISOString());
+
+    return {
+      plan,
+      usage: {
+        members: memberCount || 0,
+        meetings_this_month: meetingCount || 0,
+        ai_queries_this_month: 0 // TODO: Track AI usage
+      }
+    };
+  }
+
+  getTrialDaysRemaining(subscription: TenantSubscription | null): number | null {
+    if (!subscription?.trial_end) return null;
+    
+    const trialEnd = new Date(subscription.trial_end);
+    const now = new Date();
+    const diff = trialEnd.getTime() - now.getTime();
+    
+    if (diff <= 0) return 0;
+    
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }
+}
+
+export const subscriptionService = new SubscriptionService();
