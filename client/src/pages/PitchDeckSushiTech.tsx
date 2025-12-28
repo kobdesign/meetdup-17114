@@ -34,7 +34,8 @@ import {
 } from "lucide-react";
 import { SiLine } from "react-icons/si";
 import QRCode from "react-qr-code";
-import { meetdupLogoUrl } from "@/components/MeetdupLogo";
+import { usePlatformSettings } from "@/contexts/PlatformSettingsContext";
+import defaultLogoUrl from "@assets/Gemini_Generated_Image_cpdn83cpdn83cpdn_1766907954232.png";
 
 interface SlideProps {
   children: React.ReactNode;
@@ -52,6 +53,11 @@ function Slide({ children, className = "" }: SlideProps) {
 export default function PitchDeckSushiTech() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const { settings } = usePlatformSettings();
+  
+  // Use dark logo for pitch deck (dark background)
+  const logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || defaultLogoUrl;
+  const platformName = settings.platform_name || "Meetdup";
 
   const totalSlides = 11;
 
@@ -111,7 +117,7 @@ export default function PitchDeckSushiTech() {
         </Badge>
         
         <div className="flex items-center justify-center mb-8">
-          <img src={meetdupLogoUrl} alt="Meetdup" className="h-32 md:h-40 w-auto object-contain" />
+          <img src={logoUrl} alt={platformName} className="h-32 md:h-40 w-auto object-contain" />
         </div>
         
         <p className="text-2xl md:text-3xl text-blue-200 mb-6">
