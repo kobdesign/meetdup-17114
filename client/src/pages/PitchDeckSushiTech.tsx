@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,8 +30,12 @@ import {
   QrCode,
   Smartphone,
   BarChart3,
-  Bot
+  Bot,
+  Download,
+  Loader2
 } from "lucide-react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { SiLine } from "react-icons/si";
 import QRCode from "react-qr-code";
 import { usePlatformSettings } from "@/contexts/PlatformSettingsContext";
@@ -53,13 +57,15 @@ function Slide({ children, className = "" }: SlideProps) {
 export default function PitchDeckSushiTech() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const slideContainerRef = useRef<HTMLDivElement>(null);
   const { settings } = usePlatformSettings();
   
   // Use dark logo for pitch deck (dark background)
   const logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || defaultLogoUrl;
   const platformName = settings.platform_name || "Meetdup";
 
-  const totalSlides = 11;
+  const totalSlides = 12;
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => Math.min(prev + 1, totalSlides - 1));
@@ -78,6 +84,53 @@ export default function PitchDeckSushiTech() {
       setIsFullscreen(false);
     }
   }, []);
+
+  const exportToPDF = useCallback(async () => {
+    if (!slideContainerRef.current || isExporting) return;
+    
+    setIsExporting(true);
+    const originalSlide = currentSlide;
+    
+    try {
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [1920, 1080]
+      });
+
+      for (let i = 0; i < totalSlides; i++) {
+        setCurrentSlide(i);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const slideElement = slideContainerRef.current;
+        if (!slideElement) continue;
+
+        const canvas = await html2canvas(slideElement, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: null,
+          width: slideElement.scrollWidth,
+          height: slideElement.scrollHeight
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        
+        if (i > 0) {
+          pdf.addPage([1920, 1080], 'landscape');
+        }
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, 1920, 1080);
+      }
+
+      pdf.save('Meetdup-PitchDeck-SuShiTech2026.pdf');
+      setCurrentSlide(originalSlide);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [currentSlide, isExporting, totalSlides]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1052,6 +1105,16 @@ export default function PitchDeckSushiTech() {
         <Button
           size="icon"
           variant="outline"
+          onClick={exportToPDF}
+          disabled={isExporting}
+          className="bg-background/80 backdrop-blur"
+          data-testid="button-export-pdf"
+        >
+          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        </Button>
+        <Button
+          size="icon"
+          variant="outline"
           onClick={toggleFullscreen}
           className="bg-background/80 backdrop-blur"
           data-testid="button-fullscreen"
@@ -1060,7 +1123,16 @@ export default function PitchDeckSushiTech() {
         </Button>
       </div>
 
-      <div className="h-full w-full overflow-hidden">
+      {isExporting && (
+        <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center">
+          <div className="bg-background rounded-lg p-6 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Exporting PDF... Slide {currentSlide + 1}/{totalSlides}</p>
+          </div>
+        </div>
+      )}
+
+      <div ref={slideContainerRef} className="h-full w-full overflow-hidden">
         {slides[currentSlide]}
       </div>
 
