@@ -43,6 +43,7 @@ export default function PlatformSettings() {
       });
     } catch (error: any) {
       console.error("Failed to load platform settings:", error);
+      toast.error("Failed to load platform settings");
     } finally {
       setLoading(false);
     }
@@ -55,11 +56,10 @@ export default function PlatformSettings() {
       const fileName = `platform-logo-${variant}-${Date.now()}.${fileExt}`;
       const filePath = `branding/${fileName}`;
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from("avatars")
         .upload(filePath, file, {
           cacheControl: "3600",
-          upsert: true,
         });
 
       if (error) throw error;
