@@ -95,7 +95,8 @@ export default function PitchDeckSushiTech() {
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'px',
-        format: [1920, 1080]
+        format: [1920, 1080],
+        compress: true
       });
 
       for (let i = 0; i < totalSlides; i++) {
@@ -105,22 +106,43 @@ export default function PitchDeckSushiTech() {
         const slideElement = slideContainerRef.current;
         if (!slideElement) continue;
 
+        const slideWidth = slideElement.scrollWidth;
+        const slideHeight = slideElement.scrollHeight;
+        
         const canvas = await html2canvas(slideElement, {
-          scale: 2,
+          scale: 1.5,
           useCORS: true,
           allowTaint: true,
           backgroundColor: null,
-          width: slideElement.scrollWidth,
-          height: slideElement.scrollHeight
+          width: slideWidth,
+          height: slideHeight
         });
 
-        const imgData = canvas.toDataURL('image/png');
+        const imgData = canvas.toDataURL('image/jpeg', 0.75);
         
         if (i > 0) {
           pdf.addPage([1920, 1080], 'landscape');
         }
         
-        pdf.addImage(imgData, 'PNG', 0, 0, 1920, 1080);
+        const pdfWidth = 1920;
+        const pdfHeight = 1080;
+        const canvasAspect = canvas.width / canvas.height;
+        const pdfAspect = pdfWidth / pdfHeight;
+        
+        let drawWidth = pdfWidth;
+        let drawHeight = pdfHeight;
+        let offsetX = 0;
+        let offsetY = 0;
+        
+        if (canvasAspect > pdfAspect) {
+          drawHeight = pdfWidth / canvasAspect;
+          offsetY = (pdfHeight - drawHeight) / 2;
+        } else {
+          drawWidth = pdfHeight * canvasAspect;
+          offsetX = (pdfWidth - drawWidth) / 2;
+        }
+        
+        pdf.addImage(imgData, 'JPEG', offsetX, offsetY, drawWidth, drawHeight);
       }
 
       pdf.save('Meetdup-PitchDeck-SuShiTech2026.pdf');
