@@ -58,6 +58,7 @@ import LiffAppShell from "./pages/liff/LiffAppShell";
 import BOQEstimator from "./pages/apps/BOQEstimator";
 import AppCenter from "./pages/admin/AppCenter";
 import FinanceDashboard from "./pages/admin/FinanceDashboard";
+import PerformanceDashboard from "./pages/admin/PerformanceDashboard";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -191,6 +192,11 @@ const App = () => (
           <Route path="/admin/finance" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <FinanceDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/performance" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <PerformanceDashboard />
             </ProtectedRoute>
           } />
           

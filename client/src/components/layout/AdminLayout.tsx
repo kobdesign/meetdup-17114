@@ -185,6 +185,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           ],
         },
         {
+          id: "reports",
+          label: "รายงาน",
+          icon: <BarChart3 className="h-4 w-4" />,
+          defaultOpen: false,
+          items: [
+            { icon: <BarChart3 className="h-4 w-4" />, label: "Chapter Performance", href: "/admin/performance" },
+          ],
+        },
+        {
           id: "settings",
           label: "ตั้งค่า",
           icon: <Settings className="h-4 w-4" />,

@@ -837,4 +837,350 @@ router.post("/join-request/:requestId/:action", verifySupabaseAuth, async (req: 
   }
 });
 
+// Performance Metrics Dashboard API
+router.get("/:tenantId/performance-metrics", verifySupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { tenantId } = req.params;
+    const { period = "current_month" } = req.query;
+
+    // Calculate date ranges based on period
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    let currentPeriodStart: Date;
+    let currentPeriodEnd: Date;
+    let previousPeriodStart: Date;
+    let previousPeriodEnd: Date;
+
+    switch (period) {
+      case "last_3_months":
+        currentPeriodStart = new Date(currentYear, currentMonth - 2, 1);
+        currentPeriodEnd = new Date(currentYear, currentMonth + 1, 0);
+        previousPeriodStart = new Date(currentYear, currentMonth - 5, 1);
+        previousPeriodEnd = new Date(currentYear, currentMonth - 2, 0);
+        break;
+      case "last_6_months":
+        currentPeriodStart = new Date(currentYear, currentMonth - 5, 1);
+        currentPeriodEnd = new Date(currentYear, currentMonth + 1, 0);
+        previousPeriodStart = new Date(currentYear, currentMonth - 11, 1);
+        previousPeriodEnd = new Date(currentYear, currentMonth - 5, 0);
+        break;
+      default: // current_month
+        currentPeriodStart = new Date(currentYear, currentMonth, 1);
+        currentPeriodEnd = new Date(currentYear, currentMonth + 1, 0);
+        previousPeriodStart = new Date(currentYear, currentMonth - 1, 1);
+        previousPeriodEnd = new Date(currentYear, currentMonth, 0);
+    }
+
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+    // Get total members count
+    const { data: membersData, error: membersError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id", { count: "exact" })
+      .eq("tenant_id", tenantId)
+      .eq("status", "member");
+
+    if (membersError) throw membersError;
+    const totalMembers = membersData?.length || 0;
+
+    // Get meetings in current period
+    const { data: currentMeetings, error: meetingsError } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date, meeting_name")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", formatDate(currentPeriodStart))
+      .lte("meeting_date", formatDate(currentPeriodEnd))
+      .order("meeting_date", { ascending: false });
+
+    if (meetingsError) throw meetingsError;
+
+    // Get meetings in previous period for comparison
+    const { data: previousMeetings } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", formatDate(previousPeriodStart))
+      .lte("meeting_date", formatDate(previousPeriodEnd));
+
+    const currentMeetingIds = currentMeetings?.map(m => m.meeting_id) || [];
+    const previousMeetingIds = previousMeetings?.map(m => m.meeting_id) || [];
+
+    // Current period attendance stats
+    let currentAttendance = { checkedIn: 0, onTime: 0, late: 0, substitutes: 0 };
+    let previousAttendance = { checkedIn: 0, onTime: 0, late: 0, substitutes: 0 };
+
+    if (currentMeetingIds.length > 0) {
+      // Get check-ins for current period
+      const { data: checkins } = await supabaseAdmin
+        .from("checkins")
+        .select("checkin_id, is_late, participant_id")
+        .eq("tenant_id", tenantId)
+        .in("meeting_id", currentMeetingIds);
+
+      // Filter by members only
+      const { data: memberParticipants } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "member");
+
+      const memberIds = new Set(memberParticipants?.map(p => p.participant_id) || []);
+      const memberCheckins = checkins?.filter(c => memberIds.has(c.participant_id)) || [];
+
+      currentAttendance.checkedIn = memberCheckins.length;
+      currentAttendance.onTime = memberCheckins.filter(c => !c.is_late).length;
+      currentAttendance.late = memberCheckins.filter(c => c.is_late).length;
+
+      // Get substitutes
+      const { data: subs } = await supabaseAdmin
+        .from("substitute_requests")
+        .select("request_id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "confirmed")
+        .in("meeting_id", currentMeetingIds);
+
+      currentAttendance.substitutes = subs?.length || 0;
+    }
+
+    if (previousMeetingIds.length > 0) {
+      const { data: prevCheckins } = await supabaseAdmin
+        .from("checkins")
+        .select("checkin_id, is_late, participant_id")
+        .eq("tenant_id", tenantId)
+        .in("meeting_id", previousMeetingIds);
+
+      const { data: memberParticipants } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "member");
+
+      const memberIds = new Set(memberParticipants?.map(p => p.participant_id) || []);
+      const memberCheckins = prevCheckins?.filter(c => memberIds.has(c.participant_id)) || [];
+
+      previousAttendance.checkedIn = memberCheckins.length;
+      previousAttendance.onTime = memberCheckins.filter(c => !c.is_late).length;
+      previousAttendance.late = memberCheckins.filter(c => c.is_late).length;
+
+      const { data: prevSubs } = await supabaseAdmin
+        .from("substitute_requests")
+        .select("request_id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "confirmed")
+        .in("meeting_id", previousMeetingIds);
+
+      previousAttendance.substitutes = prevSubs?.length || 0;
+    }
+
+    // Visitor conversion stats for current period
+    let currentVisitor = { registered: 0, checkedIn: 0, converted: 0 };
+    let previousVisitor = { registered: 0, checkedIn: 0, converted: 0 };
+
+    if (currentMeetingIds.length > 0) {
+      const { data: registrations } = await supabaseAdmin
+        .from("meeting_registrations")
+        .select("participant_id, meeting_id")
+        .in("meeting_id", currentMeetingIds);
+
+      currentVisitor.registered = registrations?.length || 0;
+
+      // Check which visitors checked in
+      if (registrations && registrations.length > 0) {
+        const regParticipantIds = registrations.map(r => r.participant_id);
+        
+        const { data: visitorCheckins } = await supabaseAdmin
+          .from("checkins")
+          .select("participant_id")
+          .eq("tenant_id", tenantId)
+          .in("meeting_id", currentMeetingIds)
+          .in("participant_id", regParticipantIds);
+
+        currentVisitor.checkedIn = visitorCheckins?.length || 0;
+
+        // Check converted (now members)
+        const { data: convertedMembers } = await supabaseAdmin
+          .from("participants")
+          .select("participant_id")
+          .eq("tenant_id", tenantId)
+          .eq("status", "member")
+          .in("participant_id", regParticipantIds);
+
+        currentVisitor.converted = convertedMembers?.length || 0;
+      }
+    }
+
+    if (previousMeetingIds.length > 0) {
+      const { data: prevRegistrations } = await supabaseAdmin
+        .from("meeting_registrations")
+        .select("participant_id, meeting_id")
+        .in("meeting_id", previousMeetingIds);
+
+      previousVisitor.registered = prevRegistrations?.length || 0;
+
+      if (prevRegistrations && prevRegistrations.length > 0) {
+        const prevRegParticipantIds = prevRegistrations.map(r => r.participant_id);
+        
+        const { data: prevVisitorCheckins } = await supabaseAdmin
+          .from("checkins")
+          .select("participant_id")
+          .eq("tenant_id", tenantId)
+          .in("meeting_id", previousMeetingIds)
+          .in("participant_id", prevRegParticipantIds);
+
+        previousVisitor.checkedIn = prevVisitorCheckins?.length || 0;
+
+        const { data: prevConvertedMembers } = await supabaseAdmin
+          .from("participants")
+          .select("participant_id")
+          .eq("tenant_id", tenantId)
+          .eq("status", "member")
+          .in("participant_id", prevRegParticipantIds);
+
+        previousVisitor.converted = prevConvertedMembers?.length || 0;
+      }
+    }
+
+    // Calculate rates
+    const expectedAttendance = totalMembers * currentMeetingIds.length;
+    const prevExpectedAttendance = totalMembers * previousMeetingIds.length;
+
+    const currentAttendanceRate = expectedAttendance > 0 
+      ? Math.round(((currentAttendance.checkedIn + currentAttendance.substitutes) / expectedAttendance) * 100) 
+      : 0;
+    const previousAttendanceRate = prevExpectedAttendance > 0 
+      ? Math.round(((previousAttendance.checkedIn + previousAttendance.substitutes) / prevExpectedAttendance) * 100) 
+      : 0;
+
+    const currentConversionRate = currentVisitor.registered > 0 
+      ? Math.round((currentVisitor.converted / currentVisitor.registered) * 100) 
+      : 0;
+    const previousConversionRate = previousVisitor.registered > 0 
+      ? Math.round((previousVisitor.converted / previousVisitor.registered) * 100) 
+      : 0;
+
+    const currentCheckinRate = currentVisitor.registered > 0 
+      ? Math.round((currentVisitor.checkedIn / currentVisitor.registered) * 100) 
+      : 0;
+
+    // Get monthly trend data (last 6 months)
+    const monthlyTrend = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = new Date(currentYear, currentMonth - i, 1);
+      const monthEnd = new Date(currentYear, currentMonth - i + 1, 0);
+      
+      const { data: monthMeetings } = await supabaseAdmin
+        .from("meetings")
+        .select("meeting_id")
+        .eq("tenant_id", tenantId)
+        .gte("meeting_date", formatDate(monthStart))
+        .lte("meeting_date", formatDate(monthEnd));
+
+      const monthMeetingIds = monthMeetings?.map(m => m.meeting_id) || [];
+      let monthAttendanceRate = 0;
+      let monthVisitorConversion = 0;
+
+      if (monthMeetingIds.length > 0) {
+        const { data: monthCheckins } = await supabaseAdmin
+          .from("checkins")
+          .select("participant_id")
+          .eq("tenant_id", tenantId)
+          .in("meeting_id", monthMeetingIds);
+
+        const { data: monthSubs } = await supabaseAdmin
+          .from("substitute_requests")
+          .select("request_id")
+          .eq("tenant_id", tenantId)
+          .eq("status", "confirmed")
+          .in("meeting_id", monthMeetingIds);
+
+        const { data: memberParticipants } = await supabaseAdmin
+          .from("participants")
+          .select("participant_id")
+          .eq("tenant_id", tenantId)
+          .eq("status", "member");
+
+        const memberIds = new Set(memberParticipants?.map(p => p.participant_id) || []);
+        const memberMonthCheckins = monthCheckins?.filter(c => memberIds.has(c.participant_id)).length || 0;
+
+        const monthExpected = totalMembers * monthMeetingIds.length;
+        monthAttendanceRate = monthExpected > 0 
+          ? Math.round(((memberMonthCheckins + (monthSubs?.length || 0)) / monthExpected) * 100) 
+          : 0;
+
+        // Visitor conversion
+        const { data: monthRegs } = await supabaseAdmin
+          .from("meeting_registrations")
+          .select("participant_id")
+          .in("meeting_id", monthMeetingIds);
+
+        if (monthRegs && monthRegs.length > 0) {
+          const regIds = monthRegs.map(r => r.participant_id);
+          const { data: converted } = await supabaseAdmin
+            .from("participants")
+            .select("participant_id")
+            .eq("tenant_id", tenantId)
+            .eq("status", "member")
+            .in("participant_id", regIds);
+
+          monthVisitorConversion = monthRegs.length > 0 
+            ? Math.round(((converted?.length || 0) / monthRegs.length) * 100) 
+            : 0;
+        }
+      }
+
+      monthlyTrend.push({
+        month: monthStart.toLocaleDateString('th-TH', { month: 'short', year: '2-digit' }),
+        attendanceRate: monthAttendanceRate,
+        visitorConversionRate: monthVisitorConversion,
+        meetings: monthMeetingIds.length,
+      });
+    }
+
+    return res.json({
+      summary: {
+        totalMembers,
+        meetingsInPeriod: currentMeetingIds.length,
+        attendanceRate: currentAttendanceRate,
+        attendanceRateChange: currentAttendanceRate - previousAttendanceRate,
+        visitorConversionRate: currentConversionRate,
+        visitorConversionRateChange: currentConversionRate - previousConversionRate,
+        visitorCheckinRate: currentCheckinRate,
+      },
+      attendance: {
+        current: currentAttendance,
+        previous: previousAttendance,
+        onTimeRate: currentAttendance.checkedIn > 0 
+          ? Math.round((currentAttendance.onTime / currentAttendance.checkedIn) * 100) 
+          : 0,
+      },
+      visitors: {
+        current: currentVisitor,
+        previous: previousVisitor,
+        funnel: {
+          registered: currentVisitor.registered,
+          checkedIn: currentVisitor.checkedIn,
+          converted: currentVisitor.converted,
+        },
+      },
+      monthlyTrend,
+      period: {
+        current: {
+          start: formatDate(currentPeriodStart),
+          end: formatDate(currentPeriodEnd),
+        },
+        previous: {
+          start: formatDate(previousPeriodStart),
+          end: formatDate(previousPeriodEnd),
+        },
+      },
+    });
+
+  } catch (error: any) {
+    console.error("Performance metrics error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
