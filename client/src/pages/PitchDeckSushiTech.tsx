@@ -556,7 +556,137 @@ export default function PitchDeckSushiTech() {
       </div>
     </Slide>,
 
-    // Slide 7: Business Model
+    // Slide 7: Vision - Community OS Expansion
+    <Slide key="vision" className="bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 text-white">
+      <div className="max-w-6xl w-full">
+        <Badge className="mb-4 bg-white/20 text-white border-0">
+          <Rocket className="w-3 h-3 mr-1" />
+          Vision
+        </Badge>
+        <h2 className="text-3xl md:text-4xl font-bold mb-2">
+          BNI is Just the Beginning
+        </h2>
+        <p className="text-lg text-purple-200 mb-8">
+          Building the Operating System for Professional Communities
+        </p>
+
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <div className="space-y-4">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <Target className="w-5 h-5 text-amber-400" />
+              Expansion Roadmap
+            </h3>
+            
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 bg-green-500/20 rounded-lg border border-green-500/30">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-sm font-bold">1</div>
+                <div>
+                  <div className="font-medium">BNI Chapters</div>
+                  <div className="text-xs text-green-200">Now - Proven PMF in Thailand</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 p-3 bg-blue-500/20 rounded-lg border border-blue-500/30">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-sm font-bold">2</div>
+                <div>
+                  <div className="font-medium">Business Referral Networks</div>
+                  <div className="text-xs text-blue-200">2025 - Rotary, Lions, JCI, Chambers</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 p-3 bg-purple-500/20 rounded-lg border border-purple-500/30">
+                <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-sm font-bold">3</div>
+                <div>
+                  <div className="font-medium">Professional Associations</div>
+                  <div className="text-xs text-purple-200">2026 - Trade bodies, Alumni networks</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 p-3 bg-amber-500/20 rounded-lg border border-amber-500/30">
+                <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-sm font-bold">4</div>
+                <div>
+                  <div className="font-medium">Enterprise Communities</div>
+                  <div className="text-xs text-amber-200">2027+ - Partner ecosystems, Coworking</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-green-400" />
+              Market Expansion (TAM)
+            </h3>
+            
+            <div className="bg-white/10 rounded-xl p-4">
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm">BNI Chapters</span>
+                    <span className="text-sm font-bold">$160M</span>
+                  </div>
+                  <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 rounded-full" style={{width: '8%'}}></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm">+ Business Networks</span>
+                    <span className="text-sm font-bold">$420M</span>
+                  </div>
+                  <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{width: '22%'}}></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm">+ Associations</span>
+                    <span className="text-sm font-bold">$1.2B</span>
+                  </div>
+                  <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-purple-500 rounded-full" style={{width: '63%'}}></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-bold">Total TAM</span>
+                    <span className="text-sm font-bold text-amber-400">$1.9B+</span>
+                  </div>
+                  <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-green-500 via-blue-500 to-purple-500 rounded-full" style={{width: '100%'}}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div className="p-3 bg-white/10 rounded-lg">
+                <div className="text-2xl font-bold">115K+</div>
+                <div className="text-xs text-purple-200">Professional Orgs</div>
+              </div>
+              <div className="p-3 bg-white/10 rounded-lg">
+                <div className="text-2xl font-bold">80M+</div>
+                <div className="text-xs text-purple-200">Potential Members</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-xl border border-amber-500/30 text-center">
+          <p className="text-lg font-medium">
+            "From Chapter Management Tool → <span className="text-amber-400">Community Operating System</span>"
+          </p>
+          <p className="text-sm text-purple-200 mt-1">
+            Same core platform, infinite vertical expansion
+          </p>
+        </div>
+      </div>
+    </Slide>,
+
+    // Slide 8: Business Model (was 7)
     <Slide key="business-model" className="bg-background">
       <div className="max-w-5xl w-full">
         <Badge variant="outline" className="mb-4">Business Model</Badge>
@@ -671,7 +801,7 @@ export default function PitchDeckSushiTech() {
       </div>
     </Slide>,
 
-    // Slide 8: Team
+    // Slide 9: Team
     <Slide key="team" className="bg-background">
       <div className="max-w-5xl w-full">
         <Badge variant="outline" className="mb-4">Team</Badge>
@@ -749,7 +879,7 @@ export default function PitchDeckSushiTech() {
       </div>
     </Slide>,
 
-    // Slide 9: Roadmap & SuSHi Tech Goals
+    // Slide 10: Roadmap & SuSHi Tech Goals
     <Slide key="roadmap" className="bg-background">
       <div className="max-w-5xl w-full">
         <Badge variant="outline" className="mb-4 border-red-500 text-red-600">SuSHi Tech Goals</Badge>
@@ -831,7 +961,7 @@ export default function PitchDeckSushiTech() {
       </div>
     </Slide>,
 
-    // Slide 10: Ask / Close with Demo Link
+    // Slide 11: Ask / Close with Demo Link
     <Slide key="close" className="bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] text-white">
       <div className="max-w-5xl w-full text-center">
         <Badge className="mb-4 bg-red-500/20 text-red-300 border-red-500/30">
