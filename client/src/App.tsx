@@ -59,6 +59,7 @@ import BOQEstimator from "./pages/apps/BOQEstimator";
 import AppCenter from "./pages/admin/AppCenter";
 import FinanceDashboard from "./pages/admin/FinanceDashboard";
 import PerformanceDashboard from "./pages/admin/PerformanceDashboard";
+import PitchDeck from "./pages/PitchDeck";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -232,6 +233,9 @@ const App = () => (
           <Route path="/liff/substitute" element={<LiffSubstituteRequest />} />
           <Route path="/liff/apps" element={<LiffAppShell />} />
           <Route path="/liff/apps/:appSlug" element={<LiffAppShell />} />
+          
+          {/* Pitch Deck (Public) */}
+          <Route path="/pitch-deck" element={<PitchDeck />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
