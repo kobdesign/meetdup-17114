@@ -63,6 +63,20 @@ export async function getStripeSecretKey() {
   return secretKey;
 }
 
+export async function getWebhookSecret(): Promise<string> {
+  // Webhook signing secret from Stripe dashboard
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  
+  if (!webhookSecret) {
+    throw new Error(
+      'STRIPE_WEBHOOK_SECRET is not set. ' +
+      'Configure this in your Replit Secrets with the webhook signing secret from Stripe Dashboard.'
+    );
+  }
+  
+  return webhookSecret;
+}
+
 let stripeSync: any = null;
 
 export async function getStripeSync() {

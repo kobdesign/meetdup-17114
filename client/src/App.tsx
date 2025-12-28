@@ -66,6 +66,8 @@ import PitchDeck from "./pages/PitchDeck";
 import PitchDeckSushiTech from "./pages/PitchDeckSushiTech";
 import LandingPage from "./pages/LandingPage";
 import Demo from "./pages/Demo";
+import Pricing from "./pages/Pricing";
+import BillingSettings from "./pages/admin/BillingSettings";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -213,6 +215,11 @@ const App = () => (
               <AIGrowthCopilot />
             </ProtectedRoute>
           } />
+          <Route path="/admin/billing" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <BillingSettings />
+            </ProtectedRoute>
+          } />
           
           {/* Super Admin Routes */}
           <Route path="/super-admin/tenants" element={
@@ -253,6 +260,7 @@ const App = () => (
           <Route path="/liff/apps/:appSlug" element={<LiffAppShell />} />
           
           {/* Public Marketing Pages */}
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/pitch-deck" element={<PitchDeck />} />
           <Route path="/pitch-deck-sushitech" element={<PitchDeckSushiTech />} />
           <Route path="/landing" element={<Navigate to="/" replace />} />

@@ -33,77 +33,94 @@ export interface TenantSubscription {
   cancel_at_period_end: boolean;
 }
 
-export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    description: 'Get started with basic features',
-    features: [
-      'Up to 10 members',
-      'Basic meeting management',
-      'Member check-in',
-      'Email support'
-    ],
-    prices: {
-      monthly: { id: '', amount: 0 },
-      yearly: { id: '', amount: 0 }
+// NOTE: Price IDs should be configured via environment variables
+// These are placeholders - set STRIPE_STARTER_MONTHLY_PRICE_ID, etc in Replit Secrets
+const getPriceIds = () => ({
+  starter_monthly: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID || '',
+  starter_yearly: process.env.STRIPE_STARTER_YEARLY_PRICE_ID || '',
+  pro_monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || '',
+  pro_yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID || '',
+});
+
+export const TRIAL_PERIOD_DAYS = 30;
+
+export const getSubscriptionPlans = (): SubscriptionPlan[] => {
+  const priceIds = getPriceIds();
+  
+  return [
+    {
+      id: 'free',
+      name: 'Free',
+      description: 'Get started with basic features',
+      features: [
+        'Up to 10 members',
+        'Basic meeting management',
+        'Member check-in',
+        'Email support'
+      ],
+      prices: {
+        monthly: { id: '', amount: 0 },
+        yearly: { id: '', amount: 0 }
+      },
+      limits: {
+        members: 10,
+        meetings_per_month: 4,
+        ai_queries_per_month: 0,
+        storage_gb: 1
+      }
     },
-    limits: {
-      members: 10,
-      meetings_per_month: 4,
-      ai_queries_per_month: 0,
-      storage_gb: 1
-    }
-  },
-  {
-    id: 'starter',
-    name: 'Starter',
-    description: 'Perfect for growing chapters',
-    features: [
-      'Up to 30 members',
-      'Visitor management',
-      'Payment tracking',
-      'Basic analytics',
-      'LINE integration',
-      'Priority email support'
-    ],
-    prices: {
-      monthly: { id: '', amount: 1990 }, // $19.90
-      yearly: { id: '', amount: 19900 }  // $199 (2 months free)
+    {
+      id: 'starter',
+      name: 'Starter',
+      description: 'Perfect for growing chapters',
+      features: [
+        'Up to 30 members',
+        'Visitor management',
+        'Payment tracking',
+        'Basic analytics',
+        'LINE integration',
+        'Priority email support'
+      ],
+      prices: {
+        monthly: { id: priceIds.starter_monthly, amount: 1990 }, // $19.90
+        yearly: { id: priceIds.starter_yearly, amount: 19900 }  // $199 (2 months free)
+      },
+      limits: {
+        members: 30,
+        meetings_per_month: 8,
+        ai_queries_per_month: 50,
+        storage_gb: 5
+      }
     },
-    limits: {
-      members: 30,
-      meetings_per_month: 8,
-      ai_queries_per_month: 50,
-      storage_gb: 5
+    {
+      id: 'pro',
+      name: 'Pro',
+      description: 'Full power for established chapters',
+      features: [
+        'Unlimited members',
+        'AI Growth Co-Pilot',
+        'Advanced analytics',
+        'Custom branding',
+        'RSVP & notifications',
+        'Apps marketplace',
+        'API access',
+        '24/7 priority support'
+      ],
+      prices: {
+        monthly: { id: priceIds.pro_monthly, amount: 4990 }, // $49.90
+        yearly: { id: priceIds.pro_yearly, amount: 49900 }  // $499 (2 months free)
+      },
+      limits: {
+        members: -1, // unlimited
+        meetings_per_month: -1, // unlimited
+        ai_queries_per_month: 500,
+        storage_gb: 50
+      }
     }
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    description: 'Full power for established chapters',
-    features: [
-      'Unlimited members',
-      'AI Growth Co-Pilot',
-      'Advanced analytics',
-      'Custom branding',
-      'RSVP & notifications',
-      'Apps marketplace',
-      'API access',
-      '24/7 priority support'
-    ],
-    prices: {
-      monthly: { id: '', amount: 4990 }, // $49.90
-      yearly: { id: '', amount: 49900 }  // $499 (2 months free)
-    },
-    limits: {
-      members: -1, // unlimited
-      meetings_per_month: -1, // unlimited
-      ai_queries_per_month: 500,
-      storage_gb: 50
-    }
-  }
-];
+  ];
+};
+
+export const SUBSCRIPTION_PLANS = getSubscriptionPlans();
 
 export class SubscriptionService {
   async getPublishableKey(): Promise<string> {
@@ -111,7 +128,7 @@ export class SubscriptionService {
   }
 
   async getPlans(): Promise<SubscriptionPlan[]> {
-    return SUBSCRIPTION_PLANS;
+    return getSubscriptionPlans();
   }
 
   async getTenantSubscription(tenantId: string): Promise<TenantSubscription | null> {
@@ -165,6 +182,23 @@ export class SubscriptionService {
     successUrl: string,
     cancelUrl: string
   ): Promise<{ url: string }> {
+    // Validate price ID is configured
+    if (!priceId || priceId.trim() === '') {
+      throw new Error('Invalid price ID. Please configure Stripe price IDs in environment variables.');
+    }
+
+    // Verify price ID matches a known plan
+    const plans = getSubscriptionPlans();
+    const validPriceIds = plans.flatMap(p => [p.prices.monthly.id, p.prices.yearly.id]).filter(Boolean);
+    
+    if (!validPriceIds.includes(priceId)) {
+      throw new Error(
+        'Price ID not recognized. Please ensure STRIPE_STARTER_MONTHLY_PRICE_ID, ' +
+        'STRIPE_STARTER_YEARLY_PRICE_ID, STRIPE_PRO_MONTHLY_PRICE_ID, and ' +
+        'STRIPE_PRO_YEARLY_PRICE_ID are configured in Replit Secrets.'
+      );
+    }
+
     const { data: tenant } = await supabaseAdmin
       .from('tenants')
       .select('tenant_name, admin_email')
@@ -233,28 +267,54 @@ export class SubscriptionService {
   ): Promise<void> {
     const planId = this.getPlanIdFromPrice(priceId);
 
+    // Build update object, only include plan_id if we have a valid one
+    const updateData: Record<string, any> = {
+      stripe_subscription_id: stripeSubscriptionId,
+      status: status,
+      current_period_start: new Date(currentPeriodStart * 1000).toISOString(),
+      current_period_end: new Date(currentPeriodEnd * 1000).toISOString(),
+      trial_end: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+      cancel_at_period_end: cancelAtPeriodEnd,
+      updated_at: new Date().toISOString()
+    };
+
+    // Only update plan_id if we have a valid one (non-empty)
+    // This preserves existing plan_id for events that don't include price data
+    if (planId && planId !== '') {
+      updateData.plan_id = planId;
+    }
+
     await supabaseAdmin
       .from('tenant_subscriptions')
-      .update({
-        stripe_subscription_id: stripeSubscriptionId,
-        plan_id: planId,
-        status: status,
-        current_period_start: new Date(currentPeriodStart * 1000).toISOString(),
-        current_period_end: new Date(currentPeriodEnd * 1000).toISOString(),
-        trial_end: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
-        cancel_at_period_end: cancelAtPeriodEnd,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('stripe_subscription_id', stripeSubscriptionId);
   }
 
   getPlanIdFromPrice(priceId: string): string {
-    for (const plan of SUBSCRIPTION_PLANS) {
+    if (!priceId) {
+      // Return null/empty signals caller to preserve existing plan
+      return '';
+    }
+    const plans = getSubscriptionPlans();
+    for (const plan of plans) {
       if (plan.prices.monthly.id === priceId || plan.prices.yearly.id === priceId) {
         return plan.id;
       }
     }
-    return 'pro'; // Default to pro if price not found
+    // Default to starter if price not found (safer than pro)
+    return 'starter';
+  }
+
+  async cancelSubscription(stripeSubscriptionId: string): Promise<void> {
+    // Only update status to canceled, preserve plan_id
+    await supabaseAdmin
+      .from('tenant_subscriptions')
+      .update({
+        status: 'canceled',
+        cancel_at_period_end: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('stripe_subscription_id', stripeSubscriptionId);
   }
 
   async checkFeatureAccess(tenantId: string, feature: string): Promise<boolean> {
