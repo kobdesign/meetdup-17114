@@ -107,6 +107,55 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - `checkPlanFeature(planId, feature)` - Async, database-backed check
 - `checkPlanLimit(planId, limitKey)` - Async, get limit value from DB
 
+### Usage Tracking and Limit Enforcement System
+
+**Purpose:** Track usage (members, meetings, AI queries) and enforce plan limits.
+
+**AI Usage Tracking:**
+- `ai_conversations` table logs all AI interactions (LINE AI bot + Growth Co-Pilot)
+- Counts `role='user'` messages per tenant/month for billing
+- Growth Co-Pilot uses `system:growth_copilot` as line_user_id prefix
+- LINE AI queries logged before n8n webhook calls
+
+**Core Files:**
+- `server/stripe/subscriptionService.ts` - `getUsageLimits()`, `checkLimitExceeded()`, `getWarningLevel()`
+- `server/middleware/usageLimitMiddleware.ts` - Express middleware for limit checks
+- `server/routes/subscriptions.ts` - Warning and limit check endpoints
+- `client/src/hooks/usePlanConfig.ts` - `useUsageWarnings()`, `useCheckLimit()`
+
+**Warning Levels:**
+- `ok` - Usage below 80%
+- `warning` - Usage 80-89%
+- `critical` - Usage 90-99%
+- `exceeded` - Usage at or above limit
+
+**API Endpoints:**
+- `GET /api/subscriptions/warnings/:tenantId` - Get all usage warnings
+- `GET /api/subscriptions/check-limit/:tenantId/:limitType` - Check specific limit
+
+### Trial Notification and Auto-Downgrade System
+
+**Purpose:** Notify admins before trial expiration and auto-downgrade expired trials.
+
+**Core Files:**
+- `server/services/notifications/trialNotificationService.ts` - Notification and downgrade logic
+- `server/routes/scheduledJobs.ts` - Cron job API endpoints
+- `server/migrations/20251230_create_notification_logs.sql` - Deduplication table
+
+**Notification Schedule:**
+- 7 days before trial ends
+- 3 days before trial ends
+- 1 day before trial ends
+
+**Cron API Endpoints (secured with CRON_SECRET):**
+- `POST /api/cron/trial-notifications` - Send expiration warnings
+- `POST /api/cron/trial-downgrade` - Downgrade expired trials to free
+- `POST /api/cron/all` - Run both jobs
+
+**Deduplication:**
+- `notification_logs` table tracks sent notifications
+- Prevents duplicate notifications on same day using `notification_type` + `created_at`
+
 ## External Dependencies
 
 - **Supabase**: Used for PostgreSQL database, authentication (Supabase Auth), and storage (Supabase Storage).
