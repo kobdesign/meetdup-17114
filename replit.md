@@ -82,6 +82,10 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - `plan_definitions` - Plan metadata (free, starter, pro) with Stripe price IDs
 - `plan_features` - Junction table mapping features to plans (enabled/disabled)
 - `plan_limits` - Junction table mapping limit values to plans
+- `tenant_subscriptions` - Per-tenant subscription data (plan, status, Stripe IDs, trial dates)
+- `notification_logs` - Tracks sent notifications to prevent duplicates (trial expiration, etc.)
+
+**Important Schema Note:** The `tenants` table uses `tenant_id` (not `id`) as its primary key. Foreign key references must use `REFERENCES tenants(tenant_id)`.
 
 **Core Files:**
 - `server/migrations/20251229_create_plan_config_tables.sql` - Database schema
