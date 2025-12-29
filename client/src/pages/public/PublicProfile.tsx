@@ -358,7 +358,7 @@ export default function PublicProfile() {
                   </div>
                   <div className="flex-1 text-left">
                     <p className="text-xs text-muted-foreground">LINE</p>
-                    <p className="font-medium">@{profile.line_id}</p>
+                    <p className="font-medium">{profile.line_id}</p>
                   </div>
                   <ExternalLink className="w-4 h-4 text-muted-foreground" />
                 </a>

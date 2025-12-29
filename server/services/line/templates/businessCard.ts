@@ -500,7 +500,7 @@ export function createMediumBusinessCardBubble(data: BusinessCardData, baseUrl: 
         },
         {
           type: "text",
-          text: `@${data.line_id}`,
+          text: data.line_id,
           size: "xs",
           color: "#06C755",
           margin: "sm",
