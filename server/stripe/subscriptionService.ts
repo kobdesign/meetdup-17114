@@ -328,9 +328,10 @@ export class SubscriptionService {
 
     console.log("[subscriptionService] Looking up tenant with tenant_id:", tenantId);
     
+    // Get tenant name from tenants table
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from('tenants')
-      .select('tenant_name, admin_email')
+      .select('tenant_name')
       .eq('tenant_id', tenantId)
       .single();
 
@@ -344,10 +345,31 @@ export class SubscriptionService {
     }
     
     console.log("[subscriptionService] Found tenant:", tenant.tenant_name);
+    
+    // Get admin email from user_roles (find admin user for this tenant)
+    const { data: adminUser } = await supabaseAdmin
+      .from('user_roles')
+      .select('user_id')
+      .eq('tenant_id', tenantId)
+      .eq('role', 'admin')
+      .limit(1)
+      .single();
+    
+    let adminEmail = `admin@${tenantId}.meetdup.app`;
+    
+    if (adminUser?.user_id) {
+      // Get email from auth.users via Supabase Admin API
+      const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(adminUser.user_id);
+      if (user?.email) {
+        adminEmail = user.email;
+      }
+    }
+    
+    console.log("[subscriptionService] Using admin email:", adminEmail);
 
     const customerId = await this.createOrGetCustomer(
       tenantId,
-      tenant.admin_email || `admin@${tenantId}.meetdup.app`,
+      adminEmail,
       tenant.tenant_name
     );
 
