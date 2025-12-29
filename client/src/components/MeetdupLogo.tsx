@@ -1,4 +1,3 @@
-import defaultLogoUrl from "@assets/Gemini_Generated_Image_cpdn83cpdn83cpdn_1766907954232.png";
 import { usePlatformSettings } from "@/contexts/PlatformSettingsContext";
 import { useTheme } from "next-themes";
 
@@ -10,11 +9,20 @@ interface MeetdupLogoProps {
 }
 
 const sizeConfig = {
-  sm: { logo: "h-8", text: "text-base" },
-  md: { logo: "h-10", text: "text-lg" },
-  lg: { logo: "h-14", text: "text-xl" },
-  xl: { logo: "h-20", text: "text-2xl" },
+  sm: { logo: "h-8", text: "text-base", textLogo: "text-lg" },
+  md: { logo: "h-10", text: "text-lg", textLogo: "text-xl" },
+  lg: { logo: "h-14", text: "text-xl", textLogo: "text-2xl" },
+  xl: { logo: "h-20", text: "text-2xl", textLogo: "text-3xl" },
 };
+
+function TextLogo({ size, textColor, platformName }: { size: keyof typeof sizeConfig; textColor: string; platformName: string }) {
+  const config = sizeConfig[size];
+  return (
+    <span className={`font-bold ${config.textLogo} ${textColor}`}>
+      {platformName}
+    </span>
+  );
+}
 
 export function MeetdupLogo({ 
   size = "md", 
@@ -23,32 +31,10 @@ export function MeetdupLogo({
   className = "" 
 }: MeetdupLogoProps) {
   const config = sizeConfig[size];
-  const { settings } = usePlatformSettings();
+  const { settings, isLoading } = usePlatformSettings();
   const { resolvedTheme } = useTheme();
   
   const isDarkMode = resolvedTheme === "dark";
-  
-  // Determine which logo to use based on variant prop
-  // variant="light" = light text on dark background → use dark logo
-  // variant="dark" = dark text on light background → use light logo
-  // variant="default" = use system theme to decide
-  let logoUrl = defaultLogoUrl;
-  
-  if (variant === "light") {
-    // On dark background, use dark logo (light-colored logo for dark bg)
-    logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || defaultLogoUrl;
-  } else if (variant === "dark") {
-    // On light background, use light logo (dark-colored logo for light bg)
-    logoUrl = settings.platform_logo_url || defaultLogoUrl;
-  } else {
-    // Default: use system theme
-    if (isDarkMode && settings.platform_logo_dark_url) {
-      logoUrl = settings.platform_logo_dark_url;
-    } else if (settings.platform_logo_url) {
-      logoUrl = settings.platform_logo_url;
-    }
-  }
-  
   const platformName = settings.platform_name || "Meetdup";
   
   const textColor = variant === "light" 
@@ -56,6 +42,30 @@ export function MeetdupLogo({
     : variant === "dark" 
       ? "text-foreground" 
       : "text-foreground";
+  
+  // Determine which logo to use based on variant prop
+  let logoUrl: string | null = null;
+  
+  if (variant === "light") {
+    logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || null;
+  } else if (variant === "dark") {
+    logoUrl = settings.platform_logo_url || null;
+  } else {
+    if (isDarkMode && settings.platform_logo_dark_url) {
+      logoUrl = settings.platform_logo_dark_url;
+    } else if (settings.platform_logo_url) {
+      logoUrl = settings.platform_logo_url;
+    }
+  }
+  
+  // Show text-based logo if no image URL available or still loading
+  if (isLoading || !logoUrl) {
+    return (
+      <div className={`flex items-center gap-2 ${className}`}>
+        <TextLogo size={size} textColor={textColor} platformName={platformName} />
+      </div>
+    );
+  }
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -63,6 +73,9 @@ export function MeetdupLogo({
         src={logoUrl} 
         alt={platformName} 
         className={`${config.logo} w-auto object-contain`}
+        onError={(e) => {
+          e.currentTarget.style.display = 'none';
+        }}
       />
       {showText && (
         <span className={`font-bold ${config.text} ${textColor}`}>
@@ -79,17 +92,22 @@ export function MeetdupLogoIcon({
   className = "" 
 }: Pick<MeetdupLogoProps, "size" | "variant" | "className">) {
   const config = sizeConfig[size];
-  const { settings } = usePlatformSettings();
+  const { settings, isLoading } = usePlatformSettings();
   const { resolvedTheme } = useTheme();
   
   const isDarkMode = resolvedTheme === "dark";
+  const platformName = settings.platform_name || "Meetdup";
   
-  let logoUrl = defaultLogoUrl;
+  const textColor = variant === "light" 
+    ? "text-white" 
+    : "text-foreground";
+  
+  let logoUrl: string | null = null;
   
   if (variant === "light") {
-    logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || defaultLogoUrl;
+    logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || null;
   } else if (variant === "dark") {
-    logoUrl = settings.platform_logo_url || defaultLogoUrl;
+    logoUrl = settings.platform_logo_url || null;
   } else {
     if (isDarkMode && settings.platform_logo_dark_url) {
       logoUrl = settings.platform_logo_dark_url;
@@ -98,16 +116,25 @@ export function MeetdupLogoIcon({
     }
   }
   
-  const platformName = settings.platform_name || "Meetdup";
+  // Show text-based logo if no image URL available or still loading
+  if (isLoading || !logoUrl) {
+    return (
+      <span className={`font-bold ${config.textLogo} ${textColor} ${className}`}>
+        {platformName}
+      </span>
+    );
+  }
   
   return (
     <img 
       src={logoUrl} 
       alt={platformName} 
       className={`${config.logo} w-auto object-contain ${className}`}
+      onError={(e) => {
+        e.currentTarget.style.display = 'none';
+      }}
     />
   );
 }
 
-export { defaultLogoUrl as meetdupLogoUrl };
 export default MeetdupLogo;

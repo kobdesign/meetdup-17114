@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Upload, Save, RefreshCw, Image as ImageIcon, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { MeetdupLogo, meetdupLogoUrl } from "@/components/MeetdupLogo";
+import { MeetdupLogo } from "@/components/MeetdupLogo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { apiRequest } from "@/lib/queryClient";
 import { usePlatformSettings } from "@/contexts/PlatformSettingsContext";
@@ -193,11 +193,9 @@ export default function PlatformSettings() {
                         data-testid="img-logo-light"
                       />
                     ) : (
-                      <img
-                        src={meetdupLogoUrl}
-                        alt="Default Logo"
-                        className="max-w-full max-h-full object-contain"
-                      />
+                      <span className="text-xl font-bold text-foreground">
+                        {settings.platform_name || "Meetdup"}
+                      </span>
                     )}
                   </div>
                   <div className="flex gap-2">

@@ -39,7 +39,6 @@ import jsPDF from "jspdf";
 import { SiLine } from "react-icons/si";
 import { CanvasQRCode } from "@/components/CanvasQRCode";
 import { usePlatformSettings } from "@/contexts/PlatformSettingsContext";
-import defaultLogoUrl from "@assets/Gemini_Generated_Image_cpdn83cpdn83cpdn_1766907954232.png";
 
 interface SlideProps {
   children: React.ReactNode;
@@ -62,7 +61,7 @@ export default function PitchDeckSushiTech() {
   const { settings } = usePlatformSettings();
   
   // Use dark logo for pitch deck (dark background)
-  const logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || defaultLogoUrl;
+  const logoUrl = settings.platform_logo_dark_url || settings.platform_logo_url || null;
   const platformName = settings.platform_name || "Meetdup";
 
   const totalSlides = 12;
@@ -192,7 +191,11 @@ export default function PitchDeckSushiTech() {
         </Badge>
         
         <div className="flex items-center justify-center mb-8">
-          <img src={logoUrl} alt={platformName} className="h-32 md:h-40 w-auto object-contain" />
+          {logoUrl ? (
+            <img src={logoUrl} alt={platformName} className="h-32 md:h-40 w-auto object-contain" />
+          ) : (
+            <span className="text-5xl md:text-6xl font-bold text-white">{platformName}</span>
+          )}
         </div>
         
         <p className="text-2xl md:text-3xl text-blue-200 mb-6">
