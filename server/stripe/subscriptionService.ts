@@ -321,23 +321,44 @@ export class SubscriptionService {
     const subscription = await this.getTenantSubscription(tenantId);
     
     if (!subscription) {
-      return this.isFeatureInPlan('free', feature);
+      return await this.isFeatureInPlanFromDB('free', feature);
     }
 
     // Allow access during trial or active subscription
     if (subscription.status === 'trialing' || subscription.status === 'active') {
-      return this.isFeatureInPlan(subscription.plan_id, feature);
+      return await this.isFeatureInPlanFromDB(subscription.plan_id, feature);
     }
 
     // Past due gets limited access
     if (subscription.status === 'past_due') {
-      return this.isFeatureInPlan('free', feature);
+      return await this.isFeatureInPlanFromDB('free', feature);
     }
 
     return false;
   }
 
-  isFeatureInPlan(planId: string, feature: string): boolean {
+  async isFeatureInPlanFromDB(planId: string, feature: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('plan_features')
+        .select('enabled')
+        .eq('plan_id', planId)
+        .eq('feature_key', feature)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking feature from DB:', error);
+        return this.isFeatureInPlanFallback(planId, feature);
+      }
+
+      return data?.enabled ?? false;
+    } catch (error) {
+      console.error('Error checking feature from DB:', error);
+      return this.isFeatureInPlanFallback(planId, feature);
+    }
+  }
+
+  isFeatureInPlanFallback(planId: string, feature: string): boolean {
     const featuresByPlan: Record<string, string[]> = {
       free: ['basic_meetings', 'member_checkin', 'basic_reports'],
       starter: [
@@ -355,6 +376,80 @@ export class SubscriptionService {
     };
 
     return featuresByPlan[planId]?.includes(feature) || false;
+  }
+
+  // Sync version - uses fallback for backwards compatibility
+  // Prefer using isFeatureInPlanFromDB for database-backed checks
+  isFeatureInPlan(planId: string, feature: string): boolean {
+    return this.isFeatureInPlanFallback(planId, feature);
+  }
+
+  // Async version that checks database first, falls back to hardcoded
+  async checkPlanFeature(planId: string, feature: string): Promise<boolean> {
+    return await this.isFeatureInPlanFromDB(planId, feature);
+  }
+
+  // Async version for getting limit from database
+  async checkPlanLimit(planId: string, limitKey: string): Promise<number> {
+    return await this.getLimitFromDB(planId, limitKey);
+  }
+
+  async getLimitFromDB(planId: string, limitKey: string): Promise<number> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('plan_limits')
+        .select('limit_value')
+        .eq('plan_id', planId)
+        .eq('limit_key', limitKey)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error getting limit from DB:', error);
+        return this.getLimitFallback(planId, limitKey);
+      }
+
+      return data?.limit_value ?? 0;
+    } catch (error) {
+      console.error('Error getting limit from DB:', error);
+      return this.getLimitFallback(planId, limitKey);
+    }
+  }
+
+  getLimitFallback(planId: string, limitKey: string): number {
+    const limitsByPlan: Record<string, Record<string, number>> = {
+      free: { members: 10, meetings_per_month: 4, ai_queries_per_month: 0, storage_gb: 1 },
+      starter: { members: 30, meetings_per_month: 8, ai_queries_per_month: 50, storage_gb: 5 },
+      pro: { members: -1, meetings_per_month: -1, ai_queries_per_month: 500, storage_gb: 50 }
+    };
+
+    return limitsByPlan[planId]?.[limitKey] ?? 0;
+  }
+
+  async getPlanConfigFromDB(planId: string): Promise<{ features: string[]; limits: Record<string, number> }> {
+    try {
+      const [featuresResult, limitsResult] = await Promise.all([
+        supabaseAdmin
+          .from('plan_features')
+          .select('feature_key')
+          .eq('plan_id', planId)
+          .eq('enabled', true),
+        supabaseAdmin
+          .from('plan_limits')
+          .select('limit_key, limit_value')
+          .eq('plan_id', planId)
+      ]);
+
+      const features = featuresResult.data?.map(f => f.feature_key) || [];
+      const limits: Record<string, number> = {};
+      limitsResult.data?.forEach(l => {
+        limits[l.limit_key] = l.limit_value;
+      });
+
+      return { features, limits };
+    } catch (error) {
+      console.error('Error getting plan config from DB:', error);
+      return { features: [], limits: {} };
+    }
   }
 
   async getUsageLimits(tenantId: string): Promise<{

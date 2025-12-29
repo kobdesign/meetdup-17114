@@ -206,6 +206,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             { icon: <Trophy className="h-4 w-4" />, label: "เป้าหมาย", href: "/admin/goals" },
             { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า Chapter", href: "/admin/settings" },
             { icon: <LayoutGrid className="h-4 w-4" />, label: "App Center", href: "/admin/app-center" },
+            { icon: <DollarSign className="h-4 w-4" />, label: "Billing", href: "/admin/billing" },
           ],
         },
       ],
@@ -220,6 +221,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: <Smartphone className="h-4 w-4" />, label: "LIFF Settings", href: "/super-admin/liff-settings" },
     { icon: <Briefcase className="h-4 w-4" />, label: "หมวดหมู่ธุรกิจ", href: "/super-admin/business-categories" },
     { icon: <Palette className="h-4 w-4" />, label: "Platform Settings", href: "/super-admin/platform-settings" },
+    { icon: <DollarSign className="h-4 w-4" />, label: "Plan Configuration", href: "/super-admin/plan-configuration" },
   ];
 
   // Render collapsible nav group
