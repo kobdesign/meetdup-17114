@@ -463,12 +463,17 @@ export class SubscriptionService {
       return isNaN(date.getTime()) ? null : date.toISOString();
     };
     
+    // For trial subscriptions, Stripe may not provide current_period_start/end
+    // In that case, use trial_start/trial_end as the period
+    const periodStart = subscription.current_period_start ?? subscription.trial_start;
+    const periodEnd = subscription.current_period_end ?? subscription.trial_end;
+    
     const updateData: Record<string, any> = {
       stripe_subscription_id: subscription.id,
       plan_id: planId,
       status: subscription.status,
-      current_period_start: safeTimestampToISO(subscription.current_period_start),
-      current_period_end: safeTimestampToISO(subscription.current_period_end),
+      current_period_start: safeTimestampToISO(periodStart),
+      current_period_end: safeTimestampToISO(periodEnd),
       trial_end: safeTimestampToISO(subscription.trial_end),
       cancel_at_period_end: subscription.cancel_at_period_end || false,
       updated_at: new Date().toISOString()
@@ -506,6 +511,15 @@ export class SubscriptionService {
     // Retrieve the subscription from Stripe
     const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
     
+    // Log what Stripe actually returns for period fields
+    console.log("[subscriptionService] Stripe subscription period data:", {
+      current_period_start: subscription.current_period_start,
+      current_period_end: subscription.current_period_end,
+      trial_start: subscription.trial_start,
+      trial_end: subscription.trial_end,
+      status: subscription.status
+    });
+    
     // Get plan ID from price
     const priceId = subscription.items?.data?.[0]?.price?.id || '';
     const planId = await this.getPlanIdFromPrice(priceId);
@@ -517,13 +531,18 @@ export class SubscriptionService {
       return isNaN(date.getTime()) ? null : date.toISOString();
     };
     
+    // For trial subscriptions, Stripe may not provide current_period_start/end
+    // In that case, use trial_start/trial_end as the period
+    const periodStart = subscription.current_period_start ?? subscription.trial_start;
+    const periodEnd = subscription.current_period_end ?? subscription.trial_end;
+    
     // Build update data - only include plan_id if we have a valid one
     // This mirrors webhook behavior to preserve existing plan_id when price lookup fails
     const updateData: Record<string, any> = {
       stripe_subscription_id: subscription.id,
       status: subscription.status,
-      current_period_start: safeTimestampToISO(subscription.current_period_start),
-      current_period_end: safeTimestampToISO(subscription.current_period_end),
+      current_period_start: safeTimestampToISO(periodStart),
+      current_period_end: safeTimestampToISO(periodEnd),
       trial_end: safeTimestampToISO(subscription.trial_end),
       cancel_at_period_end: subscription.cancel_at_period_end || false,
       updated_at: new Date().toISOString()
