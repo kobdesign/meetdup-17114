@@ -51,14 +51,54 @@ export default function CreateChapter() {
         }
       );
     },
-    onSuccess: async () => {
+    onSuccess: async (result: any) => {
       toast.success("สร้าง Chapter สำเร็จ!");
       
       // Wait for cache to refresh before navigating (use type: 'all' to ensure fresh data)
       console.log("[CreateChapter] Invalidating and refetching user-tenant-info...");
       await queryClient.invalidateQueries({ queryKey: ["/api/user-tenant-info"] });
       await queryClient.refetchQueries({ queryKey: ["/api/user-tenant-info"], type: 'all' });
-      console.log("[CreateChapter] Cache refreshed, navigating to /admin");
+      console.log("[CreateChapter] Cache refreshed");
+      
+      // Check for pending plan upgrade from pricing page
+      const pendingUpgrade = localStorage.getItem('pendingPlanUpgrade');
+      const tenantId = result?.tenant?.tenant_id;
+      if (pendingUpgrade && tenantId) {
+        try {
+          const { plan, billing } = JSON.parse(pendingUpgrade);
+          console.log("[CreateChapter] Found pending plan upgrade:", plan, billing);
+          
+          // Fetch plan prices to get the correct price ID (apiRequest handles auth)
+          const plansData = await apiRequest('/api/subscriptions/plans', 'GET');
+          const selectedPlan = plansData?.plans?.find((p: any) => p.id === plan);
+          const priceId = billing === 'yearly' 
+            ? selectedPlan?.prices.yearly.id 
+            : selectedPlan?.prices.monthly.id;
+          
+          if (priceId) {
+            console.log("[CreateChapter] Starting checkout with priceId:", priceId);
+            const checkoutResponse = await apiRequest('/api/subscriptions/checkout', 'POST', {
+              tenantId: tenantId,
+              priceId: priceId
+            });
+            
+            if (checkoutResponse?.url) {
+              localStorage.removeItem('pendingPlanUpgrade');
+              window.location.href = checkoutResponse.url;
+              return;
+            }
+          }
+          // If checkout fails, redirect to billing page where user can see retry banner
+          toast.error("ไม่สามารถเริ่มกระบวนการชำระเงินได้ กรุณาลองใหม่จากหน้า Billing");
+          navigate("/admin/billing");
+          return;
+        } catch (error) {
+          console.error("[CreateChapter] Error processing pending upgrade:", error);
+          toast.error("เกิดข้อผิดพลาดในการอัพเกรดแพลน");
+          navigate("/admin/billing");
+          return;
+        }
+      }
       
       navigate("/admin");
     },

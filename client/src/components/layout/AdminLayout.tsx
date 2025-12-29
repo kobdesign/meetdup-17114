@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -55,6 +55,7 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { 
     isSuperAdmin,
     isReady,
@@ -67,6 +68,16 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   // Wait for tenant selection to complete before showing content
   const isContentReady = isReady;
+  
+  // Redirect to billing page if there's a pending plan upgrade
+  useEffect(() => {
+    const pendingUpgrade = localStorage.getItem('pendingPlanUpgrade');
+    // Only redirect if on exact /admin path and there's a pending upgrade
+    if (pendingUpgrade && location.pathname === '/admin') {
+      console.log("[AdminLayout] Found pending upgrade, redirecting to billing");
+      navigate('/admin/billing', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   const handleLogout = async () => {
     try {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import { MeetdupLogo } from "@/components/MeetdupLogo";
 
 export default function Auth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,12 +28,33 @@ export default function Auth() {
 
   // Get redirect parameter from URL
   const getRedirectPath = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('redirect');
+    return searchParams.get('redirect');
+  };
+
+  // Get plan selection from URL (from pricing page)
+  const getPlanSelection = () => {
+    const plan = searchParams.get('plan');
+    const billing = searchParams.get('billing') || 'monthly';
+    if (plan && plan !== 'free') {
+      return { plan, billing };
+    }
+    return null;
+  };
+
+  // Save plan selection to localStorage for use after chapter creation
+  const savePlanSelection = () => {
+    const planSelection = getPlanSelection();
+    if (planSelection) {
+      localStorage.setItem('pendingPlanUpgrade', JSON.stringify(planSelection));
+      console.log("[Auth] Saved pending plan upgrade:", planSelection);
+    }
   };
 
   useEffect(() => {
     const redirectPath = getRedirectPath();
+    
+    // Save plan selection from URL params (if coming from pricing page)
+    savePlanSelection();
     
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -115,6 +137,57 @@ export default function Auth() {
     if (!roles || roles.length === 0) {
       navigate("/welcome");
       return;
+    }
+
+    // Check for pending plan upgrade - if user has a tenant, redirect to checkout
+    const pendingUpgrade = localStorage.getItem('pendingPlanUpgrade');
+    const userTenantId = roles.find(r => r.tenant_id)?.tenant_id;
+    
+    if (pendingUpgrade && userTenantId) {
+      try {
+        const { plan, billing } = JSON.parse(pendingUpgrade);
+        console.log("[Auth] Found pending plan upgrade for existing tenant:", plan, billing);
+        
+        // Get auth token for authenticated API calls
+        const { data: sessionData } = await supabase.auth.getSession();
+        const authToken = sessionData?.session?.access_token;
+        const authHeaders = authToken 
+          ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }
+          : { 'Content-Type': 'application/json' };
+        
+        // Fetch plan prices to get the correct price ID
+        const plansResponse = await fetch('/api/subscriptions/plans', { headers: authHeaders });
+        const plansData = await plansResponse.json();
+        const selectedPlan = plansData.plans?.find((p: any) => p.id === plan);
+        const priceId = billing === 'yearly' 
+          ? selectedPlan?.prices.yearly.id 
+          : selectedPlan?.prices.monthly.id;
+        
+        if (priceId) {
+          console.log("[Auth] Starting checkout with priceId:", priceId);
+          const checkoutResponse = await fetch('/api/subscriptions/checkout', {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({ tenantId: userTenantId, priceId: priceId })
+          });
+          const checkoutData = await checkoutResponse.json();
+          
+          if (checkoutData?.url) {
+            localStorage.removeItem('pendingPlanUpgrade');
+            window.location.href = checkoutData.url;
+            return;
+          }
+        }
+        // If checkout fails, redirect to billing page where user can see retry banner
+        toast.error("ไม่สามารถเริ่มกระบวนการชำระเงินได้ กรุณาลองใหม่จากหน้า Billing");
+        navigate("/admin/billing");
+        return;
+      } catch (error) {
+        console.error("[Auth] Error processing pending upgrade:", error);
+        toast.error("เกิดข้อผิดพลาดในการอัพเกรดแพลน");
+        navigate("/admin/billing");
+        return;
+      }
     }
 
     // Check if user is super admin

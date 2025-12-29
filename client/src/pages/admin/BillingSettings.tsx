@@ -1,6 +1,7 @@
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { CreditCard, CheckCircle2, AlertCircle, ExternalLink, Calendar, Users, Zap } from "lucide-react";
+import { CreditCard, CheckCircle2, AlertCircle, ExternalLink, Calendar, Users, Zap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,11 +54,81 @@ export default function BillingSettings() {
   const { selectedTenant } = useTenantContext();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const [pendingUpgrade, setPendingUpgrade] = useState<{plan: string; billing: string} | null>(null);
+  const [isProcessingUpgrade, setIsProcessingUpgrade] = useState(false);
 
   const success = searchParams.get("success") === "true";
   const canceled = searchParams.get("canceled") === "true";
 
   const tenantId = selectedTenant?.tenant_id;
+  
+  // Check for pending plan upgrade from localStorage (from pricing page flow)
+  useEffect(() => {
+    const stored = localStorage.getItem('pendingPlanUpgrade');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setPendingUpgrade(parsed);
+      } catch {
+        localStorage.removeItem('pendingPlanUpgrade');
+      }
+    }
+  }, []);
+  
+  // Clear pending upgrade on successful checkout
+  useEffect(() => {
+    if (success && pendingUpgrade) {
+      localStorage.removeItem('pendingPlanUpgrade');
+      setPendingUpgrade(null);
+    }
+  }, [success, pendingUpgrade]);
+  
+  // Function to resume pending upgrade checkout
+  const resumePendingUpgrade = async () => {
+    if (!pendingUpgrade || !tenantId) return;
+    
+    setIsProcessingUpgrade(true);
+    try {
+      const plansData = await apiRequest('/api/subscriptions/plans', 'GET');
+      const selectedPlan = plansData?.plans?.find((p: any) => p.id === pendingUpgrade.plan);
+      const priceId = pendingUpgrade.billing === 'yearly' 
+        ? selectedPlan?.prices.yearly.id 
+        : selectedPlan?.prices.monthly.id;
+      
+      if (priceId) {
+        const checkoutResponse = await apiRequest('/api/subscriptions/checkout', 'POST', {
+          tenantId: tenantId,
+          priceId: priceId
+        });
+        
+        if (checkoutResponse?.url) {
+          localStorage.removeItem('pendingPlanUpgrade');
+          window.location.href = checkoutResponse.url;
+          return;
+        }
+      }
+      toast({
+        title: "Error",
+        description: "ไม่สามารถเริ่มกระบวนการชำระเงินได้",
+        variant: "destructive",
+      });
+    } catch (error) {
+      console.error("[BillingSettings] Error resuming upgrade:", error);
+      toast({
+        title: "Error",
+        description: "เกิดข้อผิดพลาดในการอัพเกรดแพลน",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingUpgrade(false);
+    }
+  };
+  
+  // Dismiss pending upgrade banner
+  const dismissPendingUpgrade = () => {
+    localStorage.removeItem('pendingPlanUpgrade');
+    setPendingUpgrade(null);
+  };
 
   const { data: subscriptionData, isLoading: isLoadingSubscription } = useQuery<SubscriptionStatus>({
     queryKey: ["/api/subscriptions/status", tenantId],
@@ -158,6 +229,43 @@ export default function BillingSettings() {
           <AlertTitle>Checkout Canceled</AlertTitle>
           <AlertDescription>
             Your checkout was canceled. You can try again anytime.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {pendingUpgrade && (
+        <Alert className="bg-blue-500/10 border-blue-500/20">
+          <Zap className="h-4 w-4 text-blue-600" />
+          <AlertTitle>Complete Your Plan Upgrade</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3">
+            <span>
+              You selected the {pendingUpgrade.plan.charAt(0).toUpperCase() + pendingUpgrade.plan.slice(1)} plan 
+              ({pendingUpgrade.billing === 'yearly' ? 'Annual' : 'Monthly'} billing). 
+              Complete checkout to activate your subscription.
+            </span>
+            <div className="flex gap-2 flex-wrap">
+              <Button 
+                onClick={resumePendingUpgrade} 
+                disabled={isProcessingUpgrade}
+                data-testid="button-resume-upgrade"
+              >
+                {isProcessingUpgrade ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>Continue to Checkout</>
+                )}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={dismissPendingUpgrade}
+                data-testid="button-dismiss-upgrade"
+              >
+                Dismiss
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       )}
