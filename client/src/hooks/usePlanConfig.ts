@@ -199,3 +199,46 @@ export function useAllPlanLimits(planId?: string) {
     isLoading: false,
   };
 }
+
+interface UsageWarning {
+  type: 'members' | 'meetings' | 'ai_queries';
+  level: 'warning' | 'critical' | 'exceeded';
+  message: string;
+  current: number;
+  limit: number;
+}
+
+interface UsageWarningsResponse {
+  warnings: UsageWarning[];
+}
+
+export function useUsageWarnings(tenantId?: string) {
+  const { effectiveTenantId: contextTenantId } = useTenantContext();
+  const effectiveTenantId = tenantId || contextTenantId;
+
+  return useQuery<UsageWarningsResponse>({
+    queryKey: ["/api/subscriptions/warnings", effectiveTenantId],
+    queryFn: () => apiRequest(`/api/subscriptions/warnings/${effectiveTenantId}`),
+    enabled: !!effectiveTenantId,
+    staleTime: 1000 * 60 * 2, // Cache for 2 minutes
+  });
+}
+
+interface LimitCheckResult {
+  exceeded: boolean;
+  current: number;
+  limit: number;
+  percentage: number;
+}
+
+export function useCheckLimit(limitType: 'members' | 'meetings' | 'ai_queries', tenantId?: string) {
+  const { effectiveTenantId: contextTenantId } = useTenantContext();
+  const effectiveTenantId = tenantId || contextTenantId;
+
+  return useQuery<LimitCheckResult>({
+    queryKey: ["/api/subscriptions/check-limit", effectiveTenantId, limitType],
+    queryFn: () => apiRequest(`/api/subscriptions/check-limit/${effectiveTenantId}/${limitType}`),
+    enabled: !!effectiveTenantId,
+    staleTime: 1000 * 60, // Cache for 1 minute
+  });
+}

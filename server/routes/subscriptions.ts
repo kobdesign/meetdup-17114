@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from "express";
 import { subscriptionService } from "../stripe/subscriptionService";
+import { getUsageWarnings } from "../middleware/usageLimitMiddleware";
 
 const router = Router();
 
@@ -66,6 +67,38 @@ router.get("/usage/:tenantId", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("[subscriptions] Error fetching usage:", error);
     res.status(500).json({ error: "Failed to fetch usage" });
+  }
+});
+
+// Get usage warnings for a tenant
+router.get("/warnings/:tenantId", async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    const result = await getUsageWarnings(tenantId);
+    res.json(result);
+  } catch (error: any) {
+    console.error("[subscriptions] Error fetching warnings:", error);
+    res.status(500).json({ error: "Failed to fetch warnings" });
+  }
+});
+
+// Check if a specific limit is exceeded
+router.get("/check-limit/:tenantId/:limitType", async (req: Request, res: Response) => {
+  try {
+    const { tenantId, limitType } = req.params;
+    
+    if (!['members', 'meetings', 'ai_queries'].includes(limitType)) {
+      return res.status(400).json({ error: "Invalid limit type" });
+    }
+    
+    const result = await subscriptionService.checkLimitExceeded(
+      tenantId, 
+      limitType as 'members' | 'meetings' | 'ai_queries'
+    );
+    res.json(result);
+  } catch (error: any) {
+    console.error("[subscriptions] Error checking limit:", error);
+    res.status(500).json({ error: "Failed to check limit" });
   }
 });
 

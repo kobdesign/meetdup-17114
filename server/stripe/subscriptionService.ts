@@ -508,6 +508,73 @@ export class SubscriptionService {
     
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
+
+  async checkLimitExceeded(tenantId: string, limitType: 'members' | 'meetings' | 'ai_queries'): Promise<{
+    exceeded: boolean;
+    current: number;
+    limit: number;
+    percentage: number;
+  }> {
+    const { plan, usage } = await this.getUsageLimits(tenantId);
+    const planConfig = await this.getPlanConfigFromDB(plan.id);
+    
+    let current = 0;
+    let limit = Infinity;
+
+    switch (limitType) {
+      case 'members':
+        current = usage.members;
+        limit = planConfig.limits['members_limit'] ?? plan.limits.members;
+        break;
+      case 'meetings':
+        current = usage.meetings_this_month;
+        limit = planConfig.limits['meetings_limit'] ?? plan.limits.meetingsPerMonth;
+        break;
+      case 'ai_queries':
+        current = usage.ai_queries_this_month;
+        limit = planConfig.limits['ai_queries_limit'] ?? plan.limits.aiQueriesPerMonth;
+        break;
+    }
+
+    if (limit === -1 || limit === Infinity) {
+      return { exceeded: false, current, limit: -1, percentage: 0 };
+    }
+
+    const percentage = Math.round((current / limit) * 100);
+    return {
+      exceeded: current >= limit,
+      current,
+      limit,
+      percentage
+    };
+  }
+
+  async getWarningLevel(tenantId: string, limitType: 'members' | 'meetings' | 'ai_queries'): Promise<{
+    level: 'ok' | 'warning' | 'critical' | 'exceeded';
+    message: string;
+    current: number;
+    limit: number;
+  }> {
+    const check = await this.checkLimitExceeded(tenantId, limitType);
+    
+    if (check.limit === -1) {
+      return { level: 'ok', message: 'Unlimited', current: check.current, limit: check.limit };
+    }
+    
+    if (check.exceeded) {
+      return { level: 'exceeded', message: `Limit reached (${check.current}/${check.limit})`, current: check.current, limit: check.limit };
+    }
+    
+    if (check.percentage >= 90) {
+      return { level: 'critical', message: `Almost at limit (${check.percentage}%)`, current: check.current, limit: check.limit };
+    }
+    
+    if (check.percentage >= 80) {
+      return { level: 'warning', message: `${check.percentage}% of limit used`, current: check.current, limit: check.limit };
+    }
+    
+    return { level: 'ok', message: `${check.current} of ${check.limit} used`, current: check.current, limit: check.limit };
+  }
 }
 
 export const subscriptionService = new SubscriptionService();
