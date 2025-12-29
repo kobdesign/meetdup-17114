@@ -468,17 +468,21 @@ export class SubscriptionService {
       .from('participants')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .eq('status', 'active');
+      .eq('status', 'member');
 
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
+    const endOfMonth = new Date(startOfMonth);
+    endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+
     const { count: meetingCount } = await supabaseAdmin
       .from('meetings')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .gte('meeting_date', startOfMonth.toISOString());
+      .gte('meeting_date', startOfMonth.toISOString())
+      .lt('meeting_date', endOfMonth.toISOString());
 
     const { count: aiQueryCount } = await supabaseAdmin
       .from('ai_conversations')
@@ -528,11 +532,11 @@ export class SubscriptionService {
         break;
       case 'meetings':
         current = usage.meetings_this_month;
-        limit = planConfig.limits['meetings_limit'] ?? plan.limits.meetingsPerMonth;
+        limit = planConfig.limits['meetings_limit'] ?? plan.limits.meetings_per_month;
         break;
       case 'ai_queries':
         current = usage.ai_queries_this_month;
-        limit = planConfig.limits['ai_queries_limit'] ?? plan.limits.aiQueriesPerMonth;
+        limit = planConfig.limits['ai_queries_limit'] ?? plan.limits.ai_queries_per_month;
         break;
     }
 

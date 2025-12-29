@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import AdminLayout from "@/components/layout/AdminLayout";
 
 interface TenantSubscription {
   tenant_id: string;
@@ -119,17 +120,20 @@ export default function BillingSettings() {
 
   if (!tenantId) {
     return (
-      <div className="p-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>No Chapter Selected</AlertTitle>
-          <AlertDescription>Please select a chapter to view billing settings.</AlertDescription>
-        </Alert>
-      </div>
+      <AdminLayout>
+        <div className="p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>No Chapter Selected</AlertTitle>
+            <AlertDescription>Please select a chapter to view billing settings.</AlertDescription>
+          </Alert>
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
+    <AdminLayout>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -356,5 +360,6 @@ export default function BillingSettings() {
         </Alert>
       )}
     </div>
+    </AdminLayout>
   );
 }
