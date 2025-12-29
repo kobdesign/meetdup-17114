@@ -51,7 +51,7 @@ interface UsageData {
 }
 
 export default function BillingSettings() {
-  const { selectedTenant } = useTenantContext();
+  const { selectedTenant, isReady } = useTenantContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -234,6 +234,20 @@ export default function BillingSettings() {
     if (limit === -1) return 0;
     return Math.min((used / limit) * 100, 100);
   };
+
+  if (!isReady) {
+    return (
+      <AdminLayout>
+        <div className="p-6 space-y-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-1/4"></div>
+            <div className="h-4 bg-muted rounded w-1/3"></div>
+            <div className="h-48 bg-muted rounded"></div>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   if (!tenantId) {
     return (
