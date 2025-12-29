@@ -512,12 +512,14 @@ export class SubscriptionService {
     const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
     
     // Log what Stripe actually returns for period fields
-    console.log("[subscriptionService] Stripe subscription period data:", {
+    console.log("[subscriptionService] Stripe subscription data:", {
       current_period_start: subscription.current_period_start,
       current_period_end: subscription.current_period_end,
       trial_start: subscription.trial_start,
       trial_end: subscription.trial_end,
-      status: subscription.status
+      status: subscription.status,
+      cancel_at_period_end: subscription.cancel_at_period_end,
+      canceled_at: subscription.canceled_at
     });
     
     // Get plan ID from price
