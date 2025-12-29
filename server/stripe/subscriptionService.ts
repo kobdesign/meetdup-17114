@@ -122,13 +122,140 @@ export const getSubscriptionPlans = (): SubscriptionPlan[] => {
 
 export const SUBSCRIPTION_PLANS = getSubscriptionPlans();
 
+// Cache for database-sourced plans (refreshes every 5 minutes)
+let cachedDbPlans: SubscriptionPlan[] | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Fetch plans from database tables (plan_definitions, plan_features, plan_limits)
+async function getPlansFromDatabase(): Promise<SubscriptionPlan[] | null> {
+  try {
+    // Check cache first
+    if (cachedDbPlans && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
+      return cachedDbPlans;
+    }
+
+    const priceIds = getPriceIds();
+
+    // Fetch plan definitions
+    const { data: planDefs, error: planDefsError } = await supabaseAdmin
+      .from('plan_definitions')
+      .select('*')
+      .order('display_order', { ascending: true });
+
+    if (planDefsError || !planDefs || planDefs.length === 0) {
+      console.log('[subscriptionService] No plan definitions found in database, using defaults');
+      return null;
+    }
+
+    // Fetch plan features
+    const { data: planFeatures } = await supabaseAdmin
+      .from('plan_features')
+      .select('plan_id, feature_key, enabled');
+
+    // Fetch plan limits
+    const { data: planLimits } = await supabaseAdmin
+      .from('plan_limits')
+      .select('plan_id, limit_key, limit_value');
+
+    // Fetch feature catalog for display names
+    const { data: featureCatalog } = await supabaseAdmin
+      .from('feature_catalog')
+      .select('feature_key, display_name');
+
+    const featureNames = new Map(featureCatalog?.map(f => [f.feature_key, f.display_name]) || []);
+
+    // Build plans from database
+    const plans: SubscriptionPlan[] = planDefs.map(def => {
+      const planId = def.id; // column is 'id' not 'plan_id'
+      
+      // Get enabled features for this plan
+      const enabledFeatures = (planFeatures || [])
+        .filter(pf => pf.plan_id === planId && pf.enabled)
+        .map(pf => featureNames.get(pf.feature_key) || pf.feature_key);
+
+      // Get limits for this plan
+      const limitsMap = new Map(
+        (planLimits || [])
+          .filter(pl => pl.plan_id === planId)
+          .map(pl => [pl.limit_key, pl.limit_value])
+      );
+
+      // Get price IDs based on plan (from DB or env vars)
+      let monthlyPriceId = def.stripe_monthly_price_id || '';
+      let yearlyPriceId = def.stripe_yearly_price_id || '';
+      if (!monthlyPriceId && planId === 'starter') {
+        monthlyPriceId = priceIds.starter_monthly;
+        yearlyPriceId = priceIds.starter_yearly;
+      } else if (!monthlyPriceId && planId === 'pro') {
+        monthlyPriceId = priceIds.pro_monthly;
+        yearlyPriceId = priceIds.pro_yearly;
+      }
+
+      return {
+        id: planId,
+        name: def.name,
+        description: def.description || '',
+        features: enabledFeatures.length > 0 ? enabledFeatures : getDefaultFeatures(planId),
+        prices: {
+          monthly: { id: monthlyPriceId, amount: def.monthly_price_cents || 0 },
+          yearly: { id: yearlyPriceId, amount: def.yearly_price_cents || 0 }
+        },
+        limits: {
+          members: limitsMap.get('members') ?? getDefaultLimit(planId, 'members'),
+          meetings_per_month: limitsMap.get('meetings_per_month') ?? getDefaultLimit(planId, 'meetings_per_month'),
+          ai_queries_per_month: limitsMap.get('ai_queries_per_month') ?? getDefaultLimit(planId, 'ai_queries_per_month'),
+          storage_gb: limitsMap.get('storage_gb') ?? getDefaultLimit(planId, 'storage_gb')
+        }
+      };
+    });
+
+    // Update cache
+    cachedDbPlans = plans;
+    cacheTimestamp = Date.now();
+    console.log('[subscriptionService] Loaded plans from database:', plans.map(p => p.id));
+
+    return plans;
+  } catch (error) {
+    console.error('[subscriptionService] Error fetching plans from database:', error);
+    return null;
+  }
+}
+
+function getDefaultFeatures(planId: string): string[] {
+  const defaults: Record<string, string[]> = {
+    free: ['Up to 10 members', 'Basic meeting management', 'Member check-in', 'Email support'],
+    starter: ['Up to 30 members', 'Visitor management', 'Payment tracking', 'Basic analytics', 'LINE integration', 'Priority email support'],
+    pro: ['Unlimited members', 'AI Growth Co-Pilot', 'Advanced analytics', 'Custom branding', 'RSVP & notifications', 'Apps marketplace', 'API access', '24/7 priority support']
+  };
+  return defaults[planId] || [];
+}
+
+function getDefaultLimit(planId: string, limitKey: string): number {
+  const defaults: Record<string, Record<string, number>> = {
+    free: { members: 10, meetings_per_month: 4, ai_queries_per_month: 0, storage_gb: 1 },
+    starter: { members: 30, meetings_per_month: 8, ai_queries_per_month: 50, storage_gb: 5 },
+    pro: { members: -1, meetings_per_month: -1, ai_queries_per_month: 500, storage_gb: 50 }
+  };
+  return defaults[planId]?.[limitKey] ?? 0;
+}
+
+// Clear cache (useful when admin updates plan config)
+export function clearPlanCache() {
+  cachedDbPlans = null;
+  cacheTimestamp = 0;
+  console.log('[subscriptionService] Plan cache cleared');
+}
+
 export class SubscriptionService {
   async getPublishableKey(): Promise<string> {
     return await getStripePublishableKey();
   }
 
   async getPlans(): Promise<SubscriptionPlan[]> {
-    return getSubscriptionPlans();
+    // Try to get plans from database first, fallback to hardcoded
+    const dbPlans = await getPlansFromDatabase();
+    return dbPlans || getSubscriptionPlans();
   }
 
   async getTenantSubscription(tenantId: string): Promise<TenantSubscription | null> {
@@ -187,15 +314,15 @@ export class SubscriptionService {
       throw new Error('Invalid price ID. Please configure Stripe price IDs in environment variables.');
     }
 
-    // Verify price ID matches a known plan
-    const plans = getSubscriptionPlans();
+    // Verify price ID matches a known plan (from database or fallback)
+    const plans = await this.getPlans();
     const validPriceIds = plans.flatMap(p => [p.prices.monthly.id, p.prices.yearly.id]).filter(Boolean);
     
     if (!validPriceIds.includes(priceId)) {
       throw new Error(
-        'Price ID not recognized. Please ensure STRIPE_STARTER_MONTHLY_PRICE_ID, ' +
-        'STRIPE_STARTER_YEARLY_PRICE_ID, STRIPE_PRO_MONTHLY_PRICE_ID, and ' +
-        'STRIPE_PRO_YEARLY_PRICE_ID are configured in Replit Secrets.'
+        'Price ID not recognized. Please ensure Stripe price IDs are configured in Plan Configuration ' +
+        'or set STRIPE_STARTER_MONTHLY_PRICE_ID, STRIPE_STARTER_YEARLY_PRICE_ID, ' +
+        'STRIPE_PRO_MONTHLY_PRICE_ID, and STRIPE_PRO_YEARLY_PRICE_ID in Replit Secrets.'
       );
     }
 
@@ -265,7 +392,7 @@ export class SubscriptionService {
     cancelAtPeriodEnd: boolean,
     priceId: string
   ): Promise<void> {
-    const planId = this.getPlanIdFromPrice(priceId);
+    const planId = await this.getPlanIdFromPrice(priceId);
 
     // Build update object, only include plan_id if we have a valid one
     const updateData: Record<string, any> = {
@@ -290,12 +417,13 @@ export class SubscriptionService {
       .eq('stripe_subscription_id', stripeSubscriptionId);
   }
 
-  getPlanIdFromPrice(priceId: string): string {
+  async getPlanIdFromPrice(priceId: string): Promise<string> {
     if (!priceId) {
       // Return null/empty signals caller to preserve existing plan
       return '';
     }
-    const plans = getSubscriptionPlans();
+    // Use database-sourced plans (with fallback to hardcoded)
+    const plans = await this.getPlans();
     for (const plan of plans) {
       if (plan.prices.monthly.id === priceId || plan.prices.yearly.id === priceId) {
         return plan.id;
@@ -462,7 +590,10 @@ export class SubscriptionService {
   }> {
     const subscription = await this.getTenantSubscription(tenantId);
     const planId = subscription?.plan_id || 'free';
-    const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId) || SUBSCRIPTION_PLANS[0];
+    
+    // Get plans from database (with fallback to hardcoded)
+    const plans = await this.getPlans();
+    const plan = plans.find(p => p.id === planId) || plans[0];
 
     const { count: memberCount } = await supabaseAdmin
       .from('participants')
