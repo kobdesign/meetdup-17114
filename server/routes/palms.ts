@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../utils/supabaseClient";
 import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { verifyProfileToken, ProfileTokenPayload } from "../utils/profileToken";
 import { LineClient } from "../services/line/lineClient";
+import { subscriptionService } from "../stripe/subscriptionService";
 
 const router = Router();
 
@@ -2421,6 +2422,19 @@ router.post("/participants/:participantId/convert-to-member", verifySupabaseAuth
     const hasAccess = await checkAdminAccess(userId, tenant_id);
     if (!hasAccess) {
       return res.status(403).json({ success: false, error: "ไม่มีสิทธิ์ดำเนินการ" });
+    }
+
+    // Check member limit before converting
+    const limitCheck = await subscriptionService.checkLimitExceeded(tenant_id, 'members');
+    if (limitCheck.exceeded) {
+      console.log(`${logPrefix} Member limit exceeded for tenant ${tenant_id}: ${limitCheck.current}/${limitCheck.limit}`);
+      return res.status(403).json({ 
+        success: false, 
+        error: "LIMIT_EXCEEDED",
+        message: `Chapter ของคุณมีสมาชิกครบ ${limitCheck.limit} คนแล้ว กรุณาอัพเกรดแพลนเพื่อเพิ่มสมาชิก`,
+        current: limitCheck.current,
+        limit: limitCheck.limit
+      });
     }
 
     // Get participant info

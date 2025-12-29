@@ -10,6 +10,7 @@ import {
   sendApprovalNotificationToApplicant,
   sendRejectionNotificationToApplicant
 } from "../services/memberApprovalService";
+import { subscriptionService } from "../stripe/subscriptionService";
 import crypto from "crypto";
 
 const router = Router();
@@ -247,6 +248,19 @@ router.post("/invite/accept/:token", verifySupabaseAuth, async (req: Authenticat
     // Check if max uses reached
     if (invite.uses_count >= invite.max_uses) {
       return res.status(400).json({ error: "This invite has reached maximum uses" });
+    }
+
+    // Check member limit before accepting invite
+    const limitCheck = await subscriptionService.checkLimitExceeded(invite.tenant_id, 'members');
+    if (limitCheck.exceeded) {
+      console.log(`[invite-accept] Member limit exceeded for tenant ${invite.tenant_id}: ${limitCheck.current}/${limitCheck.limit}`);
+      return res.status(403).json({ 
+        success: false,
+        error: "LIMIT_EXCEEDED",
+        message: `Chapter นี้มีสมาชิกครบ ${limitCheck.limit} คนแล้ว ไม่สามารถรับสมาชิกเพิ่มได้ในขณะนี้`,
+        current: limitCheck.current,
+        limit: limitCheck.limit
+      });
     }
 
     // Check if user already has role in this chapter
@@ -712,6 +726,21 @@ router.post("/join-request/:requestId/:action", verifySupabaseAuth, async (req: 
 
     if (request.status !== "pending") {
       return res.status(400).json({ error: "คำขอนี้ได้รับการดำเนินการแล้ว" });
+    }
+
+    // Check member limit before approving
+    if (action === "approve") {
+      const limitCheck = await subscriptionService.checkLimitExceeded(request.tenant_id, 'members');
+      if (limitCheck.exceeded) {
+        console.log(`[join-request] Member limit exceeded for tenant ${request.tenant_id}: ${limitCheck.current}/${limitCheck.limit}`);
+        return res.status(403).json({ 
+          success: false,
+          error: "LIMIT_EXCEEDED",
+          message: `Chapter มีสมาชิกครบ ${limitCheck.limit} คนแล้ว กรุณาอัพเกรดแพลนเพื่อเพิ่มสมาชิก`,
+          current: limitCheck.current,
+          limit: limitCheck.limit
+        });
+      }
     }
 
     const { data: tenant } = await supabaseAdmin

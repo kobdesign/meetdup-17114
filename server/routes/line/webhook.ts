@@ -12,6 +12,7 @@ import { handleApplyMember, handleSkipApply, handleApproveMember, handleRejectMe
 import { handleRsvpConfirm, handleRsvpSubstitute, handleRsvpLeave, handleLeaveReason, getLeaveConversationState, clearLeaveConversationState } from "../../services/line/handlers/rsvpHandler";
 import { processChapterAIQuery, isChapterAIQuery } from "../../services/chapterAI";
 import { isN8nAIEnabled, forwardToN8nAI } from "../../services/n8nAIQuery";
+import { subscriptionService } from "../../stripe/subscriptionService";
 
 const router = Router();
 
@@ -998,6 +999,17 @@ async function handleChapterAIQuery(
   console.log(`${logPrefix} Processing AI query: "${text}"`);
 
   try {
+    // Check AI query limit before processing
+    const limitCheck = await subscriptionService.checkLimitExceeded(tenantId, 'ai_queries');
+    if (limitCheck.exceeded) {
+      console.log(`${logPrefix} AI query limit exceeded for tenant ${tenantId}: ${limitCheck.current}/${limitCheck.limit}`);
+      await replyMessage(event.replyToken, {
+        type: "text",
+        text: `ขออภัย Chapter ของคุณใช้งาน AI ครบ ${limitCheck.limit} ครั้ง/เดือนแล้ว กรุณาอัพเกรดแพลนเพื่อใช้งานต่อ`
+      }, accessToken, tenantId);
+      return;
+    }
+
     let response: string;
 
     // Check if n8n Text-to-SQL is enabled
