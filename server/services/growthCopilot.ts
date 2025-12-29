@@ -356,6 +356,25 @@ function calculateEngagementScore(
   };
 }
 
+async function logAIUsage(tenantId: string, source: string, prompt: string): Promise<void> {
+  try {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    await supabaseAdmin
+      .from("ai_conversations")
+      .insert({
+        tenant_id: tenantId,
+        line_user_id: `system:${source}`,
+        role: "user",
+        content: prompt.substring(0, 500),
+        expires_at: expiresAt.toISOString()
+      });
+  } catch (error) {
+    console.error("[GrowthCopilot] Error logging AI usage:", error);
+  }
+}
+
 async function generateAISummary(
   tenantId: string,
   churnRisks: ChurnRiskMember[],
@@ -382,6 +401,8 @@ ${playbook.focus_areas.join(", ")}
 Provide a concise, encouraging summary with the most important action item. Use simple language.`;
 
   try {
+    await logAIUsage(tenantId, "growth_copilot", prompt);
+    
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],

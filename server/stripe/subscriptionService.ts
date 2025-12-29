@@ -480,12 +480,19 @@ export class SubscriptionService {
       .eq('tenant_id', tenantId)
       .gte('meeting_date', startOfMonth.toISOString());
 
+    const { count: aiQueryCount } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('role', 'user')
+      .gte('created_at', startOfMonth.toISOString());
+
     return {
       plan,
       usage: {
         members: memberCount || 0,
         meetings_this_month: meetingCount || 0,
-        ai_queries_this_month: 0 // TODO: Track AI usage
+        ai_queries_this_month: aiQueryCount || 0
       }
     };
   }

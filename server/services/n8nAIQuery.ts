@@ -6,6 +6,7 @@
  */
 
 import crypto from 'crypto';
+import { supabaseAdmin } from '../utils/supabaseClient';
 
 interface N8nAIQueryRequest {
   tenant_id: string;
@@ -51,6 +52,28 @@ export function isN8nAIEnabled(): boolean {
 }
 
 /**
+ * Log AI usage for tracking/billing purposes
+ */
+async function logAIUsage(tenantId: string, lineUserId: string, message: string): Promise<void> {
+  try {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    await supabaseAdmin
+      .from('ai_conversations')
+      .insert({
+        tenant_id: tenantId,
+        line_user_id: lineUserId,
+        role: 'user',
+        content: message.substring(0, 500),
+        expires_at: expiresAt.toISOString()
+      });
+  } catch (error) {
+    console.error('[n8nAIQuery] Error logging AI usage:', error);
+  }
+}
+
+/**
  * Forward an AI query to n8n for Text-to-SQL processing
  * 
  * @param tenantId - The chapter/tenant UUID
@@ -75,6 +98,8 @@ export async function forwardToN8nAI(
   }
 
   const sessionId = getSessionId(tenantId, lineUserId);
+  
+  await logAIUsage(tenantId, lineUserId, message);
   
   const requestBody: N8nAIQueryRequest = {
     tenant_id: tenantId,
