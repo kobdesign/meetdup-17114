@@ -107,7 +107,10 @@ router.post("/checkout", async (req: Request, res: Response) => {
   try {
     const { tenantId, priceId } = req.body;
     
+    console.log("[subscriptions] Checkout request - tenantId:", tenantId, "priceId:", priceId);
+    
     if (!tenantId || !priceId) {
+      console.log("[subscriptions] Missing fields - tenantId:", !!tenantId, "priceId:", !!priceId);
       return res.status(400).json({ error: "Missing tenantId or priceId" });
     }
 

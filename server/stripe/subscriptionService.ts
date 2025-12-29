@@ -326,15 +326,24 @@ export class SubscriptionService {
       );
     }
 
-    const { data: tenant } = await supabaseAdmin
+    console.log("[subscriptionService] Looking up tenant with tenant_id:", tenantId);
+    
+    const { data: tenant, error: tenantError } = await supabaseAdmin
       .from('tenants')
       .select('tenant_name, admin_email')
       .eq('tenant_id', tenantId)
       .single();
 
-    if (!tenant) {
-      throw new Error('Tenant not found');
+    if (tenantError) {
+      console.error("[subscriptionService] Tenant lookup error:", tenantError);
     }
+    
+    if (!tenant) {
+      console.error("[subscriptionService] No tenant found for tenant_id:", tenantId);
+      throw new Error(`Tenant not found for tenant_id: ${tenantId}`);
+    }
+    
+    console.log("[subscriptionService] Found tenant:", tenant.tenant_name);
 
     const customerId = await this.createOrGetCustomer(
       tenantId,

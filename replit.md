@@ -12,6 +12,12 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
   ```
   ใช้สำหรับตรวจสอบข้อมูลจริงใน Production เมื่อ dev database ไม่มีข้อมูลที่ต้องการ
 
+## Critical Schema Rules
+- **Tenants Table Primary Key**: ตาราง `tenants` ใช้ `tenant_id` (UUID) เป็น primary key ไม่ใช่ `id`
+  - ทุก query ต้องใช้ `.eq('tenant_id', tenantId)` ไม่ใช่ `.eq('id', tenantId)`
+  - Foreign key references ต้องใช้ `REFERENCES tenants(tenant_id)`
+  - Frontend ส่ง `tenant_id` ผ่าน TenantContext.selectedTenant.tenant_id
+
 ## System Architecture
 
 ### Technology Stack
