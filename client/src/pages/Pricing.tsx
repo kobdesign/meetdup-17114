@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Check, Zap, Building2, Sparkles } from "lucide-react";
+import { Check, Zap, Building2, Sparkles, ArrowLeft, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 interface PlanPrice {
   id: string;
@@ -34,7 +35,16 @@ interface SubscriptionPlan {
 
 export default function Pricing() {
   const [isYearly, setIsYearly] = useState(false);
+  const [canGoBack, setCanGoBack] = useState(false);
   const navigate = useNavigate();
+  const { isReady, userRole, selectedTenant } = useTenantContext();
+  
+  const isAuthenticated = isReady && !!userRole;
+  const isAdmin = userRole === "chapter_admin" || userRole === "super_admin";
+  
+  useEffect(() => {
+    setCanGoBack(window.history.length > 1);
+  }, []);
 
   const { data: plansData, isLoading } = useQuery<{ plans: SubscriptionPlan[] }>({
     queryKey: ["/api/subscriptions/plans"],
@@ -87,9 +97,45 @@ export default function Pricing() {
     );
   }
 
+  const handleBack = () => {
+    if (canGoBack) {
+      navigate(-1);
+    } else if (isAdmin) {
+      navigate("/admin/billing");
+    } else if (isAuthenticated) {
+      navigate("/admin");
+    } else {
+      navigate("/");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-16">
+        <div className="flex items-center justify-between mb-8">
+          <Button 
+            variant="ghost" 
+            onClick={handleBack}
+            data-testid="button-back"
+            className="gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {canGoBack ? "ย้อนกลับ" : isAdmin ? "จัดการ Billing" : "หน้าแรก"}
+          </Button>
+          
+          {isAdmin && selectedTenant && (
+            <Button 
+              variant="outline" 
+              onClick={() => navigate("/admin/billing")}
+              data-testid="button-manage-billing"
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              จัดการ Billing
+            </Button>
+          )}
+        </div>
+        
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold tracking-tight mb-4" data-testid="heading-pricing">
             Simple, Transparent Pricing
@@ -216,12 +262,9 @@ export default function Pricing() {
 
         <div className="mt-12 text-center">
           <h3 className="text-lg font-semibold mb-4">Questions?</h3>
-          <p className="text-muted-foreground mb-4">
+          <p className="text-muted-foreground">
             Contact us at support@meetdup.app for custom enterprise plans or volume discounts.
           </p>
-          <Button variant="outline" onClick={() => navigate("/")}>
-            Back to Home
-          </Button>
         </div>
       </div>
     </div>

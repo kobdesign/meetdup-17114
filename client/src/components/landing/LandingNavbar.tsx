@@ -15,6 +15,7 @@ const LandingNavbar = () => {
     { label: t("nav.features"), href: "#features" },
     { label: t("nav.pricing"), href: "#pricing" },
     { label: t("nav.faq"), href: "#faq" },
+    { label: t("nav.pricingPlans") || "View Plans", href: "/pricing", isRoute: true },
   ];
 
   const scrollToSection = (href: string) => {
@@ -35,9 +36,9 @@ const LandingNavbar = () => {
             {navItems.map((item) => (
               <button
                 key={item.label}
-                onClick={() => scrollToSection(item.href)}
+                onClick={() => item.isRoute ? navigate(item.href) : scrollToSection(item.href)}
                 className="text-white/80 hover:text-white transition-colors text-sm font-medium"
-                data-testid={`nav-${item.label.toLowerCase()}`}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 {item.label}
               </button>
@@ -79,9 +80,16 @@ const LandingNavbar = () => {
               {navItems.map((item) => (
                 <button
                   key={item.label}
-                  onClick={() => scrollToSection(item.href)}
+                  onClick={() => {
+                    if (item.isRoute) {
+                      setIsMenuOpen(false);
+                      navigate(item.href);
+                    } else {
+                      scrollToSection(item.href);
+                    }
+                  }}
                   className="text-white/80 transition-colors text-sm font-medium text-left"
-                  data-testid={`nav-mobile-${item.label.toLowerCase()}`}
+                  data-testid={`nav-mobile-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                 >
                   {item.label}
                 </button>

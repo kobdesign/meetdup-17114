@@ -39,7 +39,8 @@ import {
   ChevronRight,
   DollarSign,
   Palette,
-  Brain
+  Brain,
+  Zap
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -218,6 +219,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             { icon: <Settings className="h-4 w-4" />, label: "การตั้งค่า Chapter", href: "/admin/settings" },
             { icon: <LayoutGrid className="h-4 w-4" />, label: "App Center", href: "/admin/app-center" },
             { icon: <DollarSign className="h-4 w-4" />, label: "Billing", href: "/admin/billing" },
+            { icon: <Zap className="h-4 w-4" />, label: "อัพเกรดแพลน", href: "/pricing" },
           ],
         },
       ],
