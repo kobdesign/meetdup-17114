@@ -95,7 +95,7 @@ export function TrialBanner() {
           <Button
             size="sm"
             variant={isUrgent ? "default" : "outline"}
-            onClick={() => (window.location.href = "/admin/billing")}
+            onClick={() => (window.location.href = "/pricing")}
             data-testid="button-trial-upgrade"
           >
             Upgrade Now
