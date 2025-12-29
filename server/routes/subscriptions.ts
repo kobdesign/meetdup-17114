@@ -121,7 +121,7 @@ router.post("/checkout", async (req: Request, res: Response) => {
     const session = await subscriptionService.createCheckoutSession(
       tenantId,
       priceId,
-      `${baseUrl}/admin/billing?success=true`,
+      `${baseUrl}/admin/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
       `${baseUrl}/admin/billing?canceled=true`
     );
 
@@ -129,6 +129,27 @@ router.post("/checkout", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("[subscriptions] Error creating checkout:", error);
     res.status(500).json({ error: error.message || "Failed to create checkout" });
+  }
+});
+
+// Complete checkout and sync subscription immediately
+router.post("/checkout-complete", async (req: Request, res: Response) => {
+  try {
+    const { sessionId, tenantId } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: "Missing sessionId" });
+    }
+
+    console.log("[subscriptions] Completing checkout - sessionId:", sessionId, "tenantId:", tenantId);
+    
+    const result = await subscriptionService.syncSubscriptionFromCheckoutSession(sessionId, tenantId);
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error("[subscriptions] Error completing checkout:", error);
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ error: error.message || "Failed to complete checkout" });
   }
 });
 

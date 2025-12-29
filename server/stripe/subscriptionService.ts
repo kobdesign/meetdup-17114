@@ -414,6 +414,73 @@ export class SubscriptionService {
     return { url: session.url };
   }
 
+  async syncSubscriptionFromCheckoutSession(
+    sessionId: string,
+    expectedTenantId?: string
+  ): Promise<{ success: boolean; planId: string; status: string }> {
+    const stripe = await getUncachableStripeClient();
+    
+    // Retrieve the checkout session with subscription expanded
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription']
+    });
+    
+    if (!session.subscription) {
+      throw new Error('No subscription found in checkout session');
+    }
+    
+    const subscription = session.subscription as any;
+    const tenantId = session.metadata?.tenant_id || expectedTenantId;
+    
+    if (!tenantId) {
+      throw new Error('No tenant_id found in session metadata');
+    }
+    
+    // Validate tenant ownership if expectedTenantId was provided
+    if (expectedTenantId && tenantId !== expectedTenantId) {
+      const error = new Error('Tenant ID mismatch - unauthorized access') as Error & { statusCode: number };
+      error.statusCode = 403;
+      throw error;
+    }
+    
+    // Get plan ID from price
+    const priceId = subscription.items?.data?.[0]?.price?.id || '';
+    const planId = await this.getPlanIdFromPrice(priceId);
+    
+    console.log("[subscriptionService] Syncing subscription:", {
+      sessionId,
+      tenantId,
+      subscriptionId: subscription.id,
+      status: subscription.status,
+      planId
+    });
+    
+    // Update tenant_subscriptions with subscription data
+    const updateData: Record<string, any> = {
+      stripe_subscription_id: subscription.id,
+      plan_id: planId,
+      status: subscription.status,
+      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+      cancel_at_period_end: subscription.cancel_at_period_end || false,
+      updated_at: new Date().toISOString()
+    };
+    
+    await supabaseAdmin
+      .from('tenant_subscriptions')
+      .update(updateData)
+      .eq('tenant_id', tenantId);
+    
+    console.log("[subscriptionService] Subscription synced successfully for tenant:", tenantId);
+    
+    return {
+      success: true,
+      planId,
+      status: subscription.status
+    };
+  }
+
   async updateSubscriptionFromWebhook(
     stripeSubscriptionId: string,
     status: string,

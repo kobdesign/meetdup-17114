@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { CreditCard, CheckCircle2, AlertCircle, ExternalLink, Calendar, Users, Zap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useTenantContext } from "@/contexts/TenantContext";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/layout/AdminLayout";
 
@@ -52,13 +52,16 @@ interface UsageData {
 
 export default function BillingSettings() {
   const { selectedTenant } = useTenantContext();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [pendingUpgrade, setPendingUpgrade] = useState<{plan: string; billing: string} | null>(null);
   const [isProcessingUpgrade, setIsProcessingUpgrade] = useState(false);
+  const [isSyncingSubscription, setIsSyncingSubscription] = useState(false);
 
   const success = searchParams.get("success") === "true";
   const canceled = searchParams.get("canceled") === "true";
+  const sessionId = searchParams.get("session_id");
 
   const tenantId = selectedTenant?.tenant_id;
   
@@ -82,6 +85,49 @@ export default function BillingSettings() {
       setPendingUpgrade(null);
     }
   }, [success, pendingUpgrade]);
+  
+  // Sync subscription immediately after checkout redirect
+  useEffect(() => {
+    const syncSubscription = async () => {
+      if (!sessionId || !tenantId || isSyncingSubscription) return;
+      
+      setIsSyncingSubscription(true);
+      console.log("[BillingSettings] Syncing subscription from session:", sessionId);
+      
+      try {
+        await apiRequest('/api/subscriptions/checkout-complete', 'POST', {
+          sessionId,
+          tenantId
+        });
+        
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/status", tenantId] });
+        queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/usage", tenantId] });
+        
+        // Remove session_id and success from URL to prevent re-sync on refresh
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('session_id');
+        newParams.delete('success');
+        setSearchParams(newParams, { replace: true });
+        
+        toast({
+          title: "Subscription Activated",
+          description: "Your subscription has been activated successfully!",
+        });
+      } catch (error: any) {
+        console.error("[BillingSettings] Error syncing subscription:", error);
+        toast({
+          title: "Warning",
+          description: "Subscription sync in progress. Please refresh the page in a few seconds.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSyncingSubscription(false);
+      }
+    };
+    
+    syncSubscription();
+  }, [sessionId, tenantId]);
   
   // Function to resume pending upgrade checkout
   const resumePendingUpgrade = async () => {
