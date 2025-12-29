@@ -72,6 +72,41 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 
 **RBAC:** Admin sees full details, Member sees counts only
 
+### Dynamic Plan Configuration System
+
+**Purpose:** Manage subscription plans, features, and limits without hardcoding.
+
+**Database Tables:**
+- `feature_catalog` - Registry of available features with display names/categories
+- `limit_catalog` - Registry of usage limits (members, meetings, AI queries, storage)
+- `plan_definitions` - Plan metadata (free, starter, pro) with Stripe price IDs
+- `plan_features` - Junction table mapping features to plans (enabled/disabled)
+- `plan_limits` - Junction table mapping limit values to plans
+
+**Core Files:**
+- `server/migrations/20251229_create_plan_config_tables.sql` - Database schema
+- `server/routes/planConfig.ts` - CRUD API with super admin auth
+- `client/src/pages/super-admin/PlanConfiguration.tsx` - Admin UI
+- `client/src/hooks/usePlanConfig.ts` - Frontend hooks for feature gating
+- `server/stripe/subscriptionService.ts` - Backend feature/limit checking
+
+**API Endpoints:**
+- `GET /api/plan-config` - Public, returns config without Stripe price IDs
+- `GET /api/plan-config/admin` - Super admin only, full config with Stripe IDs
+- `PUT /api/plan-config/plans/:planId` - Update plan definition
+- `PUT /api/plan-config/plan-features` - Bulk update feature toggles
+- `PUT /api/plan-config/plan-limits` - Bulk update limit values
+
+**Frontend Hooks:**
+- `usePlanConfig()` - Fetch all plan configuration
+- `usePlanFeature(planId, featureKey)` - Check if feature enabled for plan
+- `useTenantPlanFeature(featureKey)` - Check feature for current tenant's plan
+
+**Backend Methods:**
+- `checkFeatureAccess(tenantId, feature)` - Async, checks DB then fallback
+- `checkPlanFeature(planId, feature)` - Async, database-backed check
+- `checkPlanLimit(planId, limitKey)` - Async, get limit value from DB
+
 ## External Dependencies
 
 - **Supabase**: Used for PostgreSQL database, authentication (Supabase Auth), and storage (Supabase Storage).
