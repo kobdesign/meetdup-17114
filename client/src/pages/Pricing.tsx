@@ -38,6 +38,13 @@ export default function Pricing() {
 
   const { data: plansData, isLoading } = useQuery<{ plans: SubscriptionPlan[] }>({
     queryKey: ["/api/subscriptions/plans"],
+    queryFn: async () => {
+      const response = await fetch("/api/subscriptions/plans");
+      if (!response.ok) {
+        throw new Error("Failed to fetch plans");
+      }
+      return response.json();
+    },
   });
 
   const plans = plansData?.plans || [];
