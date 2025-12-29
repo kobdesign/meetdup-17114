@@ -456,13 +456,20 @@ export class SubscriptionService {
     });
     
     // Update tenant_subscriptions with subscription data
+    // Safely convert timestamps - Stripe returns Unix timestamps (seconds), handle missing values
+    const safeTimestampToISO = (timestamp: number | null | undefined): string | null => {
+      if (timestamp == null || isNaN(timestamp)) return null;
+      const date = new Date(timestamp * 1000);
+      return isNaN(date.getTime()) ? null : date.toISOString();
+    };
+    
     const updateData: Record<string, any> = {
       stripe_subscription_id: subscription.id,
       plan_id: planId,
       status: subscription.status,
-      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+      current_period_start: safeTimestampToISO(subscription.current_period_start),
+      current_period_end: safeTimestampToISO(subscription.current_period_end),
+      trial_end: safeTimestampToISO(subscription.trial_end),
       cancel_at_period_end: subscription.cancel_at_period_end || false,
       updated_at: new Date().toISOString()
     };
