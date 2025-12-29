@@ -190,4 +190,24 @@ router.get("/feature/:tenantId/:feature", async (req: Request, res: Response) =>
   }
 });
 
+// Re-sync subscription from Stripe (admin action)
+router.post("/sync", async (req: Request, res: Response) => {
+  try {
+    const { tenantId, stripeSubscriptionId } = req.body;
+    
+    if (!tenantId || !stripeSubscriptionId) {
+      return res.status(400).json({ error: "Missing tenantId or stripeSubscriptionId" });
+    }
+
+    console.log("[subscriptions] Manual sync requested - tenantId:", tenantId, "subscriptionId:", stripeSubscriptionId);
+    
+    const result = await subscriptionService.syncSubscriptionFromStripe(tenantId, stripeSubscriptionId);
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error("[subscriptions] Error syncing subscription:", error);
+    res.status(500).json({ error: error.message || "Failed to sync subscription" });
+  }
+});
+
 export default router;

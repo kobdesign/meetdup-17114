@@ -488,6 +488,69 @@ export class SubscriptionService {
     };
   }
 
+  async syncSubscriptionFromStripe(tenantId: string, stripeSubscriptionId: string): Promise<{
+    success: boolean;
+    planId: string;
+    status: string;
+  }> {
+    const stripe = await getUncachableStripeClient();
+    if (!stripe) {
+      throw new Error('Stripe not configured');
+    }
+    
+    console.log("[subscriptionService] Syncing subscription from Stripe:", {
+      tenantId,
+      stripeSubscriptionId
+    });
+    
+    // Retrieve the subscription from Stripe
+    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+    
+    // Get plan ID from price
+    const priceId = subscription.items?.data?.[0]?.price?.id || '';
+    const planId = await this.getPlanIdFromPrice(priceId);
+    
+    // Safely convert timestamps
+    const safeTimestampToISO = (timestamp: number | null | undefined): string | null => {
+      if (timestamp == null || isNaN(timestamp)) return null;
+      const date = new Date(timestamp * 1000);
+      return isNaN(date.getTime()) ? null : date.toISOString();
+    };
+    
+    // Build update data - only include plan_id if we have a valid one
+    // This mirrors webhook behavior to preserve existing plan_id when price lookup fails
+    const updateData: Record<string, any> = {
+      stripe_subscription_id: subscription.id,
+      status: subscription.status,
+      current_period_start: safeTimestampToISO(subscription.current_period_start),
+      current_period_end: safeTimestampToISO(subscription.current_period_end),
+      trial_end: safeTimestampToISO(subscription.trial_end),
+      cancel_at_period_end: subscription.cancel_at_period_end || false,
+      updated_at: new Date().toISOString()
+    };
+    
+    // Only update plan_id if we have a valid one (non-empty)
+    if (planId && planId !== '') {
+      updateData.plan_id = planId;
+    } else {
+      console.warn("[subscriptionService] Price lookup failed for priceId:", priceId, "- preserving existing plan_id");
+    }
+    
+    await supabaseAdmin
+      .from('tenant_subscriptions')
+      .update(updateData)
+      .eq('tenant_id', tenantId);
+    
+    const effectivePlanId = planId || 'preserved';
+    console.log("[subscriptionService] Subscription synced successfully from Stripe for tenant:", tenantId, "plan:", effectivePlanId, "status:", subscription.status);
+    
+    return {
+      success: true,
+      planId: effectivePlanId,
+      status: subscription.status
+    };
+  }
+
   async updateSubscriptionFromWebhook(
     stripeSubscriptionId: string,
     status: string,
