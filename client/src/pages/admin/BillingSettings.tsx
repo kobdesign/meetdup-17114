@@ -60,11 +60,13 @@ export default function BillingSettings() {
 
   const { data: subscriptionData, isLoading: isLoadingSubscription } = useQuery<SubscriptionStatus>({
     queryKey: ["/api/subscriptions/status", tenantId],
+    queryFn: () => apiRequest(`/api/subscriptions/status/${tenantId}`),
     enabled: !!tenantId,
   });
 
   const { data: usageData, isLoading: isLoadingUsage } = useQuery<UsageData>({
     queryKey: ["/api/subscriptions/usage", tenantId],
+    queryFn: () => apiRequest(`/api/subscriptions/usage/${tenantId}`),
     enabled: !!tenantId,
   });
 
