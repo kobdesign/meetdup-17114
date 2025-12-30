@@ -470,6 +470,13 @@ export default function MeetingOperations() {
     }
   };
 
+  const refreshMeetingAnalytics = async () => {
+    await Promise.all([
+      loadParticipantsWithStatus(),
+      loadRegisteredVisitors()
+    ]);
+  };
+
   const stats = useMemo(() => {
     const members = participants.filter(p => p.status === "member");
     const membersCheckedIn = members.filter(p => p.is_checked_in);
@@ -1744,17 +1751,16 @@ export default function MeetingOperations() {
 
       <VisitorRegistrationDialog
         open={visitorRegDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={async (open) => {
           setVisitorRegDialogOpen(open);
           if (!open) {
-            loadParticipantsWithStatus();
+            await refreshMeetingAnalytics();
           }
         }}
         tenantId={effectiveTenantId || ""}
         meetingId={selectedMeetingId}
-        onSuccess={() => {
-          loadParticipantsWithStatus();
-          loadRegisteredVisitors();
+        onSuccess={async () => {
+          await refreshMeetingAnalytics();
         }}
       />
 
