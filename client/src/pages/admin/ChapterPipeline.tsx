@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTenantContext } from "@/contexts/TenantContext";
+import { usePipelineRealtime } from "@/hooks/usePipelineRealtime";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -171,6 +172,8 @@ export default function ChapterPipeline() {
   const { selectedTenant, isReady } = useTenantContext();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+
+  usePipelineRealtime({ tenantId: selectedTenant?.tenant_id || null });
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<PipelineRecord | null>(null);

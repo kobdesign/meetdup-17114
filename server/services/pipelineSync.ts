@@ -232,7 +232,15 @@ export async function syncCheckInToPipeline(params: {
       .eq("meeting_id", meeting_id)
       .single();
 
-    const newMeetingsAttended = (record.meetings_attended || 0) + 1;
+    // Count actual check-ins from checkins table (including the one just inserted)
+    const { count: actualCheckins } = await supabaseAdmin
+      .from("checkins")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenant_id)
+      .eq("participant_id", participant_id);
+
+    const newMeetingsAttended = actualCheckins || 1;
+    console.log(`${logPrefix} Actual check-ins from DB: ${newMeetingsAttended} (record had: ${record.meetings_attended || 0})`);
     const now = new Date().toISOString();
 
     // Determine target stage based on current stage and attendance count
