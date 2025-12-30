@@ -221,10 +221,11 @@ function getDateRange(filterKey: TimeFilterKey, lastMeetingDate?: string | null)
     case "last_meeting": {
       // Use the last meeting date as dateFrom, until today
       if (lastMeetingDate) {
-        // lastMeetingDate is in YYYY-MM-DD format
+        // Extract just the date portion (YYYY-MM-DD) - handle both YYYY-MM-DD and ISO timestamp formats
+        const dateOnly = lastMeetingDate.split('T')[0];
         // Use Thailand timezone (UTC+7) since this is a Thai-focused app
         // NOTE: Future enhancement - use tenant timezone from database
-        return { dateFrom: `${lastMeetingDate}T00:00:00+07:00`, dateTo: null };
+        return { dateFrom: `${dateOnly}T00:00:00+07:00`, dateTo: null };
       }
       // Fallback to last 30 days if no meeting found
       const thirtyDaysAgo = new Date(today);
@@ -592,8 +593,10 @@ export default function ChapterPipeline() {
               // For "last_meeting", show the date if available
               let label = option?.labelTh;
               if (filterKey === "last_meeting" && latestMeeting?.meeting_date) {
+                // Extract date portion first (handle both YYYY-MM-DD and ISO timestamp formats)
+                const dateOnly = latestMeeting.meeting_date.split('T')[0];
                 // Parse date string directly (YYYY-MM-DD) to avoid timezone issues
-                const [year, month, day] = latestMeeting.meeting_date.split("-").map(Number);
+                const [year, month, day] = dateOnly.split("-").map(Number);
                 const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", 
                                     "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
                 label = `ประชุมล่าสุด (${day} ${monthNames[month - 1]})`;
