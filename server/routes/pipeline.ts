@@ -1035,7 +1035,7 @@ router.get("/meeting-filter/:tenantId", async (req: Request, res: Response) => {
     // Get upcoming meeting (meeting date >= today)
     const { data: upcomingMeetings, error: upcomingError } = await supabaseAdmin
       .from("meetings")
-      .select("id, meeting_date, meeting_theme")
+      .select("meeting_id, meeting_date, meeting_name")
       .eq("tenant_id", tenantId)
       .gte("meeting_date", todayStr)
       .order("meeting_date", { ascending: true })
@@ -1046,7 +1046,7 @@ router.get("/meeting-filter/:tenantId", async (req: Request, res: Response) => {
     // Get latest past meeting (meeting date < today)
     const { data: pastMeetings, error: pastError } = await supabaseAdmin
       .from("meetings")
-      .select("id, meeting_date, meeting_theme")
+      .select("meeting_id, meeting_date, meeting_name")
       .eq("tenant_id", tenantId)
       .lt("meeting_date", todayStr)
       .order("meeting_date", { ascending: false })
@@ -1067,7 +1067,7 @@ router.get("/meeting-filter/:tenantId", async (req: Request, res: Response) => {
       const { data: registrations } = await supabaseAdmin
         .from("meeting_registrations")
         .select("participant_id")
-        .eq("meeting_id", upcomingMeeting.id);
+        .eq("meeting_id", upcomingMeeting.meeting_id);
       
       if (registrations && registrations.length > 0) {
         const participantIds = registrations.map((r: any) => r.participant_id);
@@ -1087,7 +1087,7 @@ router.get("/meeting-filter/:tenantId", async (req: Request, res: Response) => {
       const { data: registrations } = await supabaseAdmin
         .from("meeting_registrations")
         .select("participant_id")
-        .eq("meeting_id", latestPastMeeting.id);
+        .eq("meeting_id", latestPastMeeting.meeting_id);
       
       if (registrations && registrations.length > 0) {
         const participantIds = registrations.map((r: any) => r.participant_id);

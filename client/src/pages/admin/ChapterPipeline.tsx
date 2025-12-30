@@ -148,7 +148,7 @@ interface ImportVisitor {
   status: string;
   referrer_name: string | null;
   first_meeting_date: string;
-  first_meeting_theme: string;
+  first_meeting_name: string;
   meeting_count: number;
   checkin_count: number;
   recommended_stage: string;
@@ -188,15 +188,15 @@ export default function ChapterPipeline() {
 
   interface MeetingFilterData {
     upcoming: {
-      id: string;
+      meeting_id: string;
       meeting_date: string;
-      meeting_theme: string;
+      meeting_name: string;
       participant_identifiers: string[];
     } | null;
     latest_past: {
-      id: string;
+      meeting_id: string;
       meeting_date: string;
-      meeting_theme: string;
+      meeting_name: string;
       participant_identifiers: string[];
     } | null;
   }
