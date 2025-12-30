@@ -81,6 +81,7 @@ router.get("/records/:tenantId", async (req: Request, res: Response) => {
 router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
+    const { search } = req.query;
 
     // Get all active stages
     const { data: stages, error: stagesError } = await supabaseAdmin
@@ -102,22 +103,56 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
 
     if (recordsError) throw recordsError;
 
-    // Collect visitor_ids to lookup participant info
+    // Collect visitor_ids to lookup participant info and checkin data
     const visitorIds = records?.filter(r => r.visitor_id).map(r => r.visitor_id) || [];
     
-    // Lookup participant info (nickname and referrer)
-    let participantMap = new Map<string, { nickname_th: string | null; referred_by_participant_id: string | null }>();
+    // Lookup participant info (nickname, phone, and referrer)
+    let participantMap = new Map<string, { nickname_th: string | null; phone: string | null; referred_by_participant_id: string | null }>();
     if (visitorIds.length > 0) {
       const { data: participants } = await supabaseAdmin
         .from("participants")
-        .select("participant_id, nickname_th, referred_by_participant_id")
+        .select("participant_id, nickname_th, phone, referred_by_participant_id")
         .eq("tenant_id", tenantId)
         .in("participant_id", visitorIds);
 
       participants?.forEach((p: any) => {
         participantMap.set(p.participant_id, {
           nickname_th: p.nickname_th,
+          phone: p.phone,
           referred_by_participant_id: p.referred_by_participant_id
+        });
+      });
+    }
+
+    // Get actual checkin counts and last meeting date from checkins table
+    let checkinStatsMap = new Map<string, { checkin_count: number; last_meeting_date: string | null }>();
+    if (visitorIds.length > 0) {
+      const { data: checkinStats } = await supabaseAdmin
+        .from("checkins")
+        .select("participant_id, meeting_id, meetings(meeting_date)")
+        .eq("tenant_id", tenantId)
+        .in("participant_id", visitorIds);
+
+      // Group by participant_id and calculate count + last date
+      const statsAggregated = new Map<string, { count: number; dates: string[] }>();
+      checkinStats?.forEach((c: any) => {
+        const pid = c.participant_id;
+        const meetingDate = c.meetings?.meeting_date;
+        if (!statsAggregated.has(pid)) {
+          statsAggregated.set(pid, { count: 0, dates: [] });
+        }
+        const stat = statsAggregated.get(pid)!;
+        stat.count++;
+        if (meetingDate) {
+          stat.dates.push(meetingDate);
+        }
+      });
+
+      statsAggregated.forEach((stat, pid) => {
+        const sortedDates = stat.dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+        checkinStatsMap.set(pid, {
+          checkin_count: stat.count,
+          last_meeting_date: sortedDates[0] || null
         });
       });
     }
@@ -144,16 +179,31 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
       });
     }
 
-    // Enrich records with nickname and referrer_name
-    const enrichedRecords = records?.map((r: any) => {
+    // Enrich records with nickname, referrer_name, actual checkin stats
+    let enrichedRecords = records?.map((r: any) => {
       const participant = r.visitor_id ? participantMap.get(r.visitor_id) : null;
+      const checkinStats = r.visitor_id ? checkinStatsMap.get(r.visitor_id) : null;
       const referrerId = participant?.referred_by_participant_id;
       return {
         ...r,
         nickname_th: participant?.nickname_th || null,
-        referrer_name: referrerId ? referrerMap.get(referrerId) || null : null
+        phone: participant?.phone || r.phone || null,
+        referrer_name: referrerId ? referrerMap.get(referrerId) || null : null,
+        meetings_attended: checkinStats?.checkin_count || 0,
+        last_meeting_date: checkinStats?.last_meeting_date || null
       };
-    });
+    }) || [];
+
+    // Apply search filter (full_name, nickname_th, phone)
+    if (search && typeof search === 'string') {
+      const searchLower = search.toLowerCase();
+      enrichedRecords = enrichedRecords.filter((r: any) => {
+        const fullName = (r.full_name || '').toLowerCase();
+        const nickname = (r.nickname_th || '').toLowerCase();
+        const phone = (r.phone || '').toLowerCase();
+        return fullName.includes(searchLower) || nickname.includes(searchLower) || phone.includes(searchLower);
+      });
+    }
 
     // Get sub-statuses
     const { data: subStatuses, error: subError } = await supabaseAdmin

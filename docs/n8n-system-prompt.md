@@ -295,7 +295,7 @@ ORDER BY stage_entered_at
 LIMIT 20;
 
 #### 4. Conversion Rate (Last 30 days)
--- หมายเหตุ: นับ conversion จาก leads ที่ไม่ใช่ archived เท่านั้น
+-- หมายเหตุ: Conversion นับเฉพาะ active_member เท่านั้น (ไม่รวม onboarding)
 WITH active_leads AS (
   SELECT current_stage
   FROM pipeline_records
@@ -305,14 +305,16 @@ WITH active_leads AS (
 )
 SELECT 
   COUNT(*) as total_active_leads,
-  COUNT(*) FILTER (WHERE current_stage IN ('active_member', 'onboarding')) as converted,
+  COUNT(*) FILTER (WHERE current_stage = 'active_member') as converted,
+  COUNT(*) FILTER (WHERE current_stage = 'onboarding') as onboarding,
   ROUND(
-    COUNT(*) FILTER (WHERE current_stage IN ('active_member', 'onboarding'))::numeric 
+    COUNT(*) FILTER (WHERE current_stage = 'active_member')::numeric 
     / NULLIF(COUNT(*), 0) * 100, 1
   ) as conversion_rate_percent
 FROM active_leads;
 
 #### 5. Pipeline Funnel Summary
+-- หมายเหตุ: แยก active_member และ onboarding ออกจากกันชัดเจน
 WITH stage_counts AS (
   SELECT current_stage, COUNT(*) as count
   FROM pipeline_records
@@ -326,7 +328,8 @@ SELECT
   COALESCE(SUM(count) FILTER (WHERE current_stage = 'revisit'), 0) as revisit,
   COALESCE(SUM(count) FILTER (WHERE current_stage = 'follow_up'), 0) as follow_up,
   COALESCE(SUM(count) FILTER (WHERE current_stage = 'application_submitted'), 0) as applied,
-  COALESCE(SUM(count) FILTER (WHERE current_stage IN ('active_member', 'onboarding')), 0) as members
+  COALESCE(SUM(count) FILTER (WHERE current_stage = 'active_member'), 0) as active_members,
+  COALESCE(SUM(count) FILTER (WHERE current_stage = 'onboarding'), 0) as onboarding
 FROM stage_counts;
 
 #### 6. Visitors ใน Sub-Status ที่ระบุ
@@ -363,9 +366,11 @@ LIMIT 20;
 - Revisit: [revisit] คน (มาซ้ำ) 🔁
 - Follow-up: [follow_up] คน (กำลังติดตาม) 📞
 - Applied: [applied] คน (ยื่นใบสมัคร) 📝
-- Members: [members] คน (เป็นสมาชิกแล้ว) ⭐
+- Active Member: [active_members] คน (เป็นสมาชิกแล้ว) ⭐
+- สมาชิก Onboarding: [onboarding] คน (กำลังอบรม) 📚
 
 **📈 Conversion Rate (30 วัน)**
+- Conversion (Active Member): [converted] คน
 - อัตรา: [conversion_rate]%
 
 ### รายชื่อ Stale Leads

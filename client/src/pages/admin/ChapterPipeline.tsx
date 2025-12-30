@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTenantContext } from "@/contexts/TenantContext";
 import AdminLayout from "@/components/layout/AdminLayout";
@@ -115,6 +115,7 @@ interface PipelineRecord {
   referrer_name: string | null;
   source: string | null;
   meetings_attended: number;
+  last_meeting_date: string | null;
   notes: string | null;
   tags: string[] | null;
   created_at: string;
@@ -170,7 +171,6 @@ export default function ChapterPipeline() {
   const { selectedTenant, isReady } = useTenantContext();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<PipelineRecord | null>(null);
@@ -180,19 +180,17 @@ export default function ChapterPipeline() {
   const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set()); // selected participant_ids
   const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
-  
-  const [newLead, setNewLead] = useState({
-    full_name: "",
-    phone: "",
-    email: "",
-    line_id: "",
-    source: "referral",
-    notes: "",
-  });
 
+  const debouncedSearch = useMemo(() => searchQuery.trim(), [searchQuery]);
+  
   const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
-    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id],
-    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}`),
+    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id, debouncedSearch],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      const queryString = params.toString();
+      return apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}${queryString ? `?${queryString}` : ""}`);
+    },
     enabled: !!selectedTenant?.tenant_id,
   });
 
@@ -210,22 +208,6 @@ export default function ChapterPipeline() {
     queryKey: ["/api/pipeline/import-preview", selectedTenant?.tenant_id],
     queryFn: () => apiRequest(`/api/pipeline/import-preview/${selectedTenant?.tenant_id}`),
     enabled: isImportDialogOpen && !!selectedTenant?.tenant_id,
-  });
-
-  const createRecordMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest("/api/pipeline/records", "POST", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
-      setIsAddDialogOpen(false);
-      setNewLead({ full_name: "", phone: "", email: "", line_id: "", source: "referral", notes: "" });
-      toast({ title: "เพิ่ม Lead สำเร็จ" });
-    },
-    onError: (error: any) => {
-      toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
-    },
   });
 
   const moveRecordMutation = useMutation({
@@ -331,22 +313,6 @@ export default function ChapterPipeline() {
       </div>
     );
   }
-
-  const handleAddLead = () => {
-    if (!newLead.full_name.trim()) {
-      toast({ title: "กรุณากรอกชื่อ", variant: "destructive" });
-      return;
-    }
-    if (!newLead.phone.trim() && !newLead.email.trim()) {
-      toast({ title: "กรุณากรอกเบอร์โทรหรืออีเมล", variant: "destructive" });
-      return;
-    }
-    
-    createRecordMutation.mutate({
-      tenant_id: selectedTenant.tenant_id,
-      ...newLead,
-    });
-  };
 
   const handleMoveToStage = (record: PipelineRecord, stage: string) => {
     setSelectedRecord(record);
@@ -470,11 +436,6 @@ export default function ChapterPipeline() {
           <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import">
             <Download className="h-4 w-4 mr-2" />
             นำเข้า Visitor
-          </Button>
-          
-          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-lead">
-            <Plus className="h-4 w-4 mr-2" />
-            เพิ่ม Lead
           </Button>
         </div>
       </div>
@@ -654,9 +615,16 @@ export default function ChapterPipeline() {
                                     <span>{daysInStage} วัน</span>
                                   </div>
                                   {record.meetings_attended > 0 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      เข้าประชุม {record.meetings_attended} ครั้ง
-                                    </Badge>
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <Badge variant="secondary" className="text-xs">
+                                        เข้าประชุม {record.meetings_attended} ครั้ง
+                                      </Badge>
+                                      {record.last_meeting_date && !isNaN(new Date(record.last_meeting_date).getTime()) && (
+                                        <span className="text-[10px] text-muted-foreground">
+                                          ล่าสุด: {new Date(record.last_meeting_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               </CardContent>
@@ -673,100 +641,6 @@ export default function ChapterPipeline() {
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
-
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>เพิ่ม Lead ใหม่</DialogTitle>
-            <DialogDescription>
-              กรอกข้อมูลผู้ที่สนใจเข้าร่วม Chapter
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label>ชื่อ-นามสกุล *</Label>
-              <Input
-                value={newLead.full_name}
-                onChange={(e) => setNewLead({ ...newLead, full_name: e.target.value })}
-                placeholder="ชื่อเต็ม"
-                data-testid="input-lead-name"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>เบอร์โทรศัพท์</Label>
-                <Input
-                  value={newLead.phone}
-                  onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
-                  placeholder="0812345678"
-                  data-testid="input-lead-phone"
-                />
-              </div>
-              <div>
-                <Label>อีเมล</Label>
-                <Input
-                  value={newLead.email}
-                  onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
-                  placeholder="email@example.com"
-                  data-testid="input-lead-email"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <Label>LINE ID</Label>
-              <Input
-                value={newLead.line_id}
-                onChange={(e) => setNewLead({ ...newLead, line_id: e.target.value })}
-                placeholder="lineid"
-                data-testid="input-lead-lineid"
-              />
-            </div>
-            
-            <div>
-              <Label>แหล่งที่มา</Label>
-              <Select value={newLead.source} onValueChange={(v) => setNewLead({ ...newLead, source: v })}>
-                <SelectTrigger data-testid="select-lead-source">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="referral">แนะนำจากสมาชิก</SelectItem>
-                  <SelectItem value="walk_in">Walk-in</SelectItem>
-                  <SelectItem value="website">เว็บไซต์</SelectItem>
-                  <SelectItem value="event">งาน Event</SelectItem>
-                  <SelectItem value="social">Social Media</SelectItem>
-                  <SelectItem value="other">อื่นๆ</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label>หมายเหตุ</Label>
-              <Textarea
-                value={newLead.notes}
-                onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
-                placeholder="บันทึกเพิ่มเติม..."
-                data-testid="input-lead-notes"
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-              ยกเลิก
-            </Button>
-            <Button
-              onClick={handleAddLead}
-              disabled={createRecordMutation.isPending}
-              data-testid="button-confirm-add-lead"
-            >
-              {createRecordMutation.isPending ? "กำลังบันทึก..." : "เพิ่ม Lead"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
         <DialogContent>
