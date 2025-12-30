@@ -1057,32 +1057,50 @@ router.get("/meeting-filter/:tenantId", async (req: Request, res: Response) => {
     const upcomingMeeting = upcomingMeetings?.[0] || null;
     const latestPastMeeting = pastMeetings?.[0] || null;
 
-    // Get participant identifiers for each meeting
+    // Get participant identifiers for each meeting via meeting_registrations table
+    // Note: meeting_registrations doesn't have tenant_id, but we already filtered meetings by tenant_id
     let upcomingParticipants: string[] = [];
     let latestPastParticipants: string[] = [];
 
     if (upcomingMeeting) {
-      const { data: participants } = await supabaseAdmin
-        .from("participants")
-        .select("phone, email")
+      // Get participants who registered for this meeting
+      const { data: registrations } = await supabaseAdmin
+        .from("meeting_registrations")
+        .select("participant_id")
         .eq("meeting_id", upcomingMeeting.id);
       
-      participants?.forEach(p => {
-        if (p.phone) upcomingParticipants.push(p.phone);
-        if (p.email) upcomingParticipants.push(p.email.toLowerCase());
-      });
+      if (registrations && registrations.length > 0) {
+        const participantIds = registrations.map((r: any) => r.participant_id);
+        const { data: participants } = await supabaseAdmin
+          .from("participants")
+          .select("phone, email")
+          .in("participant_id", participantIds);
+        
+        participants?.forEach((p: any) => {
+          if (p.phone) upcomingParticipants.push(p.phone.trim());
+          if (p.email) upcomingParticipants.push(p.email.toLowerCase().trim());
+        });
+      }
     }
 
     if (latestPastMeeting) {
-      const { data: participants } = await supabaseAdmin
-        .from("participants")
-        .select("phone, email")
+      const { data: registrations } = await supabaseAdmin
+        .from("meeting_registrations")
+        .select("participant_id")
         .eq("meeting_id", latestPastMeeting.id);
       
-      participants?.forEach(p => {
-        if (p.phone) latestPastParticipants.push(p.phone);
-        if (p.email) latestPastParticipants.push(p.email.toLowerCase());
-      });
+      if (registrations && registrations.length > 0) {
+        const participantIds = registrations.map((r: any) => r.participant_id);
+        const { data: participants } = await supabaseAdmin
+          .from("participants")
+          .select("phone, email")
+          .in("participant_id", participantIds);
+        
+        participants?.forEach((p: any) => {
+          if (p.phone) latestPastParticipants.push(p.phone.trim());
+          if (p.email) latestPastParticipants.push(p.email.toLowerCase().trim());
+        });
+      }
     }
 
     res.json({

@@ -45,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
@@ -481,31 +482,42 @@ export default function ChapterPipeline() {
             </Label>
           </div>
 
-          <Select value={meetingFilter} onValueChange={(v) => setMeetingFilter(v as "all" | "upcoming" | "latest_past")}>
-            <SelectTrigger className="w-56" data-testid="select-meeting-filter">
-              <Calendar className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="กรองตาม Meeting" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">ทั้งหมด</SelectItem>
-              <SelectItem value="upcoming" disabled={!meetingFilterData?.upcoming}>
-                Meeting ที่กำลังจะถึง
-                {meetingFilterData?.upcoming && (
-                  <span className="text-muted-foreground ml-1">
-                    ({new Date(meetingFilterData.upcoming.meeting_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})
-                  </span>
-                )}
-              </SelectItem>
-              <SelectItem value="latest_past" disabled={!meetingFilterData?.latest_past}>
-                Meeting ที่ผ่านมาล่าสุด
-                {meetingFilterData?.latest_past && (
-                  <span className="text-muted-foreground ml-1">
-                    ({new Date(meetingFilterData.latest_past.meeting_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})
-                  </span>
-                )}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <ToggleGroup 
+            type="single" 
+            value={meetingFilter} 
+            onValueChange={(v) => v && setMeetingFilter(v as "all" | "upcoming" | "latest_past")}
+            className="border rounded-md"
+            data-testid="toggle-meeting-filter"
+          >
+            <ToggleGroupItem 
+              value="upcoming" 
+              disabled={!meetingFilterData?.upcoming}
+              className="text-sm px-3"
+            >
+              <Calendar className="h-4 w-4 mr-1.5" />
+              Meeting ปัจจุบัน
+              {meetingFilterData?.upcoming && (
+                <span className="text-muted-foreground ml-1">
+                  ({new Date(meetingFilterData.upcoming.meeting_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})
+                </span>
+              )}
+            </ToggleGroupItem>
+            <ToggleGroupItem 
+              value="latest_past" 
+              disabled={!meetingFilterData?.latest_past}
+              className="text-sm px-3"
+            >
+              Meeting ที่ผ่านมา
+              {meetingFilterData?.latest_past && (
+                <span className="text-muted-foreground ml-1">
+                  ({new Date(meetingFilterData.latest_past.meeting_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})
+                </span>
+              )}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="all" className="text-sm px-3">
+              ทั้งหมด
+            </ToggleGroupItem>
+          </ToggleGroup>
 
           <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import">
             <Download className="h-4 w-4 mr-2" />
