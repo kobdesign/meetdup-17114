@@ -183,7 +183,7 @@ router.post("/records", async (req: Request, res: Response) => {
       referrer_participant_id,
       notes,
       tags,
-      current_stage = "lead_capture"
+      current_stage = "lead"
     } = req.body;
 
     const { data: record, error } = await supabaseAdmin
@@ -713,7 +713,7 @@ router.post("/import-batch", async (req: Request, res: Response) => {
       phone: p.phone,
       email: p.email,
       line_id: p.line_id,
-      current_stage: stageMap.get(p.participant_id) || "attended_meeting",
+      current_stage: stageMap.get(p.participant_id) || "attended",
       stage_entered_at: now,
       source: "batch_import",
       source_details: "Historical visitor import",
