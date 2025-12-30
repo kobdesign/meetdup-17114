@@ -846,7 +846,8 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       participant_id, // NEW: If provided, UPDATE existing participant instead of INSERT
       meeting_id, 
       full_name_th, 
-      nickname, // nickname_th field from frontend
+      nickname_th, // Thai nickname field
+      nickname, // Legacy fallback
       email, 
       phone, 
       company, 
@@ -856,6 +857,9 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       auto_checkin, // If true, create as visitor + auto check-in
       referred_by_participant_id // Referral tracking
     } = req.body;
+    
+    // Use nickname_th directly, fallback to legacy nickname
+    const effectiveNickname = nickname_th || nickname || null;
 
     const isUpdate = !!participant_id;
     console.log(`${logPrefix} Registration request (${isUpdate ? 'UPDATE' : 'INSERT'})`, {
@@ -944,7 +948,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
         .from("participants")
         .update({
           full_name_th,
-          nickname_th: nickname || null,
+          nickname_th: effectiveNickname,
           email,
           phone: normalizedPhone,
           company: company || null,
@@ -978,7 +982,7 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
         .insert({
           tenant_id,
           full_name_th,
-          nickname_th: nickname || null,
+          nickname_th: effectiveNickname,
           email,
           phone: normalizedPhone,
           company: company || null,
