@@ -46,7 +46,16 @@ Meetdup is a multi-tenant SaaS application designed to streamline business netwo
 - **Dynamic Plan Configuration System**: Manages subscription plans, features, and limits without hardcoding, using `feature_catalog`, `limit_catalog`, `plan_definitions`, `plan_features`, `plan_limits`, and `tenant_subscriptions` tables. Includes Super Admin CRUD API and frontend hooks for feature gating.
 - **Usage Tracking and Limit Enforcement System**: Tracks usage (members, meetings, AI queries) and enforces plan limits. Logs AI interactions in `ai_conversations`. Implements warning levels (ok, warning, critical, exceeded) for usage.
 - **Trial Notification and Auto-Downgrade System**: Notifies admins before trial expiration (7, 3, 1 day) and automatically downgrades expired trials to the free plan using scheduled cron jobs and a `notification_logs` table for deduplication.
-- **Chapter Growth Pipeline System**: Tracks visitor-to-member conversion through 11 stages (e.g., `lead_capture`, `rsvp_confirmed`, `attended_meeting`, `active_member`). Utilizes `pipeline_stages`, `pipeline_sub_statuses`, `pipeline_records`, and `pipeline_transitions` tables. Features auto-syncing from visitor registrations and check-ins, stale lead management, and batch import functionality.
+- **Chapter Growth Pipeline System (Lean Pipeline)**: Tracks visitor-to-member conversion through 7 core stages:
+    - **Stages**: Lead → Attended → Revisit → Follow-up → Application Submitted → Active Member → Onboarding (+ Archived)
+    - **Auto-Sync Rules**: 
+      - Registration → Lead (new), Revisit (repeat registration if stage < follow_up)
+      - Check-in → Attended (first), Revisit (repeat if meetings_attended ≥ 2)
+      - Member status='member' → Active Member
+    - **No-Backward Rule**: Once at Follow-up or beyond (protected stages), auto-sync won't move records backward
+    - **Sub-Statuses**: follow_up (contacted, interested, ready_to_apply), application_submitted (pending_review, qualification_check, payment_pending, approved), onboarding (orientation, training, completed)
+    - **Tables**: `pipeline_stages`, `pipeline_sub_statuses`, `pipeline_records`, `pipeline_transitions`
+    - **Sync Files**: `server/services/pipelineSync.ts` (syncVisitorToPipeline, syncCheckInToPipeline, syncMemberStatusToPipeline)
 
 ## External Dependencies
 
