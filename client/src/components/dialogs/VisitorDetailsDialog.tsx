@@ -22,7 +22,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
   const { selectedTenant } = useTenantContext();
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [members, setMembers] = useState<Array<{ participant_id: string; full_name_th: string | null; nickname: string | null; nickname_th: string | null }>>([]);
+  const [members, setMembers] = useState<Array<{ participant_id: string; full_name_th: string | null; nickname_th: string | null }>>([]);
   const [formData, setFormData] = useState({
     full_name_th: "",
     nickname_th: "",
@@ -48,7 +48,7 @@ export function VisitorDetailsDialog({ visitor, open, onOpenChange, onUpdate }: 
 
       const { data, error } = await supabase
         .from("participants")
-        .select("participant_id, full_name_th, nickname, nickname_th")
+        .select("participant_id, full_name_th, nickname_th")
         .eq("tenant_id", selectedTenant.tenant_id)
         .eq("status", "member")
         .order("nickname_th", { ascending: true, nullsFirst: false })

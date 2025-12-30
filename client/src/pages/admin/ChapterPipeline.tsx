@@ -122,7 +122,7 @@ const iconMap: Record<string, any> = {
 interface ImportVisitor {
   participant_id: string;
   full_name: string;
-  nickname: string | null;
+  nickname_th: string | null;
   phone: string | null;
   email: string | null;
   status: string;
@@ -784,8 +784,8 @@ export default function ChapterPipeline() {
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">
                           {visitor.full_name}
-                          {visitor.nickname && (
-                            <span className="text-muted-foreground font-normal ml-1">({visitor.nickname})</span>
+                          {visitor.nickname_th && (
+                            <span className="text-muted-foreground font-normal ml-1">({visitor.nickname_th})</span>
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">

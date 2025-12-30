@@ -505,7 +505,7 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
         participant:participants!inner (
           participant_id,
           full_name_th,
-          nickname,
+          nickname_th,
           phone,
           email,
           status,
@@ -555,11 +555,11 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
     if (referrerIds.size > 0) {
       const { data: referrers } = await supabaseAdmin
         .from("participants")
-        .select("participant_id, full_name_th, nickname")
+        .select("participant_id, full_name_th, nickname_th")
         .in("participant_id", Array.from(referrerIds));
       
       referrers?.forEach((r: any) => {
-        referrerMap.set(r.participant_id, r.nickname || r.full_name_th);
+        referrerMap.set(r.participant_id, r.nickname_th || r.full_name_th);
       });
     }
 
@@ -572,7 +572,7 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
         visitorMap.set(pid, {
           participant_id: pid,
           full_name: r.participant?.full_name_th,
-          nickname: r.participant?.nickname,
+          nickname_th: r.participant?.nickname_th,
           phone: r.participant?.phone,
           email: r.participant?.email,
           status: r.participant?.status,
