@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTenantContext } from "@/contexts/TenantContext";
 import AdminLayout from "@/components/layout/AdminLayout";
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -45,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Plus,
   Search,
   MoreVertical,
   Phone,
@@ -60,6 +62,7 @@ import {
   UserPlus,
   CheckCircle,
   AlertTriangle,
+  Download,
   Eye,
   EyeOff,
   AlertCircle,
@@ -67,7 +70,6 @@ import {
   Star,
   GraduationCap,
   FileText,
-  ChevronDown,
 } from "lucide-react";
 
 interface PipelineStage {
@@ -134,6 +136,21 @@ const iconMap: Record<string, any> = {
   RefreshCw: RefreshCw,
 };
 
+interface ImportVisitor {
+  participant_id: string;
+  full_name: string;
+  nickname_th: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string;
+  referrer_name: string | null;
+  first_meeting_date: string;
+  first_meeting_theme: string;
+  meeting_count: number;
+  checkin_count: number;
+  recommended_stage: string;
+}
+
 const STAGE_LABELS: Record<string, string> = {
   lead: "Lead",
   attended: "เข้าประชุมแล้ว",
@@ -149,237 +166,66 @@ const STAGE_LABELS: Record<string, string> = {
   lead_capture: "Lead",
 };
 
-// Time filter options
-type TimeFilterKey = "all" | "next_meeting" | "prev_meeting" | "last_week" | "this_month" | "3_months" | "6_months" | "this_year" | "last_year";
-
-interface TimeFilterOption {
-  key: TimeFilterKey;
-  label: string;
-  labelTh: string;
-}
-
-const TIME_FILTER_OPTIONS: TimeFilterOption[] = [
-  { key: "all", label: "All Time", labelTh: "ทั้งหมด" },
-  { key: "next_meeting", label: "Next Meeting", labelTh: "ประชุมครั้งหน้า" },
-  { key: "prev_meeting", label: "Previous Meeting", labelTh: "ประชุมครั้งก่อน" },
-  { key: "last_week", label: "Last Week", labelTh: "สัปดาห์ก่อน" },
-  { key: "this_month", label: "This Month", labelTh: "เดือนนี้" },
-  { key: "3_months", label: "Last 3 Months", labelTh: "3 เดือนนี้" },
-  { key: "6_months", label: "Last 6 Months", labelTh: "6 เดือนนี้" },
-  { key: "this_year", label: "This Year", labelTh: "ปีนี้" },
-  { key: "last_year", label: "Last Year", labelTh: "ปีก่อน" },
-];
-
-// Quick access filters (shown as buttons) - next_meeting will be hidden if no upcoming meeting
-const QUICK_FILTERS: TimeFilterKey[] = ["next_meeting", "prev_meeting", "this_month", "3_months"];
-
-// Meeting filters are handled dynamically using meeting dates from the API
-function getDateRange(
-  filterKey: TimeFilterKey, 
-  prevMeetingDate?: string | null,
-  nextMeetingDate?: string | null
-): { dateFrom: string | null; dateTo: string | null } {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
-  // Helper to set end of day (23:59:59.999)
-  const endOfDay = (date: Date): Date => {
-    const d = new Date(date);
-    d.setHours(23, 59, 59, 999);
-    return d;
-  };
-  
-  // Helper to safely subtract months (handles month-end edge cases)
-  const subtractMonths = (date: Date, months: number): Date => {
-    const result = new Date(date);
-    const targetMonth = result.getMonth() - months;
-    result.setMonth(targetMonth);
-    // If day overflowed (e.g., May 31 -> Feb 31 becomes Mar 3), go back to last day of target month
-    if (result.getMonth() !== ((targetMonth % 12) + 12) % 12) {
-      result.setDate(0); // Sets to last day of previous month
-    }
-    return result;
-  };
-  
-  switch (filterKey) {
-    case "all":
-      return { dateFrom: null, dateTo: null };
-    
-    case "next_meeting": {
-      // Filter for records related to the upcoming meeting
-      if (nextMeetingDate) {
-        // Extract just the date portion (YYYY-MM-DD) - handle both YYYY-MM-DD and ISO timestamp formats
-        const dateOnly = nextMeetingDate.split('T')[0];
-        // Use Thailand timezone (UTC+7) since this is a Thai-focused app
-        // NOTE: Future enhancement - use tenant timezone from database
-        return { dateFrom: `${dateOnly}T00:00:00+07:00`, dateTo: `${dateOnly}T23:59:59+07:00` };
-      }
-      // Fallback to all if no upcoming meeting found
-      return { dateFrom: null, dateTo: null };
-    }
-    
-    case "prev_meeting": {
-      // Use the previous meeting date as filter
-      if (prevMeetingDate) {
-        // Extract just the date portion (YYYY-MM-DD) - handle both YYYY-MM-DD and ISO timestamp formats
-        const dateOnly = prevMeetingDate.split('T')[0];
-        // Use Thailand timezone (UTC+7) since this is a Thai-focused app
-        // NOTE: Future enhancement - use tenant timezone from database
-        return { dateFrom: `${dateOnly}T00:00:00+07:00`, dateTo: null };
-      }
-      // Fallback to last 30 days if no meeting found
-      const thirtyDaysAgo = new Date(today);
-      thirtyDaysAgo.setDate(today.getDate() - 30);
-      return { dateFrom: thirtyDaysAgo.toISOString(), dateTo: null };
-    }
-    
-    case "last_week": {
-      const dayOfWeek = today.getDay();
-      const lastSaturday = new Date(today);
-      lastSaturday.setDate(today.getDate() - dayOfWeek - 1);
-      const lastSunday = new Date(lastSaturday);
-      lastSunday.setDate(lastSaturday.getDate() - 6);
-      return { 
-        dateFrom: lastSunday.toISOString(), 
-        dateTo: endOfDay(lastSaturday).toISOString() 
-      };
-    }
-    
-    case "this_month": {
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { dateFrom: startOfMonth.toISOString(), dateTo: null };
-    }
-    
-    case "3_months": {
-      const threeMonthsAgo = subtractMonths(today, 3);
-      return { dateFrom: threeMonthsAgo.toISOString(), dateTo: null };
-    }
-    
-    case "6_months": {
-      const sixMonthsAgo = subtractMonths(today, 6);
-      return { dateFrom: sixMonthsAgo.toISOString(), dateTo: null };
-    }
-    
-    case "this_year": {
-      const startOfYear = new Date(today.getFullYear(), 0, 1);
-      return { dateFrom: startOfYear.toISOString(), dateTo: null };
-    }
-    
-    case "last_year": {
-      const startOfLastYear = new Date(today.getFullYear() - 1, 0, 1);
-      const endOfLastYear = new Date(today.getFullYear() - 1, 11, 31);
-      return { 
-        dateFrom: startOfLastYear.toISOString(), 
-        dateTo: endOfDay(endOfLastYear).toISOString() 
-      };
-    }
-    
-    default:
-      return { dateFrom: null, dateTo: null };
-  }
-}
-
 export default function ChapterPipeline() {
   const { selectedTenant, isReady } = useTenantContext();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [timeFilter, setTimeFilter] = useState<TimeFilterKey>("prev_meeting");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<PipelineRecord | null>(null);
   const [targetStage, setTargetStage] = useState<string>("");
   const [moveReason, setMoveReason] = useState("");
   const [showStaleLeads, setShowStaleLeads] = useState(false);
+  const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set()); // selected participant_ids
+  const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   
-  // Query for previous meeting date (most recent past meeting)
-  const { data: prevMeeting } = useQuery<{ meeting_date: string | null; meeting_id: string | null }>({
-    queryKey: ["/api/pipeline/latest-meeting", selectedTenant?.tenant_id],
-    queryFn: () => apiRequest(`/api/pipeline/latest-meeting/${selectedTenant?.tenant_id}`),
-    enabled: !!selectedTenant?.tenant_id,
+  const [newLead, setNewLead] = useState({
+    full_name: "",
+    phone: "",
+    email: "",
+    line_id: "",
+    source: "referral",
+    notes: "",
   });
-  
-  // Query for upcoming meeting date (next future meeting)
-  const { data: nextMeeting } = useQuery<{ meeting_date: string | null; meeting_id: string | null }>({
-    queryKey: ["/api/pipeline/upcoming-meeting", selectedTenant?.tenant_id],
-    queryFn: () => apiRequest(`/api/pipeline/upcoming-meeting/${selectedTenant?.tenant_id}`),
-    enabled: !!selectedTenant?.tenant_id,
-  });
-  
-  // Get date range from current filter (pass meeting dates for meeting-based filters)
-  const dateRange = getDateRange(timeFilter, prevMeeting?.meeting_date, nextMeeting?.meeting_date);
-  
-  // Auto-select default filter based on available meetings
-  // Priority: next_meeting (if exists) > prev_meeting
-  // Reset when tenant changes so new tenant gets correct default
-  const [lastTenantId, setLastTenantId] = useState<string | null>(null);
-  useEffect(() => {
-    const currentTenantId = selectedTenant?.tenant_id || null;
-    
-    // Reset filter when tenant changes
-    if (lastTenantId !== null && lastTenantId !== currentTenantId) {
-      // Tenant changed, reset to default
-      setTimeFilter("prev_meeting");
-    }
-    setLastTenantId(currentTenantId);
-  }, [selectedTenant?.tenant_id, lastTenantId]);
-  
-  // Set smart default after meeting data loads
-  useEffect(() => {
-    if (nextMeeting === undefined || prevMeeting === undefined) return; // Still loading
-    
-    // Only auto-select if current filter is still the default
-    if (timeFilter === "prev_meeting" && nextMeeting?.meeting_date) {
-      setTimeFilter("next_meeting");
-    }
-  }, [nextMeeting, prevMeeting, timeFilter]);
-  
-  // Meeting-based filters that use participant IDs from registration/check-in
-  const isMeetingBasedFilter = ["next_meeting", "prev_meeting", "this_month", "3_months"].includes(timeFilter);
-  
-  // Get meeting ID for the current filter
-  const getCurrentMeetingId = () => {
-    if (timeFilter === "next_meeting") return nextMeeting?.meeting_id;
-    if (timeFilter === "prev_meeting") return prevMeeting?.meeting_id;
-    return undefined;
-  };
-  const currentMeetingId = getCurrentMeetingId();
-
-  // Build query params for filter
-  const buildFilterParams = () => {
-    const params = new URLSearchParams();
-    
-    if (isMeetingBasedFilter) {
-      // For meeting-based filters, pass meetingFilter and meetingIds
-      params.append("meetingFilter", timeFilter);
-      if (currentMeetingId) {
-        params.append("meetingIds", currentMeetingId);
-      }
-      // Also pass date range for this_month and 3_months filters
-      if ((timeFilter === "this_month" || timeFilter === "3_months") && dateRange.dateFrom) {
-        params.append("dateFrom", dateRange.dateFrom);
-        // For open-ended ranges, use current date/time as dateTo
-        const dateTo = dateRange.dateTo || new Date().toISOString();
-        params.append("dateTo", dateTo);
-      }
-    } else {
-      // For non-meeting filters, use date range
-      if (dateRange.dateFrom) params.append("dateFrom", dateRange.dateFrom);
-      if (dateRange.dateTo) params.append("dateTo", dateRange.dateTo);
-    }
-    
-    return params.toString() ? `?${params.toString()}` : "";
-  };
 
   const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
-    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id, timeFilter, currentMeetingId, dateRange.dateFrom, dateRange.dateTo],
-    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}${buildFilterParams()}`),
+    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}`),
     enabled: !!selectedTenant?.tenant_id,
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id, timeFilter, currentMeetingId, dateRange.dateFrom, dateRange.dateTo],
-    queryFn: () => apiRequest(`/api/pipeline/stats/${selectedTenant?.tenant_id}${buildFilterParams()}`),
+    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/stats/${selectedTenant?.tenant_id}`),
     enabled: !!selectedTenant?.tenant_id,
+  });
+
+  const { data: importPreview, isLoading: isLoadingImport } = useQuery<{
+    total_found: number;
+    already_in_pipeline: number;
+    visitors: ImportVisitor[];
+  }>({
+    queryKey: ["/api/pipeline/import-preview", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/import-preview/${selectedTenant?.tenant_id}`),
+    enabled: isImportDialogOpen && !!selectedTenant?.tenant_id,
+  });
+
+  const createRecordMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("/api/pipeline/records", "POST", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
+      setIsAddDialogOpen(false);
+      setNewLead({ full_name: "", phone: "", email: "", line_id: "", source: "referral", notes: "" });
+      toast({ title: "เพิ่ม Lead สำเร็จ" });
+    },
+    onError: (error: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
+    },
   });
 
   const moveRecordMutation = useMutation({
@@ -414,6 +260,27 @@ export default function ChapterPipeline() {
       queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
       queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
       toast({ title: "Archive สำเร็จ" });
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async (visitors: { participant_id: string; target_stage: string }[]) => {
+      return apiRequest("/api/pipeline/import-batch", "POST", {
+        tenant_id: selectedTenant?.tenant_id,
+        visitors,
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/import-preview"] });
+      setIsImportDialogOpen(false);
+      setSelectedImports(new Set());
+      setStageOverrides(new Map());
+      toast({ title: `นำเข้า ${data.imported} รายการสำเร็จ` });
+    },
+    onError: (error: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
     },
   });
 
@@ -464,6 +331,22 @@ export default function ChapterPipeline() {
       </div>
     );
   }
+
+  const handleAddLead = () => {
+    if (!newLead.full_name.trim()) {
+      toast({ title: "กรุณากรอกชื่อ", variant: "destructive" });
+      return;
+    }
+    if (!newLead.phone.trim() && !newLead.email.trim()) {
+      toast({ title: "กรุณากรอกเบอร์โทรหรืออีเมล", variant: "destructive" });
+      return;
+    }
+    
+    createRecordMutation.mutate({
+      tenant_id: selectedTenant.tenant_id,
+      ...newLead,
+    });
+  };
 
   const handleMoveToStage = (record: PipelineRecord, stage: string) => {
     setSelectedRecord(record);
@@ -516,6 +399,39 @@ export default function ChapterPipeline() {
     })
   }));
 
+  const toggleImportSelection = (participantId: string) => {
+    setSelectedImports(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(participantId)) {
+        newSet.delete(participantId);
+      } else {
+        newSet.add(participantId);
+      }
+      return newSet;
+    });
+  };
+
+  const updateImportStage = (participantId: string, stage: string) => {
+    setStageOverrides(prev => {
+      const newMap = new Map(prev);
+      newMap.set(participantId, stage);
+      return newMap;
+    });
+  };
+
+  const getVisitorStage = (visitor: ImportVisitor): string => {
+    return stageOverrides.get(visitor.participant_id) || visitor.recommended_stage;
+  };
+
+  const selectAllImports = () => {
+    if (!importPreview?.visitors) return;
+    setSelectedImports(new Set(importPreview.visitors.map(v => v.participant_id)));
+  };
+
+  const clearImportSelection = () => {
+    setSelectedImports(new Set());
+  };
+
   return (
     <AdminLayout>
       <div className="h-full flex flex-col">
@@ -538,74 +454,6 @@ export default function ChapterPipeline() {
               data-testid="input-search"
             />
           </div>
-
-          <div className="flex items-center gap-1 bg-muted rounded-md p-1" data-testid="filter-time-range">
-            {QUICK_FILTERS.map((filterKey) => {
-              const option = TIME_FILTER_OPTIONS.find(o => o.key === filterKey);
-              
-              // Skip next_meeting if no upcoming meeting
-              if (filterKey === "next_meeting" && !nextMeeting?.meeting_date) {
-                return null;
-              }
-              
-              // Build dynamic label with date
-              let label = option?.labelTh;
-              const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", 
-                                  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-              
-              if (filterKey === "next_meeting" && nextMeeting?.meeting_date) {
-                const dateOnly = nextMeeting.meeting_date.split('T')[0];
-                const [, month, day] = dateOnly.split("-").map(Number);
-                label = `ครั้งหน้า (${day} ${monthNames[month - 1]})`;
-              }
-              
-              if (filterKey === "prev_meeting" && prevMeeting?.meeting_date) {
-                const dateOnly = prevMeeting.meeting_date.split('T')[0];
-                const [, month, day] = dateOnly.split("-").map(Number);
-                label = `ครั้งก่อน (${day} ${monthNames[month - 1]})`;
-              }
-              
-              return (
-                <Button
-                  key={filterKey}
-                  variant={timeFilter === filterKey ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setTimeFilter(filterKey)}
-                  className={timeFilter === filterKey ? "bg-background shadow-sm" : ""}
-                  data-testid={`button-filter-${filterKey}`}
-                >
-                  {label}
-                </Button>
-              );
-            })}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant={!QUICK_FILTERS.includes(timeFilter) ? "secondary" : "ghost"} 
-                  size="sm"
-                  className={!QUICK_FILTERS.includes(timeFilter) ? "bg-background shadow-sm" : ""}
-                  data-testid="button-filter-more"
-                >
-                  {!QUICK_FILTERS.includes(timeFilter) 
-                    ? TIME_FILTER_OPTIONS.find(o => o.key === timeFilter)?.labelTh 
-                    : "เพิ่มเติม"}
-                  <ChevronDown className="ml-1 h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {TIME_FILTER_OPTIONS.filter(o => !QUICK_FILTERS.includes(o.key)).map((option) => (
-                  <DropdownMenuItem
-                    key={option.key}
-                    onClick={() => setTimeFilter(option.key)}
-                    className={timeFilter === option.key ? "bg-accent" : ""}
-                    data-testid={`menu-filter-${option.key}`}
-                  >
-                    {option.labelTh}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
           
           <div className="flex items-center gap-2">
             <Switch 
@@ -619,6 +467,15 @@ export default function ChapterPipeline() {
             </Label>
           </div>
 
+          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import">
+            <Download className="h-4 w-4 mr-2" />
+            นำเข้า Visitor
+          </Button>
+          
+          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-lead">
+            <Plus className="h-4 w-4 mr-2" />
+            เพิ่ม Lead
+          </Button>
         </div>
       </div>
 
@@ -817,6 +674,100 @@ export default function ChapterPipeline() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>เพิ่ม Lead ใหม่</DialogTitle>
+            <DialogDescription>
+              กรอกข้อมูลผู้ที่สนใจเข้าร่วม Chapter
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>ชื่อ-นามสกุล *</Label>
+              <Input
+                value={newLead.full_name}
+                onChange={(e) => setNewLead({ ...newLead, full_name: e.target.value })}
+                placeholder="ชื่อเต็ม"
+                data-testid="input-lead-name"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>เบอร์โทรศัพท์</Label>
+                <Input
+                  value={newLead.phone}
+                  onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                  placeholder="0812345678"
+                  data-testid="input-lead-phone"
+                />
+              </div>
+              <div>
+                <Label>อีเมล</Label>
+                <Input
+                  value={newLead.email}
+                  onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                  placeholder="email@example.com"
+                  data-testid="input-lead-email"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label>LINE ID</Label>
+              <Input
+                value={newLead.line_id}
+                onChange={(e) => setNewLead({ ...newLead, line_id: e.target.value })}
+                placeholder="lineid"
+                data-testid="input-lead-lineid"
+              />
+            </div>
+            
+            <div>
+              <Label>แหล่งที่มา</Label>
+              <Select value={newLead.source} onValueChange={(v) => setNewLead({ ...newLead, source: v })}>
+                <SelectTrigger data-testid="select-lead-source">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="referral">แนะนำจากสมาชิก</SelectItem>
+                  <SelectItem value="walk_in">Walk-in</SelectItem>
+                  <SelectItem value="website">เว็บไซต์</SelectItem>
+                  <SelectItem value="event">งาน Event</SelectItem>
+                  <SelectItem value="social">Social Media</SelectItem>
+                  <SelectItem value="other">อื่นๆ</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label>หมายเหตุ</Label>
+              <Textarea
+                value={newLead.notes}
+                onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
+                placeholder="บันทึกเพิ่มเติม..."
+                data-testid="input-lead-notes"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleAddLead}
+              disabled={createRecordMutation.isPending}
+              data-testid="button-confirm-add-lead"
+            >
+              {createRecordMutation.isPending ? "กำลังบันทึก..." : "เพิ่ม Lead"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -855,6 +806,150 @@ export default function ChapterPipeline() {
               data-testid="button-confirm-move"
             >
               {moveRecordMutation.isPending ? "กำลังย้าย..." : "ยืนยันการย้าย"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>นำเข้า Visitor ย้อนหลัง</DialogTitle>
+            <DialogDescription>
+              เลือก Visitor ที่เคยเข้าร่วมประชุมแต่ยังไม่อยู่ใน Pipeline
+            </DialogDescription>
+          </DialogHeader>
+          
+          {isLoadingImport ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm text-muted-foreground">
+                  พบ {importPreview?.total_found || 0} คนที่สามารถนำเข้าได้
+                  {importPreview?.already_in_pipeline ? ` (อยู่ใน Pipeline แล้ว ${importPreview.already_in_pipeline} คน)` : ""}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={selectAllImports}>
+                    เลือกทั้งหมด
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={clearImportSelection}>
+                    ล้างการเลือก
+                  </Button>
+                </div>
+              </div>
+              
+              {importPreview?.visitors && importPreview.visitors.length > 0 ? (
+                <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
+                  {importPreview.visitors.map((visitor) => (
+                    <div
+                      key={visitor.participant_id}
+                      className="flex items-center gap-3 p-3 hover-elevate"
+                    >
+                      <Checkbox
+                        checked={selectedImports.has(visitor.participant_id)}
+                        onCheckedChange={() => toggleImportSelection(visitor.participant_id)}
+                        data-testid={`checkbox-import-${visitor.participant_id}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">
+                          {visitor.full_name}
+                          {visitor.nickname_th && (
+                            <span className="text-muted-foreground font-normal ml-1">({visitor.nickname_th})</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                          {visitor.referrer_name && (
+                            <span className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {visitor.referrer_name}
+                            </span>
+                          )}
+                          {visitor.phone && <span>{visitor.phone}</span>}
+                          {visitor.checkin_count > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              Check-in {visitor.checkin_count} ครั้ง
+                            </Badge>
+                          )}
+                          {visitor.meeting_count > 1 && (
+                            <Badge variant="secondary" className="text-xs">
+                              ลงทะเบียน {visitor.meeting_count} ครั้ง
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {selectedImports.has(visitor.participant_id) ? (
+                          <Select
+                            value={getVisitorStage(visitor)}
+                            onValueChange={(value) => updateImportStage(visitor.participant_id, value)}
+                          >
+                            <SelectTrigger className="w-[120px] h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="rsvp_confirmed">RSVP</SelectItem>
+                              <SelectItem value="attended_meeting">เข้าประชุม</SelectItem>
+                              <SelectItem value="active_member">Member</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge 
+                            variant={visitor.recommended_stage === "attended_meeting" ? "default" : "secondary"}
+                            className="text-xs"
+                          >
+                            {STAGE_LABELS[visitor.recommended_stage] || visitor.recommended_stage}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  ไม่พบ Visitor ที่สามารถนำเข้าได้
+                </div>
+              )}
+              
+              {selectedImports.size > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  เลือกแล้ว <span className="font-bold text-foreground">{selectedImports.size}</span> คน
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter className="gap-2 flex-wrap">
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => setIsResetDialogOpen(true)}
+              disabled={resetPipelineMutation.isPending}
+            >
+              {resetPipelineMutation.isPending ? "กำลังลบ..." : "Reset Pipeline"}
+            </Button>
+            <div className="flex-1" />
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={() => {
+                if (!importPreview?.visitors) return;
+                const visitors = Array.from(selectedImports).map(participant_id => {
+                  const visitor = importPreview.visitors.find(v => v.participant_id === participant_id);
+                  return {
+                    participant_id,
+                    target_stage: getVisitorStage(visitor!),
+                  };
+                });
+                importMutation.mutate(visitors);
+              }}
+              disabled={selectedImports.size === 0 || importMutation.isPending}
+              data-testid="button-confirm-import"
+            >
+              {importMutation.isPending ? "กำลังนำเข้า..." : `นำเข้า ${selectedImports.size} คน`}
             </Button>
           </DialogFooter>
         </DialogContent>

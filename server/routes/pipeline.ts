@@ -3,249 +3,6 @@ import { supabaseAdmin } from "../utils/supabaseClient";
 
 const router = Router();
 
-// Stage order for determining initial stage based on history
-const STAGE_ORDER: Record<string, number> = {
-  lead: 1,
-  attended: 2,
-  revisit: 3,
-  follow_up: 4,
-  application_submitted: 5,
-  active_member: 6,
-  onboarding: 7,
-  archived: 8
-};
-
-// Protected stages - don't auto-move backward from these
-const PROTECTED_STAGES = ['follow_up', 'application_submitted', 'active_member', 'onboarding', 'archived'];
-
-/**
- * Helper function to get visitor/participant IDs from meeting participation
- * Used to filter pipeline records by actual meeting attendance/registration
- */
-async function getMeetingParticipantIds(params: {
-  tenantId: string;
-  meetingFilter: string; // 'next_meeting', 'prev_meeting', 'this_month', '3_months'
-  meetingIds?: string[]; // For specific meeting filters
-  dateFrom?: string; // For date range filters
-  dateTo?: string;
-}): Promise<string[]> {
-  const { tenantId, meetingFilter, meetingIds, dateFrom, dateTo } = params;
-  const participantIds = new Set<string>();
-
-  // For 'next_meeting' - get registrations for upcoming meeting
-  if (meetingFilter === 'next_meeting' && meetingIds && meetingIds.length > 0) {
-    const { data: registrations } = await supabaseAdmin
-      .from("meeting_registrations")
-      .select("participant_id")
-      .eq("tenant_id", tenantId)
-      .in("meeting_id", meetingIds)
-      .in("registration_status", ["registered", "confirmed"]);
-    
-    registrations?.forEach(r => {
-      if (r.participant_id) participantIds.add(r.participant_id);
-    });
-  }
-  
-  // For 'prev_meeting' - get BOTH registrations AND check-ins for previous meeting
-  // This includes visitors who registered but didn't show up, plus those who actually attended
-  else if (meetingFilter === 'prev_meeting' && meetingIds && meetingIds.length > 0) {
-    // Get registrations for the previous meeting
-    const { data: registrations } = await supabaseAdmin
-      .from("meeting_registrations")
-      .select("participant_id")
-      .eq("tenant_id", tenantId)
-      .in("meeting_id", meetingIds);
-    
-    registrations?.forEach(r => {
-      if (r.participant_id) participantIds.add(r.participant_id);
-    });
-    
-    // Also get check-ins (in case someone checked in without registration)
-    const { data: checkins } = await supabaseAdmin
-      .from("checkins")
-      .select("participant_id")
-      .eq("tenant_id", tenantId)
-      .in("meeting_id", meetingIds);
-    
-    checkins?.forEach(c => {
-      if (c.participant_id) participantIds.add(c.participant_id);
-    });
-  }
-  
-  // For date range filters (this_month, 3_months) - get both registrations and check-ins
-  else if ((meetingFilter === 'this_month' || meetingFilter === '3_months') && dateFrom && dateTo) {
-    // First get meetings in the date range
-    const { data: meetings } = await supabaseAdmin
-      .from("meetings")
-      .select("meeting_id")
-      .eq("tenant_id", tenantId)
-      .gte("meeting_date", dateFrom)
-      .lte("meeting_date", dateTo);
-    
-    if (meetings && meetings.length > 0) {
-      const meetingIdList = meetings.map(m => m.meeting_id);
-      
-      // Get registrations for these meetings
-      const { data: registrations } = await supabaseAdmin
-        .from("meeting_registrations")
-        .select("participant_id")
-        .eq("tenant_id", tenantId)
-        .in("meeting_id", meetingIdList);
-      
-      registrations?.forEach(r => {
-        if (r.participant_id) participantIds.add(r.participant_id);
-      });
-      
-      // Get check-ins for these meetings
-      const { data: checkins } = await supabaseAdmin
-        .from("checkins")
-        .select("participant_id")
-        .eq("tenant_id", tenantId)
-        .in("meeting_id", meetingIdList);
-      
-      checkins?.forEach(c => {
-        if (c.participant_id) participantIds.add(c.participant_id);
-      });
-    }
-  }
-
-  return Array.from(participantIds);
-}
-
-/**
- * Ensure all meeting participants have pipeline records.
- * Creates missing records with appropriate stage based on:
- * - participant.status = 'member' → active_member
- * - historical check-ins >= 2 → revisit
- * - historical check-ins == 1 → attended
- * - otherwise → lead
- * 
- * This is the "meeting-first" approach: show everyone who registered/checked-in
- */
-async function ensurePipelineRecordsForMeetingParticipants(params: {
-  tenantId: string;
-  participantIds: string[];
-}): Promise<void> {
-  const { tenantId, participantIds } = params;
-  const logPrefix = `[ensurePipelineRecords]`;
-  
-  if (participantIds.length === 0) return;
-  
-  try {
-    // Get existing pipeline records for these participants
-    const { data: existingRecords } = await supabaseAdmin
-      .from("pipeline_records")
-      .select("visitor_id")
-      .eq("tenant_id", tenantId)
-      .in("visitor_id", participantIds)
-      .is("archived_at", null);
-    
-    const existingVisitorIds = new Set(existingRecords?.map(r => r.visitor_id) || []);
-    
-    // Find participants without pipeline records
-    const missingParticipantIds = participantIds.filter(id => !existingVisitorIds.has(id));
-    
-    if (missingParticipantIds.length === 0) {
-      console.log(`${logPrefix} All ${participantIds.length} participants have pipeline records`);
-      return;
-    }
-    
-    console.log(`${logPrefix} Creating records for ${missingParticipantIds.length} participants`);
-    
-    // Get participant info including membership status
-    const { data: participants } = await supabaseAdmin
-      .from("participants")
-      .select("participant_id, full_name_th, phone, email, line_id, status")
-      .eq("tenant_id", tenantId)
-      .in("participant_id", missingParticipantIds);
-    
-    if (!participants || participants.length === 0) {
-      console.log(`${logPrefix} No participant info found`);
-      return;
-    }
-    
-    // Get check-in counts for each participant
-    const { data: checkinCounts } = await supabaseAdmin
-      .from("checkins")
-      .select("participant_id")
-      .eq("tenant_id", tenantId)
-      .in("participant_id", missingParticipantIds);
-    
-    // Count check-ins per participant
-    const checkinCountMap = new Map<string, number>();
-    checkinCounts?.forEach(c => {
-      const count = checkinCountMap.get(c.participant_id) || 0;
-      checkinCountMap.set(c.participant_id, count + 1);
-    });
-    
-    // Create pipeline records for each missing participant
-    const now = new Date().toISOString();
-    const recordsToInsert = participants.map(p => {
-      const checkIns = checkinCountMap.get(p.participant_id) || 0;
-      
-      // Determine initial stage
-      let initialStage = "lead";
-      let stageReason = "New registration";
-      
-      // Check if member
-      if (p.status === 'member') {
-        initialStage = "active_member";
-        stageReason = "Already a member";
-      } else if (checkIns >= 2) {
-        initialStage = "revisit";
-        stageReason = `Has ${checkIns} historical check-ins`;
-      } else if (checkIns === 1) {
-        initialStage = "attended";
-        stageReason = "Has 1 historical check-in";
-      }
-      
-      return {
-        tenant_id: tenantId,
-        visitor_id: p.participant_id,
-        full_name: p.full_name_th,
-        phone: p.phone,
-        email: p.email,
-        line_id: p.line_id,
-        current_stage: initialStage,
-        stage_entered_at: now,
-        source: "meeting_sync",
-        source_details: stageReason,
-        meetings_attended: checkIns
-      };
-    });
-    
-    // Insert records
-    const { data: insertedRecords, error: insertError } = await supabaseAdmin
-      .from("pipeline_records")
-      .insert(recordsToInsert)
-      .select("id, current_stage");
-    
-    if (insertError) {
-      console.error(`${logPrefix} Error inserting records:`, insertError);
-      return;
-    }
-    
-    console.log(`${logPrefix} Created ${insertedRecords?.length || 0} pipeline records`);
-    
-    // Create transition records for each new record
-    if (insertedRecords && insertedRecords.length > 0) {
-      const transitions = insertedRecords.map(r => ({
-        pipeline_record_id: r.id,
-        to_stage: r.current_stage,
-        is_automatic: true,
-        change_reason: "Auto-created from meeting participation"
-      }));
-      
-      await supabaseAdmin
-        .from("pipeline_transitions")
-        .insert(transitions);
-    }
-    
-  } catch (error: any) {
-    console.error(`${logPrefix} Error:`, error);
-  }
-}
-
 // Get all pipeline stages
 router.get("/stages", async (req: Request, res: Response) => {
   try {
@@ -324,7 +81,6 @@ router.get("/records/:tenantId", async (req: Request, res: Response) => {
 router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
-    const { dateFrom, dateTo, meetingFilter, meetingIds } = req.query;
 
     // Get all active stages
     const { data: stages, error: stagesError } = await supabaseAdmin
@@ -336,70 +92,13 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
 
     if (stagesError) throw stagesError;
 
-    // If meetingFilter is provided, get participant IDs from meeting participation
-    let meetingParticipantIds: string[] | null = null;
-    if (meetingFilter && (meetingFilter === 'next_meeting' || meetingFilter === 'prev_meeting' || meetingFilter === 'this_month' || meetingFilter === '3_months')) {
-      // Parse meetingIds if provided as comma-separated string
-      const parsedMeetingIds = meetingIds ? (meetingIds as string).split(',').filter(Boolean) : undefined;
-      
-      meetingParticipantIds = await getMeetingParticipantIds({
-        tenantId,
-        meetingFilter: meetingFilter as string,
-        meetingIds: parsedMeetingIds,
-        dateFrom: dateFrom as string | undefined,
-        dateTo: dateTo as string | undefined
-      });
-      
-      // MEETING-FIRST APPROACH: Ensure all participants have pipeline records
-      // This creates missing records with appropriate stage based on history
-      if (meetingParticipantIds.length > 0) {
-        await ensurePipelineRecordsForMeetingParticipants({
-          tenantId,
-          participantIds: meetingParticipantIds
-        });
-      }
-      
-      // If no participants found for meeting filter, return empty kanban with stages
-      if (meetingParticipantIds.length === 0) {
-        const { data: subStatuses } = await supabaseAdmin
-          .from("pipeline_sub_statuses")
-          .select("*")
-          .eq("is_active", true)
-          .order("display_order", { ascending: true });
-        
-        const emptyKanban = stages?.map(stage => ({
-          ...stage,
-          sub_statuses: subStatuses?.filter(sub => sub.stage_key === stage.stage_key) || [],
-          records: [],
-          count: 0
-        }));
-        
-        return res.json(emptyKanban);
-      }
-    }
-
-    // Get all active records with optional filters
-    let recordsQuery = supabaseAdmin
+    // Get all active records
+    const { data: records, error: recordsError } = await supabaseAdmin
       .from("pipeline_records")
       .select("*")
       .eq("tenant_id", tenantId)
-      .is("archived_at", null);
-
-    // Apply meeting participant filter if available
-    if (meetingParticipantIds && meetingParticipantIds.length > 0) {
-      // Filter by visitor_id (which is participant_id in pipeline_records)
-      recordsQuery = recordsQuery.in("visitor_id", meetingParticipantIds);
-    } else if (!meetingFilter) {
-      // Only apply date range filter if no meeting filter is used
-      if (dateFrom) {
-        recordsQuery = recordsQuery.gte("stage_entered_at", dateFrom as string);
-      }
-      if (dateTo) {
-        recordsQuery = recordsQuery.lte("stage_entered_at", dateTo as string);
-      }
-    }
-
-    const { data: records, error: recordsError } = await recordsQuery.order("stage_entered_at", { ascending: false });
+      .is("archived_at", null)
+      .order("stage_entered_at", { ascending: false });
 
     if (recordsError) throw recordsError;
 
@@ -476,82 +175,6 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
     res.json(kanbanData);
   } catch (error: any) {
     console.error("Error fetching kanban data:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get latest meeting date for a tenant (for time filter)
-// NOTE: Currently uses Thailand timezone (UTC+7) as default since this is a Thai-focused app.
-// Future enhancement: Add tenant timezone field and use it for date calculations.
-router.get("/latest-meeting/:tenantId", async (req: Request, res: Response) => {
-  try {
-    const { tenantId } = req.params;
-
-    // Get the most recent meeting that has already occurred (meeting_date <= today)
-    // Use Thailand timezone (UTC+7) for date calculation since this is a Thai-focused app
-    const now = new Date();
-    const thaiOffset = 7 * 60; // UTC+7 in minutes
-    const utcOffset = now.getTimezoneOffset(); // Local offset in minutes (negative for east of UTC)
-    const thaiTime = new Date(now.getTime() + (thaiOffset + utcOffset) * 60 * 1000);
-    const today = thaiTime.toISOString().split('T')[0];
-    
-    const { data: meeting, error } = await supabaseAdmin
-      .from("meetings")
-      .select("meeting_id, meeting_date")
-      .eq("tenant_id", tenantId)
-      .lte("meeting_date", today)
-      .order("meeting_date", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error && error.code !== "PGRST116") { // PGRST116 = no rows returned
-      throw error;
-    }
-
-    res.json({
-      meeting_date: meeting?.meeting_date || null,
-      meeting_id: meeting?.meeting_id || null
-    });
-  } catch (error: any) {
-    console.error("Error fetching latest meeting:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get upcoming meeting date for a tenant (for time filter)
-// NOTE: Currently uses Thailand timezone (UTC+7) as default since this is a Thai-focused app.
-// Future enhancement: Add tenant timezone field and use it for date calculations.
-router.get("/upcoming-meeting/:tenantId", async (req: Request, res: Response) => {
-  try {
-    const { tenantId } = req.params;
-
-    // Get the next upcoming meeting (meeting_date > today)
-    // Use Thailand timezone (UTC+7) for date calculation since this is a Thai-focused app
-    const now = new Date();
-    const thaiOffset = 7 * 60; // UTC+7 in minutes
-    const utcOffset = now.getTimezoneOffset(); // Local offset in minutes (negative for east of UTC)
-    const thaiTime = new Date(now.getTime() + (thaiOffset + utcOffset) * 60 * 1000);
-    const today = thaiTime.toISOString().split('T')[0];
-    
-    const { data: meeting, error } = await supabaseAdmin
-      .from("meetings")
-      .select("meeting_id, meeting_date")
-      .eq("tenant_id", tenantId)
-      .gt("meeting_date", today)
-      .order("meeting_date", { ascending: true })
-      .limit(1)
-      .single();
-
-    if (error && error.code !== "PGRST116") { // PGRST116 = no rows returned
-      throw error;
-    }
-
-    res.json({
-      meeting_date: meeting?.meeting_date || null,
-      meeting_id: meeting?.meeting_id || null
-    });
-  } catch (error: any) {
-    console.error("Error fetching upcoming meeting:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -867,68 +490,13 @@ router.post("/tasks/:taskId/complete", async (req: Request, res: Response) => {
 router.get("/stats/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
-    const { dateFrom, dateTo, meetingFilter, meetingIds } = req.query;
 
-    // If meetingFilter is provided, get participant IDs from meeting participation
-    let meetingParticipantIds: string[] | null = null;
-    if (meetingFilter && (meetingFilter === 'next_meeting' || meetingFilter === 'prev_meeting' || meetingFilter === 'this_month' || meetingFilter === '3_months')) {
-      const parsedMeetingIds = meetingIds ? (meetingIds as string).split(',').filter(Boolean) : undefined;
-      
-      meetingParticipantIds = await getMeetingParticipantIds({
-        tenantId,
-        meetingFilter: meetingFilter as string,
-        meetingIds: parsedMeetingIds,
-        dateFrom: dateFrom as string | undefined,
-        dateTo: dateTo as string | undefined
-      });
-      
-      // MEETING-FIRST APPROACH: Ensure all participants have pipeline records
-      if (meetingParticipantIds.length > 0) {
-        await ensurePipelineRecordsForMeetingParticipants({
-          tenantId,
-          participantIds: meetingParticipantIds
-        });
-      }
-      
-      // If no participants found for meeting filter, return empty stats
-      if (meetingParticipantIds.length === 0) {
-        const { data: stages } = await supabaseAdmin
-          .from("pipeline_stages")
-          .select("stage_key, stage_group")
-          .eq("is_active", true);
-        
-        const stageCounts: Record<string, number> = {};
-        stages?.forEach(s => stageCounts[s.stage_key] = 0);
-        
-        return res.json({
-          total: 0,
-          by_stage: stageCounts,
-          by_group: { lead_intake: 0, engagement: 0, conversion: 0, onboarding: 0, retention: 0 }
-        });
-      }
-    }
-
-    // Get counts by stage with optional filters
-    let recordsQuery = supabaseAdmin
+    // Get counts by stage
+    const { data: records, error } = await supabaseAdmin
       .from("pipeline_records")
-      .select("current_stage, current_sub_status, visitor_id")
+      .select("current_stage, current_sub_status")
       .eq("tenant_id", tenantId)
       .is("archived_at", null);
-
-    // Apply meeting participant filter if available
-    if (meetingParticipantIds && meetingParticipantIds.length > 0) {
-      recordsQuery = recordsQuery.in("visitor_id", meetingParticipantIds);
-    } else if (!meetingFilter) {
-      // Only apply date range filter if no meeting filter is used
-      if (dateFrom) {
-        recordsQuery = recordsQuery.gte("stage_entered_at", dateFrom as string);
-      }
-      if (dateTo) {
-        recordsQuery = recordsQuery.lte("stage_entered_at", dateTo as string);
-      }
-    }
-
-    const { data: records, error } = await recordsQuery;
 
     if (error) throw error;
 
