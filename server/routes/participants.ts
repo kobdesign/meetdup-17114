@@ -5559,6 +5559,19 @@ router.post("/pos-manual-checkin", verifySupabaseAuth, async (req: Authenticated
     }
     
     console.log(`${logPrefix} Manual check-in created for:`, participant.full_name_th, isLate ? '(late)' : '');
+
+    // Auto-sync check-in to Growth Pipeline (non-blocking)
+    if (participant.status === "visitor" || participant.status === "prospect") {
+      syncCheckInToPipeline({
+        tenant_id: expected_tenant_id,
+        participant_id,
+        meeting_id
+      }).then(result => {
+        console.log(`${logPrefix} Pipeline sync result:`, result);
+      }).catch(err => {
+        console.error(`${logPrefix} Pipeline sync error:`, err);
+      });
+    }
     
     return res.json({
       success: true,
