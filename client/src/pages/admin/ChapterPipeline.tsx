@@ -191,13 +191,13 @@ export default function ChapterPipeline() {
       meeting_id: string;
       meeting_date: string;
       meeting_name: string;
-      participant_identifiers: string[];
+      participant_ids: string[];
     } | null;
     latest_past: {
       meeting_id: string;
       meeting_date: string;
       meeting_name: string;
-      participant_identifiers: string[];
+      participant_ids: string[];
     } | null;
   }
 
@@ -207,6 +207,16 @@ export default function ChapterPipeline() {
     enabled: !!selectedTenant?.tenant_id,
   });
 
+  // Calculate current selected meeting_id for filtering
+  const selectedMeetingId = useMemo(() => {
+    if (meetingFilter === "upcoming" && meetingFilterData?.upcoming) {
+      return meetingFilterData.upcoming.meeting_id;
+    } else if (meetingFilter === "latest_past" && meetingFilterData?.latest_past) {
+      return meetingFilterData.latest_past.meeting_id;
+    }
+    return null;
+  }, [meetingFilter, meetingFilterData]);
+
   const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
     queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id],
     queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}`),
@@ -214,8 +224,13 @@ export default function ChapterPipeline() {
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id],
-    queryFn: () => apiRequest(`/api/pipeline/stats/${selectedTenant?.tenant_id}`),
+    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id, selectedMeetingId],
+    queryFn: () => {
+      const url = selectedMeetingId 
+        ? `/api/pipeline/stats/${selectedTenant?.tenant_id}?meeting_id=${selectedMeetingId}`
+        : `/api/pipeline/stats/${selectedTenant?.tenant_id}`;
+      return apiRequest(url);
+    },
     enabled: !!selectedTenant?.tenant_id,
   });
 
@@ -318,12 +333,12 @@ export default function ChapterPipeline() {
     
     const searchTerm = searchQuery.trim().toLowerCase();
     
-    // Get meeting filter identifiers
-    let meetingIdentifiers: string[] | null = null;
+    // Get meeting filter participant_ids
+    let meetingParticipantIds: string[] | null = null;
     if (meetingFilter === "upcoming" && meetingFilterData?.upcoming) {
-      meetingIdentifiers = meetingFilterData.upcoming.participant_identifiers;
+      meetingParticipantIds = meetingFilterData.upcoming.participant_ids;
     } else if (meetingFilter === "latest_past" && meetingFilterData?.latest_past) {
-      meetingIdentifiers = meetingFilterData.latest_past.participant_identifiers;
+      meetingParticipantIds = meetingFilterData.latest_past.participant_ids;
     }
     
     return kanbanData.map(stage => {
@@ -337,15 +352,10 @@ export default function ChapterPipeline() {
         const staleStatus = getStaleStatus(record);
         const matchesStaleFilter = showStaleLeads || staleStatus !== "critical";
         
-        // Meeting filter - match by phone or email (case-insensitive)
+        // Meeting filter - match by visitor_id (which is participant_id in pipeline_records)
         let matchesMeeting = true;
-        if (meetingIdentifiers && meetingIdentifiers.length > 0) {
-          const recordPhone = (record.phone || "").toLowerCase().trim();
-          const recordEmail = (record.email || "").toLowerCase().trim();
-          const normalizedIdentifiers = meetingIdentifiers.map(id => id.toLowerCase().trim());
-          matchesMeeting = normalizedIdentifiers.some(id => 
-            (recordPhone && id === recordPhone) || (recordEmail && id === recordEmail)
-          );
+        if (meetingParticipantIds && meetingParticipantIds.length > 0) {
+          matchesMeeting = record.visitor_id ? meetingParticipantIds.includes(record.visitor_id) : false;
         }
         
         return matchesSearch && matchesStaleFilter && matchesMeeting;

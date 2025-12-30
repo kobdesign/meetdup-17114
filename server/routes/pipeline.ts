@@ -540,13 +540,51 @@ router.post("/tasks/:taskId/complete", async (req: Request, res: Response) => {
 router.get("/stats/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
+    const { meeting_id } = req.query;
 
-    // Get counts by stage
-    const { data: records, error } = await supabaseAdmin
+    // If meeting_id is provided, get participant_ids for that meeting
+    let meetingParticipantIds: string[] | null = null;
+    if (meeting_id && typeof meeting_id === 'string') {
+      const { data: registrations } = await supabaseAdmin
+        .from("meeting_registrations")
+        .select("participant_id")
+        .eq("meeting_id", meeting_id);
+      
+      if (registrations && registrations.length > 0) {
+        meetingParticipantIds = registrations.map((r: any) => r.participant_id);
+      } else {
+        meetingParticipantIds = []; // No registrations = empty result
+      }
+    }
+
+    // Get counts by stage (with optional meeting filter)
+    let query = supabaseAdmin
       .from("pipeline_records")
-      .select("current_stage, current_sub_status")
+      .select("current_stage, current_sub_status, visitor_id")
       .eq("tenant_id", tenantId)
       .is("archived_at", null);
+
+    // Filter by participant_ids if meeting filter is active
+    if (meetingParticipantIds !== null) {
+      if (meetingParticipantIds.length === 0) {
+        // No participants = return empty stats
+        res.json({
+          total: 0,
+          by_stage: {},
+          by_group: {
+            lead_intake: 0,
+            engagement: 0,
+            conversion: 0,
+            onboarding: 0,
+            retention: 0
+          }
+        });
+        return;
+      }
+      query = query.in("visitor_id", meetingParticipantIds);
+    }
+
+    const { data: records, error } = await query;
 
     if (error) throw error;
 
@@ -1057,29 +1095,19 @@ router.get("/meeting-filter/:tenantId", async (req: Request, res: Response) => {
     const upcomingMeeting = upcomingMeetings?.[0] || null;
     const latestPastMeeting = pastMeetings?.[0] || null;
 
-    // Get participant identifiers for each meeting via meeting_registrations table
+    // Get participant_ids directly for each meeting via meeting_registrations table
     // Note: meeting_registrations doesn't have tenant_id, but we already filtered meetings by tenant_id
-    let upcomingParticipants: string[] = [];
-    let latestPastParticipants: string[] = [];
+    let upcomingParticipantIds: string[] = [];
+    let latestPastParticipantIds: string[] = [];
 
     if (upcomingMeeting) {
-      // Get participants who registered for this meeting
       const { data: registrations } = await supabaseAdmin
         .from("meeting_registrations")
         .select("participant_id")
         .eq("meeting_id", upcomingMeeting.meeting_id);
       
       if (registrations && registrations.length > 0) {
-        const participantIds = registrations.map((r: any) => r.participant_id);
-        const { data: participants } = await supabaseAdmin
-          .from("participants")
-          .select("phone, email")
-          .in("participant_id", participantIds);
-        
-        participants?.forEach((p: any) => {
-          if (p.phone) upcomingParticipants.push(p.phone.trim());
-          if (p.email) upcomingParticipants.push(p.email.toLowerCase().trim());
-        });
+        upcomingParticipantIds = registrations.map((r: any) => r.participant_id);
       }
     }
 
@@ -1090,27 +1118,18 @@ router.get("/meeting-filter/:tenantId", async (req: Request, res: Response) => {
         .eq("meeting_id", latestPastMeeting.meeting_id);
       
       if (registrations && registrations.length > 0) {
-        const participantIds = registrations.map((r: any) => r.participant_id);
-        const { data: participants } = await supabaseAdmin
-          .from("participants")
-          .select("phone, email")
-          .in("participant_id", participantIds);
-        
-        participants?.forEach((p: any) => {
-          if (p.phone) latestPastParticipants.push(p.phone.trim());
-          if (p.email) latestPastParticipants.push(p.email.toLowerCase().trim());
-        });
+        latestPastParticipantIds = registrations.map((r: any) => r.participant_id);
       }
     }
 
     res.json({
       upcoming: upcomingMeeting ? {
         ...upcomingMeeting,
-        participant_identifiers: upcomingParticipants
+        participant_ids: upcomingParticipantIds
       } : null,
       latest_past: latestPastMeeting ? {
         ...latestPastMeeting,
-        participant_identifiers: latestPastParticipants
+        participant_ids: latestPastParticipantIds
       } : null
     });
   } catch (error: any) {
