@@ -655,7 +655,7 @@ export default function ChapterPipeline() {
                                   </div>
                                   {record.meetings_attended > 0 && (
                                     <Badge variant="secondary" className="text-xs">
-                                      {record.meetings_attended} ครั้ง
+                                      เข้าประชุม {record.meetings_attended} ครั้ง
                                     </Badge>
                                   )}
                                 </div>
