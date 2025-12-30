@@ -388,7 +388,9 @@ export default function ChapterPipeline() {
       // Also pass date range for this_month and 3_months filters
       if ((timeFilter === "this_month" || timeFilter === "3_months") && dateRange.dateFrom) {
         params.append("dateFrom", dateRange.dateFrom);
-        if (dateRange.dateTo) params.append("dateTo", dateRange.dateTo);
+        // For open-ended ranges, use current date/time as dateTo
+        const dateTo = dateRange.dateTo || new Date().toISOString();
+        params.append("dateTo", dateTo);
       }
     } else {
       // For non-meeting filters, use date range
