@@ -1754,6 +1754,7 @@ export default function MeetingOperations() {
         meetingId={selectedMeetingId}
         onSuccess={() => {
           loadParticipantsWithStatus();
+          loadRegisteredVisitors();
         }}
       />
 
