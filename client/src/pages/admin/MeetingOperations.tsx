@@ -1752,6 +1752,9 @@ export default function MeetingOperations() {
         }}
         tenantId={effectiveTenantId || ""}
         meetingId={selectedMeetingId}
+        onSuccess={() => {
+          loadParticipantsWithStatus();
+        }}
       />
 
       <AlertDialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>

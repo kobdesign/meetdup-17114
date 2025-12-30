@@ -15,13 +15,15 @@ interface VisitorRegistrationDialogProps {
   onOpenChange: (open: boolean) => void;
   tenantId: string;
   meetingId?: string;
+  onSuccess?: () => void;
 }
 
 export default function VisitorRegistrationDialog({ 
   open, 
   onOpenChange, 
   tenantId,
-  meetingId 
+  meetingId,
+  onSuccess 
 }: VisitorRegistrationDialogProps) {
   const [loading, setLoading] = useState(false);
   const [meetings, setMeetings] = useState<any[]>([]);
@@ -288,6 +290,11 @@ export default function VisitorRegistrationDialog({
       const data = await response.json();
 
       toast.success("ลงทะเบียนสำเร็จ! ยินดีต้อนรับสู่ชุมชน Meetdup");
+      
+      // Call onSuccess callback to refresh parent data
+      if (onSuccess) {
+        onSuccess();
+      }
       
       // Close dialog after successful registration
       setTimeout(() => {

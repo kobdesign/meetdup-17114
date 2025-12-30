@@ -140,7 +140,26 @@ export async function syncVisitorToPipeline(params: {
       };
     }
 
-    // Create new pipeline record at lead stage
+    // Query historical check-in count to populate meetings_attended correctly
+    const { count: historicalCheckIns } = await supabaseAdmin
+      .from("checkins")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenant_id)
+      .eq("participant_id", participant_id);
+
+    const actualMeetingsAttended = historicalCheckIns || 0;
+
+    // Determine initial stage based on historical attendance
+    let initialStage = "lead";
+    if (actualMeetingsAttended >= 2) {
+      initialStage = "revisit";
+    } else if (actualMeetingsAttended === 1) {
+      initialStage = "attended";
+    }
+
+    console.log(`${logPrefix} Historical check-ins: ${actualMeetingsAttended}, initial stage: ${initialStage}`);
+
+    // Create new pipeline record with correct initial stage
     const { data: newRecord, error: insertError } = await supabaseAdmin
       .from("pipeline_records")
       .insert({
@@ -150,14 +169,14 @@ export async function syncVisitorToPipeline(params: {
         phone: participant.phone,
         email: participant.email,
         line_id: participant.line_id,
-        current_stage: "lead",
+        current_stage: initialStage,
         stage_entered_at: new Date().toISOString(),
         source: source || "meeting_registration",
         source_details: source_details || `Registered for meeting ${meeting_id}`,
         referrer_participant_id,
         first_meeting_id: meeting_id,
         last_meeting_id: meeting_id,
-        meetings_attended: 0
+        meetings_attended: actualMeetingsAttended
       })
       .select("id")
       .single();
@@ -172,13 +191,15 @@ export async function syncVisitorToPipeline(params: {
       .from("pipeline_transitions")
       .insert({
         pipeline_record_id: newRecord.id,
-        to_stage: "lead",
+        to_stage: initialStage,
         is_automatic: true,
-        change_reason: "Auto-created from registration"
+        change_reason: actualMeetingsAttended > 0 
+          ? `Auto-created with ${actualMeetingsAttended} historical check-in(s)`
+          : "Auto-created from registration"
       });
 
-    console.log(`${logPrefix} Created new pipeline record:`, newRecord.id);
-    return { success: true, action: "created", record_id: newRecord.id };
+    console.log(`${logPrefix} Created new pipeline record:`, newRecord.id, "stage:", initialStage, "meetings:", actualMeetingsAttended);
+    return { success: true, action: "created", record_id: newRecord.id, initial_stage: initialStage, meetings_attended: actualMeetingsAttended };
 
   } catch (error: any) {
     console.error(`${logPrefix} Unexpected error:`, error);
