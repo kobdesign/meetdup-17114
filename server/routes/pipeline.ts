@@ -594,14 +594,14 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
         const participantStatus = r.participant?.status;
         const hasCheckin = checkinMap.has(pid);
         
-        // Determine recommended stage based on actual data
+        // Determine recommended stage based on actual data (Lean Pipeline stages)
         let recommendedStage: string;
         if (participantStatus === "member") {
           recommendedStage = "active_member";
         } else if (hasCheckin) {
-          recommendedStage = "attended_meeting";
+          recommendedStage = "attended";
         } else {
-          recommendedStage = "rsvp_confirmed";
+          recommendedStage = "lead";
         }
         
         visitorMap.set(pid, {
@@ -655,7 +655,7 @@ router.post("/import-batch", async (req: Request, res: Response) => {
       importList = visitors;
     } else if (participant_ids && Array.isArray(participant_ids)) {
       // Legacy format: all participants go to same stage
-      const stage = target_stage || "attended_meeting";
+      const stage = target_stage || "attended";
       importList = participant_ids.map((pid: string) => ({ participant_id: pid, target_stage: stage }));
     } else {
       return res.status(400).json({ error: "Either visitors array or participant_ids array required" });
