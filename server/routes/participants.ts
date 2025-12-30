@@ -10,6 +10,7 @@ import { createActivationSuccessFlexMessage } from "../services/line/templates/a
 import { getProductionBaseUrl } from "../utils/getProductionUrl";
 import { sendGoalAchievementNotification } from "../services/goals/achievementNotification";
 import { getShareEnabled, getShareServiceUrl } from "../utils/liffConfig";
+import { syncVisitorToPipeline, syncCheckInToPipeline } from "../services/pipelineSync";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -705,6 +706,20 @@ router.post("/check-in", async (req: Request, res: Response) => {
     }
 
     console.log(`${logPrefix} Check-in successful${isLate ? ' (late)' : ''}`);
+
+    // Auto-sync check-in to Growth Pipeline (non-blocking)
+    if (participant.status === "visitor" || participant.status === "prospect") {
+      syncCheckInToPipeline({
+        tenant_id: meeting.tenant_id,
+        participant_id,
+        meeting_id
+      }).then(result => {
+        console.log(`${logPrefix} Pipeline check-in sync result:`, result);
+      }).catch(err => {
+        console.error(`${logPrefix} Pipeline check-in sync error (non-critical):`, err);
+      });
+    }
+
     return res.json({
       success: true,
       participant_id: participant_id,
@@ -1063,6 +1078,19 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       } catch (feeErr) {
         console.error(`${logPrefix} Error in visitor fee creation (non-critical):`, feeErr);
       }
+
+      // Auto-sync to Growth Pipeline (non-blocking)
+      syncVisitorToPipeline({
+        tenant_id,
+        participant_id: participant.participant_id,
+        meeting_id,
+        source: "meeting_registration",
+        referrer_participant_id: referred_by_participant_id
+      }).then(result => {
+        console.log(`${logPrefix} Pipeline sync result:`, result);
+      }).catch(err => {
+        console.error(`${logPrefix} Pipeline sync error (non-critical):`, err);
+      });
     }
 
     // If auto_checkin is enabled, create check-in record immediately
@@ -1101,6 +1129,17 @@ router.post("/register-visitor", async (req: Request, res: Response) => {
       }
 
       console.log(`${logPrefix} Auto check-in successful`);
+
+      // Auto-sync check-in to Pipeline (non-blocking)
+      syncCheckInToPipeline({
+        tenant_id,
+        participant_id: participant.participant_id,
+        meeting_id
+      }).then(result => {
+        console.log(`${logPrefix} Pipeline check-in sync result:`, result);
+      }).catch(err => {
+        console.error(`${logPrefix} Pipeline check-in sync error (non-critical):`, err);
+      });
     }
 
     // Generate profile edit token for immediate profile editing

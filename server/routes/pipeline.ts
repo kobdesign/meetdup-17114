@@ -485,4 +485,187 @@ router.get("/stats/:tenantId", async (req: Request, res: Response) => {
   }
 });
 
+// Get historical visitors for batch import preview
+router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    const { since_days = "90" } = req.query;
+    
+    const daysAgo = parseInt(since_days as string) || 90;
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - daysAgo);
+
+    // Get visitors from meeting_registrations who are NOT in pipeline yet
+    const { data: registrations, error: regError } = await supabaseAdmin
+      .from("meeting_registrations")
+      .select(`
+        registration_id,
+        meeting_id,
+        created_at,
+        participant:participants!inner (
+          participant_id,
+          full_name_th,
+          phone,
+          email,
+          status,
+          tenant_id
+        ),
+        meeting:meetings!inner (
+          meeting_id,
+          meeting_date,
+          theme
+        )
+      `)
+      .gte("created_at", sinceDate.toISOString())
+      .order("created_at", { ascending: false });
+
+    if (regError) throw regError;
+
+    // Filter by tenant and visitor status
+    const tenantRegistrations = registrations?.filter((r: any) => 
+      r.participant?.tenant_id === tenantId && 
+      (r.participant?.status === "visitor" || r.participant?.status === "prospect")
+    ) || [];
+
+    // Get existing pipeline records for this tenant
+    const { data: existingRecords } = await supabaseAdmin
+      .from("pipeline_records")
+      .select("visitor_id")
+      .eq("tenant_id", tenantId);
+
+    const existingVisitorIds = new Set(existingRecords?.map(r => r.visitor_id) || []);
+
+    // Filter out visitors already in pipeline
+    const importableVisitors = tenantRegistrations.filter((r: any) => 
+      !existingVisitorIds.has(r.participant?.participant_id)
+    );
+
+    // Group by participant (same visitor might have multiple registrations)
+    const visitorMap = new Map<string, any>();
+    importableVisitors.forEach((r: any) => {
+      const pid = r.participant?.participant_id;
+      if (!visitorMap.has(pid)) {
+        visitorMap.set(pid, {
+          participant_id: pid,
+          full_name: r.participant?.full_name_th,
+          phone: r.participant?.phone,
+          email: r.participant?.email,
+          status: r.participant?.status,
+          first_meeting_date: r.meeting?.meeting_date,
+          first_meeting_theme: r.meeting?.theme,
+          first_meeting_id: r.meeting?.meeting_id,
+          meeting_count: 1
+        });
+      } else {
+        visitorMap.get(pid).meeting_count++;
+      }
+    });
+
+    res.json({
+      total_found: visitorMap.size,
+      already_in_pipeline: existingVisitorIds.size,
+      visitors: Array.from(visitorMap.values())
+    });
+  } catch (error: any) {
+    console.error("Error fetching import preview:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Batch import historical visitors to pipeline
+router.post("/import-batch", async (req: Request, res: Response) => {
+  try {
+    const { tenant_id, participant_ids, target_stage = "attended_meeting" } = req.body;
+
+    if (!tenant_id || !participant_ids || !Array.isArray(participant_ids)) {
+      return res.status(400).json({ error: "tenant_id and participant_ids array required" });
+    }
+
+    // Get participant details
+    const { data: participants, error: pError } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, phone, email, line_id")
+      .in("participant_id", participant_ids)
+      .eq("tenant_id", tenant_id);
+
+    if (pError) throw pError;
+
+    // Get their first meeting info
+    const { data: registrations } = await supabaseAdmin
+      .from("meeting_registrations")
+      .select(`
+        participant_id,
+        meeting_id,
+        meeting:meetings!inner(meeting_date)
+      `)
+      .in("participant_id", participant_ids)
+      .order("created_at", { ascending: true });
+
+    // Build first meeting map
+    const meetingMap = new Map<string, { meeting_id: string; meeting_date: string }>();
+    registrations?.forEach((r: any) => {
+      if (!meetingMap.has(r.participant_id)) {
+        meetingMap.set(r.participant_id, {
+          meeting_id: r.meeting_id,
+          meeting_date: r.meeting?.meeting_date
+        });
+      }
+    });
+
+    // Count meetings per participant
+    const meetingCountMap = new Map<string, number>();
+    registrations?.forEach((r: any) => {
+      meetingCountMap.set(r.participant_id, (meetingCountMap.get(r.participant_id) || 0) + 1);
+    });
+
+    // Create pipeline records
+    const now = new Date().toISOString();
+    const records = participants?.map(p => ({
+      tenant_id,
+      visitor_id: p.participant_id,
+      full_name: p.full_name_th,
+      phone: p.phone,
+      email: p.email,
+      line_id: p.line_id,
+      current_stage: target_stage,
+      stage_entered_at: now,
+      source: "batch_import",
+      source_details: "Historical visitor import",
+      first_meeting_id: meetingMap.get(p.participant_id)?.meeting_id,
+      last_meeting_id: meetingMap.get(p.participant_id)?.meeting_id,
+      last_meeting_date: meetingMap.get(p.participant_id)?.meeting_date,
+      meetings_attended: meetingCountMap.get(p.participant_id) || 1
+    })) || [];
+
+    if (records.length === 0) {
+      return res.json({ success: true, imported: 0 });
+    }
+
+    const { data: inserted, error: insertError } = await supabaseAdmin
+      .from("pipeline_records")
+      .insert(records)
+      .select("id");
+
+    if (insertError) throw insertError;
+
+    // Create transition records
+    const transitions = inserted?.map(r => ({
+      pipeline_record_id: r.id,
+      to_stage: target_stage,
+      is_automatic: true,
+      change_reason: "Batch imported from historical visitors"
+    })) || [];
+
+    await supabaseAdmin.from("pipeline_transitions").insert(transitions);
+
+    res.json({
+      success: true,
+      imported: inserted?.length || 0
+    });
+  } catch (error: any) {
+    console.error("Error in batch import:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
