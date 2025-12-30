@@ -5,6 +5,7 @@ import { verifySupabaseAuth, AuthenticatedRequest } from "../utils/auth";
 import { verifyProfileToken, ProfileTokenPayload } from "../utils/profileToken";
 import { LineClient } from "../services/line/lineClient";
 import { subscriptionService } from "../stripe/subscriptionService";
+import { syncMemberStatusToPipeline } from "../services/pipelineSync";
 
 const router = Router();
 
@@ -2473,6 +2474,17 @@ router.post("/participants/:participantId/convert-to-member", verifySupabaseAuth
     }
 
     console.log(`${logPrefix} Successfully converted ${participant.full_name_th || participant.nickname_th} to member`);
+
+    // Auto-sync to Growth Pipeline (non-blocking)
+    syncMemberStatusToPipeline({
+      tenant_id,
+      participant_id: participantId,
+      source: "admin_convert"
+    }).then(result => {
+      console.log(`${logPrefix} Pipeline sync result:`, result);
+    }).catch(err => {
+      console.error(`${logPrefix} Pipeline sync error (non-critical):`, err);
+    });
 
     return res.json({
       success: true,

@@ -10,7 +10,7 @@ import { createActivationSuccessFlexMessage } from "../services/line/templates/a
 import { getProductionBaseUrl } from "../utils/getProductionUrl";
 import { sendGoalAchievementNotification } from "../services/goals/achievementNotification";
 import { getShareEnabled, getShareServiceUrl } from "../utils/liffConfig";
-import { syncVisitorToPipeline, syncCheckInToPipeline } from "../services/pipelineSync";
+import { syncVisitorToPipeline, syncCheckInToPipeline, syncMemberStatusToPipeline } from "../services/pipelineSync";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -4606,6 +4606,17 @@ router.post("/activate", async (req: Request, res: Response) => {
 
     if (!isAlreadyMember) {
       console.log(`${logPrefix} Participant status upgraded to member`);
+      
+      // Auto-sync to Growth Pipeline (non-blocking)
+      syncMemberStatusToPipeline({
+        tenant_id: tenantId,
+        participant_id: participant.participant_id,
+        source: "web_activation"
+      }).then(result => {
+        console.log(`${logPrefix} Pipeline sync result:`, result);
+      }).catch(err => {
+        console.error(`${logPrefix} Pipeline sync error (non-critical):`, err);
+      });
     } else {
       console.log(`${logPrefix} Participant already a member, status preserved`);
     }

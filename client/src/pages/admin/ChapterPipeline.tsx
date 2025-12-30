@@ -66,6 +66,10 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  RefreshCw,
+  Star,
+  GraduationCap,
+  FileText,
 } from "lucide-react";
 
 interface PipelineStage {
@@ -121,12 +125,13 @@ const iconMap: Record<string, any> = {
   CalendarCheck: Calendar,
   Users: Users,
   MessageCircle: MessageCircle,
-  FileText: User,
+  FileText: FileText,
   CheckCircle2: CheckCircle,
-  GraduationCap: TrendingUp,
-  Star: TrendingUp,
+  GraduationCap: GraduationCap,
+  Star: Star,
   AlertTriangle: AlertTriangle,
   Archive: Archive,
+  RefreshCw: RefreshCw,
 };
 
 interface ImportVisitor {
@@ -145,9 +150,18 @@ interface ImportVisitor {
 }
 
 const STAGE_LABELS: Record<string, string> = {
+  lead: "Lead",
+  attended: "เข้าประชุมแล้ว",
+  revisit: "มาซ้ำ",
+  follow_up: "กำลังติดตาม",
+  application_submitted: "ยื่นใบสมัคร",
+  active_member: "สมาชิก Active",
+  onboarding: "Onboarding",
+  archived: "Archive",
+  // Legacy stage labels for backward compatibility
   rsvp_confirmed: "RSVP",
   attended_meeting: "เข้าประชุม",
-  active_member: "Member",
+  lead_capture: "Lead",
 };
 
 export default function ChapterPipeline() {
