@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export interface BusinessCategory {
   category_code: string;
@@ -15,6 +16,7 @@ interface BusinessCategoriesResponse {
 export function useBusinessCategories() {
   const query = useQuery<BusinessCategoriesResponse>({
     queryKey: ["/api/business-categories"],
+    queryFn: () => apiRequest("/api/business-categories"),
     staleTime: 5 * 60 * 1000,
   });
 
