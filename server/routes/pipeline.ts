@@ -31,8 +31,21 @@ async function getMeetingParticipantIds(params: {
     });
   }
   
-  // For 'prev_meeting' - get check-ins for previous meeting
+  // For 'prev_meeting' - get BOTH registrations AND check-ins for previous meeting
+  // This includes visitors who registered but didn't show up, plus those who actually attended
   else if (meetingFilter === 'prev_meeting' && meetingIds && meetingIds.length > 0) {
+    // Get registrations for the previous meeting
+    const { data: registrations } = await supabaseAdmin
+      .from("meeting_registrations")
+      .select("participant_id")
+      .eq("tenant_id", tenantId)
+      .in("meeting_id", meetingIds);
+    
+    registrations?.forEach(r => {
+      if (r.participant_id) participantIds.add(r.participant_id);
+    });
+    
+    // Also get check-ins (in case someone checked in without registration)
     const { data: checkins } = await supabaseAdmin
       .from("checkins")
       .select("participant_id")
