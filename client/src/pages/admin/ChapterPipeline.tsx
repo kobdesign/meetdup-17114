@@ -70,6 +70,7 @@ import {
   Star,
   GraduationCap,
   FileText,
+  ChevronDown,
 } from "lucide-react";
 
 interface PipelineStage {
@@ -166,10 +167,114 @@ const STAGE_LABELS: Record<string, string> = {
   lead_capture: "Lead",
 };
 
+// Time filter options
+type TimeFilterKey = "all" | "this_week" | "last_week" | "this_month" | "3_months" | "6_months" | "this_year" | "last_year";
+
+interface TimeFilterOption {
+  key: TimeFilterKey;
+  label: string;
+  labelTh: string;
+}
+
+const TIME_FILTER_OPTIONS: TimeFilterOption[] = [
+  { key: "all", label: "All Time", labelTh: "ทั้งหมด" },
+  { key: "this_week", label: "This Week", labelTh: "อาทิตย์นี้" },
+  { key: "last_week", label: "Last Week", labelTh: "อาทิตย์ก่อน" },
+  { key: "this_month", label: "This Month", labelTh: "เดือนนี้" },
+  { key: "3_months", label: "Last 3 Months", labelTh: "3 เดือนนี้" },
+  { key: "6_months", label: "Last 6 Months", labelTh: "6 เดือนนี้" },
+  { key: "this_year", label: "This Year", labelTh: "ปีนี้" },
+  { key: "last_year", label: "Last Year", labelTh: "ปีก่อน" },
+];
+
+// Quick access filters (shown as buttons)
+const QUICK_FILTERS: TimeFilterKey[] = ["this_week", "this_month", "3_months"];
+
+function getDateRange(filterKey: TimeFilterKey): { dateFrom: string | null; dateTo: string | null } {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // Helper to set end of day (23:59:59.999)
+  const endOfDay = (date: Date): Date => {
+    const d = new Date(date);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  };
+  
+  // Helper to safely subtract months (handles month-end edge cases)
+  const subtractMonths = (date: Date, months: number): Date => {
+    const result = new Date(date);
+    const targetMonth = result.getMonth() - months;
+    result.setMonth(targetMonth);
+    // If day overflowed (e.g., May 31 -> Feb 31 becomes Mar 3), go back to last day of target month
+    if (result.getMonth() !== ((targetMonth % 12) + 12) % 12) {
+      result.setDate(0); // Sets to last day of previous month
+    }
+    return result;
+  };
+  
+  switch (filterKey) {
+    case "all":
+      return { dateFrom: null, dateTo: null };
+    
+    case "this_week": {
+      const dayOfWeek = today.getDay();
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - dayOfWeek);
+      return { dateFrom: startOfWeek.toISOString(), dateTo: null };
+    }
+    
+    case "last_week": {
+      const dayOfWeek = today.getDay();
+      const lastSaturday = new Date(today);
+      lastSaturday.setDate(today.getDate() - dayOfWeek - 1);
+      const lastSunday = new Date(lastSaturday);
+      lastSunday.setDate(lastSaturday.getDate() - 6);
+      return { 
+        dateFrom: lastSunday.toISOString(), 
+        dateTo: endOfDay(lastSaturday).toISOString() 
+      };
+    }
+    
+    case "this_month": {
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { dateFrom: startOfMonth.toISOString(), dateTo: null };
+    }
+    
+    case "3_months": {
+      const threeMonthsAgo = subtractMonths(today, 3);
+      return { dateFrom: threeMonthsAgo.toISOString(), dateTo: null };
+    }
+    
+    case "6_months": {
+      const sixMonthsAgo = subtractMonths(today, 6);
+      return { dateFrom: sixMonthsAgo.toISOString(), dateTo: null };
+    }
+    
+    case "this_year": {
+      const startOfYear = new Date(today.getFullYear(), 0, 1);
+      return { dateFrom: startOfYear.toISOString(), dateTo: null };
+    }
+    
+    case "last_year": {
+      const startOfLastYear = new Date(today.getFullYear() - 1, 0, 1);
+      const endOfLastYear = new Date(today.getFullYear() - 1, 11, 31);
+      return { 
+        dateFrom: startOfLastYear.toISOString(), 
+        dateTo: endOfDay(endOfLastYear).toISOString() 
+      };
+    }
+    
+    default:
+      return { dateFrom: null, dateTo: null };
+  }
+}
+
 export default function ChapterPipeline() {
   const { selectedTenant, isReady } = useTenantContext();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [timeFilter, setTimeFilter] = useState<TimeFilterKey>("3_months");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -181,6 +286,9 @@ export default function ChapterPipeline() {
   const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   
+  // Get date range from current filter
+  const dateRange = getDateRange(timeFilter);
+  
   const [newLead, setNewLead] = useState({
     full_name: "",
     phone: "",
@@ -190,15 +298,23 @@ export default function ChapterPipeline() {
     notes: "",
   });
 
+  // Build query params for date filter
+  const buildDateParams = () => {
+    const params = new URLSearchParams();
+    if (dateRange.dateFrom) params.append("dateFrom", dateRange.dateFrom);
+    if (dateRange.dateTo) params.append("dateTo", dateRange.dateTo);
+    return params.toString() ? `?${params.toString()}` : "";
+  };
+
   const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
-    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id],
-    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}`),
+    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id, dateRange.dateFrom, dateRange.dateTo],
+    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}${buildDateParams()}`),
     enabled: !!selectedTenant?.tenant_id,
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id],
-    queryFn: () => apiRequest(`/api/pipeline/stats/${selectedTenant?.tenant_id}`),
+    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id, dateRange.dateFrom, dateRange.dateTo],
+    queryFn: () => apiRequest(`/api/pipeline/stats/${selectedTenant?.tenant_id}${buildDateParams()}`),
     enabled: !!selectedTenant?.tenant_id,
   });
 
@@ -453,6 +569,51 @@ export default function ChapterPipeline() {
               className="pl-9 w-64"
               data-testid="input-search"
             />
+          </div>
+
+          <div className="flex items-center gap-1 bg-muted rounded-md p-1" data-testid="filter-time-range">
+            {QUICK_FILTERS.map((filterKey) => {
+              const option = TIME_FILTER_OPTIONS.find(o => o.key === filterKey);
+              return (
+                <Button
+                  key={filterKey}
+                  variant={timeFilter === filterKey ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setTimeFilter(filterKey)}
+                  className={timeFilter === filterKey ? "bg-background shadow-sm" : ""}
+                  data-testid={`button-filter-${filterKey}`}
+                >
+                  {option?.labelTh}
+                </Button>
+              );
+            })}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant={!QUICK_FILTERS.includes(timeFilter) ? "secondary" : "ghost"} 
+                  size="sm"
+                  className={!QUICK_FILTERS.includes(timeFilter) ? "bg-background shadow-sm" : ""}
+                  data-testid="button-filter-more"
+                >
+                  {!QUICK_FILTERS.includes(timeFilter) 
+                    ? TIME_FILTER_OPTIONS.find(o => o.key === timeFilter)?.labelTh 
+                    : "เพิ่มเติม"}
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {TIME_FILTER_OPTIONS.filter(o => !QUICK_FILTERS.includes(o.key)).map((option) => (
+                  <DropdownMenuItem
+                    key={option.key}
+                    onClick={() => setTimeFilter(option.key)}
+                    className={timeFilter === option.key ? "bg-accent" : ""}
+                    data-testid={`menu-filter-${option.key}`}
+                  >
+                    {option.labelTh}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           
           <div className="flex items-center gap-2">

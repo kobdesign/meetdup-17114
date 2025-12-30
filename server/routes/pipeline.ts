@@ -81,6 +81,7 @@ router.get("/records/:tenantId", async (req: Request, res: Response) => {
 router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
+    const { dateFrom, dateTo } = req.query;
 
     // Get all active stages
     const { data: stages, error: stagesError } = await supabaseAdmin
@@ -92,13 +93,22 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
 
     if (stagesError) throw stagesError;
 
-    // Get all active records
-    const { data: records, error: recordsError } = await supabaseAdmin
+    // Get all active records with optional date filter
+    let recordsQuery = supabaseAdmin
       .from("pipeline_records")
       .select("*")
       .eq("tenant_id", tenantId)
-      .is("archived_at", null)
-      .order("stage_entered_at", { ascending: false });
+      .is("archived_at", null);
+
+    // Apply date range filter on stage_entered_at
+    if (dateFrom) {
+      recordsQuery = recordsQuery.gte("stage_entered_at", dateFrom as string);
+    }
+    if (dateTo) {
+      recordsQuery = recordsQuery.lte("stage_entered_at", dateTo as string);
+    }
+
+    const { data: records, error: recordsError } = await recordsQuery.order("stage_entered_at", { ascending: false });
 
     if (recordsError) throw recordsError;
 
@@ -490,13 +500,24 @@ router.post("/tasks/:taskId/complete", async (req: Request, res: Response) => {
 router.get("/stats/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
+    const { dateFrom, dateTo } = req.query;
 
-    // Get counts by stage
-    const { data: records, error } = await supabaseAdmin
+    // Get counts by stage with optional date filter
+    let recordsQuery = supabaseAdmin
       .from("pipeline_records")
       .select("current_stage, current_sub_status")
       .eq("tenant_id", tenantId)
       .is("archived_at", null);
+
+    // Apply date range filter on stage_entered_at
+    if (dateFrom) {
+      recordsQuery = recordsQuery.gte("stage_entered_at", dateFrom as string);
+    }
+    if (dateTo) {
+      recordsQuery = recordsQuery.lte("stage_entered_at", dateTo as string);
+    }
+
+    const { data: records, error } = await recordsQuery;
 
     if (error) throw error;
 
