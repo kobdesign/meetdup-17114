@@ -245,7 +245,7 @@ WHERE r.meeting_id = '<meeting_id>';
 4. `follow_up` - กำลังติดตาม (Admin ย้ายมือ)
 5. `application_submitted` - ยื่นใบสมัครแล้ว
 6. `active_member` - เป็นสมาชิกแล้ว
-7. `onboarding` - กำลังอบรม
+7. `onboarding` - สมาชิก Onboarding (กำลังอบรม)
 8. `archived` - Archive แล้ว
 
 ### Sub-Statuses
@@ -295,7 +295,7 @@ ORDER BY stage_entered_at
 LIMIT 20;
 
 #### 4. Conversion Rate (Last 30 days)
--- หมายเหตุ: Conversion นับเฉพาะ active_member เท่านั้น (ไม่รวม onboarding)
+-- หมายเหตุ: Conversion นับทั้ง active_member และ onboarding (เพราะทั้งสองเป็นสมาชิกแล้ว)
 WITH active_leads AS (
   SELECT current_stage
   FROM pipeline_records
@@ -305,10 +305,9 @@ WITH active_leads AS (
 )
 SELECT 
   COUNT(*) as total_active_leads,
-  COUNT(*) FILTER (WHERE current_stage = 'active_member') as converted,
-  COUNT(*) FILTER (WHERE current_stage = 'onboarding') as onboarding,
+  COUNT(*) FILTER (WHERE current_stage IN ('active_member', 'onboarding')) as converted,
   ROUND(
-    COUNT(*) FILTER (WHERE current_stage = 'active_member')::numeric 
+    COUNT(*) FILTER (WHERE current_stage IN ('active_member', 'onboarding'))::numeric 
     / NULLIF(COUNT(*), 0) * 100, 1
   ) as conversion_rate_percent
 FROM active_leads;
@@ -367,10 +366,10 @@ LIMIT 20;
 - Follow-up: [follow_up] คน (กำลังติดตาม) 📞
 - Applied: [applied] คน (ยื่นใบสมัคร) 📝
 - Active Member: [active_members] คน (เป็นสมาชิกแล้ว) ⭐
-- สมาชิก Onboarding: [onboarding] คน (กำลังอบรม) 📚
+- สมาชิก Onboarding: [onboarding] คน 📚
 
 **📈 Conversion Rate (30 วัน)**
-- Conversion (Active Member): [converted] คน
+- Conversion (Active Member + Onboarding): [converted] คน
 - อัตรา: [conversion_rate]%
 
 ### รายชื่อ Stale Leads

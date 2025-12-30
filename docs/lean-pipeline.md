@@ -25,7 +25,7 @@ Lean Pipeline คือระบบติดตามการเปลี่ย
 | **Follow-up** | กำลังติดตาม | Admin ย้ายมือ (Protected Stage) |
 | **Application Submitted** | ยื่นใบสมัครแล้ว | Admin ย้ายมือ |
 | **Active Member** | เป็นสมาชิกแล้ว | Convert เป็น member / Admin ย้าย |
-| **Onboarding** | กำลังอบรม | Admin ย้ายมือ |
+| **สมาชิก Onboarding** | กำลังอบรม | Admin ย้ายมือ |
 | **Archived** | ไม่ active แล้ว | Admin archive |
 
 ### Protected Stages (No-Backward Rule)
@@ -354,6 +354,7 @@ GROUP BY current_stage;
 
 **Conversion Rate (Last 30 days):**
 ```sql
+-- Conversion นับทั้ง active_member และ onboarding (เพราะทั้งสองเป็นสมาชิกแล้ว)
 SELECT 
   COUNT(*) FILTER (WHERE current_stage IN ('active_member', 'onboarding')) as converted,
   COUNT(*) as total,
