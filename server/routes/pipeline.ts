@@ -501,7 +501,7 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
       .select(`
         registration_id,
         meeting_id,
-        created_at,
+        registered_at,
         participant:participants!inner (
           participant_id,
           full_name_th,
@@ -516,8 +516,8 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
           theme
         )
       `)
-      .gte("created_at", sinceDate.toISOString())
-      .order("created_at", { ascending: false });
+      .gte("registered_at", sinceDate.toISOString())
+      .order("registered_at", { ascending: false });
 
     if (regError) throw regError;
 
@@ -599,7 +599,7 @@ router.post("/import-batch", async (req: Request, res: Response) => {
         meeting:meetings!inner(meeting_date)
       `)
       .in("participant_id", participant_ids)
-      .order("created_at", { ascending: true });
+      .order("registered_at", { ascending: true });
 
     // Build first meeting map
     const meetingMap = new Map<string, { meeting_id: string; meeting_date: string }>();
