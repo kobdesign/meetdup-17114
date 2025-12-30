@@ -154,11 +154,13 @@ export default function ChapterPipeline() {
 
   const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
     queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}`),
     enabled: !!selectedTenant?.tenant_id,
   });
 
   const { data: stats } = useQuery({
     queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/stats/${selectedTenant?.tenant_id}`),
     enabled: !!selectedTenant?.tenant_id,
   });
 
@@ -168,6 +170,7 @@ export default function ChapterPipeline() {
     visitors: ImportVisitor[];
   }>({
     queryKey: ["/api/pipeline/import-preview", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/import-preview/${selectedTenant?.tenant_id}`),
     enabled: isImportDialogOpen && !!selectedTenant?.tenant_id,
   });
 
