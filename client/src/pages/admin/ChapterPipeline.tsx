@@ -122,9 +122,11 @@ const iconMap: Record<string, any> = {
 interface ImportVisitor {
   participant_id: string;
   full_name: string;
+  nickname: string | null;
   phone: string | null;
   email: string | null;
   status: string;
+  referrer_name: string | null;
   first_meeting_date: string;
   first_meeting_theme: string;
   meeting_count: number;
@@ -780,8 +782,19 @@ export default function ChapterPipeline() {
                         data-testid={`checkbox-import-${visitor.participant_id}`}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{visitor.full_name}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-2">
+                        <div className="font-medium truncate">
+                          {visitor.full_name}
+                          {visitor.nickname && (
+                            <span className="text-muted-foreground font-normal ml-1">({visitor.nickname})</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                          {visitor.referrer_name && (
+                            <span className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {visitor.referrer_name}
+                            </span>
+                          )}
                           {visitor.phone && <span>{visitor.phone}</span>}
                           {visitor.meeting_count > 1 && (
                             <Badge variant="secondary" className="text-xs">
@@ -791,6 +804,7 @@ export default function ChapterPipeline() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground text-right">
+                        <div className="text-[10px] opacity-70">ประชุมครั้งแรก</div>
                         {visitor.first_meeting_date && new Date(visitor.first_meeting_date).toLocaleDateString("th-TH")}
                       </div>
                     </div>

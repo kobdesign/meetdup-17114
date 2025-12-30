@@ -505,10 +505,12 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
         participant:participants!inner (
           participant_id,
           full_name_th,
+          nickname,
           phone,
           email,
           status,
-          tenant_id
+          tenant_id,
+          referred_by_participant_id
         ),
         meeting:meetings!inner (
           meeting_id,
@@ -540,17 +542,41 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
       !existingVisitorIds.has(r.participant?.participant_id)
     );
 
+    // Collect referrer IDs to lookup names
+    const referrerIds = new Set<string>();
+    importableVisitors.forEach((r: any) => {
+      if (r.participant?.referred_by_participant_id) {
+        referrerIds.add(r.participant.referred_by_participant_id);
+      }
+    });
+
+    // Lookup referrer names
+    let referrerMap = new Map<string, string>();
+    if (referrerIds.size > 0) {
+      const { data: referrers } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id, full_name_th, nickname")
+        .in("participant_id", Array.from(referrerIds));
+      
+      referrers?.forEach((r: any) => {
+        referrerMap.set(r.participant_id, r.nickname || r.full_name_th);
+      });
+    }
+
     // Group by participant (same visitor might have multiple registrations)
     const visitorMap = new Map<string, any>();
     importableVisitors.forEach((r: any) => {
       const pid = r.participant?.participant_id;
       if (!visitorMap.has(pid)) {
+        const referrerId = r.participant?.referred_by_participant_id;
         visitorMap.set(pid, {
           participant_id: pid,
           full_name: r.participant?.full_name_th,
+          nickname: r.participant?.nickname,
           phone: r.participant?.phone,
           email: r.participant?.email,
           status: r.participant?.status,
+          referrer_name: referrerId ? referrerMap.get(referrerId) : null,
           first_meeting_date: r.meeting?.meeting_date,
           first_meeting_theme: r.meeting?.theme,
           first_meeting_id: r.meeting?.meeting_id,
