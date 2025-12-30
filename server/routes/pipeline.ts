@@ -850,4 +850,126 @@ router.delete("/reset/:tenantId", async (req: Request, res: Response) => {
   }
 });
 
+// Backfill pipeline records with correct stage and meetings_attended from checkins table
+// This recalculates all pipeline records to ensure data consistency
+router.post("/backfill/:tenantId", async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    const logPrefix = `[pipeline:backfill]`;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "tenantId required" });
+    }
+
+    console.log(`${logPrefix} Starting backfill for tenant:`, tenantId);
+
+    // Get all non-archived pipeline records for this tenant
+    const { data: records, error: fetchError } = await supabaseAdmin
+      .from("pipeline_records")
+      .select("id, visitor_id, participant_id, current_stage, meetings_attended")
+      .eq("tenant_id", tenantId)
+      .is("archived_at", null);
+
+    if (fetchError) throw fetchError;
+
+    if (!records || records.length === 0) {
+      return res.json({ success: true, updated: 0, message: "No records to backfill" });
+    }
+
+    console.log(`${logPrefix} Found ${records.length} records to check`);
+
+    let updatedCount = 0;
+    const updates: any[] = [];
+
+    for (const record of records) {
+      const visitorId = record.visitor_id || record.participant_id;
+      if (!visitorId) continue;
+
+      // Count actual check-ins from checkins table
+      const { count: actualCheckIns } = await supabaseAdmin
+        .from("checkins")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("participant_id", visitorId);
+
+      const actualMeetingsAttended = actualCheckIns || 0;
+
+      // Determine correct stage based on actual attendance
+      // Only update if in early stages (lead, attended, revisit) - don't touch protected stages
+      const protectedStages = ['follow_up', 'application_submitted', 'active_member', 'onboarding', 'archived'];
+      let correctStage = record.current_stage;
+
+      if (!protectedStages.includes(record.current_stage)) {
+        if (actualMeetingsAttended === 0) {
+          correctStage = 'lead';
+        } else if (actualMeetingsAttended === 1) {
+          correctStage = 'attended';
+        } else if (actualMeetingsAttended >= 2) {
+          correctStage = 'revisit';
+        }
+      }
+
+      // Check if update needed
+      const needsUpdate = 
+        record.meetings_attended !== actualMeetingsAttended ||
+        record.current_stage !== correctStage;
+
+      if (needsUpdate) {
+        const updateData: any = {
+          meetings_attended: actualMeetingsAttended,
+          updated_at: new Date().toISOString()
+        };
+
+        if (record.current_stage !== correctStage) {
+          updateData.current_stage = correctStage;
+          updateData.stage_entered_at = new Date().toISOString();
+        }
+
+        const { error: updateError } = await supabaseAdmin
+          .from("pipeline_records")
+          .update(updateData)
+          .eq("id", record.id);
+
+        if (updateError) {
+          console.error(`${logPrefix} Error updating record ${record.id}:`, updateError);
+        } else {
+          updatedCount++;
+          updates.push({
+            id: record.id,
+            from_stage: record.current_stage,
+            to_stage: correctStage,
+            from_meetings: record.meetings_attended,
+            to_meetings: actualMeetingsAttended
+          });
+
+          // Create transition record if stage changed
+          if (record.current_stage !== correctStage) {
+            await supabaseAdmin
+              .from("pipeline_transitions")
+              .insert({
+                pipeline_record_id: record.id,
+                from_stage: record.current_stage,
+                to_stage: correctStage,
+                is_automatic: true,
+                change_reason: `Backfill: corrected to ${actualMeetingsAttended} check-in(s)`
+              });
+          }
+        }
+      }
+    }
+
+    console.log(`${logPrefix} Backfill complete. Updated ${updatedCount}/${records.length} records`);
+
+    res.json({
+      success: true,
+      total: records.length,
+      updated: updatedCount,
+      details: updates
+    });
+  } catch (error: any) {
+    console.error("Error backfilling pipeline:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

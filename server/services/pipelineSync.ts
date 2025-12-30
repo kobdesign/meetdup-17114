@@ -81,30 +81,32 @@ export async function syncVisitorToPipeline(params: {
       .maybeSingle();
 
     if (existingRecord) {
-      // Already in pipeline - check if we should move to revisit stage
+      // Already in pipeline - DO NOT auto-promote stage on registration
+      // Stage progression is driven by CHECK-IN only (syncCheckInToPipeline)
       console.log(`${logPrefix} Existing pipeline record found:`, existingRecord.id, "stage:", existingRecord.current_stage);
       
       const now = new Date().toISOString();
-      let targetStage = existingRecord.current_stage;
-      let stageChanged = false;
 
-      // If in early stages and registering again, move to revisit (but not if already at revisit+)
-      if (existingRecord.current_stage === 'lead' || existingRecord.current_stage === 'attended') {
-        if (canAutoMoveToStage(existingRecord.current_stage, 'revisit')) {
-          targetStage = 'revisit';
-          stageChanged = true;
-        }
-      }
+      // Recalculate meetings_attended from actual check-ins (ensure data consistency)
+      const { count: historicalCheckIns } = await supabaseAdmin
+        .from("checkins")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenant_id)
+        .eq("participant_id", participant_id);
 
-      // Update meeting tracking
+      const actualMeetingsAttended = historicalCheckIns || 0;
+
+      // Update metadata only (no stage change from registration)
       const updateData: any = {
         last_meeting_id: meeting_id,
-        updated_at: now
+        updated_at: now,
+        // Sync meetings_attended with actual check-in count
+        meetings_attended: actualMeetingsAttended
       };
 
-      if (stageChanged) {
-        updateData.current_stage = targetStage;
-        updateData.stage_entered_at = now;
+      // Update referrer if provided and not already set
+      if (referrer_participant_id) {
+        updateData.referrer_participant_id = referrer_participant_id;
       }
 
       const { error: updateError } = await supabaseAdmin
@@ -116,27 +118,14 @@ export async function syncVisitorToPipeline(params: {
         console.error(`${logPrefix} Error updating pipeline record:`, updateError);
       }
 
-      // Create transition record if stage changed
-      if (stageChanged) {
-        await supabaseAdmin
-          .from("pipeline_transitions")
-          .insert({
-            pipeline_record_id: existingRecord.id,
-            from_stage: existingRecord.current_stage,
-            to_stage: targetStage,
-            is_automatic: true,
-            change_reason: "Auto-moved to revisit from repeat registration"
-          });
-
-        console.log(`${logPrefix} Moved record from ${existingRecord.current_stage} to ${targetStage}`);
-      }
+      console.log(`${logPrefix} Updated metadata only (no stage change). meetings_attended: ${actualMeetingsAttended}`);
 
       return { 
         success: true, 
-        action: stageChanged ? "moved" : "updated", 
+        action: "updated", 
         record_id: existingRecord.id,
-        from_stage: existingRecord.current_stage,
-        to_stage: targetStage
+        current_stage: existingRecord.current_stage,
+        meetings_attended: actualMeetingsAttended
       };
     }
 
