@@ -103,6 +103,7 @@ interface PipelineRecord {
   participant_id: string | null;
   visitor_id: string | null;
   full_name: string;
+  nickname_th: string | null;
   phone: string | null;
   email: string | null;
   line_id: string | null;
@@ -111,6 +112,7 @@ interface PipelineRecord {
   stage_entered_at: string;
   owner_user_id: string | null;
   referrer_participant_id: string | null;
+  referrer_name: string | null;
   source: string | null;
   meetings_attended: number;
   notes: string | null;
@@ -578,6 +580,9 @@ export default function ChapterPipeline() {
                                         <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />
                                       )}
                                       {record.full_name}
+                                      {record.nickname_th && (
+                                        <span className="text-muted-foreground font-normal">({record.nickname_th})</span>
+                                      )}
                                     </div>
                                     {record.current_sub_status && (
                                       <Badge variant="outline" className="text-xs mt-1">
@@ -617,6 +622,12 @@ export default function ChapterPipeline() {
                                 </div>
                                 
                                 <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                  {record.referrer_name && (
+                                    <div className="flex items-center gap-1">
+                                      <UserPlus className="h-3 w-3" />
+                                      <span>แนะนำโดย: {record.referrer_name}</span>
+                                    </div>
+                                  )}
                                   {record.phone && (
                                     <div className="flex items-center gap-1">
                                       <Phone className="h-3 w-3" />

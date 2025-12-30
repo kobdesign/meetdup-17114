@@ -102,6 +102,59 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
 
     if (recordsError) throw recordsError;
 
+    // Collect visitor_ids to lookup participant info
+    const visitorIds = records?.filter(r => r.visitor_id).map(r => r.visitor_id) || [];
+    
+    // Lookup participant info (nickname and referrer)
+    let participantMap = new Map<string, { nickname_th: string | null; referred_by_participant_id: string | null }>();
+    if (visitorIds.length > 0) {
+      const { data: participants } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id, nickname_th, referred_by_participant_id")
+        .eq("tenant_id", tenantId)
+        .in("participant_id", visitorIds);
+
+      participants?.forEach((p: any) => {
+        participantMap.set(p.participant_id, {
+          nickname_th: p.nickname_th,
+          referred_by_participant_id: p.referred_by_participant_id
+        });
+      });
+    }
+
+    // Collect referrer IDs to lookup names
+    const referrerIds = new Set<string>();
+    participantMap.forEach((p) => {
+      if (p.referred_by_participant_id) {
+        referrerIds.add(p.referred_by_participant_id);
+      }
+    });
+
+    // Lookup referrer names (scoped to tenant for security)
+    let referrerMap = new Map<string, string>();
+    if (referrerIds.size > 0) {
+      const { data: referrers } = await supabaseAdmin
+        .from("participants")
+        .select("participant_id, full_name_th, nickname_th")
+        .eq("tenant_id", tenantId)
+        .in("participant_id", Array.from(referrerIds));
+
+      referrers?.forEach((r: any) => {
+        referrerMap.set(r.participant_id, r.nickname_th || r.full_name_th);
+      });
+    }
+
+    // Enrich records with nickname and referrer_name
+    const enrichedRecords = records?.map((r: any) => {
+      const participant = r.visitor_id ? participantMap.get(r.visitor_id) : null;
+      const referrerId = participant?.referred_by_participant_id;
+      return {
+        ...r,
+        nickname_th: participant?.nickname_th || null,
+        referrer_name: referrerId ? referrerMap.get(referrerId) || null : null
+      };
+    });
+
     // Get sub-statuses
     const { data: subStatuses, error: subError } = await supabaseAdmin
       .from("pipeline_sub_statuses")
@@ -115,8 +168,8 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
     const kanbanData = stages?.map(stage => ({
       ...stage,
       sub_statuses: subStatuses?.filter(sub => sub.stage_key === stage.stage_key) || [],
-      records: records?.filter(record => record.current_stage === stage.stage_key) || [],
-      count: records?.filter(record => record.current_stage === stage.stage_key).length || 0
+      records: enrichedRecords?.filter(record => record.current_stage === stage.stage_key) || [],
+      count: enrichedRecords?.filter(record => record.current_stage === stage.stage_key).length || 0
     }));
 
     res.json(kanbanData);
