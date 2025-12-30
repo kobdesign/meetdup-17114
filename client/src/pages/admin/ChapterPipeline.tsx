@@ -299,6 +299,7 @@ export default function ChapterPipeline() {
       const filteredRecords = stage.records.filter(record => {
         const matchesSearch = !searchTerm || 
           (record.full_name || "").toLowerCase().includes(searchTerm) ||
+          (record.nickname_th || "").toLowerCase().includes(searchTerm) ||
           (record.phone || "").toLowerCase().includes(searchTerm) ||
           (record.email || "").toLowerCase().includes(searchTerm);
         
