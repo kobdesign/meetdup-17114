@@ -3,6 +3,87 @@ import { supabaseAdmin } from "../utils/supabaseClient";
 
 const router = Router();
 
+/**
+ * Helper function to get visitor/participant IDs from meeting participation
+ * Used to filter pipeline records by actual meeting attendance/registration
+ */
+async function getMeetingParticipantIds(params: {
+  tenantId: string;
+  meetingFilter: string; // 'next_meeting', 'prev_meeting', 'this_month', '3_months'
+  meetingIds?: string[]; // For specific meeting filters
+  dateFrom?: string; // For date range filters
+  dateTo?: string;
+}): Promise<string[]> {
+  const { tenantId, meetingFilter, meetingIds, dateFrom, dateTo } = params;
+  const participantIds = new Set<string>();
+
+  // For 'next_meeting' - get registrations for upcoming meeting
+  if (meetingFilter === 'next_meeting' && meetingIds && meetingIds.length > 0) {
+    const { data: registrations } = await supabaseAdmin
+      .from("meeting_registrations")
+      .select("participant_id")
+      .eq("tenant_id", tenantId)
+      .in("meeting_id", meetingIds)
+      .in("registration_status", ["registered", "confirmed"]);
+    
+    registrations?.forEach(r => {
+      if (r.participant_id) participantIds.add(r.participant_id);
+    });
+  }
+  
+  // For 'prev_meeting' - get check-ins for previous meeting
+  else if (meetingFilter === 'prev_meeting' && meetingIds && meetingIds.length > 0) {
+    const { data: checkins } = await supabaseAdmin
+      .from("checkins")
+      .select("participant_id")
+      .eq("tenant_id", tenantId)
+      .in("meeting_id", meetingIds);
+    
+    checkins?.forEach(c => {
+      if (c.participant_id) participantIds.add(c.participant_id);
+    });
+  }
+  
+  // For date range filters (this_month, 3_months) - get both registrations and check-ins
+  else if ((meetingFilter === 'this_month' || meetingFilter === '3_months') && dateFrom && dateTo) {
+    // First get meetings in the date range
+    const { data: meetings } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", dateFrom)
+      .lte("meeting_date", dateTo);
+    
+    if (meetings && meetings.length > 0) {
+      const meetingIdList = meetings.map(m => m.meeting_id);
+      
+      // Get registrations for these meetings
+      const { data: registrations } = await supabaseAdmin
+        .from("meeting_registrations")
+        .select("participant_id")
+        .eq("tenant_id", tenantId)
+        .in("meeting_id", meetingIdList);
+      
+      registrations?.forEach(r => {
+        if (r.participant_id) participantIds.add(r.participant_id);
+      });
+      
+      // Get check-ins for these meetings
+      const { data: checkins } = await supabaseAdmin
+        .from("checkins")
+        .select("participant_id")
+        .eq("tenant_id", tenantId)
+        .in("meeting_id", meetingIdList);
+      
+      checkins?.forEach(c => {
+        if (c.participant_id) participantIds.add(c.participant_id);
+      });
+    }
+  }
+
+  return Array.from(participantIds);
+}
+
 // Get all pipeline stages
 router.get("/stages", async (req: Request, res: Response) => {
   try {
@@ -81,7 +162,7 @@ router.get("/records/:tenantId", async (req: Request, res: Response) => {
 router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
-    const { dateFrom, dateTo } = req.query;
+    const { dateFrom, dateTo, meetingFilter, meetingIds } = req.query;
 
     // Get all active stages
     const { data: stages, error: stagesError } = await supabaseAdmin
@@ -93,19 +174,58 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
 
     if (stagesError) throw stagesError;
 
-    // Get all active records with optional date filter
+    // If meetingFilter is provided, get participant IDs from meeting participation
+    let meetingParticipantIds: string[] | null = null;
+    if (meetingFilter && (meetingFilter === 'next_meeting' || meetingFilter === 'prev_meeting' || meetingFilter === 'this_month' || meetingFilter === '3_months')) {
+      // Parse meetingIds if provided as comma-separated string
+      const parsedMeetingIds = meetingIds ? (meetingIds as string).split(',').filter(Boolean) : undefined;
+      
+      meetingParticipantIds = await getMeetingParticipantIds({
+        tenantId,
+        meetingFilter: meetingFilter as string,
+        meetingIds: parsedMeetingIds,
+        dateFrom: dateFrom as string | undefined,
+        dateTo: dateTo as string | undefined
+      });
+      
+      // If no participants found for meeting filter, return empty kanban with stages
+      if (meetingParticipantIds.length === 0) {
+        const { data: subStatuses } = await supabaseAdmin
+          .from("pipeline_sub_statuses")
+          .select("*")
+          .eq("is_active", true)
+          .order("display_order", { ascending: true });
+        
+        const emptyKanban = stages?.map(stage => ({
+          ...stage,
+          sub_statuses: subStatuses?.filter(sub => sub.stage_key === stage.stage_key) || [],
+          records: [],
+          count: 0
+        }));
+        
+        return res.json(emptyKanban);
+      }
+    }
+
+    // Get all active records with optional filters
     let recordsQuery = supabaseAdmin
       .from("pipeline_records")
       .select("*")
       .eq("tenant_id", tenantId)
       .is("archived_at", null);
 
-    // Apply date range filter on stage_entered_at
-    if (dateFrom) {
-      recordsQuery = recordsQuery.gte("stage_entered_at", dateFrom as string);
-    }
-    if (dateTo) {
-      recordsQuery = recordsQuery.lte("stage_entered_at", dateTo as string);
+    // Apply meeting participant filter if available
+    if (meetingParticipantIds && meetingParticipantIds.length > 0) {
+      // Filter by visitor_id (which is participant_id in pipeline_records)
+      recordsQuery = recordsQuery.in("visitor_id", meetingParticipantIds);
+    } else if (!meetingFilter) {
+      // Only apply date range filter if no meeting filter is used
+      if (dateFrom) {
+        recordsQuery = recordsQuery.gte("stage_entered_at", dateFrom as string);
+      }
+      if (dateTo) {
+        recordsQuery = recordsQuery.lte("stage_entered_at", dateTo as string);
+      }
     }
 
     const { data: records, error: recordsError } = await recordsQuery.order("stage_entered_at", { ascending: false });
@@ -576,21 +696,57 @@ router.post("/tasks/:taskId/complete", async (req: Request, res: Response) => {
 router.get("/stats/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
-    const { dateFrom, dateTo } = req.query;
+    const { dateFrom, dateTo, meetingFilter, meetingIds } = req.query;
 
-    // Get counts by stage with optional date filter
+    // If meetingFilter is provided, get participant IDs from meeting participation
+    let meetingParticipantIds: string[] | null = null;
+    if (meetingFilter && (meetingFilter === 'next_meeting' || meetingFilter === 'prev_meeting' || meetingFilter === 'this_month' || meetingFilter === '3_months')) {
+      const parsedMeetingIds = meetingIds ? (meetingIds as string).split(',').filter(Boolean) : undefined;
+      
+      meetingParticipantIds = await getMeetingParticipantIds({
+        tenantId,
+        meetingFilter: meetingFilter as string,
+        meetingIds: parsedMeetingIds,
+        dateFrom: dateFrom as string | undefined,
+        dateTo: dateTo as string | undefined
+      });
+      
+      // If no participants found for meeting filter, return empty stats
+      if (meetingParticipantIds.length === 0) {
+        const { data: stages } = await supabaseAdmin
+          .from("pipeline_stages")
+          .select("stage_key, stage_group")
+          .eq("is_active", true);
+        
+        const stageCounts: Record<string, number> = {};
+        stages?.forEach(s => stageCounts[s.stage_key] = 0);
+        
+        return res.json({
+          total: 0,
+          by_stage: stageCounts,
+          by_group: { lead_intake: 0, engagement: 0, conversion: 0, onboarding: 0, retention: 0 }
+        });
+      }
+    }
+
+    // Get counts by stage with optional filters
     let recordsQuery = supabaseAdmin
       .from("pipeline_records")
-      .select("current_stage, current_sub_status")
+      .select("current_stage, current_sub_status, visitor_id")
       .eq("tenant_id", tenantId)
       .is("archived_at", null);
 
-    // Apply date range filter on stage_entered_at
-    if (dateFrom) {
-      recordsQuery = recordsQuery.gte("stage_entered_at", dateFrom as string);
-    }
-    if (dateTo) {
-      recordsQuery = recordsQuery.lte("stage_entered_at", dateTo as string);
+    // Apply meeting participant filter if available
+    if (meetingParticipantIds && meetingParticipantIds.length > 0) {
+      recordsQuery = recordsQuery.in("visitor_id", meetingParticipantIds);
+    } else if (!meetingFilter) {
+      // Only apply date range filter if no meeting filter is used
+      if (dateFrom) {
+        recordsQuery = recordsQuery.gte("stage_entered_at", dateFrom as string);
+      }
+      if (dateTo) {
+        recordsQuery = recordsQuery.lte("stage_entered_at", dateTo as string);
+      }
     }
 
     const { data: records, error } = await recordsQuery;

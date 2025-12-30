@@ -364,23 +364,50 @@ export default function ChapterPipeline() {
     notes: "",
   });
 
-  // Build query params for date filter
-  const buildDateParams = () => {
+  // Meeting-based filters that use participant IDs from registration/check-in
+  const isMeetingBasedFilter = ["next_meeting", "prev_meeting", "this_month", "3_months"].includes(timeFilter);
+  
+  // Get meeting ID for the current filter
+  const getCurrentMeetingId = () => {
+    if (timeFilter === "next_meeting") return nextMeeting?.meeting_id;
+    if (timeFilter === "prev_meeting") return prevMeeting?.meeting_id;
+    return undefined;
+  };
+  const currentMeetingId = getCurrentMeetingId();
+
+  // Build query params for filter
+  const buildFilterParams = () => {
     const params = new URLSearchParams();
-    if (dateRange.dateFrom) params.append("dateFrom", dateRange.dateFrom);
-    if (dateRange.dateTo) params.append("dateTo", dateRange.dateTo);
+    
+    if (isMeetingBasedFilter) {
+      // For meeting-based filters, pass meetingFilter and meetingIds
+      params.append("meetingFilter", timeFilter);
+      if (currentMeetingId) {
+        params.append("meetingIds", currentMeetingId);
+      }
+      // Also pass date range for this_month and 3_months filters
+      if ((timeFilter === "this_month" || timeFilter === "3_months") && dateRange.dateFrom) {
+        params.append("dateFrom", dateRange.dateFrom);
+        if (dateRange.dateTo) params.append("dateTo", dateRange.dateTo);
+      }
+    } else {
+      // For non-meeting filters, use date range
+      if (dateRange.dateFrom) params.append("dateFrom", dateRange.dateFrom);
+      if (dateRange.dateTo) params.append("dateTo", dateRange.dateTo);
+    }
+    
     return params.toString() ? `?${params.toString()}` : "";
   };
 
   const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
-    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id, dateRange.dateFrom, dateRange.dateTo],
-    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}${buildDateParams()}`),
+    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id, timeFilter, currentMeetingId, dateRange.dateFrom, dateRange.dateTo],
+    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}${buildFilterParams()}`),
     enabled: !!selectedTenant?.tenant_id,
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id, dateRange.dateFrom, dateRange.dateTo],
-    queryFn: () => apiRequest(`/api/pipeline/stats/${selectedTenant?.tenant_id}${buildDateParams()}`),
+    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id, timeFilter, currentMeetingId, dateRange.dateFrom, dateRange.dateTo],
+    queryFn: () => apiRequest(`/api/pipeline/stats/${selectedTenant?.tenant_id}${buildFilterParams()}`),
     enabled: !!selectedTenant?.tenant_id,
   });
 
