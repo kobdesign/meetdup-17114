@@ -626,19 +626,20 @@ router.get("/stats/:tenantId", async (req: Request, res: Response) => {
   }
 });
 
-// Get historical visitors for batch import preview
-// Query params: since_days (default 90), include_members (default false)
+// Get historical participants for batch import preview
+// Query params: since_days (default 90)
+// Includes all statuses: visitor, prospect, member
 router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
-    const { since_days = "90", include_members = "false" } = req.query;
+    const { since_days = "90" } = req.query;
     
     const daysAgo = parseInt(since_days as string) || 90;
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - daysAgo);
-    const includeMembers = include_members === "true";
 
-    // Get visitors from meeting_registrations who are NOT in pipeline yet
+    // Get all participants from meeting_registrations who are NOT in pipeline yet
+    // Include all statuses (visitor, prospect, member) by default
     const { data: registrations, error: regError } = await supabaseAdmin
       .from("meeting_registrations")
       .select(`
@@ -666,14 +667,9 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
 
     if (regError) throw regError;
 
-    // Filter by tenant - include visitors, prospects, and optionally members
-    const validStatuses = includeMembers 
-      ? ["visitor", "prospect", "member"]
-      : ["visitor", "prospect"];
-    
+    // Filter by tenant - include all participant statuses (visitor, prospect, member)
     const tenantRegistrations = registrations?.filter((r: any) => 
-      r.participant?.tenant_id === tenantId && 
-      validStatuses.includes(r.participant?.status)
+      r.participant?.tenant_id === tenantId
     ) || [];
 
     // Get existing pipeline records for this tenant
