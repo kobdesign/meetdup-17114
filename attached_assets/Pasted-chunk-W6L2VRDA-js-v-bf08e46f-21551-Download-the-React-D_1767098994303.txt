@@ -1,0 +1,285 @@
+chunk-W6L2VRDA.js?v=bf08e46f:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+useUserTenantInfo.ts:23 [fetchUserTenantInfo] Fetching user info...
+ProtectedRoute.tsx:34 [ProtectedRoute] Query loading, showing loader
+react-router-dom.js?v=bf08e46f:4393 ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+warnOnce @ react-router-dom.js?v=bf08e46f:4393
+logDeprecation @ react-router-dom.js?v=bf08e46f:4396
+logV6DeprecationWarnings @ react-router-dom.js?v=bf08e46f:4399
+(anonymous) @ react-router-dom.js?v=bf08e46f:5271
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18868
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19432
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+finishConcurrentRender @ chunk-W6L2VRDA.js?v=bf08e46f:18805
+performConcurrentWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18718
+workLoop @ chunk-W6L2VRDA.js?v=bf08e46f:197
+flushWork @ chunk-W6L2VRDA.js?v=bf08e46f:176
+performWorkUntilDeadline @ chunk-W6L2VRDA.js?v=bf08e46f:384
+react-router-dom.js?v=bf08e46f:4393 ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+warnOnce @ react-router-dom.js?v=bf08e46f:4393
+logDeprecation @ react-router-dom.js?v=bf08e46f:4396
+logV6DeprecationWarnings @ react-router-dom.js?v=bf08e46f:4402
+(anonymous) @ react-router-dom.js?v=bf08e46f:5271
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18868
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19432
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+finishConcurrentRender @ chunk-W6L2VRDA.js?v=bf08e46f:18805
+performConcurrentWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18718
+workLoop @ chunk-W6L2VRDA.js?v=bf08e46f:197
+flushWork @ chunk-W6L2VRDA.js?v=bf08e46f:176
+performWorkUntilDeadline @ chunk-W6L2VRDA.js?v=bf08e46f:384
+TenantContext.tsx:79 [TenantContext] Setting up auth state listener
+TenantContext.tsx:82 [TenantContext] Auth state changed: SIGNED_IN Session: true
+TenantContext.tsx:86 [TenantContext] 🔄 Invalidating user info cache after sign in...
+useUserTenantInfo.ts:43 [fetchUserTenantInfo] User found, loading roles and profile...
+TenantContext.tsx:82 [TenantContext] Auth state changed: INITIAL_SESSION Session: true
+useUserTenantInfo.ts:112 [fetchUserTenantInfo] Role: super_admin, isSuperAdmin: true, userName: Abhisak Chonchanakul, chapters: 0
+ProtectedRoute.tsx:55 [ProtectedRoute] Super admin access granted
+useAccessibleTenants.ts:22 [useAccessibleTenants] Fetching accessible tenants...
+useAccessibleTenants.ts:31 [useAccessibleTenants] User is super admin - fetching all tenants
+TenantContext.tsx:167 [TenantContext] Setting up realtime subscription for tenants
+useAccessibleTenants.ts:42 [useAccessibleTenants] Loaded 2 tenants for super admin
+TenantContext.tsx:106 [TenantContext] Running auto-selection logic {isSuperAdmin: true, availableTenantsCount: 2, userId: '64ef290f-b761-4a4b-820f-be2a12462f15'}
+TenantContext.tsx:124 [TenantContext] Super admin: restoring valid saved tenant: b1dfa8ad-772d-48ad-85e6-65049b22f2b2
+TenantContext.tsx:228 [TenantContext] Loading details for tenant: b1dfa8ad-772d-48ad-85e6-65049b22f2b2
+queryClient.ts:52  GET https://8625661b-810c-454f-a000-87408dbc3705-00-11ta8rgc9d0py.riker.replit.dev/api/pipeline/stats/b1dfa8ad-772d-48ad-85e6-65049b22f2b2?dateFrom=2025-12-23T00%3A00%3A00%2B00%3A00T00%3A00%3A00%2B07%3A00 500 (Internal Server Error)
+apiRequest @ queryClient.ts:52
+await in apiRequest
+queryFn @ ChapterPipeline.tsx:332
+fetchFn @ @tanstack_react-query.js?v=bf08e46f:881
+run @ @tanstack_react-query.js?v=bf08e46f:513
+start @ @tanstack_react-query.js?v=bf08e46f:555
+fetch @ @tanstack_react-query.js?v=bf08e46f:969
+executeFetch_fn @ @tanstack_react-query.js?v=bf08e46f:2280
+setOptions @ @tanstack_react-query.js?v=bf08e46f:2040
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:3157
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19416
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18895
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+(anonymous) @ chunk-W6L2VRDA.js?v=bf08e46f:18627
+setTimeout
+defaultScheduler @ @tanstack_react-query.js?v=bf08e46f:565
+flush @ @tanstack_react-query.js?v=bf08e46f:589
+batch @ @tanstack_react-query.js?v=bf08e46f:607
+dispatch_fn @ @tanstack_react-query.js?v=bf08e46f:1040
+setData @ @tanstack_react-query.js?v=bf08e46f:718
+onSuccess @ @tanstack_react-query.js?v=bf08e46f:940
+resolve @ @tanstack_react-query.js?v=bf08e46f:475
+Promise.then
+run @ @tanstack_react-query.js?v=bf08e46f:517
+start @ @tanstack_react-query.js?v=bf08e46f:555
+fetch @ @tanstack_react-query.js?v=bf08e46f:969
+executeFetch_fn @ @tanstack_react-query.js?v=bf08e46f:2280
+setOptions @ @tanstack_react-query.js?v=bf08e46f:2040
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:3157
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18868
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19432
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+finishConcurrentRender @ chunk-W6L2VRDA.js?v=bf08e46f:18805
+performConcurrentWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18718
+workLoop @ chunk-W6L2VRDA.js?v=bf08e46f:197
+flushWork @ chunk-W6L2VRDA.js?v=bf08e46f:176
+performWorkUntilDeadline @ chunk-W6L2VRDA.js?v=bf08e46f:384
+queryClient.ts:52  GET https://8625661b-810c-454f-a000-87408dbc3705-00-11ta8rgc9d0py.riker.replit.dev/api/pipeline/kanban/b1dfa8ad-772d-48ad-85e6-65049b22f2b2?dateFrom=2025-12-23T00%3A00%3A00%2B00%3A00T00%3A00%3A00%2B07%3A00 500 (Internal Server Error)
+apiRequest @ queryClient.ts:52
+await in apiRequest
+queryFn @ ChapterPipeline.tsx:326
+fetchFn @ @tanstack_react-query.js?v=bf08e46f:881
+run @ @tanstack_react-query.js?v=bf08e46f:513
+start @ @tanstack_react-query.js?v=bf08e46f:555
+fetch @ @tanstack_react-query.js?v=bf08e46f:969
+executeFetch_fn @ @tanstack_react-query.js?v=bf08e46f:2280
+setOptions @ @tanstack_react-query.js?v=bf08e46f:2040
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:3157
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19416
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18895
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+(anonymous) @ chunk-W6L2VRDA.js?v=bf08e46f:18627
+setTimeout
+defaultScheduler @ @tanstack_react-query.js?v=bf08e46f:565
+flush @ @tanstack_react-query.js?v=bf08e46f:589
+batch @ @tanstack_react-query.js?v=bf08e46f:607
+dispatch_fn @ @tanstack_react-query.js?v=bf08e46f:1040
+setData @ @tanstack_react-query.js?v=bf08e46f:718
+onSuccess @ @tanstack_react-query.js?v=bf08e46f:940
+resolve @ @tanstack_react-query.js?v=bf08e46f:475
+Promise.then
+run @ @tanstack_react-query.js?v=bf08e46f:517
+start @ @tanstack_react-query.js?v=bf08e46f:555
+fetch @ @tanstack_react-query.js?v=bf08e46f:969
+executeFetch_fn @ @tanstack_react-query.js?v=bf08e46f:2280
+setOptions @ @tanstack_react-query.js?v=bf08e46f:2040
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:3157
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18868
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19432
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+finishConcurrentRender @ chunk-W6L2VRDA.js?v=bf08e46f:18805
+performConcurrentWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18718
+workLoop @ chunk-W6L2VRDA.js?v=bf08e46f:197
+flushWork @ chunk-W6L2VRDA.js?v=bf08e46f:176
+performWorkUntilDeadline @ chunk-W6L2VRDA.js?v=bf08e46f:384
+queryClient.ts:52  GET https://8625661b-810c-454f-a000-87408dbc3705-00-11ta8rgc9d0py.riker.replit.dev/api/pipeline/stats/b1dfa8ad-772d-48ad-85e6-65049b22f2b2?dateFrom=2025-12-23T00%3A00%3A00%2B00%3A00T00%3A00%3A00%2B07%3A00 500 (Internal Server Error)
+apiRequest @ queryClient.ts:52
+await in apiRequest
+queryFn @ ChapterPipeline.tsx:332
+fetchFn @ @tanstack_react-query.js?v=bf08e46f:881
+run @ @tanstack_react-query.js?v=bf08e46f:513
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:538
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:534
+Promise.catch
+run @ @tanstack_react-query.js?v=bf08e46f:517
+start @ @tanstack_react-query.js?v=bf08e46f:555
+fetch @ @tanstack_react-query.js?v=bf08e46f:969
+executeFetch_fn @ @tanstack_react-query.js?v=bf08e46f:2280
+setOptions @ @tanstack_react-query.js?v=bf08e46f:2040
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:3157
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19416
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18895
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+(anonymous) @ chunk-W6L2VRDA.js?v=bf08e46f:18627
+setTimeout
+defaultScheduler @ @tanstack_react-query.js?v=bf08e46f:565
+flush @ @tanstack_react-query.js?v=bf08e46f:589
+batch @ @tanstack_react-query.js?v=bf08e46f:607
+dispatch_fn @ @tanstack_react-query.js?v=bf08e46f:1040
+setData @ @tanstack_react-query.js?v=bf08e46f:718
+onSuccess @ @tanstack_react-query.js?v=bf08e46f:940
+resolve @ @tanstack_react-query.js?v=bf08e46f:475
+Promise.then
+run @ @tanstack_react-query.js?v=bf08e46f:517
+start @ @tanstack_react-query.js?v=bf08e46f:555
+fetch @ @tanstack_react-query.js?v=bf08e46f:969
+executeFetch_fn @ @tanstack_react-query.js?v=bf08e46f:2280
+setOptions @ @tanstack_react-query.js?v=bf08e46f:2040
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:3157
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18868
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19432
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+finishConcurrentRender @ chunk-W6L2VRDA.js?v=bf08e46f:18805
+performConcurrentWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18718
+workLoop @ chunk-W6L2VRDA.js?v=bf08e46f:197
+flushWork @ chunk-W6L2VRDA.js?v=bf08e46f:176
+performWorkUntilDeadline @ chunk-W6L2VRDA.js?v=bf08e46f:384
+queryClient.ts:52  GET https://8625661b-810c-454f-a000-87408dbc3705-00-11ta8rgc9d0py.riker.replit.dev/api/pipeline/kanban/b1dfa8ad-772d-48ad-85e6-65049b22f2b2?dateFrom=2025-12-23T00%3A00%3A00%2B00%3A00T00%3A00%3A00%2B07%3A00 500 (Internal Server Error)
+apiRequest @ queryClient.ts:52
+await in apiRequest
+queryFn @ ChapterPipeline.tsx:326
+fetchFn @ @tanstack_react-query.js?v=bf08e46f:881
+run @ @tanstack_react-query.js?v=bf08e46f:513
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:538
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:534
+Promise.catch
+run @ @tanstack_react-query.js?v=bf08e46f:517
+start @ @tanstack_react-query.js?v=bf08e46f:555
+fetch @ @tanstack_react-query.js?v=bf08e46f:969
+executeFetch_fn @ @tanstack_react-query.js?v=bf08e46f:2280
+setOptions @ @tanstack_react-query.js?v=bf08e46f:2040
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:3157
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19416
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18895
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+(anonymous) @ chunk-W6L2VRDA.js?v=bf08e46f:18627
+setTimeout
+defaultScheduler @ @tanstack_react-query.js?v=bf08e46f:565
+flush @ @tanstack_react-query.js?v=bf08e46f:589
+batch @ @tanstack_react-query.js?v=bf08e46f:607
+dispatch_fn @ @tanstack_react-query.js?v=bf08e46f:1040
+setData @ @tanstack_react-query.js?v=bf08e46f:718
+onSuccess @ @tanstack_react-query.js?v=bf08e46f:940
+resolve @ @tanstack_react-query.js?v=bf08e46f:475
+Promise.then
+run @ @tanstack_react-query.js?v=bf08e46f:517
+start @ @tanstack_react-query.js?v=bf08e46f:555
+fetch @ @tanstack_react-query.js?v=bf08e46f:969
+executeFetch_fn @ @tanstack_react-query.js?v=bf08e46f:2280
+setOptions @ @tanstack_react-query.js?v=bf08e46f:2040
+(anonymous) @ @tanstack_react-query.js?v=bf08e46f:3157
+commitHookEffectListMount @ chunk-W6L2VRDA.js?v=bf08e46f:16915
+commitPassiveMountOnFiber @ chunk-W6L2VRDA.js?v=bf08e46f:18156
+commitPassiveMountEffects_complete @ chunk-W6L2VRDA.js?v=bf08e46f:18129
+commitPassiveMountEffects_begin @ chunk-W6L2VRDA.js?v=bf08e46f:18119
+commitPassiveMountEffects @ chunk-W6L2VRDA.js?v=bf08e46f:18109
+flushPassiveEffectsImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19490
+flushPassiveEffects @ chunk-W6L2VRDA.js?v=bf08e46f:19447
+performSyncWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18868
+flushSyncCallbacks @ chunk-W6L2VRDA.js?v=bf08e46f:9119
+commitRootImpl @ chunk-W6L2VRDA.js?v=bf08e46f:19432
+commitRoot @ chunk-W6L2VRDA.js?v=bf08e46f:19277
+finishConcurrentRender @ chunk-W6L2VRDA.js?v=bf08e46f:18805
+performConcurrentWorkOnRoot @ chunk-W6L2VRDA.js?v=bf08e46f:18718
+workLoop @ chunk-W6L2VRDA.js?v=bf08e46f:197
+flushWork @ chunk-W6L2VRDA.js?v=bf08e46f:176
+performWorkUntilDeadline @ chunk-W6L2VRDA.js?v=bf08e46f:384
