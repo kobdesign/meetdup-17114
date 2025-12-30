@@ -156,6 +156,8 @@ interface VisitorApiSummary {
   checked_in: number;
   not_checked_in: number;
   converted_members: number;
+  unpaid?: number;
+  paid?: number;
 }
 
 export default function MeetingOperations() {

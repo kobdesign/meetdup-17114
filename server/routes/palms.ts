@@ -2052,7 +2052,7 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
           meeting_closed_at: meeting.meeting_closed_at
         },
         visitors: [],
-        summary: { total: 0, checked_in: 0, not_checked_in: 0 }
+        summary: { total: 0, checked_in: 0, not_checked_in: 0, converted_to_member: 0, converted_members: 0, unpaid: 0, paid: 0 }
       });
     }
 
@@ -2096,16 +2096,38 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       (checkins || []).map(c => [c.participant_id, c])
     );
 
-    // Build visitor list with check-in status, current status, and referrer info
+    // Get visitor fees for these registered visitors
+    const { data: visitorFees, error: feesError } = await supabaseAdmin
+      .from("visitor_fees")
+      .select("participant_id, meeting_id, status, amount")
+      .eq("meeting_id", meetingId)
+      .in("participant_id", participantIds);
+
+    if (feesError) {
+      console.error(`${logPrefix} Visitor fees query error:`, feesError);
+      // Don't fail, just continue without fee data
+    }
+
+    // Create fees map for quick lookup
+    const feesMap = new Map(
+      (visitorFees || []).map(f => [f.participant_id, f])
+    );
+
+    // Build visitor list with check-in status, current status, fee status, and referrer info
     const registeredVisitors = registrations.map(reg => {
       const participant = reg.participant as any;
       const checkin = checkinMap.get(reg.participant_id) as any;
+      const feeRecord = feesMap.get(reg.participant_id) as any;
       const referrerId = participant.referred_by_participant_id;
       const referrer = referrerId ? referrerMap.get(referrerId) : null;
       
       // Check if this visitor has been converted to a member
       const currentStatus = participant.status; // "visitor", "prospect", "member", etc.
       const isConvertedMember = currentStatus === "member";
+      
+      // Fee status: use visitor_fees record if exists, default to "pending" for visitors
+      const feeStatus = feeRecord?.status || (currentStatus !== "member" ? "pending" : null);
+      const amountDue = feeRecord?.amount || 0;
       
       return {
         participant_id: participant.participant_id,
@@ -2122,16 +2144,20 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
         referred_by_name: referrer?.full_name_th || null,
         referred_by_nickname: referrer?.nickname_th || null,
         current_status: currentStatus,
-        is_converted_member: isConvertedMember
+        is_converted_member: isConvertedMember,
+        fee_status: feeStatus,
+        amount_due: amountDue
       };
     });
 
     const checkedInCount = registeredVisitors.filter(v => v.checked_in).length;
     const notCheckedInCount = registeredVisitors.filter(v => !v.checked_in).length;
     const convertedMemberCount = registeredVisitors.filter(v => v.is_converted_member).length;
+    const unpaidCount = registeredVisitors.filter(v => v.fee_status === "pending").length;
+    const paidCount = registeredVisitors.filter(v => v.fee_status === "paid").length;
 
     console.log(`${logPrefix} Found ${registeredVisitors.length} registered visitors for meeting:`, meetingId, 
-      `(checked_in: ${checkedInCount}, not_checked_in: ${notCheckedInCount}, converted_to_member: ${convertedMemberCount})`);
+      `(checked_in: ${checkedInCount}, not_checked_in: ${notCheckedInCount}, converted_to_member: ${convertedMemberCount}, unpaid: ${unpaidCount}, paid: ${paidCount})`);
 
     return res.json({
       success: true,
@@ -2146,7 +2172,10 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
         total: registeredVisitors.length,
         checked_in: checkedInCount,
         not_checked_in: notCheckedInCount,
-        converted_to_member: convertedMemberCount
+        converted_to_member: convertedMemberCount,
+        converted_members: convertedMemberCount,
+        unpaid: unpaidCount,
+        paid: paidCount
       }
     });
 
