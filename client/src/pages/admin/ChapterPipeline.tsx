@@ -184,16 +184,9 @@ export default function ChapterPipeline() {
   const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
 
-  const debouncedSearch = useMemo(() => searchQuery.trim(), [searchQuery]);
-  
   const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
-    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id, debouncedSearch],
-    queryFn: () => {
-      const params = new URLSearchParams();
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      const queryString = params.toString();
-      return apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}${queryString ? `?${queryString}` : ""}`);
-    },
+    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/kanban/${selectedTenant?.tenant_id}`),
     enabled: !!selectedTenant?.tenant_id,
   });
 
@@ -297,6 +290,32 @@ export default function ChapterPipeline() {
     return "ok";
   };
 
+  const filteredKanbanData = useMemo(() => {
+    if (!kanbanData) return kanbanData;
+    
+    const searchTerm = searchQuery.trim().toLowerCase();
+    
+    return kanbanData.map(stage => {
+      const filteredRecords = stage.records.filter(record => {
+        const matchesSearch = !searchTerm || 
+          (record.full_name || "").toLowerCase().includes(searchTerm) ||
+          (record.phone || "").toLowerCase().includes(searchTerm) ||
+          (record.email || "").toLowerCase().includes(searchTerm);
+        
+        const staleStatus = getStaleStatus(record);
+        const matchesStaleFilter = showStaleLeads || staleStatus !== "critical";
+        
+        return matchesSearch && matchesStaleFilter;
+      });
+      
+      return {
+        ...stage,
+        records: filteredRecords,
+        count: filteredRecords.length
+      };
+    });
+  }, [kanbanData, searchQuery, showStaleLeads]);
+
   if (!isReady) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -351,23 +370,7 @@ export default function ChapterPipeline() {
     return labels[group] || group;
   };
 
-  const filteredKanbanData = kanbanData?.map(stage => ({
-    ...stage,
-    records: stage.records.filter(record => {
-      // Search filter
-      const matchesSearch = !searchQuery || 
-        record.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        record.phone?.includes(searchQuery) ||
-        record.email?.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      // Stale filter - by default hide leads stale > 30 days unless showStaleLeads is true
-      const staleStatus = getStaleStatus(record);
-      const matchesStaleFilter = showStaleLeads || staleStatus !== "critical";
-      
-      return matchesSearch && matchesStaleFilter;
-    })
-  }));
-
+  
   const toggleImportSelection = (participantId: string) => {
     setSelectedImports(prev => {
       const newSet = new Set(prev);
