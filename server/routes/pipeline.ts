@@ -3,6 +3,21 @@ import { supabaseAdmin } from "../utils/supabaseClient";
 
 const router = Router();
 
+// Stage order for determining initial stage based on history
+const STAGE_ORDER: Record<string, number> = {
+  lead: 1,
+  attended: 2,
+  revisit: 3,
+  follow_up: 4,
+  application_submitted: 5,
+  active_member: 6,
+  onboarding: 7,
+  archived: 8
+};
+
+// Protected stages - don't auto-move backward from these
+const PROTECTED_STAGES = ['follow_up', 'application_submitted', 'active_member', 'onboarding', 'archived'];
+
 /**
  * Helper function to get visitor/participant IDs from meeting participation
  * Used to filter pipeline records by actual meeting attendance/registration
@@ -95,6 +110,140 @@ async function getMeetingParticipantIds(params: {
   }
 
   return Array.from(participantIds);
+}
+
+/**
+ * Ensure all meeting participants have pipeline records.
+ * Creates missing records with appropriate stage based on:
+ * - participant.status = 'member' → active_member
+ * - historical check-ins >= 2 → revisit
+ * - historical check-ins == 1 → attended
+ * - otherwise → lead
+ * 
+ * This is the "meeting-first" approach: show everyone who registered/checked-in
+ */
+async function ensurePipelineRecordsForMeetingParticipants(params: {
+  tenantId: string;
+  participantIds: string[];
+}): Promise<void> {
+  const { tenantId, participantIds } = params;
+  const logPrefix = `[ensurePipelineRecords]`;
+  
+  if (participantIds.length === 0) return;
+  
+  try {
+    // Get existing pipeline records for these participants
+    const { data: existingRecords } = await supabaseAdmin
+      .from("pipeline_records")
+      .select("visitor_id")
+      .eq("tenant_id", tenantId)
+      .in("visitor_id", participantIds)
+      .is("archived_at", null);
+    
+    const existingVisitorIds = new Set(existingRecords?.map(r => r.visitor_id) || []);
+    
+    // Find participants without pipeline records
+    const missingParticipantIds = participantIds.filter(id => !existingVisitorIds.has(id));
+    
+    if (missingParticipantIds.length === 0) {
+      console.log(`${logPrefix} All ${participantIds.length} participants have pipeline records`);
+      return;
+    }
+    
+    console.log(`${logPrefix} Creating records for ${missingParticipantIds.length} participants`);
+    
+    // Get participant info including membership status
+    const { data: participants } = await supabaseAdmin
+      .from("participants")
+      .select("participant_id, full_name_th, phone, email, line_id, status")
+      .eq("tenant_id", tenantId)
+      .in("participant_id", missingParticipantIds);
+    
+    if (!participants || participants.length === 0) {
+      console.log(`${logPrefix} No participant info found`);
+      return;
+    }
+    
+    // Get check-in counts for each participant
+    const { data: checkinCounts } = await supabaseAdmin
+      .from("checkins")
+      .select("participant_id")
+      .eq("tenant_id", tenantId)
+      .in("participant_id", missingParticipantIds);
+    
+    // Count check-ins per participant
+    const checkinCountMap = new Map<string, number>();
+    checkinCounts?.forEach(c => {
+      const count = checkinCountMap.get(c.participant_id) || 0;
+      checkinCountMap.set(c.participant_id, count + 1);
+    });
+    
+    // Create pipeline records for each missing participant
+    const now = new Date().toISOString();
+    const recordsToInsert = participants.map(p => {
+      const checkIns = checkinCountMap.get(p.participant_id) || 0;
+      
+      // Determine initial stage
+      let initialStage = "lead";
+      let stageReason = "New registration";
+      
+      // Check if member
+      if (p.status === 'member') {
+        initialStage = "active_member";
+        stageReason = "Already a member";
+      } else if (checkIns >= 2) {
+        initialStage = "revisit";
+        stageReason = `Has ${checkIns} historical check-ins`;
+      } else if (checkIns === 1) {
+        initialStage = "attended";
+        stageReason = "Has 1 historical check-in";
+      }
+      
+      return {
+        tenant_id: tenantId,
+        visitor_id: p.participant_id,
+        full_name: p.full_name_th,
+        phone: p.phone,
+        email: p.email,
+        line_id: p.line_id,
+        current_stage: initialStage,
+        stage_entered_at: now,
+        source: "meeting_sync",
+        source_details: stageReason,
+        meetings_attended: checkIns
+      };
+    });
+    
+    // Insert records
+    const { data: insertedRecords, error: insertError } = await supabaseAdmin
+      .from("pipeline_records")
+      .insert(recordsToInsert)
+      .select("id, current_stage");
+    
+    if (insertError) {
+      console.error(`${logPrefix} Error inserting records:`, insertError);
+      return;
+    }
+    
+    console.log(`${logPrefix} Created ${insertedRecords?.length || 0} pipeline records`);
+    
+    // Create transition records for each new record
+    if (insertedRecords && insertedRecords.length > 0) {
+      const transitions = insertedRecords.map(r => ({
+        pipeline_record_id: r.id,
+        to_stage: r.current_stage,
+        is_automatic: true,
+        change_reason: "Auto-created from meeting participation"
+      }));
+      
+      await supabaseAdmin
+        .from("pipeline_transitions")
+        .insert(transitions);
+    }
+    
+  } catch (error: any) {
+    console.error(`${logPrefix} Error:`, error);
+  }
 }
 
 // Get all pipeline stages
@@ -200,6 +349,15 @@ router.get("/kanban/:tenantId", async (req: Request, res: Response) => {
         dateFrom: dateFrom as string | undefined,
         dateTo: dateTo as string | undefined
       });
+      
+      // MEETING-FIRST APPROACH: Ensure all participants have pipeline records
+      // This creates missing records with appropriate stage based on history
+      if (meetingParticipantIds.length > 0) {
+        await ensurePipelineRecordsForMeetingParticipants({
+          tenantId,
+          participantIds: meetingParticipantIds
+        });
+      }
       
       // If no participants found for meeting filter, return empty kanban with stages
       if (meetingParticipantIds.length === 0) {
@@ -723,6 +881,14 @@ router.get("/stats/:tenantId", async (req: Request, res: Response) => {
         dateFrom: dateFrom as string | undefined,
         dateTo: dateTo as string | undefined
       });
+      
+      // MEETING-FIRST APPROACH: Ensure all participants have pipeline records
+      if (meetingParticipantIds.length > 0) {
+        await ensurePipelineRecordsForMeetingParticipants({
+          tenantId,
+          participantIds: meetingParticipantIds
+        });
+      }
       
       // If no participants found for meeting filter, return empty stats
       if (meetingParticipantIds.length === 0) {

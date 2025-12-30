@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -46,7 +45,6 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Plus,
   Search,
   MoreVertical,
   Phone,
@@ -62,7 +60,6 @@ import {
   UserPlus,
   CheckCircle,
   AlertTriangle,
-  Download,
   Eye,
   EyeOff,
   AlertCircle,
@@ -136,21 +133,6 @@ const iconMap: Record<string, any> = {
   Archive: Archive,
   RefreshCw: RefreshCw,
 };
-
-interface ImportVisitor {
-  participant_id: string;
-  full_name: string;
-  nickname_th: string | null;
-  phone: string | null;
-  email: string | null;
-  status: string;
-  referrer_name: string | null;
-  first_meeting_date: string;
-  first_meeting_theme: string;
-  meeting_count: number;
-  checkin_count: number;
-  recommended_stage: string;
-}
 
 const STAGE_LABELS: Record<string, string> = {
   lead: "Lead",
@@ -302,15 +284,11 @@ export default function ChapterPipeline() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [timeFilter, setTimeFilter] = useState<TimeFilterKey>("prev_meeting");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<PipelineRecord | null>(null);
   const [targetStage, setTargetStage] = useState<string>("");
   const [moveReason, setMoveReason] = useState("");
   const [showStaleLeads, setShowStaleLeads] = useState(false);
-  const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set()); // selected participant_ids
-  const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   
   // Query for previous meeting date (most recent past meeting)
@@ -355,15 +333,6 @@ export default function ChapterPipeline() {
     }
   }, [nextMeeting, prevMeeting, timeFilter]);
   
-  const [newLead, setNewLead] = useState({
-    full_name: "",
-    phone: "",
-    email: "",
-    line_id: "",
-    source: "referral",
-    notes: "",
-  });
-
   // Meeting-based filters that use participant IDs from registration/check-in
   const isMeetingBasedFilter = ["next_meeting", "prev_meeting", "this_month", "3_months"].includes(timeFilter);
   
@@ -413,32 +382,6 @@ export default function ChapterPipeline() {
     enabled: !!selectedTenant?.tenant_id,
   });
 
-  const { data: importPreview, isLoading: isLoadingImport } = useQuery<{
-    total_found: number;
-    already_in_pipeline: number;
-    visitors: ImportVisitor[];
-  }>({
-    queryKey: ["/api/pipeline/import-preview", selectedTenant?.tenant_id],
-    queryFn: () => apiRequest(`/api/pipeline/import-preview/${selectedTenant?.tenant_id}`),
-    enabled: isImportDialogOpen && !!selectedTenant?.tenant_id,
-  });
-
-  const createRecordMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest("/api/pipeline/records", "POST", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
-      setIsAddDialogOpen(false);
-      setNewLead({ full_name: "", phone: "", email: "", line_id: "", source: "referral", notes: "" });
-      toast({ title: "เพิ่ม Lead สำเร็จ" });
-    },
-    onError: (error: any) => {
-      toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
-    },
-  });
-
   const moveRecordMutation = useMutation({
     mutationFn: async ({ recordId, toStage, reason }: { recordId: string; toStage: string; reason: string }) => {
       return apiRequest(`/api/pipeline/records/${recordId}/move`, "POST", {
@@ -471,27 +414,6 @@ export default function ChapterPipeline() {
       queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
       queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
       toast({ title: "Archive สำเร็จ" });
-    },
-  });
-
-  const importMutation = useMutation({
-    mutationFn: async (visitors: { participant_id: string; target_stage: string }[]) => {
-      return apiRequest("/api/pipeline/import-batch", "POST", {
-        tenant_id: selectedTenant?.tenant_id,
-        visitors,
-      });
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/import-preview"] });
-      setIsImportDialogOpen(false);
-      setSelectedImports(new Set());
-      setStageOverrides(new Map());
-      toast({ title: `นำเข้า ${data.imported} รายการสำเร็จ` });
-    },
-    onError: (error: any) => {
-      toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
     },
   });
 
@@ -543,22 +465,6 @@ export default function ChapterPipeline() {
     );
   }
 
-  const handleAddLead = () => {
-    if (!newLead.full_name.trim()) {
-      toast({ title: "กรุณากรอกชื่อ", variant: "destructive" });
-      return;
-    }
-    if (!newLead.phone.trim() && !newLead.email.trim()) {
-      toast({ title: "กรุณากรอกเบอร์โทรหรืออีเมล", variant: "destructive" });
-      return;
-    }
-    
-    createRecordMutation.mutate({
-      tenant_id: selectedTenant.tenant_id,
-      ...newLead,
-    });
-  };
-
   const handleMoveToStage = (record: PipelineRecord, stage: string) => {
     setSelectedRecord(record);
     setTargetStage(stage);
@@ -609,39 +515,6 @@ export default function ChapterPipeline() {
       return matchesSearch && matchesStaleFilter;
     })
   }));
-
-  const toggleImportSelection = (participantId: string) => {
-    setSelectedImports(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(participantId)) {
-        newSet.delete(participantId);
-      } else {
-        newSet.add(participantId);
-      }
-      return newSet;
-    });
-  };
-
-  const updateImportStage = (participantId: string, stage: string) => {
-    setStageOverrides(prev => {
-      const newMap = new Map(prev);
-      newMap.set(participantId, stage);
-      return newMap;
-    });
-  };
-
-  const getVisitorStage = (visitor: ImportVisitor): string => {
-    return stageOverrides.get(visitor.participant_id) || visitor.recommended_stage;
-  };
-
-  const selectAllImports = () => {
-    if (!importPreview?.visitors) return;
-    setSelectedImports(new Set(importPreview.visitors.map(v => v.participant_id)));
-  };
-
-  const clearImportSelection = () => {
-    setSelectedImports(new Set());
-  };
 
   return (
     <AdminLayout>
@@ -746,15 +619,6 @@ export default function ChapterPipeline() {
             </Label>
           </div>
 
-          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import">
-            <Download className="h-4 w-4 mr-2" />
-            นำเข้า Visitor
-          </Button>
-          
-          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-lead">
-            <Plus className="h-4 w-4 mr-2" />
-            เพิ่ม Lead
-          </Button>
         </div>
       </div>
 
@@ -953,100 +817,6 @@ export default function ChapterPipeline() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>เพิ่ม Lead ใหม่</DialogTitle>
-            <DialogDescription>
-              กรอกข้อมูลผู้ที่สนใจเข้าร่วม Chapter
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label>ชื่อ-นามสกุล *</Label>
-              <Input
-                value={newLead.full_name}
-                onChange={(e) => setNewLead({ ...newLead, full_name: e.target.value })}
-                placeholder="ชื่อเต็ม"
-                data-testid="input-lead-name"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>เบอร์โทรศัพท์</Label>
-                <Input
-                  value={newLead.phone}
-                  onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
-                  placeholder="0812345678"
-                  data-testid="input-lead-phone"
-                />
-              </div>
-              <div>
-                <Label>อีเมล</Label>
-                <Input
-                  value={newLead.email}
-                  onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
-                  placeholder="email@example.com"
-                  data-testid="input-lead-email"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <Label>LINE ID</Label>
-              <Input
-                value={newLead.line_id}
-                onChange={(e) => setNewLead({ ...newLead, line_id: e.target.value })}
-                placeholder="lineid"
-                data-testid="input-lead-lineid"
-              />
-            </div>
-            
-            <div>
-              <Label>แหล่งที่มา</Label>
-              <Select value={newLead.source} onValueChange={(v) => setNewLead({ ...newLead, source: v })}>
-                <SelectTrigger data-testid="select-lead-source">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="referral">แนะนำจากสมาชิก</SelectItem>
-                  <SelectItem value="walk_in">Walk-in</SelectItem>
-                  <SelectItem value="website">เว็บไซต์</SelectItem>
-                  <SelectItem value="event">งาน Event</SelectItem>
-                  <SelectItem value="social">Social Media</SelectItem>
-                  <SelectItem value="other">อื่นๆ</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label>หมายเหตุ</Label>
-              <Textarea
-                value={newLead.notes}
-                onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
-                placeholder="บันทึกเพิ่มเติม..."
-                data-testid="input-lead-notes"
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-              ยกเลิก
-            </Button>
-            <Button
-              onClick={handleAddLead}
-              disabled={createRecordMutation.isPending}
-              data-testid="button-confirm-add-lead"
-            >
-              {createRecordMutation.isPending ? "กำลังบันทึก..." : "เพิ่ม Lead"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1085,150 +855,6 @@ export default function ChapterPipeline() {
               data-testid="button-confirm-move"
             >
               {moveRecordMutation.isPending ? "กำลังย้าย..." : "ยืนยันการย้าย"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>นำเข้า Visitor ย้อนหลัง</DialogTitle>
-            <DialogDescription>
-              เลือก Visitor ที่เคยเข้าร่วมประชุมแต่ยังไม่อยู่ใน Pipeline
-            </DialogDescription>
-          </DialogHeader>
-          
-          {isLoadingImport ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-sm text-muted-foreground">
-                  พบ {importPreview?.total_found || 0} คนที่สามารถนำเข้าได้
-                  {importPreview?.already_in_pipeline ? ` (อยู่ใน Pipeline แล้ว ${importPreview.already_in_pipeline} คน)` : ""}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={selectAllImports}>
-                    เลือกทั้งหมด
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={clearImportSelection}>
-                    ล้างการเลือก
-                  </Button>
-                </div>
-              </div>
-              
-              {importPreview?.visitors && importPreview.visitors.length > 0 ? (
-                <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
-                  {importPreview.visitors.map((visitor) => (
-                    <div
-                      key={visitor.participant_id}
-                      className="flex items-center gap-3 p-3 hover-elevate"
-                    >
-                      <Checkbox
-                        checked={selectedImports.has(visitor.participant_id)}
-                        onCheckedChange={() => toggleImportSelection(visitor.participant_id)}
-                        data-testid={`checkbox-import-${visitor.participant_id}`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">
-                          {visitor.full_name}
-                          {visitor.nickname_th && (
-                            <span className="text-muted-foreground font-normal ml-1">({visitor.nickname_th})</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-                          {visitor.referrer_name && (
-                            <span className="flex items-center gap-1">
-                              <Users className="h-3 w-3" />
-                              {visitor.referrer_name}
-                            </span>
-                          )}
-                          {visitor.phone && <span>{visitor.phone}</span>}
-                          {visitor.checkin_count > 0 && (
-                            <Badge variant="outline" className="text-xs">
-                              Check-in {visitor.checkin_count} ครั้ง
-                            </Badge>
-                          )}
-                          {visitor.meeting_count > 1 && (
-                            <Badge variant="secondary" className="text-xs">
-                              ลงทะเบียน {visitor.meeting_count} ครั้ง
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {selectedImports.has(visitor.participant_id) ? (
-                          <Select
-                            value={getVisitorStage(visitor)}
-                            onValueChange={(value) => updateImportStage(visitor.participant_id, value)}
-                          >
-                            <SelectTrigger className="w-[120px] h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="rsvp_confirmed">RSVP</SelectItem>
-                              <SelectItem value="attended_meeting">เข้าประชุม</SelectItem>
-                              <SelectItem value="active_member">Member</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Badge 
-                            variant={visitor.recommended_stage === "attended_meeting" ? "default" : "secondary"}
-                            className="text-xs"
-                          >
-                            {STAGE_LABELS[visitor.recommended_stage] || visitor.recommended_stage}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  ไม่พบ Visitor ที่สามารถนำเข้าได้
-                </div>
-              )}
-              
-              {selectedImports.size > 0 && (
-                <div className="text-sm text-muted-foreground">
-                  เลือกแล้ว <span className="font-bold text-foreground">{selectedImports.size}</span> คน
-                </div>
-              )}
-            </div>
-          )}
-          
-          <DialogFooter className="gap-2 flex-wrap">
-            <Button 
-              variant="destructive" 
-              size="sm"
-              onClick={() => setIsResetDialogOpen(true)}
-              disabled={resetPipelineMutation.isPending}
-            >
-              {resetPipelineMutation.isPending ? "กำลังลบ..." : "Reset Pipeline"}
-            </Button>
-            <div className="flex-1" />
-            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
-              ยกเลิก
-            </Button>
-            <Button
-              onClick={() => {
-                if (!importPreview?.visitors) return;
-                const visitors = Array.from(selectedImports).map(participant_id => {
-                  const visitor = importPreview.visitors.find(v => v.participant_id === participant_id);
-                  return {
-                    participant_id,
-                    target_stage: getVisitorStage(visitor!),
-                  };
-                });
-                importMutation.mutate(visitors);
-              }}
-              disabled={selectedImports.size === 0 || importMutation.isPending}
-              data-testid="button-confirm-import"
-            >
-              {importMutation.isPending ? "กำลังนำเข้า..." : `นำเข้า ${selectedImports.size} คน`}
             </Button>
           </DialogFooter>
         </DialogContent>
