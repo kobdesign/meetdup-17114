@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTenantContext } from "@/contexts/TenantContext";
 import AdminLayout from "@/components/layout/AdminLayout";
@@ -168,7 +168,7 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 // Time filter options
-type TimeFilterKey = "all" | "last_meeting" | "last_week" | "this_month" | "3_months" | "6_months" | "this_year" | "last_year";
+type TimeFilterKey = "all" | "next_meeting" | "prev_meeting" | "last_week" | "this_month" | "3_months" | "6_months" | "this_year" | "last_year";
 
 interface TimeFilterOption {
   key: TimeFilterKey;
@@ -178,7 +178,8 @@ interface TimeFilterOption {
 
 const TIME_FILTER_OPTIONS: TimeFilterOption[] = [
   { key: "all", label: "All Time", labelTh: "ทั้งหมด" },
-  { key: "last_meeting", label: "Last Meeting", labelTh: "ประชุมล่าสุด" },
+  { key: "next_meeting", label: "Next Meeting", labelTh: "ประชุมครั้งหน้า" },
+  { key: "prev_meeting", label: "Previous Meeting", labelTh: "ประชุมครั้งก่อน" },
   { key: "last_week", label: "Last Week", labelTh: "สัปดาห์ก่อน" },
   { key: "this_month", label: "This Month", labelTh: "เดือนนี้" },
   { key: "3_months", label: "Last 3 Months", labelTh: "3 เดือนนี้" },
@@ -187,11 +188,15 @@ const TIME_FILTER_OPTIONS: TimeFilterOption[] = [
   { key: "last_year", label: "Last Year", labelTh: "ปีก่อน" },
 ];
 
-// Quick access filters (shown as buttons)
-const QUICK_FILTERS: TimeFilterKey[] = ["last_meeting", "this_month", "3_months"];
+// Quick access filters (shown as buttons) - next_meeting will be hidden if no upcoming meeting
+const QUICK_FILTERS: TimeFilterKey[] = ["next_meeting", "prev_meeting", "this_month", "3_months"];
 
-// Note: "last_meeting" is handled dynamically in the component, not here
-function getDateRange(filterKey: TimeFilterKey, lastMeetingDate?: string | null): { dateFrom: string | null; dateTo: string | null } {
+// Meeting filters are handled dynamically using meeting dates from the API
+function getDateRange(
+  filterKey: TimeFilterKey, 
+  prevMeetingDate?: string | null,
+  nextMeetingDate?: string | null
+): { dateFrom: string | null; dateTo: string | null } {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   
@@ -218,11 +223,24 @@ function getDateRange(filterKey: TimeFilterKey, lastMeetingDate?: string | null)
     case "all":
       return { dateFrom: null, dateTo: null };
     
-    case "last_meeting": {
-      // Use the last meeting date as dateFrom, until today
-      if (lastMeetingDate) {
+    case "next_meeting": {
+      // Filter for records related to the upcoming meeting
+      if (nextMeetingDate) {
         // Extract just the date portion (YYYY-MM-DD) - handle both YYYY-MM-DD and ISO timestamp formats
-        const dateOnly = lastMeetingDate.split('T')[0];
+        const dateOnly = nextMeetingDate.split('T')[0];
+        // Use Thailand timezone (UTC+7) since this is a Thai-focused app
+        // NOTE: Future enhancement - use tenant timezone from database
+        return { dateFrom: `${dateOnly}T00:00:00+07:00`, dateTo: `${dateOnly}T23:59:59+07:00` };
+      }
+      // Fallback to all if no upcoming meeting found
+      return { dateFrom: null, dateTo: null };
+    }
+    
+    case "prev_meeting": {
+      // Use the previous meeting date as filter
+      if (prevMeetingDate) {
+        // Extract just the date portion (YYYY-MM-DD) - handle both YYYY-MM-DD and ISO timestamp formats
+        const dateOnly = prevMeetingDate.split('T')[0];
         // Use Thailand timezone (UTC+7) since this is a Thai-focused app
         // NOTE: Future enhancement - use tenant timezone from database
         return { dateFrom: `${dateOnly}T00:00:00+07:00`, dateTo: null };
@@ -283,7 +301,7 @@ export default function ChapterPipeline() {
   const { selectedTenant, isReady } = useTenantContext();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [timeFilter, setTimeFilter] = useState<TimeFilterKey>("last_meeting");
+  const [timeFilter, setTimeFilter] = useState<TimeFilterKey>("prev_meeting");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -295,15 +313,47 @@ export default function ChapterPipeline() {
   const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   
-  // Query for latest meeting date
-  const { data: latestMeeting } = useQuery<{ meeting_date: string | null; meeting_id: string | null }>({
+  // Query for previous meeting date (most recent past meeting)
+  const { data: prevMeeting } = useQuery<{ meeting_date: string | null; meeting_id: string | null }>({
     queryKey: ["/api/pipeline/latest-meeting", selectedTenant?.tenant_id],
     queryFn: () => apiRequest(`/api/pipeline/latest-meeting/${selectedTenant?.tenant_id}`),
     enabled: !!selectedTenant?.tenant_id,
   });
   
-  // Get date range from current filter (pass latest meeting date for "last_meeting" filter)
-  const dateRange = getDateRange(timeFilter, latestMeeting?.meeting_date);
+  // Query for upcoming meeting date (next future meeting)
+  const { data: nextMeeting } = useQuery<{ meeting_date: string | null; meeting_id: string | null }>({
+    queryKey: ["/api/pipeline/upcoming-meeting", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/upcoming-meeting/${selectedTenant?.tenant_id}`),
+    enabled: !!selectedTenant?.tenant_id,
+  });
+  
+  // Get date range from current filter (pass meeting dates for meeting-based filters)
+  const dateRange = getDateRange(timeFilter, prevMeeting?.meeting_date, nextMeeting?.meeting_date);
+  
+  // Auto-select default filter based on available meetings
+  // Priority: next_meeting (if exists) > prev_meeting
+  // Reset when tenant changes so new tenant gets correct default
+  const [lastTenantId, setLastTenantId] = useState<string | null>(null);
+  useEffect(() => {
+    const currentTenantId = selectedTenant?.tenant_id || null;
+    
+    // Reset filter when tenant changes
+    if (lastTenantId !== null && lastTenantId !== currentTenantId) {
+      // Tenant changed, reset to default
+      setTimeFilter("prev_meeting");
+    }
+    setLastTenantId(currentTenantId);
+  }, [selectedTenant?.tenant_id, lastTenantId]);
+  
+  // Set smart default after meeting data loads
+  useEffect(() => {
+    if (nextMeeting === undefined || prevMeeting === undefined) return; // Still loading
+    
+    // Only auto-select if current filter is still the default
+    if (timeFilter === "prev_meeting" && nextMeeting?.meeting_date) {
+      setTimeFilter("next_meeting");
+    }
+  }, [nextMeeting, prevMeeting, timeFilter]);
   
   const [newLead, setNewLead] = useState({
     full_name: "",
@@ -590,17 +640,29 @@ export default function ChapterPipeline() {
           <div className="flex items-center gap-1 bg-muted rounded-md p-1" data-testid="filter-time-range">
             {QUICK_FILTERS.map((filterKey) => {
               const option = TIME_FILTER_OPTIONS.find(o => o.key === filterKey);
-              // For "last_meeting", show the date if available
-              let label = option?.labelTh;
-              if (filterKey === "last_meeting" && latestMeeting?.meeting_date) {
-                // Extract date portion first (handle both YYYY-MM-DD and ISO timestamp formats)
-                const dateOnly = latestMeeting.meeting_date.split('T')[0];
-                // Parse date string directly (YYYY-MM-DD) to avoid timezone issues
-                const [year, month, day] = dateOnly.split("-").map(Number);
-                const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", 
-                                    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-                label = `ประชุมล่าสุด (${day} ${monthNames[month - 1]})`;
+              
+              // Skip next_meeting if no upcoming meeting
+              if (filterKey === "next_meeting" && !nextMeeting?.meeting_date) {
+                return null;
               }
+              
+              // Build dynamic label with date
+              let label = option?.labelTh;
+              const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", 
+                                  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+              
+              if (filterKey === "next_meeting" && nextMeeting?.meeting_date) {
+                const dateOnly = nextMeeting.meeting_date.split('T')[0];
+                const [, month, day] = dateOnly.split("-").map(Number);
+                label = `ครั้งหน้า (${day} ${monthNames[month - 1]})`;
+              }
+              
+              if (filterKey === "prev_meeting" && prevMeeting?.meeting_date) {
+                const dateOnly = prevMeeting.meeting_date.split('T')[0];
+                const [, month, day] = dateOnly.split("-").map(Number);
+                label = `ครั้งก่อน (${day} ${monthNames[month - 1]})`;
+              }
+              
               return (
                 <Button
                   key={filterKey}

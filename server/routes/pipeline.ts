@@ -227,6 +227,44 @@ router.get("/latest-meeting/:tenantId", async (req: Request, res: Response) => {
   }
 });
 
+// Get upcoming meeting date for a tenant (for time filter)
+// NOTE: Currently uses Thailand timezone (UTC+7) as default since this is a Thai-focused app.
+// Future enhancement: Add tenant timezone field and use it for date calculations.
+router.get("/upcoming-meeting/:tenantId", async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+
+    // Get the next upcoming meeting (meeting_date > today)
+    // Use Thailand timezone (UTC+7) for date calculation since this is a Thai-focused app
+    const now = new Date();
+    const thaiOffset = 7 * 60; // UTC+7 in minutes
+    const utcOffset = now.getTimezoneOffset(); // Local offset in minutes (negative for east of UTC)
+    const thaiTime = new Date(now.getTime() + (thaiOffset + utcOffset) * 60 * 1000);
+    const today = thaiTime.toISOString().split('T')[0];
+    
+    const { data: meeting, error } = await supabaseAdmin
+      .from("meetings")
+      .select("meeting_id, meeting_date")
+      .eq("tenant_id", tenantId)
+      .gt("meeting_date", today)
+      .order("meeting_date", { ascending: true })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== "PGRST116") { // PGRST116 = no rows returned
+      throw error;
+    }
+
+    res.json({
+      meeting_date: meeting?.meeting_date || null,
+      meeting_id: meeting?.meeting_id || null
+    });
+  } catch (error: any) {
+    console.error("Error fetching upcoming meeting:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get single pipeline record with history
 router.get("/record/:recordId", async (req: Request, res: Response) => {
   try {
