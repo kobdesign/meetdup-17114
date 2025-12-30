@@ -2098,8 +2098,8 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
 
     // Get visitor fees for these registered visitors
     const { data: visitorFees, error: feesError } = await supabaseAdmin
-      .from("visitor_fees")
-      .select("participant_id, meeting_id, status, amount")
+      .from("visitor_meeting_fees")
+      .select("participant_id, meeting_id, status, amount_due")
       .eq("meeting_id", meetingId)
       .in("participant_id", participantIds);
 
@@ -2125,9 +2125,9 @@ router.get("/meeting/:meetingId/registered-visitors", verifySupabaseAuth, async 
       const currentStatus = participant.status; // "visitor", "prospect", "member", etc.
       const isConvertedMember = currentStatus === "member";
       
-      // Fee status: use visitor_fees record if exists, default to "pending" for visitors
+      // Fee status: use visitor_meeting_fees record if exists, default to "pending" for visitors
       const feeStatus = feeRecord?.status || (currentStatus !== "member" ? "pending" : null);
-      const amountDue = feeRecord?.amount || 0;
+      const amountDue = feeRecord?.amount_due || 0;
       
       return {
         participant_id: participant.participant_id,
