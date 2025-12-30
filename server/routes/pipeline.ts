@@ -1022,4 +1022,83 @@ router.post("/backfill/:tenantId", async (req: Request, res: Response) => {
   }
 });
 
+// Get meeting filter data (upcoming and latest past meeting with their participant identifiers)
+router.get("/meeting-filter/:tenantId", async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    
+    // Get today's date at midnight for comparison (meetings are typically date-based, not time-based)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Get upcoming meeting (meeting date >= today)
+    const { data: upcomingMeetings, error: upcomingError } = await supabaseAdmin
+      .from("meetings")
+      .select("id, meeting_date, meeting_theme")
+      .eq("tenant_id", tenantId)
+      .gte("meeting_date", todayStr)
+      .order("meeting_date", { ascending: true })
+      .limit(1);
+
+    if (upcomingError) throw upcomingError;
+
+    // Get latest past meeting (meeting date < today)
+    const { data: pastMeetings, error: pastError } = await supabaseAdmin
+      .from("meetings")
+      .select("id, meeting_date, meeting_theme")
+      .eq("tenant_id", tenantId)
+      .lt("meeting_date", todayStr)
+      .order("meeting_date", { ascending: false })
+      .limit(1);
+
+    if (pastError) throw pastError;
+
+    const upcomingMeeting = upcomingMeetings?.[0] || null;
+    const latestPastMeeting = pastMeetings?.[0] || null;
+
+    // Get participant identifiers for each meeting
+    let upcomingParticipants: string[] = [];
+    let latestPastParticipants: string[] = [];
+
+    if (upcomingMeeting) {
+      const { data: participants } = await supabaseAdmin
+        .from("participants")
+        .select("phone, email")
+        .eq("meeting_id", upcomingMeeting.id);
+      
+      participants?.forEach(p => {
+        if (p.phone) upcomingParticipants.push(p.phone);
+        if (p.email) upcomingParticipants.push(p.email.toLowerCase());
+      });
+    }
+
+    if (latestPastMeeting) {
+      const { data: participants } = await supabaseAdmin
+        .from("participants")
+        .select("phone, email")
+        .eq("meeting_id", latestPastMeeting.id);
+      
+      participants?.forEach(p => {
+        if (p.phone) latestPastParticipants.push(p.phone);
+        if (p.email) latestPastParticipants.push(p.email.toLowerCase());
+      });
+    }
+
+    res.json({
+      upcoming: upcomingMeeting ? {
+        ...upcomingMeeting,
+        participant_identifiers: upcomingParticipants
+      } : null,
+      latest_past: latestPastMeeting ? {
+        ...latestPastMeeting,
+        participant_identifiers: latestPastParticipants
+      } : null
+    });
+  } catch (error: any) {
+    console.error("Error fetching meeting filter data:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

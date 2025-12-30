@@ -154,7 +154,7 @@ INSERT INTO pipeline_stages (stage_key, stage_name, stage_name_th, description, 
     ('follow_up', 'Follow-up', 'Follow-up', 'Post-meeting follow-up in progress', 'conversion', 6, '#F59E0B', 'MessageCircle', 7),
     ('application_submitted', 'Application Submitted', 'ยื่นใบสมัครแล้ว', 'Membership application submitted', 'conversion', 7, '#EF4444', 'FileText', 14),
     ('application_approved', 'Application Approved', 'อนุมัติแล้ว', 'Application approved by committee', 'conversion', 8, '#10B981', 'CheckCircle2', NULL),
-    ('onboarding', 'Onboarding', 'Onboarding', 'New member onboarding in progress', 'onboarding', 9, '#6366F1', 'GraduationCap', 30),
+    ('onboarding', 'Onboarding', 'สมาชิก Onboarding', 'New member onboarding in progress', 'onboarding', 9, '#6366F1', 'GraduationCap', 30),
     ('active_member', 'Active Member', 'สมาชิก Active', 'Active contributing member', 'onboarding', 10, '#22C55E', 'Star', NULL),
     ('retention_watch', 'Retention Watch', 'เฝ้าระวัง', 'At risk of churning', 'retention', 11, '#F97316', 'AlertTriangle', 14),
     ('archived', 'Archived', 'Archive', 'No longer active in pipeline', 'retention', 12, '#9CA3AF', 'Archive', NULL)

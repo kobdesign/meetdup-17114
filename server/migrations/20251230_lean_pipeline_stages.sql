@@ -10,7 +10,7 @@ INSERT INTO pipeline_stages (stage_key, stage_name, stage_name_th, description, 
     ('follow_up', 'Follow-up', 'กำลังติดตาม', 'Admin following up after meeting', 'conversion', 4, '#F59E0B', 'MessageCircle', 7),
     ('application_submitted', 'Application Submitted', 'ยื่นใบสมัคร', 'Application submitted - includes qualification and payment', 'conversion', 5, '#EF4444', 'FileText', 14),
     ('active_member', 'Active Member', 'สมาชิก Active', 'Converted to active member', 'onboarding', 6, '#22C55E', 'Star', NULL),
-    ('onboarding', 'Onboarding', 'Onboarding', 'New member onboarding in progress', 'onboarding', 7, '#6366F1', 'GraduationCap', 30),
+    ('onboarding', 'Onboarding', 'สมาชิก Onboarding', 'New member onboarding in progress', 'onboarding', 7, '#6366F1', 'GraduationCap', 30),
     ('archived', 'Archived', 'Archive', 'No longer active in pipeline', 'retention', 8, '#9CA3AF', 'Archive', NULL)
 ON CONFLICT (stage_key) DO UPDATE SET
     stage_name = EXCLUDED.stage_name,

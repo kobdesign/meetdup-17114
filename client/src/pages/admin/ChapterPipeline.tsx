@@ -183,6 +183,28 @@ export default function ChapterPipeline() {
   const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set()); // selected participant_ids
   const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [meetingFilter, setMeetingFilter] = useState<"all" | "upcoming" | "latest_past">("all");
+
+  interface MeetingFilterData {
+    upcoming: {
+      id: string;
+      meeting_date: string;
+      meeting_theme: string;
+      participant_identifiers: string[];
+    } | null;
+    latest_past: {
+      id: string;
+      meeting_date: string;
+      meeting_theme: string;
+      participant_identifiers: string[];
+    } | null;
+  }
+
+  const { data: meetingFilterData } = useQuery<MeetingFilterData>({
+    queryKey: ["/api/pipeline/meeting-filter", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/meeting-filter/${selectedTenant?.tenant_id}`),
+    enabled: !!selectedTenant?.tenant_id,
+  });
 
   const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
     queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id],
@@ -295,6 +317,14 @@ export default function ChapterPipeline() {
     
     const searchTerm = searchQuery.trim().toLowerCase();
     
+    // Get meeting filter identifiers
+    let meetingIdentifiers: string[] | null = null;
+    if (meetingFilter === "upcoming" && meetingFilterData?.upcoming) {
+      meetingIdentifiers = meetingFilterData.upcoming.participant_identifiers;
+    } else if (meetingFilter === "latest_past" && meetingFilterData?.latest_past) {
+      meetingIdentifiers = meetingFilterData.latest_past.participant_identifiers;
+    }
+    
     return kanbanData.map(stage => {
       const filteredRecords = stage.records.filter(record => {
         const matchesSearch = !searchTerm || 
@@ -306,7 +336,18 @@ export default function ChapterPipeline() {
         const staleStatus = getStaleStatus(record);
         const matchesStaleFilter = showStaleLeads || staleStatus !== "critical";
         
-        return matchesSearch && matchesStaleFilter;
+        // Meeting filter - match by phone or email (case-insensitive)
+        let matchesMeeting = true;
+        if (meetingIdentifiers && meetingIdentifiers.length > 0) {
+          const recordPhone = (record.phone || "").toLowerCase().trim();
+          const recordEmail = (record.email || "").toLowerCase().trim();
+          const normalizedIdentifiers = meetingIdentifiers.map(id => id.toLowerCase().trim());
+          matchesMeeting = normalizedIdentifiers.some(id => 
+            (recordPhone && id === recordPhone) || (recordEmail && id === recordEmail)
+          );
+        }
+        
+        return matchesSearch && matchesStaleFilter && matchesMeeting;
       });
       
       return {
@@ -315,7 +356,7 @@ export default function ChapterPipeline() {
         count: filteredRecords.length
       };
     });
-  }, [kanbanData, searchQuery, showStaleLeads]);
+  }, [kanbanData, searchQuery, showStaleLeads, meetingFilter, meetingFilterData]);
 
   if (!isReady) {
     return (
@@ -439,6 +480,32 @@ export default function ChapterPipeline() {
               Lead นิ่ง 30+ วัน
             </Label>
           </div>
+
+          <Select value={meetingFilter} onValueChange={(v) => setMeetingFilter(v as "all" | "upcoming" | "latest_past")}>
+            <SelectTrigger className="w-56" data-testid="select-meeting-filter">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="กรองตาม Meeting" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทั้งหมด</SelectItem>
+              <SelectItem value="upcoming" disabled={!meetingFilterData?.upcoming}>
+                Meeting ที่กำลังจะถึง
+                {meetingFilterData?.upcoming && (
+                  <span className="text-muted-foreground ml-1">
+                    ({new Date(meetingFilterData.upcoming.meeting_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})
+                  </span>
+                )}
+              </SelectItem>
+              <SelectItem value="latest_past" disabled={!meetingFilterData?.latest_past}>
+                Meeting ที่ผ่านมาล่าสุด
+                {meetingFilterData?.latest_past && (
+                  <span className="text-muted-foreground ml-1">
+                    ({new Date(meetingFilterData.latest_past.meeting_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})
+                  </span>
+                )}
+              </SelectItem>
+            </SelectContent>
+          </Select>
 
           <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import">
             <Download className="h-4 w-4 mr-2" />
