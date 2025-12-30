@@ -17,6 +17,7 @@ import aiCopilotRouter from "./routes/ai-copilot";
 import subscriptionsRouter from "./routes/subscriptions";
 import planConfigRouter from "./routes/planConfig";
 import scheduledJobsRouter from "./routes/scheduledJobs";
+import pipelineRouter from "./routes/pipeline";
 import { performHealthCheck, printHealthCheckReport } from "./utils/dbHealthCheck";
 import { setupRichMenuStorage } from "./utils/setupStorage";
 import { WebhookHandlers } from "./stripe/webhookHandlers";
@@ -317,6 +318,9 @@ app.use("/api/plan-config", planConfigRouter);
 
 // Scheduled jobs (cron-triggered)
 app.use("/api/cron", scheduledJobsRouter);
+
+// Chapter Growth Pipeline routes
+app.use("/api/pipeline", pipelineRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();

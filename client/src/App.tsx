@@ -69,6 +69,7 @@ import LandingPage from "./pages/LandingPage";
 import Demo from "./pages/Demo";
 import Pricing from "./pages/Pricing";
 import BillingSettings from "./pages/admin/BillingSettings";
+import ChapterPipeline from "./pages/admin/ChapterPipeline";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -219,6 +220,11 @@ const App = () => (
           <Route path="/admin/billing" element={
             <ProtectedRoute requiredRole="chapter_admin">
               <BillingSettings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/pipeline" element={
+            <ProtectedRoute requiredRole="chapter_admin">
+              <ChapterPipeline />
             </ProtectedRoute>
           } />
           

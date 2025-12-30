@@ -40,7 +40,8 @@ import {
   DollarSign,
   Palette,
   Brain,
-  Zap
+  Zap,
+  TrendingUp
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import NavLink from "@/components/NavLink";
@@ -162,6 +163,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           defaultOpen: true,
           items: [
             { icon: <Users className="h-4 w-4" />, label: "รายชื่อสมาชิก", href: "/admin/participants" },
+            { icon: <TrendingUp className="h-4 w-4" />, label: "Growth Pipeline", href: "/admin/pipeline" },
             { icon: <UserPlus className="h-4 w-4" />, label: "Visitor Pipeline", href: "/admin/visitors" },
             { icon: <UserPlus className="h-4 w-4" />, label: "จัดการสมาชิก", href: "/admin/members-management" },
             { icon: <Upload className="h-4 w-4" />, label: "นำเข้าสมาชิก", href: "/admin/import-members" },

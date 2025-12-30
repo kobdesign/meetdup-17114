@@ -1,0 +1,619 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTenantContext } from "@/contexts/TenantContext";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Plus,
+  Search,
+  MoreVertical,
+  Phone,
+  Mail,
+  MessageCircle,
+  Calendar,
+  User,
+  ArrowRight,
+  Archive,
+  Clock,
+  TrendingUp,
+  Users,
+  UserPlus,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
+
+interface PipelineStage {
+  id: number;
+  stage_key: string;
+  stage_name: string;
+  stage_name_th: string;
+  description: string;
+  stage_group: string;
+  stage_order: number;
+  color: string;
+  icon: string;
+  auto_move_days: number | null;
+  sub_statuses: SubStatus[];
+  records: PipelineRecord[];
+  count: number;
+}
+
+interface SubStatus {
+  id: number;
+  stage_key: string;
+  sub_status_key: string;
+  sub_status_name: string;
+  sub_status_name_th: string;
+  color: string;
+}
+
+interface PipelineRecord {
+  id: string;
+  tenant_id: string;
+  participant_id: string | null;
+  visitor_id: string | null;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  line_id: string | null;
+  current_stage: string;
+  current_sub_status: string | null;
+  stage_entered_at: string;
+  owner_user_id: string | null;
+  referrer_participant_id: string | null;
+  source: string | null;
+  meetings_attended: number;
+  notes: string | null;
+  tags: string[] | null;
+  created_at: string;
+}
+
+const iconMap: Record<string, any> = {
+  UserPlus: UserPlus,
+  CheckCircle: CheckCircle,
+  Calendar: Calendar,
+  CalendarCheck: Calendar,
+  Users: Users,
+  MessageCircle: MessageCircle,
+  FileText: User,
+  CheckCircle2: CheckCircle,
+  GraduationCap: TrendingUp,
+  Star: TrendingUp,
+  AlertTriangle: AlertTriangle,
+  Archive: Archive,
+};
+
+export default function ChapterPipeline() {
+  const { selectedTenant, isReady } = useTenantContext();
+  const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<PipelineRecord | null>(null);
+  const [targetStage, setTargetStage] = useState<string>("");
+  const [moveReason, setMoveReason] = useState("");
+  
+  const [newLead, setNewLead] = useState({
+    full_name: "",
+    phone: "",
+    email: "",
+    line_id: "",
+    source: "referral",
+    notes: "",
+  });
+
+  const { data: kanbanData, isLoading } = useQuery<PipelineStage[]>({
+    queryKey: ["/api/pipeline/kanban", selectedTenant?.tenant_id],
+    enabled: !!selectedTenant?.tenant_id,
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ["/api/pipeline/stats", selectedTenant?.tenant_id],
+    enabled: !!selectedTenant?.tenant_id,
+  });
+
+  const createRecordMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("/api/pipeline/records", "POST", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
+      setIsAddDialogOpen(false);
+      setNewLead({ full_name: "", phone: "", email: "", line_id: "", source: "referral", notes: "" });
+      toast({ title: "เพิ่ม Lead สำเร็จ" });
+    },
+    onError: (error: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const moveRecordMutation = useMutation({
+    mutationFn: async ({ recordId, toStage, reason }: { recordId: string; toStage: string; reason: string }) => {
+      return apiRequest(`/api/pipeline/records/${recordId}/move`, "POST", {
+        to_stage: toStage,
+        change_reason: reason,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
+      setIsMoveDialogOpen(false);
+      setSelectedRecord(null);
+      setTargetStage("");
+      setMoveReason("");
+      toast({ title: "ย้าย Stage สำเร็จ" });
+    },
+    onError: (error: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const archiveRecordMutation = useMutation({
+    mutationFn: async ({ recordId, reason }: { recordId: string; reason: string }) => {
+      return apiRequest(`/api/pipeline/records/${recordId}/archive`, "POST", {
+        archive_reason: reason,
+        sub_status: "declined",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
+      toast({ title: "Archive สำเร็จ" });
+    },
+  });
+
+  if (!isReady) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!selectedTenant) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground">
+            กรุณาเลือก Chapter ก่อน
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const handleAddLead = () => {
+    if (!newLead.full_name.trim()) {
+      toast({ title: "กรุณากรอกชื่อ", variant: "destructive" });
+      return;
+    }
+    if (!newLead.phone.trim() && !newLead.email.trim()) {
+      toast({ title: "กรุณากรอกเบอร์โทรหรืออีเมล", variant: "destructive" });
+      return;
+    }
+    
+    createRecordMutation.mutate({
+      tenant_id: selectedTenant.tenant_id,
+      ...newLead,
+    });
+  };
+
+  const handleMoveToStage = (record: PipelineRecord, stage: string) => {
+    setSelectedRecord(record);
+    setTargetStage(stage);
+    setIsMoveDialogOpen(true);
+  };
+
+  const confirmMove = () => {
+    if (selectedRecord && targetStage) {
+      moveRecordMutation.mutate({
+        recordId: selectedRecord.id,
+        toStage: targetStage,
+        reason: moveReason,
+      });
+    }
+  };
+
+  const getDaysInStage = (enteredAt: string) => {
+    const entered = new Date(enteredAt);
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  const getStageGroupLabel = (group: string) => {
+    const labels: Record<string, string> = {
+      lead_intake: "Lead Intake",
+      engagement: "Engagement",
+      conversion: "Conversion",
+      onboarding: "Onboarding",
+      retention: "Retention",
+    };
+    return labels[group] || group;
+  };
+
+  const filteredKanbanData = kanbanData?.map(stage => ({
+    ...stage,
+    records: stage.records.filter(record => 
+      !searchQuery || 
+      record.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      record.phone?.includes(searchQuery) ||
+      record.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }));
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="p-4 border-b flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">Chapter Growth Pipeline</h1>
+          <p className="text-muted-foreground text-sm">
+            ติดตาม Lead และ Visitor ตลอดเส้นทางสู่การเป็นสมาชิก
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="ค้นหาชื่อ, เบอร์โทร..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-64"
+              data-testid="input-search"
+            />
+          </div>
+          
+          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-lead">
+            <Plus className="h-4 w-4 mr-2" />
+            เพิ่ม Lead
+          </Button>
+        </div>
+      </div>
+
+      {stats && (
+        <div className="p-4 border-b grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold">{(stats as any).total || 0}</div>
+              <div className="text-xs text-muted-foreground">Total in Pipeline</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold">{(stats as any).by_group?.lead_intake || 0}</div>
+              <div className="text-xs text-muted-foreground">Lead Intake</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold">{(stats as any).by_group?.engagement || 0}</div>
+              <div className="text-xs text-muted-foreground">Engagement</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold">{(stats as any).by_group?.conversion || 0}</div>
+              <div className="text-xs text-muted-foreground">Conversion</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold">{(stats as any).by_group?.onboarding || 0}</div>
+              <div className="text-xs text-muted-foreground">Onboarding</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <ScrollArea className="flex-1">
+        <div className="p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : (
+            <div className="flex gap-4 pb-4" style={{ minWidth: "max-content" }}>
+              {filteredKanbanData?.map((stage) => {
+                const IconComponent = iconMap[stage.icon] || User;
+                
+                return (
+                  <div
+                    key={stage.stage_key}
+                    className="w-72 flex-shrink-0"
+                    data-testid={`column-${stage.stage_key}`}
+                  >
+                    <div
+                      className="rounded-t-lg p-3 flex items-center justify-between gap-2"
+                      style={{ backgroundColor: stage.color + "20" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-6 h-6 rounded flex items-center justify-center"
+                          style={{ backgroundColor: stage.color }}
+                        >
+                          <IconComponent className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="font-medium text-sm">{stage.stage_name_th}</span>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {stage.count}
+                      </Badge>
+                    </div>
+                    
+                    <div
+                      className="min-h-[400px] rounded-b-lg border border-t-0 p-2 space-y-2"
+                      style={{ backgroundColor: stage.color + "05" }}
+                    >
+                      {stage.records.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground text-sm">
+                          ไม่มีรายการ
+                        </div>
+                      ) : (
+                        stage.records.map((record) => {
+                          const daysInStage = getDaysInStage(record.stage_entered_at);
+                          const isOverdue = stage.auto_move_days && daysInStage > stage.auto_move_days;
+                          
+                          return (
+                            <Card
+                              key={record.id}
+                              className={`hover-elevate cursor-pointer ${isOverdue ? "border-orange-400" : ""}`}
+                              data-testid={`card-record-${record.id}`}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium truncate">{record.full_name}</div>
+                                    {record.current_sub_status && (
+                                      <Badge variant="outline" className="text-xs mt-1">
+                                        {record.current_sub_status}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                                        <MoreVertical className="h-3 w-3" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {kanbanData?.map((s) => (
+                                        s.stage_key !== record.current_stage && (
+                                          <DropdownMenuItem
+                                            key={s.stage_key}
+                                            onClick={() => handleMoveToStage(record, s.stage_key)}
+                                          >
+                                            <ArrowRight className="h-4 w-4 mr-2" />
+                                            ย้ายไป {s.stage_name_th}
+                                          </DropdownMenuItem>
+                                        )
+                                      ))}
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={() => archiveRecordMutation.mutate({ recordId: record.id, reason: "Archived" })}
+                                        className="text-destructive"
+                                      >
+                                        <Archive className="h-4 w-4 mr-2" />
+                                        Archive
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                                
+                                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                  {record.phone && (
+                                    <div className="flex items-center gap-1">
+                                      <Phone className="h-3 w-3" />
+                                      <span>{record.phone}</span>
+                                    </div>
+                                  )}
+                                  {record.email && (
+                                    <div className="flex items-center gap-1 truncate">
+                                      <Mail className="h-3 w-3 flex-shrink-0" />
+                                      <span className="truncate">{record.email}</span>
+                                    </div>
+                                  )}
+                                  {record.line_id && (
+                                    <div className="flex items-center gap-1">
+                                      <MessageCircle className="h-3 w-3" />
+                                      <span>{record.line_id}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="mt-2 flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-1 text-muted-foreground">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{daysInStage} วัน</span>
+                                  </div>
+                                  {record.meetings_attended > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {record.meetings_attended} ครั้ง
+                                    </Badge>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>เพิ่ม Lead ใหม่</DialogTitle>
+            <DialogDescription>
+              กรอกข้อมูลผู้ที่สนใจเข้าร่วม Chapter
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>ชื่อ-นามสกุล *</Label>
+              <Input
+                value={newLead.full_name}
+                onChange={(e) => setNewLead({ ...newLead, full_name: e.target.value })}
+                placeholder="ชื่อเต็ม"
+                data-testid="input-lead-name"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>เบอร์โทรศัพท์</Label>
+                <Input
+                  value={newLead.phone}
+                  onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                  placeholder="0812345678"
+                  data-testid="input-lead-phone"
+                />
+              </div>
+              <div>
+                <Label>อีเมล</Label>
+                <Input
+                  value={newLead.email}
+                  onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                  placeholder="email@example.com"
+                  data-testid="input-lead-email"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label>LINE ID</Label>
+              <Input
+                value={newLead.line_id}
+                onChange={(e) => setNewLead({ ...newLead, line_id: e.target.value })}
+                placeholder="lineid"
+                data-testid="input-lead-lineid"
+              />
+            </div>
+            
+            <div>
+              <Label>แหล่งที่มา</Label>
+              <Select value={newLead.source} onValueChange={(v) => setNewLead({ ...newLead, source: v })}>
+                <SelectTrigger data-testid="select-lead-source">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="referral">แนะนำจากสมาชิก</SelectItem>
+                  <SelectItem value="walk_in">Walk-in</SelectItem>
+                  <SelectItem value="website">เว็บไซต์</SelectItem>
+                  <SelectItem value="event">งาน Event</SelectItem>
+                  <SelectItem value="social">Social Media</SelectItem>
+                  <SelectItem value="other">อื่นๆ</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label>หมายเหตุ</Label>
+              <Textarea
+                value={newLead.notes}
+                onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
+                placeholder="บันทึกเพิ่มเติม..."
+                data-testid="input-lead-notes"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleAddLead}
+              disabled={createRecordMutation.isPending}
+              data-testid="button-confirm-add-lead"
+            >
+              {createRecordMutation.isPending ? "กำลังบันทึก..." : "เพิ่ม Lead"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ย้าย Stage</DialogTitle>
+            <DialogDescription>
+              ย้าย {selectedRecord?.full_name} ไป Stage ใหม่
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>ไปยัง Stage</Label>
+              <div className="text-sm font-medium mt-1">
+                {kanbanData?.find(s => s.stage_key === targetStage)?.stage_name_th}
+              </div>
+            </div>
+            
+            <div>
+              <Label>เหตุผล (ไม่บังคับ)</Label>
+              <Textarea
+                value={moveReason}
+                onChange={(e) => setMoveReason(e.target.value)}
+                placeholder="บันทึกเหตุผลในการย้าย..."
+                data-testid="input-move-reason"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMoveDialogOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={confirmMove}
+              disabled={moveRecordMutation.isPending}
+              data-testid="button-confirm-move"
+            >
+              {moveRecordMutation.isPending ? "กำลังย้าย..." : "ยืนยันการย้าย"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
