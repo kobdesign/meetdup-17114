@@ -168,7 +168,7 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 // Time filter options
-type TimeFilterKey = "all" | "this_week" | "last_week" | "this_month" | "3_months" | "6_months" | "this_year" | "last_year";
+type TimeFilterKey = "all" | "last_meeting" | "last_week" | "this_month" | "3_months" | "6_months" | "this_year" | "last_year";
 
 interface TimeFilterOption {
   key: TimeFilterKey;
@@ -178,8 +178,8 @@ interface TimeFilterOption {
 
 const TIME_FILTER_OPTIONS: TimeFilterOption[] = [
   { key: "all", label: "All Time", labelTh: "ทั้งหมด" },
-  { key: "this_week", label: "This Week", labelTh: "อาทิตย์นี้" },
-  { key: "last_week", label: "Last Week", labelTh: "อาทิตย์ก่อน" },
+  { key: "last_meeting", label: "Last Meeting", labelTh: "ประชุมล่าสุด" },
+  { key: "last_week", label: "Last Week", labelTh: "สัปดาห์ก่อน" },
   { key: "this_month", label: "This Month", labelTh: "เดือนนี้" },
   { key: "3_months", label: "Last 3 Months", labelTh: "3 เดือนนี้" },
   { key: "6_months", label: "Last 6 Months", labelTh: "6 เดือนนี้" },
@@ -188,9 +188,10 @@ const TIME_FILTER_OPTIONS: TimeFilterOption[] = [
 ];
 
 // Quick access filters (shown as buttons)
-const QUICK_FILTERS: TimeFilterKey[] = ["this_week", "this_month", "3_months"];
+const QUICK_FILTERS: TimeFilterKey[] = ["last_meeting", "this_month", "3_months"];
 
-function getDateRange(filterKey: TimeFilterKey): { dateFrom: string | null; dateTo: string | null } {
+// Note: "last_meeting" is handled dynamically in the component, not here
+function getDateRange(filterKey: TimeFilterKey, lastMeetingDate?: string | null): { dateFrom: string | null; dateTo: string | null } {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   
@@ -217,11 +218,18 @@ function getDateRange(filterKey: TimeFilterKey): { dateFrom: string | null; date
     case "all":
       return { dateFrom: null, dateTo: null };
     
-    case "this_week": {
-      const dayOfWeek = today.getDay();
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - dayOfWeek);
-      return { dateFrom: startOfWeek.toISOString(), dateTo: null };
+    case "last_meeting": {
+      // Use the last meeting date as dateFrom, until today
+      if (lastMeetingDate) {
+        // lastMeetingDate is in YYYY-MM-DD format
+        // Use Thailand timezone (UTC+7) since this is a Thai-focused app
+        // NOTE: Future enhancement - use tenant timezone from database
+        return { dateFrom: `${lastMeetingDate}T00:00:00+07:00`, dateTo: null };
+      }
+      // Fallback to last 30 days if no meeting found
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      return { dateFrom: thirtyDaysAgo.toISOString(), dateTo: null };
     }
     
     case "last_week": {
@@ -274,7 +282,7 @@ export default function ChapterPipeline() {
   const { selectedTenant, isReady } = useTenantContext();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [timeFilter, setTimeFilter] = useState<TimeFilterKey>("3_months");
+  const [timeFilter, setTimeFilter] = useState<TimeFilterKey>("last_meeting");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -286,8 +294,15 @@ export default function ChapterPipeline() {
   const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   
-  // Get date range from current filter
-  const dateRange = getDateRange(timeFilter);
+  // Query for latest meeting date
+  const { data: latestMeeting } = useQuery<{ meeting_date: string | null; meeting_id: string | null }>({
+    queryKey: ["/api/pipeline/latest-meeting", selectedTenant?.tenant_id],
+    queryFn: () => apiRequest(`/api/pipeline/latest-meeting/${selectedTenant?.tenant_id}`),
+    enabled: !!selectedTenant?.tenant_id,
+  });
+  
+  // Get date range from current filter (pass latest meeting date for "last_meeting" filter)
+  const dateRange = getDateRange(timeFilter, latestMeeting?.meeting_date);
   
   const [newLead, setNewLead] = useState({
     full_name: "",
@@ -574,6 +589,15 @@ export default function ChapterPipeline() {
           <div className="flex items-center gap-1 bg-muted rounded-md p-1" data-testid="filter-time-range">
             {QUICK_FILTERS.map((filterKey) => {
               const option = TIME_FILTER_OPTIONS.find(o => o.key === filterKey);
+              // For "last_meeting", show the date if available
+              let label = option?.labelTh;
+              if (filterKey === "last_meeting" && latestMeeting?.meeting_date) {
+                // Parse date string directly (YYYY-MM-DD) to avoid timezone issues
+                const [year, month, day] = latestMeeting.meeting_date.split("-").map(Number);
+                const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", 
+                                    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+                label = `ประชุมล่าสุด (${day} ${monthNames[month - 1]})`;
+              }
               return (
                 <Button
                   key={filterKey}
@@ -583,7 +607,7 @@ export default function ChapterPipeline() {
                   className={timeFilter === filterKey ? "bg-background shadow-sm" : ""}
                   data-testid={`button-filter-${filterKey}`}
                 >
-                  {option?.labelTh}
+                  {label}
                 </Button>
               );
             })}
