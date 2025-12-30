@@ -354,52 +354,74 @@ LIMIT 20;
 
 ---
 
-## Intent: Pipeline เฉพาะ Meeting (Pipeline by Meeting)
+## Intent: Pipeline เฉพาะ Meeting (สำคัญมาก!)
 
-เมื่อผู้ใช้ถาม: "ขอ pipeline เฉพาะวันที่...", "visitor ของ meeting วันที่...", "ขอดู pipeline ของ meeting ล่าสุด", "สถิติ pipeline เฉพาะ meeting"
+**ตัวอย่างคำถาม:**
+- "ขอดู pipeline เฉพาะวัน 2026-01-06"
+- "pipeline วันที่ 6 มกรา"
+- "visitor ของ meeting วันนี้"
+- "สถิติ pipeline meeting ล่าสุด"
+- "ใครลงทะเบียน meeting หน้าบ้าง อยู่ stage อะไร"
 
-### ความสัมพันธ์ระหว่าง Pipeline และ Meeting
+### วิธีเชื่อมต่อ Pipeline กับ Meeting (สำคัญ!)
 
-**สำคัญ!** pipeline_records ไม่ได้ผูกกับ meeting โดยตรง แต่ต้อง JOIN ผ่าน:
-- `pipeline_records.visitor_id` → `participants.participant_id`
-- `participants.participant_id` → `meeting_registrations.participant_id`
-- `meeting_registrations.meeting_id` → `meetings.meeting_id`
+**Key Mapping:** `pipeline_records.visitor_id` = `meeting_registrations.participant_id`
+
+ใช้ subquery หรือ JOIN เพื่อ filter pipeline records ตาม meeting:
 
 ### SQL Queries สำหรับ Pipeline by Meeting
 
-#### 1. หา Meeting ที่ต้องการ (ตามวันที่)
+#### Step 1: หา meeting_id จากวันที่
 SELECT meeting_id, meeting_name, meeting_date
 FROM meetings 
 WHERE tenant_id = '<tenant_id>' 
-AND meeting_date = '2026-01-06'  -- วันที่ที่ระบุ
+AND meeting_date = '2026-01-06'
 LIMIT 1;
 
-#### 2. Pipeline Records เฉพาะ Meeting (ผ่าน meeting_registrations)
--- ดึง pipeline records ของ visitor ที่ลงทะเบียนใน meeting นั้น
-SELECT pr.full_name, pr.current_stage, pr.current_sub_status, pr.meetings_attended,
-  (pr.stage_entered_at AT TIME ZONE 'Asia/Bangkok')::date as stage_date
-FROM pipeline_records pr
-JOIN participants p ON pr.visitor_id = p.participant_id
-JOIN meeting_registrations mr ON p.participant_id = mr.participant_id
-JOIN meetings m ON mr.meeting_id = m.meeting_id
-WHERE pr.tenant_id = '<tenant_id>'
-AND m.meeting_date = '2026-01-06'  -- วันที่ที่ระบุ
-AND pr.archived_at IS NULL
-ORDER BY pr.current_stage, pr.stage_entered_at DESC
+#### Step 2: ดึง Pipeline Records เฉพาะ Meeting (ใช้ subquery - แนะนำ!)
+-- visitor_id ใน pipeline_records = participant_id ใน meeting_registrations
+SELECT full_name, current_stage, current_sub_status, meetings_attended,
+  (stage_entered_at AT TIME ZONE 'Asia/Bangkok')::date as stage_date
+FROM pipeline_records
+WHERE tenant_id = '<tenant_id>'
+AND visitor_id IN (
+  SELECT participant_id 
+  FROM meeting_registrations 
+  WHERE meeting_id = '<meeting_id_from_step1>'
+)
+AND archived_at IS NULL
+ORDER BY 
+  CASE current_stage
+    WHEN 'lead' THEN 1
+    WHEN 'attended' THEN 2
+    WHEN 'revisit' THEN 3
+    WHEN 'follow_up' THEN 4
+    WHEN 'application_submitted' THEN 5
+    WHEN 'active_member' THEN 6
+    WHEN 'onboarding' THEN 7
+  END
 LIMIT 50;
 
-#### 3. นับแต่ละ Stage เฉพาะ Meeting
-SELECT pr.current_stage, COUNT(*) as count
-FROM pipeline_records pr
-JOIN participants p ON pr.visitor_id = p.participant_id
-JOIN meeting_registrations mr ON p.participant_id = mr.participant_id
-JOIN meetings m ON mr.meeting_id = m.meeting_id
-WHERE pr.tenant_id = '<tenant_id>'
-AND m.meeting_date = '2026-01-06'
-AND pr.archived_at IS NULL
-GROUP BY pr.current_stage
+#### นับแต่ละ Stage เฉพาะ Meeting (รวม 2 queries)
+WITH target_meeting AS (
+  SELECT meeting_id, meeting_name, meeting_date
+  FROM meetings 
+  WHERE tenant_id = '<tenant_id>' 
+  AND meeting_date = '2026-01-06'
+  LIMIT 1
+)
+SELECT current_stage, COUNT(*) as count
+FROM pipeline_records
+WHERE tenant_id = '<tenant_id>'
+AND visitor_id IN (
+  SELECT participant_id 
+  FROM meeting_registrations 
+  WHERE meeting_id = (SELECT meeting_id FROM target_meeting)
+)
+AND archived_at IS NULL
+GROUP BY current_stage
 ORDER BY 
-  CASE pr.current_stage
+  CASE current_stage
     WHEN 'lead' THEN 1
     WHEN 'attended' THEN 2
     WHEN 'revisit' THEN 3
@@ -409,9 +431,35 @@ ORDER BY
     WHEN 'onboarding' THEN 7
   END;
 
-#### 4. Pipeline เฉพาะ Meeting ล่าสุด/กำลังจะถึง
--- หา meeting ที่กำลังจะถึง (upcoming)
+#### Funnel Summary เฉพาะ Meeting (1 query)
 WITH target_meeting AS (
+  SELECT meeting_id, meeting_name FROM meetings 
+  WHERE tenant_id = '<tenant_id>' AND meeting_date = '2026-01-06'
+  LIMIT 1
+),
+filtered_records AS (
+  SELECT current_stage
+  FROM pipeline_records
+  WHERE tenant_id = '<tenant_id>'
+  AND visitor_id IN (
+    SELECT participant_id FROM meeting_registrations 
+    WHERE meeting_id = (SELECT meeting_id FROM target_meeting)
+  )
+  AND archived_at IS NULL
+)
+SELECT 
+  (SELECT meeting_name FROM target_meeting) as meeting_name,
+  COUNT(*) FILTER (WHERE current_stage = 'lead') as leads,
+  COUNT(*) FILTER (WHERE current_stage = 'attended') as attended,
+  COUNT(*) FILTER (WHERE current_stage = 'revisit') as revisit,
+  COUNT(*) FILTER (WHERE current_stage = 'follow_up') as follow_up,
+  COUNT(*) FILTER (WHERE current_stage = 'application_submitted') as applied,
+  COUNT(*) FILTER (WHERE current_stage = 'active_member') as active_members,
+  COUNT(*) FILTER (WHERE current_stage = 'onboarding') as onboarding
+FROM filtered_records;
+
+#### Pipeline Meeting กำลังจะถึง (Upcoming)
+WITH upcoming_meeting AS (
   SELECT meeting_id, meeting_name, meeting_date
   FROM meetings 
   WHERE tenant_id = '<tenant_id>' 
@@ -420,59 +468,36 @@ WITH target_meeting AS (
   LIMIT 1
 )
 SELECT pr.full_name, pr.current_stage, pr.current_sub_status, pr.meetings_attended,
-  tm.meeting_name, tm.meeting_date
-FROM pipeline_records pr
-JOIN participants p ON pr.visitor_id = p.participant_id
-JOIN meeting_registrations mr ON p.participant_id = mr.participant_id
-JOIN target_meeting tm ON mr.meeting_id = tm.meeting_id
+  um.meeting_name, um.meeting_date
+FROM pipeline_records pr, upcoming_meeting um
 WHERE pr.tenant_id = '<tenant_id>'
+AND pr.visitor_id IN (
+  SELECT participant_id FROM meeting_registrations 
+  WHERE meeting_id = um.meeting_id
+)
 AND pr.archived_at IS NULL
 ORDER BY pr.current_stage
-LIMIT 50;
-
-#### 5. Funnel Summary เฉพาะ Meeting
-WITH target_meeting AS (
-  SELECT meeting_id FROM meetings 
-  WHERE tenant_id = '<tenant_id>' AND meeting_date = '2026-01-06'
-  LIMIT 1
-),
-stage_counts AS (
-  SELECT pr.current_stage, COUNT(*) as count
-  FROM pipeline_records pr
-  JOIN participants p ON pr.visitor_id = p.participant_id
-  JOIN meeting_registrations mr ON p.participant_id = mr.participant_id
-  WHERE pr.tenant_id = '<tenant_id>'
-  AND mr.meeting_id = (SELECT meeting_id FROM target_meeting)
-  AND pr.archived_at IS NULL
-  GROUP BY pr.current_stage
-)
-SELECT 
-  COALESCE(SUM(count) FILTER (WHERE current_stage = 'lead'), 0) as leads,
-  COALESCE(SUM(count) FILTER (WHERE current_stage = 'attended'), 0) as attended,
-  COALESCE(SUM(count) FILTER (WHERE current_stage = 'revisit'), 0) as revisit,
-  COALESCE(SUM(count) FILTER (WHERE current_stage = 'follow_up'), 0) as follow_up,
-  COALESCE(SUM(count) FILTER (WHERE current_stage = 'application_submitted'), 0) as applied,
-  COALESCE(SUM(count) FILTER (WHERE current_stage = 'active_member'), 0) as active_members,
-  COALESCE(SUM(count) FILTER (WHERE current_stage = 'onboarding'), 0) as onboarding
-FROM stage_counts;
+LIMIT 30;
 
 ### Response Template สำหรับ Pipeline by Meeting
 
 📊 **Pipeline เฉพาะ Meeting: [meeting_name]**
 📅 วันที่: [meeting_date]
 
-**🎯 Visitor Pipeline**
-- Lead: [leads] คน
-- Attended: [attended] คน
-- Revisit: [revisit] คน
-- Follow-up: [follow_up] คน
-- Applied: [applied] คน
-- Active Member: [active_members] คน
-- Onboarding: [onboarding] คน
+**🎯 สถานะ Visitor ที่ลงทะเบียน**
+- Lead: [leads] คน (ลงทะเบียนแล้ว รอเข้าประชุม)
+- Attended: [attended] คน (มาครั้งแรก)
+- Revisit: [revisit] คน (มาซ้ำ) 🔁
+- Follow-up: [follow_up] คน (กำลังติดตาม) 📞
+- Applied: [applied] คน (ยื่นใบสมัคร) 📝
+- Active Member: [active_members] คน ⭐
+- Onboarding: [onboarding] คน 📚
 
-**📋 รายชื่อ (Top 10)**
-[foreach visitor]
-- [full_name] | Stage: [current_stage] | มา [meetings_attended] ครั้ง
+**รวมทั้งหมด: [total] คน**
+
+**📋 รายชื่อ:**
+[foreach visitor - limit 10]
+- [full_name] | [current_stage] | มา [meetings_attended] ครั้ง
 [/foreach]
 
 ---
