@@ -486,14 +486,16 @@ router.get("/stats/:tenantId", async (req: Request, res: Response) => {
 });
 
 // Get historical visitors for batch import preview
+// Query params: since_days (default 90), include_members (default false)
 router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
-    const { since_days = "90" } = req.query;
+    const { since_days = "90", include_members = "false" } = req.query;
     
     const daysAgo = parseInt(since_days as string) || 90;
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - daysAgo);
+    const includeMembers = include_members === "true";
 
     // Get visitors from meeting_registrations who are NOT in pipeline yet
     const { data: registrations, error: regError } = await supabaseAdmin
@@ -523,10 +525,14 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
 
     if (regError) throw regError;
 
-    // Filter by tenant and visitor status
+    // Filter by tenant - include visitors, prospects, and optionally members
+    const validStatuses = includeMembers 
+      ? ["visitor", "prospect", "member"]
+      : ["visitor", "prospect"];
+    
     const tenantRegistrations = registrations?.filter((r: any) => 
       r.participant?.tenant_id === tenantId && 
-      (r.participant?.status === "visitor" || r.participant?.status === "prospect")
+      validStatuses.includes(r.participant?.status)
     ) || [];
 
     // Get existing pipeline records for this tenant
@@ -541,6 +547,22 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
     const importableVisitors = tenantRegistrations.filter((r: any) => 
       !existingVisitorIds.has(r.participant?.participant_id)
     );
+
+    // Get all participant IDs for checkin lookup
+    const participantIds = [...new Set(importableVisitors.map((r: any) => r.participant?.participant_id))];
+
+    // Lookup checkins to determine who actually attended vs just registered
+    let checkinMap = new Map<string, number>(); // participant_id -> checkin count
+    if (participantIds.length > 0) {
+      const { data: checkins } = await supabaseAdmin
+        .from("checkins")
+        .select("participant_id")
+        .in("participant_id", participantIds);
+      
+      checkins?.forEach((c: any) => {
+        checkinMap.set(c.participant_id, (checkinMap.get(c.participant_id) || 0) + 1);
+      });
+    }
 
     // Collect referrer IDs to lookup names
     const referrerIds = new Set<string>();
@@ -569,6 +591,19 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
       const pid = r.participant?.participant_id;
       if (!visitorMap.has(pid)) {
         const referrerId = r.participant?.referred_by_participant_id;
+        const participantStatus = r.participant?.status;
+        const hasCheckin = checkinMap.has(pid);
+        
+        // Determine recommended stage based on actual data
+        let recommendedStage: string;
+        if (participantStatus === "member") {
+          recommendedStage = "active_member";
+        } else if (hasCheckin) {
+          recommendedStage = "attended_meeting";
+        } else {
+          recommendedStage = "rsvp_confirmed";
+        }
+        
         visitorMap.set(pid, {
           participant_id: pid,
           full_name: r.participant?.full_name_th,
@@ -580,7 +615,9 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
           first_meeting_date: r.meeting?.meeting_date,
           first_meeting_theme: r.meeting?.theme,
           first_meeting_id: r.meeting?.meeting_id,
-          meeting_count: 1
+          meeting_count: 1,
+          checkin_count: checkinMap.get(pid) || 0,
+          recommended_stage: recommendedStage
         });
       } else {
         visitorMap.get(pid).meeting_count++;
@@ -599,19 +636,38 @@ router.get("/import-preview/:tenantId", async (req: Request, res: Response) => {
 });
 
 // Batch import historical visitors to pipeline
+// Accepts either:
+//   - participant_ids + target_stage (legacy - all go to same stage)
+//   - visitors array with { participant_id, target_stage } per visitor (new - per-visitor stage)
 router.post("/import-batch", async (req: Request, res: Response) => {
   try {
-    const { tenant_id, participant_ids, target_stage = "attended_meeting" } = req.body;
+    const { tenant_id, participant_ids, target_stage, visitors } = req.body;
 
-    if (!tenant_id || !participant_ids || !Array.isArray(participant_ids)) {
-      return res.status(400).json({ error: "tenant_id and participant_ids array required" });
+    if (!tenant_id) {
+      return res.status(400).json({ error: "tenant_id required" });
     }
+
+    // Support both legacy and new format
+    let importList: { participant_id: string; target_stage: string }[];
+    
+    if (visitors && Array.isArray(visitors)) {
+      // New format: array of { participant_id, target_stage }
+      importList = visitors;
+    } else if (participant_ids && Array.isArray(participant_ids)) {
+      // Legacy format: all participants go to same stage
+      const stage = target_stage || "attended_meeting";
+      importList = participant_ids.map((pid: string) => ({ participant_id: pid, target_stage: stage }));
+    } else {
+      return res.status(400).json({ error: "Either visitors array or participant_ids array required" });
+    }
+
+    const allParticipantIds = importList.map(v => v.participant_id);
 
     // Get participant details
     const { data: participants, error: pError } = await supabaseAdmin
       .from("participants")
       .select("participant_id, full_name_th, phone, email, line_id")
-      .in("participant_id", participant_ids)
+      .in("participant_id", allParticipantIds)
       .eq("tenant_id", tenant_id);
 
     if (pError) throw pError;
@@ -624,7 +680,7 @@ router.post("/import-batch", async (req: Request, res: Response) => {
         meeting_id,
         meeting:meetings!inner(meeting_date)
       `)
-      .in("participant_id", participant_ids)
+      .in("participant_id", allParticipantIds)
       .order("registered_at", { ascending: true });
 
     // Build first meeting map
@@ -644,7 +700,11 @@ router.post("/import-batch", async (req: Request, res: Response) => {
       meetingCountMap.set(r.participant_id, (meetingCountMap.get(r.participant_id) || 0) + 1);
     });
 
-    // Create pipeline records
+    // Build target stage map
+    const stageMap = new Map<string, string>();
+    importList.forEach(v => stageMap.set(v.participant_id, v.target_stage));
+
+    // Create pipeline records with per-visitor stage
     const now = new Date().toISOString();
     const records = participants?.map(p => ({
       tenant_id,
@@ -653,7 +713,7 @@ router.post("/import-batch", async (req: Request, res: Response) => {
       phone: p.phone,
       email: p.email,
       line_id: p.line_id,
-      current_stage: target_stage,
+      current_stage: stageMap.get(p.participant_id) || "attended_meeting",
       stage_entered_at: now,
       source: "batch_import",
       source_details: "Historical visitor import",
@@ -670,14 +730,14 @@ router.post("/import-batch", async (req: Request, res: Response) => {
     const { data: inserted, error: insertError } = await supabaseAdmin
       .from("pipeline_records")
       .insert(records)
-      .select("id");
+      .select("id, current_stage");
 
     if (insertError) throw insertError;
 
-    // Create transition records
+    // Create transition records with per-record stage
     const transitions = inserted?.map(r => ({
       pipeline_record_id: r.id,
-      to_stage: target_stage,
+      to_stage: r.current_stage,
       is_automatic: true,
       change_reason: "Batch imported from historical visitors"
     })) || [];
@@ -690,6 +750,49 @@ router.post("/import-batch", async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("Error in batch import:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reset/clear all pipeline records for a tenant
+router.delete("/reset/:tenantId", async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    
+    if (!tenantId) {
+      return res.status(400).json({ error: "tenantId required" });
+    }
+
+    // Get pipeline record IDs to delete transitions first
+    const { data: records } = await supabaseAdmin
+      .from("pipeline_records")
+      .select("id")
+      .eq("tenant_id", tenantId);
+
+    const recordIds = records?.map(r => r.id) || [];
+
+    // Delete transitions first (foreign key constraint)
+    if (recordIds.length > 0) {
+      await supabaseAdmin
+        .from("pipeline_transitions")
+        .delete()
+        .in("pipeline_record_id", recordIds);
+    }
+
+    // Delete pipeline records
+    const { error: deleteError } = await supabaseAdmin
+      .from("pipeline_records")
+      .delete()
+      .eq("tenant_id", tenantId);
+
+    if (deleteError) throw deleteError;
+
+    res.json({
+      success: true,
+      deleted: recordIds.length
+    });
+  } catch (error: any) {
+    console.error("Error resetting pipeline:", error);
     res.status(500).json({ error: error.message });
   }
 });

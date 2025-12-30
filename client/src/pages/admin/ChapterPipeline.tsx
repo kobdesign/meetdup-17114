@@ -17,6 +17,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -130,7 +140,15 @@ interface ImportVisitor {
   first_meeting_date: string;
   first_meeting_theme: string;
   meeting_count: number;
+  checkin_count: number;
+  recommended_stage: string;
 }
+
+const STAGE_LABELS: Record<string, string> = {
+  rsvp_confirmed: "RSVP",
+  attended_meeting: "เข้าประชุม",
+  active_member: "Member",
+};
 
 export default function ChapterPipeline() {
   const { selectedTenant, isReady } = useTenantContext();
@@ -143,7 +161,9 @@ export default function ChapterPipeline() {
   const [targetStage, setTargetStage] = useState<string>("");
   const [moveReason, setMoveReason] = useState("");
   const [showStaleLeads, setShowStaleLeads] = useState(false);
-  const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set());
+  const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set()); // selected participant_ids
+  const [stageOverrides, setStageOverrides] = useState<Map<string, string>>(new Map()); // participant_id -> user-chosen stage
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   
   const [newLead, setNewLead] = useState({
     full_name: "",
@@ -228,11 +248,10 @@ export default function ChapterPipeline() {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (participantIds: string[]) => {
+    mutationFn: async (visitors: { participant_id: string; target_stage: string }[]) => {
       return apiRequest("/api/pipeline/import-batch", "POST", {
         tenant_id: selectedTenant?.tenant_id,
-        participant_ids: participantIds,
-        target_stage: "attended_meeting",
+        visitors,
       });
     },
     onSuccess: (data: any) => {
@@ -241,7 +260,23 @@ export default function ChapterPipeline() {
       queryClient.invalidateQueries({ queryKey: ["/api/pipeline/import-preview"] });
       setIsImportDialogOpen(false);
       setSelectedImports(new Set());
+      setStageOverrides(new Map());
       toast({ title: `นำเข้า ${data.imported} รายการสำเร็จ` });
+    },
+    onError: (error: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetPipelineMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/pipeline/reset/${selectedTenant?.tenant_id}`, "DELETE");
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/import-preview"] });
+      toast({ title: `ลบข้อมูล Pipeline ${data.deleted} รายการสำเร็จ` });
     },
     onError: (error: any) => {
       toast({ title: "เกิดข้อผิดพลาด", description: error.message, variant: "destructive" });
@@ -358,6 +393,18 @@ export default function ChapterPipeline() {
       }
       return newSet;
     });
+  };
+
+  const updateImportStage = (participantId: string, stage: string) => {
+    setStageOverrides(prev => {
+      const newMap = new Map(prev);
+      newMap.set(participantId, stage);
+      return newMap;
+    });
+  };
+
+  const getVisitorStage = (visitor: ImportVisitor): string => {
+    return stageOverrides.get(visitor.participant_id) || visitor.recommended_stage;
   };
 
   const selectAllImports = () => {
@@ -796,16 +843,41 @@ export default function ChapterPipeline() {
                             </span>
                           )}
                           {visitor.phone && <span>{visitor.phone}</span>}
+                          {visitor.checkin_count > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              Check-in {visitor.checkin_count} ครั้ง
+                            </Badge>
+                          )}
                           {visitor.meeting_count > 1 && (
                             <Badge variant="secondary" className="text-xs">
-                              {visitor.meeting_count} ครั้ง
+                              ลงทะเบียน {visitor.meeting_count} ครั้ง
                             </Badge>
                           )}
                         </div>
                       </div>
-                      <div className="text-xs text-muted-foreground text-right">
-                        <div className="text-[10px] opacity-70">ประชุมครั้งแรก</div>
-                        {visitor.first_meeting_date && new Date(visitor.first_meeting_date).toLocaleDateString("th-TH")}
+                      <div className="flex items-center gap-2">
+                        {selectedImports.has(visitor.participant_id) ? (
+                          <Select
+                            value={getVisitorStage(visitor)}
+                            onValueChange={(value) => updateImportStage(visitor.participant_id, value)}
+                          >
+                            <SelectTrigger className="w-[120px] h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="rsvp_confirmed">RSVP</SelectItem>
+                              <SelectItem value="attended_meeting">เข้าประชุม</SelectItem>
+                              <SelectItem value="active_member">Member</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge 
+                            variant={visitor.recommended_stage === "attended_meeting" ? "default" : "secondary"}
+                            className="text-xs"
+                          >
+                            {STAGE_LABELS[visitor.recommended_stage] || visitor.recommended_stage}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -817,20 +889,38 @@ export default function ChapterPipeline() {
               )}
               
               {selectedImports.size > 0 && (
-                <div className="text-sm">
-                  เลือกแล้ว <span className="font-bold">{selectedImports.size}</span> คน
-                  - จะนำเข้าที่ Stage "Attended Meeting"
+                <div className="text-sm text-muted-foreground">
+                  เลือกแล้ว <span className="font-bold text-foreground">{selectedImports.size}</span> คน
                 </div>
               )}
             </div>
           )}
           
-          <DialogFooter>
+          <DialogFooter className="gap-2 flex-wrap">
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => setIsResetDialogOpen(true)}
+              disabled={resetPipelineMutation.isPending}
+            >
+              {resetPipelineMutation.isPending ? "กำลังลบ..." : "Reset Pipeline"}
+            </Button>
+            <div className="flex-1" />
             <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
               ยกเลิก
             </Button>
             <Button
-              onClick={() => importMutation.mutate(Array.from(selectedImports))}
+              onClick={() => {
+                if (!importPreview?.visitors) return;
+                const visitors = Array.from(selectedImports).map(participant_id => {
+                  const visitor = importPreview.visitors.find(v => v.participant_id === participant_id);
+                  return {
+                    participant_id,
+                    target_stage: getVisitorStage(visitor!),
+                  };
+                });
+                importMutation.mutate(visitors);
+              }}
               disabled={selectedImports.size === 0 || importMutation.isPending}
               data-testid="button-confirm-import"
             >
@@ -839,6 +929,30 @@ export default function ChapterPipeline() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ยืนยันการ Reset Pipeline</AlertDialogTitle>
+            <AlertDialogDescription>
+              การดำเนินการนี้จะลบข้อมูล Pipeline ทั้งหมดของ Chapter นี้ 
+              รวมถึงประวัติการเปลี่ยน Stage ทั้งหมด ไม่สามารถกู้คืนได้
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                resetPipelineMutation.mutate();
+                setIsResetDialogOpen(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              ยืนยันลบทั้งหมด
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </AdminLayout>
   );
